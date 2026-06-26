@@ -1,0 +1,41 @@
+# Dependencies
+/vendor/
+/node_modules/
+
+# Build artifacts
+/js/
+/css/*.css.map
+
+# Development
+.vscode/
+.idea/
+*.log
+npm-debug.log*
+.DS_Store
+
+# Testing
+/coverage/
+.phpunit.result.cache
+
+# Environment
+.env
+.env.local
+
+# Composer
+composer.lock
+composer.phar
+
+# NPM
+package-lock.json
+.npm/
+
+# Build
+/build/
+/dist/
+/test/
+
+# Temporary files
+*.swp
+*.swo
+*~
+.tmp/

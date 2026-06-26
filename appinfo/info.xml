@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+    <id>merlin</id>
+    <name>Merlin</name>
+    <summary>Save and read web articles in a clean, distraction-free interface</summary>
+    <description><![CDATA[
+Merlin is a powerful read-it-later application for Nextcloud that allows you to:
+
+* Save web articles with automatic content extraction
+* Read in a clean, distraction-free interface
+* Organize articles with tags and favorites
+* Export articles to HTML
+* Use with browser extensions (Pocket-compatible API)
+* Dark mode and customizable typography
+* Full-text search across all saved articles
+
+Perfect for keeping track of interesting articles, research materials, or any web content you want to read later.
+    ]]></description>
+
+    <version>1.0.3</version>
+    <licence>agpl</licence>
+
+    <author mail="julian@dexxes.de">Julian von Bülow</author>
+
+    <namespace>Merlin</namespace>
+
+    <category>organization</category>
+    <category>tools</category>
+
+    <website>https://github.com/yourusername/nextcloud-merlin</website>
+    <bugs>https://github.com/yourusername/nextcloud-merlin/issues</bugs>
+    <repository type="git">https://github.com/yourusername/nextcloud-merlin.git</repository>
+
+    <screenshot>https://raw.githubusercontent.com/yourusername/nextcloud-merlin/main/screenshots/main.png</screenshot>
+
+    <dependencies>
+        <php min-version="8.0" max-version="8.4"/>
+        <nextcloud min-version="30" max-version="35"/>
+    </dependencies>
+
+    <navigations>
+        <navigation>
+            <name>Merlin</name>
+            <route>merlin.page.index</route>
+            <icon>icon-32.png</icon>
+        </navigation>
+    </navigations>
+</info>

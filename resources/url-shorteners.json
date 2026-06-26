@@ -1,0 +1,16 @@
+[
+  { "host": "dlvr.it",               "note": "dlvr.it" },
+  { "host": "bit.ly",                "note": "Bitly" },
+  { "host": "tinyurl.com",           "note": "TinyURL" },
+  { "host": "t.co",                  "note": "Twitter / X" },
+  { "host": "ow.ly",                 "note": "Hootsuite" },
+  { "host": "buff.ly",               "note": "Buffer" },
+  { "host": "ift.tt",                "note": "IFTTT" },
+  { "host": "fb.me",                 "note": "Facebook" },
+  { "host": "wp.me",                 "note": "WordPress" },
+  { "host": "feeds.feedburner.com",  "note": "Google FeedBurner" },
+  { "host": "rebrand.ly",            "note": "Rebrandly" },
+  { "host": "short.gy",              "note": "Short.gy" },
+  { "host": "cutt.ly",               "note": "Cutt.ly" },
+  { "host": "is.gd",                 "note": "is.gd" }
+]
