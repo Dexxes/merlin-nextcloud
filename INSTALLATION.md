@@ -1,134 +1,152 @@
-# Nextcloud Reader - Quick Installation Guide
+# Merlin – Installationsanleitung
 
-## Installation Steps
+Merlin ist eine Leselisten-App für Nextcloud: Artikel speichern, in einer aufgeräumten Oberfläche lesen, optional per Piper-TTS vorlesen lassen.
 
-### 1. Prepare the App
+## Voraussetzungen
 
-First, copy the `reader` folder to your Nextcloud apps directory:
+- **Nextcloud**: Version 30–35
+- **PHP**: 8.0–8.4 (Extensions: `php-xml`, `php-mbstring`, `php-curl`, `php-json`)
+- **Datenbank**: MySQL, PostgreSQL oder SQLite
+- **Node.js**: 20.x oder höher, **npm**: 10.x oder höher (nur zum Bauen des Frontends)
+- **Composer**: https://getcomposer.org/
+
+## Installation
+
+### 1. App-Verzeichnis vorbereiten
+
+Die App-ID lautet `merlin` (siehe `appinfo/info.xml`). Code in den Nextcloud-Apps-Ordner kopieren:
 
 ```bash
-cd /path/to/your/reader
-cp -r . /path/to/nextcloud/apps/reader
-cd /path/to/nextcloud/apps/reader
+cd /path/to/your/merlin-nextcloud
+cp -r . /path/to/nextcloud/apps/merlin
+cd /path/to/nextcloud/apps/merlin
 ```
 
-### 2. Install PHP Dependencies
+### 2. PHP-Abhängigkeiten installieren
 
 ```bash
 composer install --no-dev --optimize-autoloader
 ```
 
-If you don't have Composer installed, download it from https://getcomposer.org/
-
-### 3. Install JavaScript Dependencies and Build
+### 3. Frontend bauen
 
 ```bash
 npm install
 npm run build
 ```
 
-Make sure you have Node.js 20+ and npm 10+ installed.
-
-### 4. Set Permissions
-
-Make sure your web server has write access to the app directory:
+### 4. Berechtigungen setzen
 
 ```bash
-chown -R www-data:www-data /path/to/nextcloud/apps/reader
-chmod -R 755 /path/to/nextcloud/apps/reader
+chown -R www-data:www-data /path/to/nextcloud/apps/merlin
+chmod -R 755 /path/to/nextcloud/apps/merlin
 ```
 
-Replace `www-data` with your web server user (e.g., `apache`, `nginx`, or `www`).
+`www-data` ggf. durch den tatsächlichen Webserver-User ersetzen (z. B. `apache`, `nginx`).
 
-### 5. Enable the App
+### 5. App aktivieren
 
 ```bash
 cd /path/to/nextcloud
-php occ app:enable reader
+php occ app:enable merlin
 ```
 
-Or enable it from the Nextcloud web interface:
-1. Go to **Apps** → **Your apps**
-2. Find **Reader**
-3. Click **Enable**
+Alternativ über die Weboberfläche: **Apps** → **Deine Apps** → **Merlin** → **Aktivieren**.
 
-### 6. Verify Installation
+### 6. Installation prüfen
 
-1. Refresh your Nextcloud page
-2. You should see a new **Reader** icon in the app menu
-3. Click it to start using the app
+1. Nextcloud-Seite neu laden
+2. Im App-Menü sollte ein **Merlin**-Icon erscheinen
+3. App öffnen und einen ersten Artikel hinzufügen
 
-## Next Steps
+## TTS-Vorlesefunktion (optional)
 
-1. **Add your first article**: Click the "Add Article" button and paste a URL
-2. **Configure RSS feeds**: Add your favorite RSS feeds for automatic article import
-3. **Customize settings**: Adjust reading preferences via the settings panel
-4. **Set up browser extension**: Configure a Pocket-compatible extension to save articles from your browser
+Die Audio-Vorlesefunktion (genutzt von iOS/iPad über `PiperAudioService.swift`) benötigt einen separaten Piper-Daemon, der **lokal auf dem Nextcloud-Server** läuft und nicht Teil der Nextcloud-App selbst ist.
+
+```
+iOS → GET /index.php/apps/merlin/api/articles/{id}/tts?lang=de
+       → TtsController.php (Artikel laden, HTML→Plaintext, dt. Abkürzungen auflösen)
+       → POST http://127.0.0.1:5051/synthesize  (Piper-Daemon)
+       → GET  http://127.0.0.1:5051/stream/{session_id}  (MP3-Stream, an iOS durchgereicht)
+```
+
+### Daemon einrichten
+
+Quelle: `server-tools/merlin-tts/merlin-piper-server.py`
+
+```bash
+cd /opt/merlin-tts   # oder gewünschtes Zielverzeichnis
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt   # fastapi, uvicorn, piper-tts, pydantic
+```
+
+Als systemd-Dienst einrichten (Vorlage: `server-tools/merlin-tts/merlin-tts.service`):
+
+```bash
+cp server-tools/merlin-tts/merlin-tts.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now merlin-tts
+```
+
+Der Daemon hört standardmäßig auf `127.0.0.1:5051` und stellt `POST /synthesize`, `GET /stream/{id}` sowie `DELETE /stream/{id}` bereit.
+
+### Wichtig: PHP-FPM-Timeout
+
+Wenn `request_terminate_timeout` im PHP-FPM-Pool (Synology-Default: 30 s) gesetzt ist, bricht der TTS-Stream nach 30 Sekunden ab. Das lässt sich **nicht** per PHP-Code umgehen – `request_terminate_timeout` in der FPM-Pool-Konfiguration auf `0` setzen und PHP-FPM neu starten.
+
+## Nächste Schritte
+
+1. **Ersten Artikel hinzufügen**: "Artikel hinzufügen" klicken und eine URL einfügen
+2. **RSS-Feeds konfigurieren**: Feeds für automatischen Artikel-Import hinterlegen
+3. **Einstellungen anpassen**: Leseeinstellungen im Settings-Panel anpassen
+4. **Browser-Erweiterung einrichten**: Pocket-kompatible API für Firefox/Chrome-Erweiterung nutzen
 
 ## Troubleshooting
 
-### Common Issues
+### App erscheint nach Aktivierung nicht
+- Browser-Cache leeren
+- `php occ maintenance:repair` ausführen
+- Nextcloud-Log prüfen: `tail -f /path/to/nextcloud/data/nextcloud.log`
 
-**App doesn't appear after enabling:**
-- Clear browser cache
-- Run: `php occ maintenance:repair`
-- Check Nextcloud logs: `tail -f /path/to/nextcloud/data/nextcloud.log`
+### Build-Fehler
+- Node.js-Version prüfen (20+): `node --version`
+- npm-Cache leeren: `npm cache clean --force`
+- `node_modules` löschen und neu installieren: `rm -rf node_modules && npm install`
 
-**Build errors:**
-- Make sure Node.js 20+ is installed: `node --version`
-- Clear npm cache: `npm cache clean --force`
-- Delete node_modules and reinstall: `rm -rf node_modules && npm install`
+### PHP-Fehler
+- PHP-Version prüfen (8.0–8.4): `php --version`
+- Benötigte Extensions prüfen: `php-xml`, `php-mbstring`, `php-curl`, `php-json`
 
-**PHP errors:**
-- Check PHP version (needs 8.0+): `php --version`
-- Verify all PHP extensions are installed:
-  - php-xml
-  - php-mbstring
-  - php-curl
-  - php-json
+### Datenbankfehler
+- Migrationen manuell ausführen: `php occ migrations:execute merlin`
+- Datenbankberechtigungen prüfen
 
-**Database errors:**
-- Run migrations manually: `php occ migrations:execute reader`
-- Check database permissions
+### TTS funktioniert nicht / bricht nach 30 s ab
+- Piper-Daemon läuft? `systemctl status merlin-tts`
+- Erreichbar? `curl http://127.0.0.1:5051/synthesize`
+- `request_terminate_timeout` in der PHP-FPM-Pool-Config auf `0` (siehe oben)
 
-### Getting Help
-
-- Read the full [README.md](README.md) for detailed documentation
-- Check [GitHub Issues](https://github.com/yourusername/nextcloud-reader/issues)
-- Visit the [Nextcloud Community Forum](https://help.nextcloud.com/)
-
-## Development Mode
-
-For development, use:
+## Entwicklungsmodus
 
 ```bash
-npm run dev    # Start development build with watch mode
-npm run watch  # Watch mode for Vite
+npm run dev    # Entwicklungs-Build mit Watch-Modus
+npm run watch  # Watch-Modus für Vite
 ```
 
-## Production Optimization
+## Produktions-Optimierung
 
-For production deployments:
-
-1. **Optimize autoloader:**
+1. **Autoloader optimieren:**
    ```bash
    composer install --no-dev --optimize-autoloader --classmap-authoritative
    ```
-
-2. **Minify assets:**
+2. **Assets minifizieren:**
    ```bash
    npm run build
    ```
-
-3. **Enable caching:**
-   - Configure Nextcloud caching (Redis/Memcached recommended)
-   - Set up proper browser caching headers
-
-4. **Performance tuning:**
-   - Enable PHP OPcache
-   - Configure database query caching
-   - Use CDN for static assets (optional)
+3. **Caching aktivieren:** Redis/Memcached für Nextcloud konfigurieren, Browser-Caching-Header setzen
+4. **Performance:** PHP OPcache aktivieren, Datenbank-Query-Caching konfigurieren
 
 ---
 
-**Need more help?** See the complete documentation in [README.md](README.md)
+**Weitere Hilfe?** Siehe [README.md](README.md) sowie `Structure.md` in diesem Verzeichnis.
