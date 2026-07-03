@@ -13,13 +13,20 @@ use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
+use Psr\Log\LoggerInterface;
 
 /**
- * Pocket-compatible API for browser extensions
+ * Pocket-compatible API for browser extensions.
+ *
+ * Security note – NoCSRFRequired:
+ * All API routes carry #[NoCSRFRequired] because this endpoint is exclusively
+ * consumed by browser extensions via HTTP Basic Auth and cannot supply a
+ * Nextcloud requesttoken. CSRF is not applicable to Basic-Auth-only routes.
  */
 class ExtensionController extends Controller {
 	private ArticleMapper $articleMapper;
 	private ContentExtractorService $contentExtractor;
+	private LoggerInterface $logger;
 	private ?string $userId;
 
 	public function __construct(
@@ -27,11 +34,13 @@ class ExtensionController extends Controller {
 		IRequest $request,
 		ArticleMapper $articleMapper,
 		ContentExtractorService $contentExtractor,
+		LoggerInterface $logger,
 		?string $userId
 	) {
 		parent::__construct($appName, $request);
 		$this->articleMapper = $articleMapper;
 		$this->contentExtractor = $contentExtractor;
+		$this->logger = $logger;
 		$this->userId = $userId;
 	}
 
@@ -131,9 +140,10 @@ class ExtensionController extends Controller {
 				'status' => 1,
 			], Http::STATUS_CREATED);
 		} catch (\Exception $e) {
+			$this->logger->error('Merlin: extension article creation failed', ['exception' => $e]);
 			return new DataResponse([
 				'status' => 0,
-				'error' => $e->getMessage(),
+				'error' => 'Bad request',
 			], Http::STATUS_BAD_REQUEST);
 		}
 	}
@@ -236,7 +246,7 @@ class ExtensionController extends Controller {
 				$results[] = [
 					'success' => false,
 					'item_id' => $action['item_id'] ?? null,
-					'error' => $e->getMessage(),
+					'error' => 'Not found',
 				];
 			}
 		}

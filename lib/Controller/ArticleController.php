@@ -17,13 +17,28 @@ use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\IRequest;
 use OCP\IURLGenerator;
+use Psr\Log\LoggerInterface;
 
+/**
+ * REST API for articles.
+ *
+ * Security note – NoCSRFRequired:
+ * All API routes carry #[NoCSRFRequired] because the same endpoints serve
+ * both the Vue web-UI (session cookie) and native clients (iOS, Android,
+ * browser extensions) that authenticate via HTTP Basic Auth and cannot
+ * supply a Nextcloud requesttoken. Removing the attribute would break all
+ * native clients; splitting routes into separate web/API prefixes is the
+ * clean long-term fix (tracked). Residual CSRF risk for the web-UI path is
+ * mitigated by Nextcloud's SameSite=Lax session cookie, which prevents
+ * cross-site POST/PUT/DELETE in all modern browsers.
+ */
 class ArticleController extends Controller {
 	private ArticleMapper $articleMapper;
 	private TagMapper $tagMapper;
 	private ContentExtractorService $contentExtractor;
 	private ExportService $exportService;
 	private IURLGenerator $urlGenerator;
+	private LoggerInterface $logger;
 	private ?string $userId;
 
 	public function __construct(
@@ -34,6 +49,7 @@ class ArticleController extends Controller {
 		ContentExtractorService $contentExtractor,
 		ExportService $exportService,
 		IURLGenerator $urlGenerator,
+		LoggerInterface $logger,
 		?string $userId
 	) {
 		parent::__construct($appName, $request);
@@ -42,6 +58,7 @@ class ArticleController extends Controller {
 		$this->contentExtractor = $contentExtractor;
 		$this->exportService = $exportService;
 		$this->urlGenerator = $urlGenerator;
+		$this->logger = $logger;
 		$this->userId = $userId;
 	}
 
@@ -128,7 +145,7 @@ class ArticleController extends Controller {
 
 			return new DataResponse($articleData);
 		} catch (\Exception $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
 		}
 	}
 
@@ -251,7 +268,8 @@ class ArticleController extends Controller {
 			$articleData['tags']     = [];
 			return new DataResponse($articleData, Http::STATUS_ACCEPTED);
 		} catch (\Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+			$this->logger->error('Merlin: article creation failed', ['exception' => $e]);
+			return new DataResponse(['error' => 'Bad request'], Http::STATUS_BAD_REQUEST);
 		}
 	}
 
@@ -295,7 +313,7 @@ class ArticleController extends Controller {
 
 			return new DataResponse($articleData);
 		} catch (\Exception $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
 		}
 	}
 
@@ -314,7 +332,7 @@ class ArticleController extends Controller {
 
 			return new DataResponse(['success' => true]);
 		} catch (\Exception $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
 		}
 	}
 
@@ -335,7 +353,7 @@ class ArticleController extends Controller {
 
 			return new DataResponse(['isRead' => $article->getIsRead()]);
 		} catch (\Exception $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
 		}
 	}
 
@@ -356,7 +374,7 @@ class ArticleController extends Controller {
 
 			return new DataResponse(['isFavorite' => $article->getIsFavorite()]);
 		} catch (\Exception $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
 		}
 	}
 
@@ -382,7 +400,46 @@ class ArticleController extends Controller {
 				'archivedAt' => $article->getArchivedAt() ? $article->getArchivedAt()->format('c') : null,
 			]);
 		} catch (\Exception $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
+		}
+	}
+
+	/**
+	 * Update the cross-device reading/scroll position.
+	 *
+	 * Stores the reading progress as a fraction (0..1, NOT a pixel offset –
+	 * pixels are device-specific) plus a client-supplied epoch-millis timestamp
+	 * that drives last-write-wins reconciliation on the clients.
+	 *
+	 * The article's own `updated_at` is deliberately NOT bumped here: this is a
+	 * high-frequency, low-importance write, and bumping `updated_at` would make
+	 * clients treat the row as "changed" (re-render / re-sort the list) on every
+	 * scroll save.
+	 *
+	 * @NoAdminRequired
+	 * @NoCSRFRequired
+	 */
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function updateProgress(int $id, float $progress = 0.0, ?int $updatedAt = null): DataResponse {
+		try {
+			$article = $this->articleMapper->find($id, $this->userId);
+
+			// Defensiv klemmen – ein fehlerhafter Client darf keine Werte außerhalb 0..1 persistieren.
+			$clamped = max(0.0, min(1.0, $progress));
+			$article->setScrollProgress($clamped);
+			// Client-Zeitstempel verbatim übernehmen (einheitliche Uhr über alle
+			// Plattformen, funktioniert auch offline); fehlt er, Server-Zeit als Fallback.
+			$article->setScrollUpdatedAt($updatedAt ?? (int) round(microtime(true) * 1000));
+
+			$this->articleMapper->update($article);
+
+			return new DataResponse([
+				'scrollProgress'  => $article->getScrollProgress(),
+				'scrollUpdatedAt' => $article->getScrollUpdatedAt(),
+			]);
+		} catch (\Exception $e) {
+			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
 		}
 	}
 
@@ -425,7 +482,7 @@ class ArticleController extends Controller {
 
 			return $response;
 		} catch (\Exception $e) {
-			return new DataDisplayResponse('Error: ' . $e->getMessage(), Http::STATUS_NOT_FOUND);
+			return new DataDisplayResponse('Article not found', Http::STATUS_NOT_FOUND);
 		}
 	}
 

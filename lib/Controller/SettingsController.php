@@ -11,6 +11,19 @@ use OCP\AppFramework\Http\DataResponse;
 use OCP\IConfig;
 use OCP\IRequest;
 
+/**
+ * REST API for user settings.
+ *
+ * Security note – NoCSRFRequired:
+ * All API routes carry #[NoCSRFRequired] because the same endpoints serve
+ * both the Vue web-UI (session cookie) and native clients (iOS, Android,
+ * browser extensions) that authenticate via HTTP Basic Auth and cannot
+ * supply a Nextcloud requesttoken. Removing the attribute would break all
+ * native clients; splitting routes into separate web/API prefixes is the
+ * clean long-term fix (tracked). Residual CSRF risk for the web-UI path is
+ * mitigated by Nextcloud's SameSite=Lax session cookie, which prevents
+ * cross-site POST/PUT/DELETE in all modern browsers.
+ */
 class SettingsController extends Controller {
 	private IConfig $config;
 	private ?string $userId;

@@ -575,9 +575,10 @@ export default {
 
 		// Endgültigen Fortschritt sofort schreiben (statt auf den Debounce-Timer zu warten)
 		// und die Karten-Ansicht benachrichtigen, damit der Balken ohne Reload erscheint
-		// (entspricht .articleProgressDidUpdate in den Mobile-Apps).
+		// (entspricht .articleProgressDidUpdate in den Mobile-Apps). Schreibt lokal UND
+		// pusht zum Server für die geräteübergreifende Sync.
 		if (this.settings.saveProgress) {
-			localStorage.setItem(`merlin_pct_${this.article.id}`, String(this.scrollPct / 100))
+			this._persistProgress(this.scrollPct / 100)
 		}
 		window.dispatchEvent(new CustomEvent('merlin-progress-updated', { detail: { articleId: this.article.id } }))
 		if (this._highlightEngine) {
@@ -827,13 +828,22 @@ export default {
 			if (this.settings.saveProgress) {
 				clearTimeout(this._scrollTimer)
 				this._scrollTimer = setTimeout(() => {
-					localStorage.setItem(`merlin_scroll_${this.article.id}`, el.scrollTop)
-					// Prozentwert (0–1) separat speichern, damit die Artikel-Karte den
-					// Fortschritt anzeigen kann, ohne den vollen Scroll-Zustand kennen zu müssen
-					// (analog zu PreferencesStore.saveScrollProgress in den Mobile-Apps).
-					localStorage.setItem(`merlin_pct_${this.article.id}`, String(this.scrollPct / 100))
+					this._persistProgress(this.scrollPct / 100)
 				}, 500)
 			}
+		},
+
+		// Speichert den Fortschritt als Fraktion (0–1) lokal UND synchronisiert ihn
+		// geräteübergreifend zum Server. Gespeichert wird bewusst die Fraktion, nicht
+		// der Pixel-Offset (Pixel variieren mit Erscheinungsbild/Gerät). Der lokale
+		// Zeitstempel treibt die Last-Write-Wins-Auflösung in _restoreScrollPosition.
+		_persistProgress(fraction) {
+			const clamped = Math.min(Math.max(fraction, 0), 1)
+			const now = Date.now()
+			localStorage.setItem(`merlin_pct_${this.article.id}`, String(clamped))
+			localStorage.setItem(`merlin_pcts_${this.article.id}`, String(now))
+			// Fire-and-forget: bei Server-Fehler bleibt der lokale Wert erhalten.
+			articlesAPI.updateProgress(this.article.id, clamped, now).catch(() => {})
 		},
 
 		_restoreScrollPosition() {
@@ -841,8 +851,16 @@ export default {
 			if (!el) return
 
 			if (this.settings.resumeOnOpen) {
-				const saved = localStorage.getItem(`merlin_scroll_${this.article.id}`)
-				el.scrollTop = saved ? parseInt(saved, 10) : 0
+				// Last-Write-Wins: lokaler vs. Server-Wert, der neuere Zeitstempel gewinnt.
+				const localPct = parseFloat(localStorage.getItem(`merlin_pct_${this.article.id}`)) || 0
+				const localTs = parseInt(localStorage.getItem(`merlin_pcts_${this.article.id}`), 10) || 0
+				const serverPct = this.article.scrollProgress || 0
+				const serverTs = this.article.scrollUpdatedAt || 0
+				const fraction = serverTs > localTs ? serverPct : localPct
+				// Aus der Fraktion gegen die *aktuelle* Inhaltshöhe einen Pixel-Offset
+				// berechnen – so passt sich die Position dem aktuellen Erscheinungsbild an.
+				const max = el.scrollHeight - el.clientHeight
+				el.scrollTop = max > 0 ? fraction * max : 0
 			} else {
 				el.scrollTop = 0
 			}
@@ -1023,11 +1041,11 @@ export default {
    Ohne diese Overrides bleiben Icons auf dunklem Panel-/Toolbar-Hintergrund
    in der Farbe des hellen Nextcloud-Themes und sind kaum erkennbar. */
 .dark-mode .reader-panel :deep(.button-vue) {
-	color: #e0e0e0;
+	color: #e0e0e0 !important;
 }
 
 .dark-mode .reader-panel :deep(.button-vue:hover) {
-	background: rgba(255, 255, 255, 0.08);
+	background: rgba(255, 255, 255, 0.08) !important;
 }
 
 .reader-panel--left {
@@ -1442,6 +1460,21 @@ article {
 	background: rgba(252, 165, 165, 0.12) !important;
 }
 
+/* NcButton behält den Focus-Hintergrund nach Klick (Chromium/WebKit) —
+   ohne Reset bleibt ein farbiger Kreis hinter dem Icon stehen, der wie
+   ein Dauerzustand aussieht statt eines echten :hover. */
+:deep(.delete-btn:focus),
+:deep(.delete-btn:focus-visible) {
+	background: transparent !important;
+	box-shadow: none !important;
+}
+
+.dark-mode :deep(.delete-btn:focus),
+.dark-mode :deep(.delete-btn:focus-visible) {
+	background: transparent !important;
+	box-shadow: none !important;
+}
+
 /* Favorit-Button — goldenes Icon wenn aktiv */
 :deep(.fav-btn--active) {
 	color: #f59e0b !important;
@@ -1696,14 +1729,19 @@ article {
 		color: #9b1c1c !important;
 	}
 
-	@media (prefers-color-scheme: dark) {
-		.more-menu-danger {
-			color: #fca5a5;
-		}
+	/* prefers-color-scheme spiegelt nur die OS-Einstellung, nicht das in
+	   Nextcloud tatsächlich aktive Theme (z. B. wenn Nutzer "Dunkel" explizit
+	   wählen, ihr OS aber hell steht). Nextcloud setzt bei aktivem Dark Theme
+	   zuverlässig das data-theme-dark-Attribut auf <body> — das ist das
+	   korrekte Signal (gleicher Fix wie in ArticleCard.vue). */
+	body[data-theme-dark] .more-menu-danger,
+	body[data-theme-dark-highcontrast] .more-menu-danger {
+		color: #fca5a5;
+	}
 
-		.more-menu-danger .material-design-icon {
-			color: #fca5a5 !important;
-		}
+	body[data-theme-dark] .more-menu-danger .material-design-icon,
+	body[data-theme-dark-highcontrast] .more-menu-danger .material-design-icon {
+		color: #fca5a5 !important;
 	}
 
 	/* Lese-Fortschrittsbalken am unteren Rand: auf Mobile über die fixed

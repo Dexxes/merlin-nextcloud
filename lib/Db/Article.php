@@ -44,6 +44,10 @@ use OCP\AppFramework\Db\Entity;
  * @method void setIsProcessing(int $isProcessing)
  * @method string|null getCategory()
  * @method void setCategory(?string $category)
+ * @method float getScrollProgress()
+ * @method void setScrollProgress(float $scrollProgress)
+ * @method int getScrollUpdatedAt()
+ * @method void setScrollUpdatedAt(int $scrollUpdatedAt)
  */
 class Article extends Entity implements JsonSerializable {
 	protected $userId;
@@ -64,6 +68,8 @@ class Article extends Entity implements JsonSerializable {
 	protected $archivedAt;
 	protected $isProcessing;
 	protected $category;
+	protected $scrollProgress;
+	protected $scrollUpdatedAt;
 
 	public function __construct() {
 		$this->addType('userId', 'string');
@@ -84,6 +90,8 @@ class Article extends Entity implements JsonSerializable {
 		$this->addType('archivedAt', 'datetime');
 		$this->addType('isProcessing', 'integer');
 		$this->addType('category', 'string');
+		$this->addType('scrollProgress', 'float');
+		$this->addType('scrollUpdatedAt', 'integer');
 	}
 
 	public function jsonSerialize(): array {
@@ -107,6 +115,8 @@ class Article extends Entity implements JsonSerializable {
 			'archivedAt'   => $this->getArchivedAt() ? $this->getArchivedAt()->format('c') : null,
 			'isProcessing' => (bool) $this->getIsProcessing(),
 			'category'     => $this->getCategory(),
+			'scrollProgress'  => (float) ($this->getScrollProgress() ?? 0),
+			'scrollUpdatedAt' => (int) ($this->getScrollUpdatedAt() ?? 0),
 		];
 	}
 }

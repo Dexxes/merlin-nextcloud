@@ -746,16 +746,22 @@ export default {
 	background: rgba(155, 28, 28, 0.10);
 }
 
-@media (prefers-color-scheme: dark) {
-	.article-context-menu li.context-menu-item--danger {
-		color: #fca5a5 !important;
-	}
-	.article-context-menu li.context-menu-item--danger .material-design-icon {
-		color: #fca5a5 !important;
-	}
-	.article-context-menu li.context-menu-item--danger:hover {
-		background: rgba(252, 165, 165, 0.12);
-	}
+/* prefers-color-scheme spiegelt nur die OS-Einstellung, nicht das in
+   Nextcloud tatsächlich aktive Theme (z. B. wenn Nutzer "Dunkel" explizit
+   wählen, ihr OS aber hell steht). Nextcloud setzt bei aktivem Dark Theme
+   zuverlässig das data-theme-dark-Attribut auf <body> — das ist das
+   korrekte Signal. */
+body[data-theme-dark] .article-context-menu li.context-menu-item--danger,
+body[data-theme-dark-highcontrast] .article-context-menu li.context-menu-item--danger {
+	color: #fca5a5 !important;
+}
+body[data-theme-dark] .article-context-menu li.context-menu-item--danger .material-design-icon,
+body[data-theme-dark-highcontrast] .article-context-menu li.context-menu-item--danger .material-design-icon {
+	color: #fca5a5 !important;
+}
+body[data-theme-dark] .article-context-menu li.context-menu-item--danger:hover,
+body[data-theme-dark-highcontrast] .article-context-menu li.context-menu-item--danger:hover {
+	background: rgba(252, 165, 165, 0.12);
 }
 
 /* Favorit — goldenes Stern-Icon */

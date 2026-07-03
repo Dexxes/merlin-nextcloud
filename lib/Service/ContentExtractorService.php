@@ -18,7 +18,19 @@ class ContentExtractorService {
 	/** @var list<string>|null Gecachte Regex-Patterns aus url-shorteners.json */
 	private ?array $shortenerPatterns = null;
 
+	/**
+	 * Maximale Anzahl an HTTP-Redirects, denen manuell gefolgt wird (fetchUrl()
+	 * und followHttpRedirect()). CURLOPT_FOLLOWLOCATION wird bewusst NICHT genutzt,
+	 * weil libcurl damit jedem Location-Header folgt, ohne dass wir die Ziel-IP vor
+	 * dem Connect gegen private/reservierte Ranges prüfen könnten (SSRF-via-Redirect).
+	 */
+	private const MAX_REDIRECTS = 10;
+
 	public function __construct(LoggerInterface $logger) { $this->logger = $logger; }
+
+	// ──────────────────────────────────────────────────────────────────────────
+	// Public API & Orchestration
+	// ──────────────────────────────────────────────────────────────────────────
 
 	/**
 	 * Extract article content from URL
@@ -181,7 +193,11 @@ class ContentExtractorService {
 		$rawHtml = $this->applyClassMarkers($rawHtml, $domain);
 		$rawHtml = html_entity_decode($rawHtml, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
-		$rawHtml = html_entity_decode($rawHtml, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+		// Nur von Step 5 (domainMeta-Override) oder dem Video-Zweig unten gesetzt,
+		// wenn kein og:description/domain-Excerpt vorhanden ist — explizit auf
+		// null initialisiert, damit stripDuplicateMetadata()/der Rückgabewert
+		// unten keine "undefined variable"-Warnung auslösen.
+		$excerpt = null;
 
 		if($domainMeta['category'] != "Video")
 		{
@@ -212,13 +228,16 @@ class ContentExtractorService {
 			$readability = new Readability($readabilityConfig);
 
 			// If the quote-transform corrupted the HTML, fall back to the original
-			try 
+			try
 			{
-				$path = __DIR__ . "/../../test/preReadability.html";
-				file_put_contents($path, $html);
+				// Debug-Dump des Pre-Readability-HTML, auskommentiert: schrieb bei
+				// JEDEM Extract-Aufruf eine Datei (unbedingter Hot-Path-I/O). Bei
+				// Bedarf für gezieltes Debugging wieder einkommentieren.
+				//$path = __DIR__ . "/../../test/preReadability.html";
+				//file_put_contents($path, $html);
 				$html = str_replace('<?xml encoding="utf-8" ?>', '', $html);
 				$readability->parse($html);
-			} 
+			}
 			catch (ParseException $e) {
 				$this->logger->warning('normalizeQuotes output rejected by Readability, retrying with raw HTML', ['url' => $url]);
 				$readability = new Readability($readabilityConfig);
@@ -286,7 +305,10 @@ class ContentExtractorService {
 			// Caption aus dem HTML-Scan übernehmen (nur wenn kein og:image die imageUrl
 			// geliefert hat – dann stammt $heroImageData von derselben figure).
 			//if (!empty($heroImageData['caption']) && ($heroImageData['src'] ?? null) === $normalizedImageUrl) {
+			$escapedCaption = "";
+			if (!empty($heroImageData['caption']))
 				$escapedCaption = htmlspecialchars($heroImageData['caption'], ENT_QUOTES, 'UTF-8');
+				
 				$figcaption     = '<figcaption>' . $escapedCaption . '</figcaption>';
 			//}
 			$content = '<figure class="merlin-hero-image"><img src="' . $escapedUrl . '" alt="">' . $figcaption . '</figure>' . $content;
@@ -307,6 +329,10 @@ class ContentExtractorService {
 			'category'    => $domainMeta['category'],
 		];
 	}
+
+	// ──────────────────────────────────────────────────────────────────────────
+	// URL Resolution & Redirects
+	// ──────────────────────────────────────────────────────────────────────────
 
 	/**
 	 * Resolve common redirect/tracking URLs to their real target.
@@ -351,7 +377,20 @@ class ContentExtractorService {
 		// dort können neue Einträge ergänzt werden, ohne PHP-Code anzufassen.
 		foreach ($this->loadShortenerPatterns() as $pattern) {
 			if (preg_match($pattern, $host)) {
-				$resolved = $this->followHttpRedirect($url);
+				// followHttpRedirect() validiert jeden Hop gegen private/reservierte
+				// IP-Ranges und wirft bei Verstoß eine Exception. Statt die gesamte
+				// Extraktion abzubrechen, fallen wir hier auf die unaufgelöste
+				// Shortener-URL zurück – fetchUrl() prüft sie beim eigentlichen
+				// Abruf ohnehin erneut mit derselben SSRF-Guard-Logik.
+				try {
+					$resolved = $this->followHttpRedirect($url);
+				} catch (\Exception $e) {
+					$this->logger->warning('URL-Shortener-Auflösung abgelehnt oder fehlgeschlagen', [
+						'url'   => $url,
+						'error' => $e->getMessage(),
+					]);
+					return $url;
+				}
 				if ($resolved !== $url) {
 					$this->logger->info('Resolved URL shortener redirect', [
 						'from' => $url,
@@ -402,28 +441,53 @@ class ContentExtractorService {
 	}
 
 	/**
+	 * Normalize relative URLs to absolute
+	 */
+	private function normalizeUrl(string $imageUrl, string $baseUrl): string {
+		// Already absolute
+		if (preg_match('/^https?:\/\//i', $imageUrl)) {
+			return $imageUrl;
+		}
+
+		$base = parse_url($baseUrl);
+		$scheme = $base['scheme'] ?? 'https';
+		$host = $base['host'] ?? '';
+
+		// Protocol-relative URL
+		if (str_starts_with($imageUrl, '//')) {
+			return $scheme . ':' . $imageUrl;
+		}
+
+		// Absolute path
+		if (str_starts_with($imageUrl, '/')) {
+			return $scheme . '://' . $host . $imageUrl;
+		}
+
+		// Relative path
+		$path = $base['path'] ?? '/';
+		$pathParts = explode('/', $path);
+		array_pop($pathParts); // Remove filename
+		$basePath = implode('/', $pathParts);
+
+		return $scheme . '://' . $host . $basePath . '/' . $imageUrl;
+	}
+
+	/**
 	 * Folgt der HTTP-Redirect-Kette eines URL-Shorteners und gibt die finale URL zurück.
 	 *
 	 * Wir nutzen einen reinen HEAD-Request (kein Body-Download), um schnell und
 	 * ressourcenschonend die Ziel-URL zu ermitteln, ohne den Artikel bereits zu laden.
+	 *
+	 * @throws \Exception wenn ein Hop auf eine private/reservierte Adresse zeigt oder
+	 *                     der Request fehlschlägt (siehe httpRequestFollowingRedirects()).
 	 */
 	private function followHttpRedirect(string $url): string {
-		$ch = curl_init($url);
-		curl_setopt_array($ch, [
-			CURLOPT_RETURNTRANSFER => true,
-			CURLOPT_FOLLOWLOCATION => true,
-			CURLOPT_MAXREDIRS      => 10,
-			// HEAD-Request: kein Body, nur die finale Effective-URL interessiert uns
-			CURLOPT_NOBODY         => true,
-			CURLOPT_TIMEOUT        => 10,
-			CURLOPT_CONNECTTIMEOUT => 5,
-			CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; Merlin/1.0)',
-		]);
-		$res = curl_exec($ch);
-		$finalUrl = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
-
-		return $finalUrl;
+		return $this->httpRequestFollowingRedirects($url, nobody: true)['finalUrl'];
 	}
+
+	// ──────────────────────────────────────────────────────────────────────────
+	// HTTP Fetching & SSRF Protection
+	// ──────────────────────────────────────────────────────────────────────────
 
 	/**
 	 * Fetch URL content.
@@ -436,53 +500,242 @@ class ContentExtractorService {
 	 *   - meta charset fallback            →  scan only the first 2 KB
 	 *
 	 * @return array{body: string, httpCharset: ?string}
+	 * @throws \Exception wenn ein Hop auf eine private/reservierte Adresse zeigt oder
+	 *                     der Request fehlschlägt (siehe httpRequestFollowingRedirects()).
 	 */
 	private function fetchUrl(string $url): array
 	{
-		$ch = curl_init($url);
-		curl_setopt_array($ch, [
-			CURLOPT_RETURNTRANSFER => true,
-			CURLOPT_FOLLOWLOCATION => true,  // Folgt HTTP-Redirects (3xx)
-			CURLOPT_MAXREDIRS      => 5,    // Maximale Anzahl an Redirects
-			CURLOPT_TIMEOUT        => 20,    // Timeout in Sekunden
-			CURLOPT_CONNECTTIMEOUT => 10,    // Timeout für die Verbindung
-			CURLOPT_AUTOREFERER    => true,   // Setzt den Referer automatisch
-			CURLOPT_ENCODING 	   => '',  // Leerer String = alle unterstützten Encodings aktivieren
-			CURLOPT_HTTPHEADER 	   => [
-							'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-							'Accept-Encoding: gzip, deflate, br, zstd',
-							'Accept-Language: de,en-US;q=0.9,en;q=0.8',
-							'Cache-Control: no-cache',
-							'Connection: keep-alive',
-							'DNT: 1',
-							'Host: ' . parse_url($url,PHP_URL_HOST),
-							'Pragma: no-cache',
-							'Priority: u=0, i',
-							'Referer: https://google.com/',
-							'Sec-Fetch-Dest: document',
-							'Sec-Fetch-Mode: navigate',
-							'Sec-Fetch-Site: same-origin',
-							'Sec-Fetch-User: ?1',
-							'Sec-GPC: 1',
-							'Upgrade-Insecure-Requests: 1',
-							'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/150.0',
-			]
-		]);
+		$result = $this->httpRequestFollowingRedirects($url, nobody: false);
+		return ['body' => $result['body'], 'httpCharset' => $result['httpCharset']];
+	}
 
-		$body        = curl_exec($ch);
-		$contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE); // z. B. "text/html; charset=iso-8859-1"
-
-		// Charset aus dem HTTP-Header extrahieren – z. B. "text/html; charset=iso-8859-1"
-		// Der HTTP-Header hat nach RFC 7231 Vorrang vor <meta>-Angaben im Body.
+	/**
+	 * Führt einen HTTP-Request aus und folgt 3xx-Redirects manuell statt über
+	 * CURLOPT_FOLLOWLOCATION.
+	 *
+	 * SSRF-Schutz (siehe SECURITY-AUDIT.md, "SSRF beim Artikel-Import"):
+	 * CURLOPT_FOLLOWLOCATION lässt libcurl jedem Location-Header selbstständig
+	 * folgen – dabei gäbe es keine Gelegenheit, die Ziel-IP VOR dem Connect gegen
+	 * private/reservierte Ranges zu prüfen. Ein Angreifer könnte so über einen
+	 * öffentlichen Erst-Redirect (z. B. einen offenen URL-Shortener) intern auf
+	 * 127.0.0.1, RFC1918-Adressen oder Cloud-Metadata-Endpunkte (169.254.169.254)
+	 * umleiten. Deshalb:
+	 *   1. Jeder Hop wird einzeln aufgelöst und über assertPublicHostAndResolve()
+	 *      geprüft, BEVOR verbunden wird.
+	 *   2. Die Verbindung wird per CURLOPT_RESOLVE auf genau die geprüfte(n) IP(s)
+	 *      gepinnt, damit ein zweiter DNS-Lookup zwischen Prüfung und Connect
+	 *      (DNS-Rebinding) nicht auf eine private Adresse umschwenken kann.
+	 *   3. Redirects werden manuell über den Location-Header verfolgt, maximal
+	 *      MAX_REDIRECTS mal.
+	 *
+	 * @return array{body: string, httpCharset: ?string, finalUrl: string}
+	 * @throws \Exception bei ungültigem/privatem Host, zu vielen Redirects oder curl-Fehlern.
+	 */
+	private function httpRequestFollowingRedirects(string $url, bool $nobody): array
+	{
+		$currentUrl  = $url;
 		$httpCharset = null;
-		if (is_string($contentType)
-			&& preg_match('/;\s*charset=([^\s;]+)/i', $contentType, $m)
-		) {
-			$httpCharset = strtolower(trim($m[1], " \t\"'"));
+
+		for ($hop = 0; $hop <= self::MAX_REDIRECTS; $hop++) {
+			$parsed = parse_url($currentUrl);
+			$host   = $parsed['host'] ?? '';
+			$scheme = strtolower($parsed['scheme'] ?? '');
+			$port   = $parsed['port'] ?? ($scheme === 'https' ? 443 : 80);
+
+			// Wirft eine Exception bei ungültigem Schema, nicht auflösbarem Host
+			// oder privater/reservierter Ziel-IP.
+			$ips  = $this->assertPublicHostAndResolve($currentUrl);
+			$pins = $this->buildResolvePin($host, $port, $ips);
+
+			$ch   = curl_init($currentUrl);
+			$opts = [
+				CURLOPT_RETURNTRANSFER => true,
+				CURLOPT_FOLLOWLOCATION => false, // manuelles Redirect-Following, siehe Docblock
+				CURLOPT_HEADER         => true,  // Header mitliefern, um Location selbst auszuwerten
+				CURLOPT_NOBODY         => $nobody,
+				CURLOPT_TIMEOUT        => $nobody ? 10 : 20,
+				CURLOPT_CONNECTTIMEOUT => $nobody ? 5 : 10,
+				CURLOPT_RESOLVE        => $pins, // IP-Pinning gegen DNS-Rebinding
+				CURLOPT_USERAGENT      => $nobody
+					? 'Mozilla/5.0 (compatible; Merlin/1.0)'
+					: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/150.0',
+			];
+
+			if (!$nobody) {
+				$opts[CURLOPT_AUTOREFERER] = true;
+				$opts[CURLOPT_ENCODING]    = ''; // Leerer String = alle unterstützten Encodings aktivieren
+				$opts[CURLOPT_HTTPHEADER]  = [
+					'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+					'Accept-Encoding: gzip, deflate, br, zstd',
+					'Accept-Language: de,en-US;q=0.9,en;q=0.8',
+					'Cache-Control: no-cache',
+					'Connection: keep-alive',
+					'DNT: 1',
+					'Host: ' . $host,
+					'Pragma: no-cache',
+					'Priority: u=0, i',
+					'Referer: https://google.com/',
+					'Sec-Fetch-Dest: document',
+					'Sec-Fetch-Mode: navigate',
+					'Sec-Fetch-Site: same-origin',
+					'Sec-Fetch-User: ?1',
+					'Sec-GPC: 1',
+					'Upgrade-Insecure-Requests: 1',
+				];
+			}
+
+			curl_setopt_array($ch, $opts);
+			$response = curl_exec($ch);
+
+			if ($response === false) {
+				$error = curl_error($ch);
+				curl_close($ch);
+				throw new \Exception('HTTP-Request fehlgeschlagen: ' . $error);
+			}
+
+			$headerSize  = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+			$statusCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+			$contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE); // z. B. "text/html; charset=iso-8859-1"
+			curl_close($ch);
+
+			$rawHeaders = substr((string) $response, 0, $headerSize);
+			$body       = substr((string) $response, $headerSize);
+
+			if (in_array($statusCode, [301, 302, 303, 307, 308], true)
+				&& preg_match('/^Location:\s*(.+?)\r?$/im', $rawHeaders, $m)
+			) {
+				// Location-Header können relativ sein (RFC 7231 erlaubt das, auch
+				// wenn die meisten Server absolute URLs senden) – gegen den
+				// aktuellen Hop auflösen, nicht gegen die ursprüngliche URL.
+				$currentUrl = $this->normalizeUrl(trim($m[1]), $currentUrl);
+				continue;
+			}
+
+			// Charset aus dem HTTP-Header extrahieren – der HTTP-Header hat nach
+			// RFC 7231 Vorrang vor <meta>-Angaben im Body.
+			if (is_string($contentType)
+				&& preg_match('/;\s*charset=([^\s;]+)/i', $contentType, $m)
+			) {
+				$httpCharset = strtolower(trim($m[1], " \t\"'"));
+			}
+
+			return ['body' => $body, 'httpCharset' => $httpCharset, 'finalUrl' => $currentUrl];
 		}
 
-		return ['body' => (string) $body, 'httpCharset' => $httpCharset];
+		throw new \Exception('Zu viele Redirects (>' . self::MAX_REDIRECTS . '): ' . $url);
 	}
+
+	/**
+	 * Prüft Schema und aufgelöste IP-Adresse(n) eines Hosts gegen SSRF, BEVOR eine
+	 * Verbindung aufgebaut wird. Nur http/https sind erlaubt; die aufgelöste(n)
+	 * IP(s) dürfen nicht in einem privaten oder reservierten Range liegen (RFC1918,
+	 * Loopback, Link-Local inkl. Cloud-Metadata 169.254.169.254, Multicast, …).
+	 *
+	 * @return list<string> aufgelöste IPv4-/IPv6-Adressen (mind. eine)
+	 * @throws \Exception wenn Schema/Host ungültig, nicht auflösbar oder nicht-öffentlich ist.
+	 */
+	private function assertPublicHostAndResolve(string $url): array
+	{
+		$parsed = parse_url($url);
+		$scheme = strtolower($parsed['scheme'] ?? '');
+		if (!in_array($scheme, ['http', 'https'], true)) {
+			throw new \Exception('Nicht unterstütztes URL-Schema: ' . ($scheme ?: '(keins)'));
+		}
+
+		$host = $parsed['host'] ?? '';
+		if ($host === '') {
+			throw new \Exception('URL ohne Host: ' . $url);
+		}
+
+		$ips = $this->resolveHostIps($host);
+		if (empty($ips)) {
+			throw new \Exception('Host konnte nicht aufgelöst werden: ' . $host);
+		}
+
+		foreach ($ips as $ip) {
+			if (!$this->isPublicIp($ip)) {
+				throw new \Exception('Host löst auf eine private/reservierte Adresse auf: ' . $host . ' -> ' . $ip);
+			}
+		}
+
+		return $ips;
+	}
+
+	/**
+	 * Löst einen Hostnamen (oder eine IP-Literal) zu allen bekannten IPv4-/IPv6-
+	 * Adressen auf. Bei einer IP-Literal wird diese direkt zurückgegeben, ohne
+	 * DNS-Lookup.
+	 *
+	 * @return list<string>
+	 */
+	private function resolveHostIps(string $host): array
+	{
+		$bareHost = trim($host, '[]'); // IPv6-Literale kommen aus parse_url() ohne eckige Klammern,
+										// zur Sicherheit trotzdem defensiv strippen.
+
+		if (filter_var($bareHost, FILTER_VALIDATE_IP) !== false) {
+			return [$bareHost];
+		}
+
+		$ips = [];
+
+		$v4 = @gethostbynamel($bareHost);
+		if (is_array($v4)) {
+			$ips = array_merge($ips, $v4);
+		}
+
+		$v6records = @dns_get_record($bareHost, DNS_AAAA);
+		if (is_array($v6records)) {
+			foreach ($v6records as $record) {
+				if (!empty($record['ipv6'])) {
+					$ips[] = $record['ipv6'];
+				}
+			}
+		}
+
+		return array_values(array_unique($ips));
+	}
+
+	/**
+	 * true, wenn $ip weder in einem privaten (RFC1918 / IPv6 Unique-Local) noch in
+	 * einem reservierten Range liegt (Loopback, Link-Local inkl. 169.254.169.254
+	 * Cloud-Metadata, Multicast, Broadcast, Dokumentations-Ranges, …).
+	 */
+	private function isPublicIp(string $ip): bool
+	{
+		return filter_var(
+			$ip,
+			FILTER_VALIDATE_IP,
+			FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+		) !== false;
+	}
+
+	/**
+	 * Baut CURLOPT_RESOLVE-Einträge, die $host:$port fest auf die geprüften $ips
+	 * pinnen. Schließt die TOCTOU-Lücke zwischen assertPublicHostAndResolve() und
+	 * dem eigentlichen curl-Connect: ohne Pinning könnte ein zweiter, vom
+	 * Angreifer kontrollierter DNS-Lookup (DNS-Rebinding) zwischen Prüfung und
+	 * Verbindungsaufbau eine private Adresse liefern. TLS-SNI und der Host-Header
+	 * bleiben unberührt, da curl den Hostnamen für beides weiterverwendet.
+	 *
+	 * @param list<string> $ips
+	 * @return list<string>
+	 */
+	private function buildResolvePin(string $host, int $port, array $ips): array
+	{
+		$bareHost = trim($host, '[]');
+		$pins     = [];
+		foreach ($ips as $ip) {
+			// IPv6-Adressen müssen in CURLOPT_RESOLVE in eckigen Klammern stehen.
+			$formatted = str_contains($ip, ':') ? '[' . $ip . ']' : $ip;
+			$pins[]    = $bareHost . ':' . $port . ':' . $formatted;
+		}
+		return $pins;
+	}
+
+	// ──────────────────────────────────────────────────────────────────────────
+	// Encoding Detection
+	// ──────────────────────────────────────────────────────────────────────────
 
 	/**
 	 * Extract the character encoding declared in HTML meta tags.
@@ -523,6 +776,10 @@ class ContentExtractorService {
 
 		return null;
 	}
+
+	// ──────────────────────────────────────────────────────────────────────────
+	// Basic HTML Metadata Extraction
+	// ──────────────────────────────────────────────────────────────────────────
 
 	/**
 	 * Extract title from HTML if Readability fails
@@ -657,6 +914,10 @@ class ContentExtractorService {
 
 		return null;
 	}
+
+	// ──────────────────────────────────────────────────────────────────────────
+	// Pre-Readability HTML Normalization
+	// ──────────────────────────────────────────────────────────────────────────
 
 	/**
 	 * Normalise image+caption structures in raw HTML before Readability parses it.
@@ -1568,6 +1829,10 @@ class ContentExtractorService {
 		return is_scalar($current) ? (string) $current : null;
 	}
 
+	// ──────────────────────────────────────────────────────────────────────────
+	// Content Cleanup
+	// ──────────────────────────────────────────────────────────────────────────
+
 	/**
 	 * Clean HTML content
 	 */
@@ -1607,6 +1872,10 @@ class ContentExtractorService {
 
 		return trim($html);
 	}
+
+	// ──────────────────────────────────────────────────────────────────────────
+	// Published Date Extraction
+	// ──────────────────────────────────────────────────────────────────────────
 
 	/**
 	 * Extract article publication date from meta tags and structured data.
@@ -1735,27 +2004,9 @@ class ContentExtractorService {
 		return (bool) preg_match('/^\d{2}\.\d{2}\.\d{4}/', $value);
 	}
 
-	/**
-	 * Decide whether two image URL paths refer to the same source image.
-	 *
-	 * Two comparison strategies are tried in order:
-	 *
-	 *   1. Canonical-path match — strips CDN/DAM transform segments that
-	 *      contain "=" (e.g. /size=764x429, /quality=192) and then compares
-	 *      the remaining path.  Covers rbb24-style URLs.
-	 *
-	 *   2. Filename-stem match — strips the file extension (and any leading
-	 *      transform segments) and compares just the bare filename.  Covers
-	 *      CDNs that embed the size as a plain path component without "=",
-	 *      e.g. taz.de: /picture/8328386/1200/Linken-Hasser.jpeg vs
-	 *                    /picture/8328386/665/Linken-Hasser.webp.
-	 *      Requires a stem length of ≥ 6 characters to avoid false positives
-	 *      on generic names like "image" or "photo".
-	 */
-
-	// ---------------------------------------------------------------------------
+	// ──────────────────────────────────────────────────────────────────────────
 	// Metadata deduplication
-	// ---------------------------------------------------------------------------
+	// ──────────────────────────────────────────────────────────────────────────
 
 	/**
 	 * Remove headline and teaser paragraph from article content when they
@@ -1866,37 +2117,5 @@ class ContentExtractorService {
 		$text = (string) preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $text);
 		$text = (string) preg_replace('/\s+/', ' ', $text);
 		return trim($text);
-	}
-
-	/**
-	 * Normalize relative URLs to absolute
-	 */
-	private function normalizeUrl(string $imageUrl, string $baseUrl): string {
-		// Already absolute
-		if (preg_match('/^https?:\/\//i', $imageUrl)) {
-			return $imageUrl;
-		}
-
-		$base = parse_url($baseUrl);
-		$scheme = $base['scheme'] ?? 'https';
-		$host = $base['host'] ?? '';
-
-		// Protocol-relative URL
-		if (str_starts_with($imageUrl, '//')) {
-			return $scheme . ':' . $imageUrl;
-		}
-
-		// Absolute path
-		if (str_starts_with($imageUrl, '/')) {
-			return $scheme . '://' . $host . $imageUrl;
-		}
-		
-		// Relative path
-		$path = $base['path'] ?? '/';
-		$pathParts = explode('/', $path);
-		array_pop($pathParts); // Remove filename
-		$basePath = implode('/', $pathParts);
-
-		return $scheme . '://' . $host . $basePath . '/' . $imageUrl;
 	}
 }

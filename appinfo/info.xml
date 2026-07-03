@@ -18,21 +18,22 @@ Merlin is a powerful read-it-later application for Nextcloud that allows you to:
 Perfect for keeping track of interesting articles, research materials, or any web content you want to read later.
     ]]></description>
 
-    <version>1.0.3</version>
+    <version>1.0.4</version>
     <licence>agpl</licence>
 
-    <author mail="julian@dexxes.de">Julian von Bülow</author>
+    <author>Julian von Bülow</author>
 
     <namespace>Merlin</namespace>
 
     <category>organization</category>
     <category>tools</category>
 
-    <website>https://github.com/yourusername/nextcloud-merlin</website>
-    <bugs>https://github.com/yourusername/nextcloud-merlin/issues</bugs>
-    <repository type="git">https://github.com/yourusername/nextcloud-merlin.git</repository>
+    <website>https://github.com/Dexxes/merlin-core/</website>
+    <bugs>https://github.com/Dexxes/merlin-core/issues</bugs>
+    <repository type="git">https://github.com/Dexxes/merlin-core.git</repository>
 
-    <screenshot>https://raw.githubusercontent.com/yourusername/nextcloud-merlin/main/screenshots/main.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/Dexxes/merlin-core/refs/heads/main/appinfo/screenshot1.jpg</screenshot>
+    <screenshot>https://raw.githubusercontent.com/Dexxes/merlin-core/refs/heads/main/appinfo/screenshot2.jpg</screenshot>
 
     <dependencies>
         <php min-version="8.0" max-version="8.4"/>

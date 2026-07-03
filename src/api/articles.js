@@ -76,6 +76,21 @@ export async function toggleArchive(id) {
 	return response.data
 }
 
+/**
+ * Speichert die geräteübergreifende Leseposition (Fraktion 0..1) plus einen
+ * Client-Zeitstempel (Epoch-Millis) für die Last-Write-Wins-Auflösung.
+ *
+ * @param {number} id Artikel-ID
+ * @param {number} progress Lesefortschritt 0..1
+ * @param {number} updatedAt Epoch-Millis dieses Schreibvorgangs
+ * @return {Promise<object>} { scrollProgress, scrollUpdatedAt }
+ */
+export async function updateProgress(id, progress, updatedAt) {
+	const url = generateUrl(`/apps/merlin/api/articles/${id}/progress`)
+	const response = await axios.put(url, { progress, updatedAt })
+	return response.data
+}
+
 export async function searchArticles(query) {
 	const url = generateUrl('/apps/merlin/api/articles/search')
 	const response = await axios.get(url, { params: { query } })

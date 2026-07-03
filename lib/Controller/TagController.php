@@ -13,10 +13,25 @@ use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
+use Psr\Log\LoggerInterface;
 
+/**
+ * REST API for tags.
+ *
+ * Security note – NoCSRFRequired:
+ * All API routes carry #[NoCSRFRequired] because the same endpoints serve
+ * both the Vue web-UI (session cookie) and native clients (iOS, Android,
+ * browser extensions) that authenticate via HTTP Basic Auth and cannot
+ * supply a Nextcloud requesttoken. Removing the attribute would break all
+ * native clients; splitting routes into separate web/API prefixes is the
+ * clean long-term fix (tracked). Residual CSRF risk for the web-UI path is
+ * mitigated by Nextcloud's SameSite=Lax session cookie, which prevents
+ * cross-site POST/PUT/DELETE in all modern browsers.
+ */
 class TagController extends Controller {
 	private TagMapper $tagMapper;
 	private ArticleMapper $articleMapper;
+	private LoggerInterface $logger;
 	private ?string $userId;
 
 	public function __construct(
@@ -24,11 +39,13 @@ class TagController extends Controller {
 		IRequest $request,
 		TagMapper $tagMapper,
 		ArticleMapper $articleMapper,
+		LoggerInterface $logger,
 		?string $userId
 	) {
 		parent::__construct($appName, $request);
 		$this->tagMapper = $tagMapper;
 		$this->articleMapper = $articleMapper;
+		$this->logger = $logger;
 		$this->userId = $userId;
 	}
 
@@ -65,7 +82,8 @@ class TagController extends Controller {
 
 			return new DataResponse($savedTag->jsonSerialize(), Http::STATUS_CREATED);
 		} catch (\Exception $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+			$this->logger->error('Merlin: tag creation failed', ['exception' => $e]);
+			return new DataResponse(['error' => 'Bad request'], Http::STATUS_BAD_REQUEST);
 		}
 	}
 
@@ -92,7 +110,7 @@ class TagController extends Controller {
 
 			return new DataResponse($updatedTag->jsonSerialize());
 		} catch (\Exception $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
 		}
 	}
 
@@ -111,7 +129,7 @@ class TagController extends Controller {
 
 			return new DataResponse(['success' => true]);
 		} catch (\Exception $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
 		}
 	}
 
@@ -134,7 +152,7 @@ class TagController extends Controller {
 
 			return new DataResponse(['success' => true]);
 		} catch (\Exception $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+			return new DataResponse(['error' => 'Not found'], Http::STATUS_BAD_REQUEST);
 		}
 	}
 
@@ -157,7 +175,7 @@ class TagController extends Controller {
 
 			return new DataResponse(['success' => true]);
 		} catch (\Exception $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+			return new DataResponse(['error' => 'Not found'], Http::STATUS_BAD_REQUEST);
 		}
 	}
 }

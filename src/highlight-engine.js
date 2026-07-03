@@ -36,11 +36,15 @@ if (typeof document !== 'undefined' && !document.getElementById('merlin-hl-style
 			-webkit-box-decoration-break: clone !important;
 			display: inline !important;
 		}
-		mark.merlin-highlight[data-highlight-color="yellow"] { background-color: #fde68a !important; color: inherit !important; }
-		mark.merlin-highlight[data-highlight-color="green"]  { background-color: #bbf7d0 !important; color: inherit !important; }
-		mark.merlin-highlight[data-highlight-color="blue"]   { background-color: #bfdbfe !important; color: inherit !important; }
-		mark.merlin-highlight[data-highlight-color="pink"]   { background-color: #fbcfe8 !important; color: inherit !important; }
-		mark.merlin-highlight[data-highlight-color="orange"] { background-color: #fed7aa !important; color: inherit !important; }
+		/* Alle fünf Highlight-Farben sind helle Pastelltöne, daher fixe dunkle
+		   Schrift statt color:inherit – im Dark-Theme ist die geerbte Schrift
+		   fast weiß und auf dem hellen Hintergrund unlesbar. #1c1c1e = Light-
+		   Theme-Textfarbe der Apps (identisch in iOS/iPad/Android gelöst). */
+		mark.merlin-highlight[data-highlight-color="yellow"] { background-color: #fde68a !important; color: #1c1c1e !important; }
+		mark.merlin-highlight[data-highlight-color="green"]  { background-color: #bbf7d0 !important; color: #1c1c1e !important; }
+		mark.merlin-highlight[data-highlight-color="blue"]   { background-color: #bfdbfe !important; color: #1c1c1e !important; }
+		mark.merlin-highlight[data-highlight-color="pink"]   { background-color: #fbcfe8 !important; color: #1c1c1e !important; }
+		mark.merlin-highlight[data-highlight-color="orange"] { background-color: #fed7aa !important; color: #1c1c1e !important; }
 	`
 	document.head.appendChild(style)
 }
@@ -122,6 +126,9 @@ function createMarkEl(color, highlightId) {
 	span.dataset.highlightColor = color
 	// Inline style as additional reinforcement alongside the CSS class rules
 	span.style.backgroundColor = HIGHLIGHT_COLORS.find(c => c.id === color)?.hex ?? '#fde68a'
+	// Fixe dunkle Schrift auch inline (siehe CSS-Kommentar oben): im Dark-Theme
+	// wäre die geerbte, fast weiße Textfarbe auf dem Pastell-Grund unlesbar.
+	span.style.color = '#1c1c1e'
 	return span
 }
 
