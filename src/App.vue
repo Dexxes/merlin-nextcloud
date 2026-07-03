@@ -12,7 +12,7 @@
 	         @filter-category="filterByCategory"
 	         @delete-tag="handleDeleteTag"
 	         @toggle-pin-tag="onTogglePinTag"
-	         @open-settings="openSettings" 
+	         @open-settings="openSettings"
 		/>
 
 		<NcAppContent>
@@ -47,26 +47,8 @@ import { mapState, mapGetters, mapActions, mapMutations } from 'vuex'
 import { showSuccess } from '@nextcloud/dialogs'
 import {
 	NcContent,
-	NcAppNavigation,
-	NcAppNavigationItem,
-	NcAppNavigationCaption,
-	NcAppNavigationSpacer,
 	NcAppContent,
-	NcButton,
-	NcCounterBubble,
-	NcActions,
-	NcActionButton,
 } from '@nextcloud/vue'
-
-import FormatListBulleted from 'vue-material-design-icons/FormatListBulleted.vue'
-import InboxOutline from 'vue-material-design-icons/InboxOutline.vue'
-import Star from 'vue-material-design-icons/Star.vue'
-import Archive from 'vue-material-design-icons/Archive.vue'
-import Rss from 'vue-material-design-icons/Rss.vue'
-import Plus from 'vue-material-design-icons/Plus.vue'
-import TrashCanOutline from 'vue-material-design-icons/TrashCanOutline.vue'
-import PlayCircleOutline from 'vue-material-design-icons/PlayCircleOutline.vue'
-import Cog from 'vue-material-design-icons/Cog.vue'
 
 import ArticleList from './components/ArticleList.vue'
 import ArticleReader from './components/ArticleReader.vue'
@@ -79,24 +61,7 @@ export default {
 
 	components: {
 		NcContent,
-		NcAppNavigation,
-		NcAppNavigationItem,
-		NcAppNavigationCaption,
-		NcAppNavigationSpacer,
 		NcAppContent,
-		NcButton,
-		NcCounterBubble,
-		FormatListBulleted,
-		InboxOutline,
-		Star,
-		Archive,
-		Rss,
-		Plus,
-		TrashCanOutline,
-		PlayCircleOutline,
-		Cog,
-		NcActions,
-		NcActionButton,
 		ArticleList,
 		ArticleReader,
 		AddArticleDialog,
@@ -119,7 +84,7 @@ export default {
 
 	computed: {
 		...mapState(['articles', 'counts', 'tags', 'currentArticle', 'loading', 'view', 'settings']),
-		...mapGetters(['unreadCount', 'favoriteCount', 'filteredArticles']),
+		...mapGetters(['filteredArticles']),
 
 		nextArticle() {
 			if (!this.currentArticle) return null
@@ -259,7 +224,9 @@ export default {
 			await this.deleteTag(tagId)
 			if (this.currentTagId === tagId) {
 				this.currentTagId = null
-				this.setFilter('all')
+				// 'all' view was removed — fall back to the app's default (Unread)
+				// instead of a filter that no longer exists in the sidebar.
+				this.setFilter('unread')
 			}
 		},
 
@@ -277,41 +244,6 @@ export default {
 </script>
 
 <style scoped>
-.sidebar-new-article {
-	padding: 8px 12px 4px;
-}
-
-.new-article-btn {
-	width: 100%;
-	justify-content: flex-start;
-}
-
-.tags-caption-row {
-	display: flex;
-	align-items: center;
-	padding: 4px 12px;
-	min-height: 34px;
-	list-style: none;
-}
-
-.tags-caption-label {
-	flex: 1;
-	font-size: 11px;
-	font-weight: 600;
-	color: var(--color-text-maxcontrast);
-	text-transform: uppercase;
-	letter-spacing: 0.05em;
-}
-
-
-.tag-dot {
-	display: inline-block;
-	width: 12px;
-	height: 12px;
-	border-radius: 50%;
-	flex-shrink: 0;
-}
-
 /* Move the sidebar collapse/toggle button to the bottom */
 :deep(.app-navigation-toggle-wrapper) {
 	top: auto !important;
@@ -336,4 +268,4 @@ export default {
 		padding-bottom: 0 !important;
 	}
 }
-</style>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
+</style>

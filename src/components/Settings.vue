@@ -362,7 +362,6 @@ import Clock from 'vue-material-design-icons/Clock.vue'
 import ViewGrid from 'vue-material-design-icons/ViewGrid.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
 import Check from 'vue-material-design-icons/Check.vue'
-import Home from 'vue-material-design-icons/Home.vue'
 import Inbox from 'vue-material-design-icons/Inbox.vue'
 import Star from 'vue-material-design-icons/Star.vue'
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
@@ -389,7 +388,7 @@ export default {
 
 	components: {
 		BookOpen, Clock, ViewGrid, Refresh, Check,
-		Home, Inbox, Star, AlertCircleOutline, TagOutline, Close, SettingsPreview
+		Inbox, Star, AlertCircleOutline, TagOutline, Close, SettingsPreview
 	},
 
 	data() {
@@ -419,7 +418,6 @@ export default {
 				{ value: 'off',    label: t('merlin', 'Off') },
 			],
 			defaultViewOptions: [
-				{ value: 'all',       label: t('merlin', 'All'),       icon: 'Home' },
 				{ value: 'unread',    label: t('merlin', 'Unread'),    icon: 'Inbox' },
 				{ value: 'favorites', label: t('merlin', 'Favorites'), icon: 'Star' },
 			],

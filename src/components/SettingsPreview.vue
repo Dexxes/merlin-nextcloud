@@ -50,11 +50,21 @@ const FONT_FAMILIES = {
 	monospace: "'Courier New', Courier, 'Lucida Console', monospace",
 }
 
-const FONT_SIZES = {
-	small: 16,
-	medium: 18,
+// settings.fontSize kommt vom Slider in Settings.vue immer als Zahl (12–28px).
+// Alte String-Werte ('small' etc.) werden zur Sicherheit trotzdem unterstützt,
+// analog zu parseFontSize() in ArticleReader.vue.
+const FONT_SIZE_DEFAULT = 17
+const LEGACY_FONT_SIZES = {
+	small: 15,
+	medium: 17,
 	large: 20,
-	'x-large': 22,
+	'x-large': 24,
+}
+
+function resolveFontSize(val) {
+	const n = parseInt(val, 10)
+	if (!isNaN(n)) return n
+	return LEGACY_FONT_SIZES[val] || FONT_SIZE_DEFAULT
 }
 
 export default {
@@ -84,7 +94,7 @@ export default {
 		articleStyle() {
 			return {
 				fontFamily: FONT_FAMILIES[this.settings.fontFamily] || FONT_FAMILIES.default,
-				fontSize: (FONT_SIZES[this.settings.fontSize] || 18) + 'px',
+				fontSize: resolveFontSize(this.settings.fontSize) + 'px',
 				lineHeight: this.settings.lineHeight,
 			}
 		},

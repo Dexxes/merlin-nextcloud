@@ -28,18 +28,6 @@
 			</NcAppNavigationItem>
 
 			<NcAppNavigationItem
-				:name="t('merlin', 'All Articles')"
-				:class="{ active: currentFilter === 'all' }"
-				@click="$emit('filter', 'all')">
-				<template #icon>
-					<FormatListBulleted :size="20" />
-				</template>
-				<template #counter>
-					<NcCounterBubble :count="counts.total" />
-				</template>
-			</NcAppNavigationItem>
-
-			<NcAppNavigationItem
 				:name="t('merlin', 'Favorites')"
 				:class="{ active: currentFilter === 'favorites' }"
 				@click="$emit('filter', 'favorites')">
@@ -224,7 +212,6 @@ import {
 	NcActionButton,
 } from '@nextcloud/vue'
 
-import FormatListBulleted from 'vue-material-design-icons/FormatListBulleted.vue'
 import InboxOutline from 'vue-material-design-icons/InboxOutline.vue'
 import Star from 'vue-material-design-icons/Star.vue'
 import Archive from 'vue-material-design-icons/Archive.vue'
@@ -251,7 +238,6 @@ export default {
 		NcCounterBubble,
 		NcActions,
 		NcActionButton,
-		FormatListBulleted,
 		InboxOutline,
 		Star,
 		Archive,
@@ -552,4 +538,4 @@ export default {
 	top: auto !important;
 	bottom: 0 !important;
 }
-</style>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
+</style>
