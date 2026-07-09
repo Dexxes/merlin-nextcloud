@@ -71,7 +71,7 @@ class ExtensionController extends Controller {
 			$article->setCategory(null);
 			$article->setReadingTime(0);
 			$article->setIsRead(false);
-			$article->setIsFavorite(false);
+			$article->setIsFavorite(null);
 			$article->setIsArchived(false);
 			$article->setIsProcessing(1);
 			$article->setCreatedAt(new \DateTime());
@@ -227,10 +227,10 @@ class ExtensionController extends Controller {
 						$article->setIsArchived(false);
 						break;
 					case 'favorite':
-						$article->setIsFavorite(true);
+						$article->setIsFavorite(new \DateTime());
 						break;
 					case 'unfavorite':
-						$article->setIsFavorite(false);
+						$article->setIsFavorite(null);
 						break;
 					case 'delete':
 						$this->articleMapper->delete($article);

@@ -48,8 +48,7 @@ class ArticleMapper extends QBMapper {
 			->from($this->getTableName(), 'a')
 			->where($qb->expr()->eq('a.user_id', $qb->createNamedParameter($userId)))
 			->setMaxResults($limit)
-			->setFirstResult($offset)
-			->orderBy('a.created_at', 'DESC');
+			->setFirstResult($offset);
 
 		// Optional tag filter – join the article_tags pivot table
 		if (isset($filters['tag_id'])) {
@@ -61,14 +60,28 @@ class ArticleMapper extends QBMapper {
 		if (isset($filters['is_read'])) {
 			$qb->andWhere($qb->expr()->eq('a.is_read', $qb->createNamedParameter($filters['is_read'], IQueryBuilder::PARAM_BOOL)));
 		}
+		// is_favorite ist kein Bool mehr, sondern NULL (nicht favorisiert) oder
+		// ein Zeitstempel (Favorisierungszeitpunkt) – daher IS [NOT] NULL statt eq().
 		if (isset($filters['is_favorite'])) {
-			$qb->andWhere($qb->expr()->eq('a.is_favorite', $qb->createNamedParameter($filters['is_favorite'], IQueryBuilder::PARAM_BOOL)));
+			if ($filters['is_favorite']) {
+				$qb->andWhere($qb->expr()->isNotNull('a.is_favorite'));
+			} else {
+				$qb->andWhere($qb->expr()->isNull('a.is_favorite'));
+			}
 		}
 		if (isset($filters['is_archived'])) {
 			$qb->andWhere($qb->expr()->eq('a.is_archived', $qb->createNamedParameter($filters['is_archived'], IQueryBuilder::PARAM_BOOL)));
 		}
 		if (isset($filters['category'])) {
 			$qb->andWhere($qb->expr()->eq('a.category', $qb->createNamedParameter($filters['category'])));
+		}
+
+		// Favoriten-Ansicht: chronologisch nach Favorisierungszeitpunkt statt
+		// nach Erstellungsdatum sortieren. Sonst wie gehabt nach created_at.
+		if (isset($filters['is_favorite']) && $filters['is_favorite']) {
+			$qb->orderBy('a.is_favorite', 'DESC');
+		} else {
+			$qb->orderBy('a.created_at', 'DESC');
 		}
 
 		return $this->findEntities($qb);
@@ -122,7 +135,10 @@ class ArticleMapper extends QBMapper {
 		while ($row = $result->fetch()) {
 			$isArchived = (bool)(int)$row['is_archived'];
 			$read       = (bool)(int)$row['is_read'];
-			$favorite   = (bool)(int)$row['is_favorite'];
+			// Rohes SELECT ohne Entity-Hydration: is_favorite ist hier ein
+			// DATETIME-String oder NULL, kein Integer mehr – nicht (int)/(bool)
+			// casten (führt bei Datums-Strings zu Fehlinterpretation).
+			$favorite   = $row['is_favorite'] !== null;
 			$isVideo    = ($row['category'] ?? '') === 'Video';
 
 			if ($isArchived) {

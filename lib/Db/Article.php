@@ -26,8 +26,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setImageUrl(?string $imageUrl)
  * @method bool getIsRead()
  * @method void setIsRead(bool $isRead)
- * @method bool getIsFavorite()
- * @method void setIsFavorite(bool $isFavorite)
+ * @method \DateTime|null getIsFavorite()
+ * @method void setIsFavorite(?\DateTime $isFavorite)
  * @method bool getIsArchived()
  * @method void setIsArchived(bool $isArchived)
  * @method int getReadingTime()
@@ -81,7 +81,12 @@ class Article extends Entity implements JsonSerializable {
 		$this->addType('siteName', 'string');
 		$this->addType('imageUrl', 'string');
 		$this->addType('isRead', 'integer');
-		$this->addType('isFavorite', 'integer');
+		// isFavorite ist bewusst kein Bool-Flag + separates Timestamp-Feld
+		// (wie is_archived/archivedAt), sondern EIN Feld: NULL = nicht
+		// favorisiert, DateTime = Zeitpunkt der Favorisierung. So bleibt der
+		// Favoriten-Filter *und* die chronologische Sortierung ohne
+		// zusätzliches API-Feld möglich.
+		$this->addType('isFavorite', 'datetime');
 		$this->addType('isArchived', 'integer');
 		$this->addType('readingTime', 'integer');
 		$this->addType('publishedAt', 'datetime');
@@ -106,7 +111,9 @@ class Article extends Entity implements JsonSerializable {
 			'siteName' => $this->getSiteName(),
 			'imageUrl' => $this->getImageUrl(),
 			'isRead' => (bool) $this->getIsRead(),
-			'isFavorite' => (bool) $this->getIsFavorite(),
+			// Wire-Format: false (nicht favorisiert) ODER ISO8601-Zeitstempel
+			// (Favorisierungszeitpunkt) — kein separates favoritedAt-Feld.
+			'isFavorite' => $this->getIsFavorite() ? $this->getIsFavorite()->format('c') : false,
 			'isArchived' => (bool) $this->getIsArchived(),
 			'readingTime' => $this->getReadingTime(),
 			'publishedAt' => $this->getPublishedAt() ? $this->getPublishedAt()->format('c') : null,

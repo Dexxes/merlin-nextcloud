@@ -188,7 +188,7 @@ class ArticleController extends Controller {
 			$article->setImageUrl('');
 			$article->setReadingTime(0);
 			$article->setIsRead(0);
-			$article->setIsFavorite(0);
+			$article->setIsFavorite(null);
 			$article->setIsArchived(0);
 			$article->setIsProcessing(1);
 			$article->setCreatedAt(new \DateTime());
@@ -298,7 +298,7 @@ class ArticleController extends Controller {
 				$article->setIsRead($isRead);
 			}
 			if ($isFavorite !== null) {
-				$article->setIsFavorite($isFavorite);
+				$article->setIsFavorite($isFavorite ? new \DateTime() : null);
 			}
 			if ($isArchived !== null) {
 				$article->setIsArchived($isArchived);
@@ -368,11 +368,13 @@ class ArticleController extends Controller {
 	public function toggleFavorite(int $id): DataResponse {
 		try {
 			$article = $this->articleMapper->find($id, $this->userId);
-			$article->setIsFavorite(!$article->getIsFavorite());
+			$article->setIsFavorite($article->getIsFavorite() ? null : new \DateTime());
 			$article->setUpdatedAt(new \DateTime());
 			$this->articleMapper->update($article);
 
-			return new DataResponse(['isFavorite' => $article->getIsFavorite()]);
+			return new DataResponse([
+				'isFavorite' => $article->getIsFavorite() ? $article->getIsFavorite()->format('c') : false,
+			]);
 		} catch (\Exception $e) {
 			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
 		}
