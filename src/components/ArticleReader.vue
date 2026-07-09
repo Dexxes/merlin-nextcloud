@@ -294,13 +294,13 @@
 							<Calendar :size="16" />
 							{{ article.publishedAt ? formatDate(article.publishedAt) : formatDate(article.createdAt) }}
 						</span>
-						<span class="meta-added" title="An diesem Tag wurde der Artikel in die Liste aufgenommen">
+						<span class="meta-added" :title="t('merlin', 'The day the article was added to your list')">
 							<CalendarPlus :size="16" />
-							{{ t('merlin', '') }}{{ formatDate(article.createdAt) }}
+							{{ formatDate(article.createdAt) }}
 						</span>
 						<span class="meta-time">
 							<Clock :size="16" />
-							{{ article.readingTime }} Min.
+							{{ t('merlin', '{minutes} min', { minutes: article.readingTime }) }}
 						</span>
 					</div>
 

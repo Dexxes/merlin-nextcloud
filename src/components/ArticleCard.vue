@@ -36,7 +36,7 @@
 				</span>
 				<span class="meta-time">
 					<Clock :size="16" />
-					{{ article.readingTime }} Min.
+					{{ t('merlin', '{minutes} min', { minutes: article.readingTime }) }}
 				</span>
 				<span v-if="article.isArchived && article.archivedAt" class="meta-archived">
 					<ArchiveArrowDown :size="16" />
