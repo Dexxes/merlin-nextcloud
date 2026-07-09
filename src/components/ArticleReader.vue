@@ -588,7 +588,7 @@ export default {
 	},
 
 	methods: {
-		...mapActions(['toggleRead', 'toggleArchive', 'toggleFavorite', 'addTag', 'addTagToArticle', 'removeTagFromArticle']),
+		...mapActions(['toggleRead', 'toggleArchive', 'toggleFavorite', 'addTag', 'addTagToArticle', 'removeTagFromArticle', 'updateSettings']),
 
 		async toggleFavoriteStatus() {
 			try {
@@ -662,6 +662,14 @@ export default {
 
 		toggleDarkMode() {
 			this.isDarkMode = !this.isDarkMode
+			// Persistieren, sonst gilt der Toggle nur für diese Komponenten-Instanz:
+			// mounted() liest beim nächsten Artikel wieder settings.theme und der
+			// Hintergrund-Poll würde den lokalen Store mit dem Server-Wert überschreiben.
+			// Explizit 'dark'/'light' statt 'auto', damit die Wahl eindeutig ist.
+			this.updateSettings({
+				...this.settings,
+				theme: this.isDarkMode ? 'dark' : 'light',
+			}).catch(() => {}) // Fehler wird bereits in der Store-Action geloggt
 		},
 
 		increaseFontSize() {
@@ -1035,17 +1043,26 @@ export default {
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
-/* NcButton zieht Icon-/Textfarbe normalerweise aus Nextclouds globalen
-   Theme-Variablen (--color-main-text etc.) — die folgen dem Theme der
+/* NcButton (Default-Variante "secondary" seit @nextcloud/vue 9) zieht Text-,
+   Hintergrund- UND Rahmenfarbe aus Nextclouds globalen Theme-Variablen
+   (--color-primary-element-light etc.) — die folgen dem Theme der
    Nextcloud-Instanz, nicht dem hier per Settings erzwungenen Reader-Theme.
-   Ohne diese Overrides bleiben Icons auf dunklem Panel-/Toolbar-Hintergrund
-   in der Farbe des hellen Nextcloud-Themes und sind kaum erkennbar. */
+   Ohne diese Overrides behalten die Buttons auf dunklem Panel-/Toolbar-
+   Hintergrund den hellblauen Pill-Look des hellen Nextcloud-Themes. */
 .dark-mode .reader-panel :deep(.button-vue) {
 	color: #e0e0e0 !important;
+	background-color: rgba(255, 255, 255, 0.06) !important;
+	border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
 .dark-mode .reader-panel :deep(.button-vue:hover) {
-	background: rgba(255, 255, 255, 0.08) !important;
+	background-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+/* NcButton setzt :active auf --color-primary-element-light zurück —
+   ohne Override blitzt beim Klick kurz der helle Theme-Hintergrund auf. */
+.dark-mode .reader-panel :deep(.button-vue:active) {
+	background-color: rgba(255, 255, 255, 0.06) !important;
 }
 
 .reader-panel--left {
@@ -1452,12 +1469,15 @@ article {
 	background: rgba(155, 28, 28, 0.10) !important;
 }
 
-.dark-mode :deep(.delete-btn) {
+/* .reader-panel im Selektor ist nötig: die generischen Dark-Mode-Overrides
+   oben (".dark-mode .reader-panel .button-vue") sind spezifischer als
+   ".dark-mode .delete-btn" und würden Rot-Färbung und Hover sonst schlucken. */
+.dark-mode .reader-panel :deep(.delete-btn) {
 	color: #fca5a5 !important;
 }
 
-.dark-mode :deep(.delete-btn:hover) {
-	background: rgba(252, 165, 165, 0.12) !important;
+.dark-mode .reader-panel :deep(.delete-btn:hover) {
+	background-color: rgba(252, 165, 165, 0.12) !important;
 }
 
 /* NcButton behält den Focus-Hintergrund nach Klick (Chromium/WebKit) —
@@ -1693,14 +1713,18 @@ article {
 		border-color: #444;
 	}
 
-	/* Gleicher Grund wie beim Desktop-Panel oben: NcButton folgt sonst dem
-	   globalen Nextcloud-Theme statt dem lokal erzwungenen Reader-Dark-Mode. */
+	/* Gleicher Grund wie beim Desktop-Panel oben: NcButton (secondary) folgt
+	   sonst mit Text-, Hintergrund- und Rahmenfarbe dem globalen Nextcloud-
+	   Theme statt dem lokal erzwungenen Reader-Dark-Mode. In der flachen
+	   Toolbar bewusst transparent statt Pill-Optik. */
 	.dark-mode .mobile-toolbar :deep(.button-vue) {
-		color: #e0e0e0;
+		color: #e0e0e0 !important;
+		background-color: transparent !important;
+		border-color: transparent !important;
 	}
 
 	.dark-mode .mobile-toolbar :deep(.button-vue:active) {
-		background: rgba(255, 255, 255, 0.08);
+		background-color: rgba(255, 255, 255, 0.08) !important;
 	}
 
 	/* Touch-freundliche Button-Größe (44×44pt Minimum) */
