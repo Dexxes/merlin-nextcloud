@@ -77,9 +77,12 @@ class ArticleMapper extends QBMapper {
 		}
 
 		// Favoriten-Ansicht: chronologisch nach Favorisierungszeitpunkt statt
-		// nach Erstellungsdatum sortieren. Sonst wie gehabt nach created_at.
+		// nach Erstellungsdatum sortieren. Archiv-Ansicht analog nach
+		// Archivierungszeitpunkt. Sonst wie gehabt nach created_at.
 		if (isset($filters['is_favorite']) && $filters['is_favorite']) {
 			$qb->orderBy('a.is_favorite', 'DESC');
+		} elseif (isset($filters['is_archived']) && $filters['is_archived']) {
+			$qb->orderBy('a.archived_at', 'DESC');
 		} else {
 			$qb->orderBy('a.created_at', 'DESC');
 		}
