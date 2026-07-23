@@ -77,6 +77,10 @@
 							<Mastodon :size="16" />
 							<span>{{ t('merlin', 'Share to Mastodon') }}</span>
 						</li>
+						<li @click="shareMenuOpen = false; shareLinkDialogOpen = true">
+							<LinkVariant :size="16" />
+							<span>{{ t('merlin', 'Public link…') }}</span>
+						</li>
 					</ul>
 				</Teleport>
 			</div>
@@ -289,6 +293,11 @@
 				</footer>
 			</article>
 		</div>
+
+		<ShareLinkDialog
+			v-if="shareLinkDialogOpen"
+			:article-id="article.id"
+			@close="shareLinkDialogOpen = false" />
 	</div>
 </template>
 
@@ -303,6 +312,7 @@ import FormatFontSizeDecrease from 'vue-material-design-icons/FormatFontSizeDecr
 import FormatFontSizeIncrease from 'vue-material-design-icons/FormatFontSizeIncrease.vue'
 import Download from 'vue-material-design-icons/Download.vue'
 import ShareVariant from 'vue-material-design-icons/ShareVariant.vue'
+import LinkVariant from 'vue-material-design-icons/LinkVariant.vue'
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue'
 import Email from 'vue-material-design-icons/Email.vue'
 import Butterfly from 'vue-material-design-icons/Butterfly.vue'
@@ -325,6 +335,7 @@ import axios from '@nextcloud/axios'
 import * as articlesAPI from '../api/articles'
 import * as highlightsAPI from '../api/highlights'
 import { HighlightEngine } from '../highlight-engine'
+import ShareLinkDialog from './ShareLinkDialog.vue'
 
 const TAG_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899']
 
@@ -361,6 +372,8 @@ export default {
 		FormatFontSizeIncrease,
 		Download,
 		ShareVariant,
+		LinkVariant,
+		ShareLinkDialog,
 		ContentCopy,
 		Email,
 		Butterfly,
@@ -402,6 +415,7 @@ export default {
 			exportMenuStyle: {},
 			shareMenuOpen: false,
 			shareMenuStyle: {},
+			shareLinkDialogOpen: false,
 			hasNativeShare: typeof navigator !== 'undefined' && !!navigator.share,
 			isMobile: false,
 			showBottomBar: true,

@@ -40,6 +40,20 @@ return [
         ['name' => 'highlight#create',  'url' => '/api/articles/{articleId}/highlights', 'verb' => 'POST'],
         ['name' => 'highlight#destroy', 'url' => '/api/highlights/{id}',                 'verb' => 'DELETE'],
 
+        // Share API routes (authenticated: erstellen/verwalten eines Public-Share-Links)
+        ['name' => 'share#show',       'url' => '/api/articles/{articleId}/share',            'verb' => 'GET'],
+        ['name' => 'share#create',     'url' => '/api/articles/{articleId}/share',            'verb' => 'POST'],
+        ['name' => 'share#update',     'url' => '/api/articles/{articleId}/share',            'verb' => 'PUT'],
+        ['name' => 'share#regenerate', 'url' => '/api/articles/{articleId}/share/regenerate', 'verb' => 'POST'],
+        ['name' => 'share#destroy',    'url' => '/api/articles/{articleId}/share',            'verb' => 'DELETE'],
+
+        // Public Share routes (unauthenticated: öffentliche Ansicht eines geteilten Artikels)
+        ['name' => 'public_share#show',       'url' => '/s/{token}',              'verb' => 'GET'],
+        ['name' => 'public_share#unlock',     'url' => '/s/{token}/unlock',       'verb' => 'POST'],
+        ['name' => 'public_share#data',       'url' => '/s/{token}/data',         'verb' => 'GET'],
+        ['name' => 'public_share#exportHtml', 'url' => '/s/{token}/export/html',  'verb' => 'GET'],
+        ['name' => 'public_share#tts',        'url' => '/s/{token}/tts',          'verb' => 'GET'],
+
         // Settings routes
         ['name' => 'settings#get', 'url' => '/api/settings', 'verb' => 'GET'],
         ['name' => 'settings#update', 'url' => '/api/settings', 'verb' => 'PUT'],

@@ -185,6 +185,37 @@ function wrapRange(range, color, highlightId) {
 	return marks
 }
 
+// ─── Read-only rendering (öffentliche Share-Ansicht) ─────────────────────────
+
+/**
+ * Rendert gespeicherte Highlights read-only in den Container – ohne
+ * Mouseup/Contextmenu-Listener, damit anonyme Besucher der öffentlichen
+ * Share-Ansicht keine neuen Highlights anlegen oder löschen können.
+ * Nutzt dieselben XPath-/DOM-Wrap-Helfer wie HighlightEngine, damit
+ * authentifizierte und öffentliche Ansicht garantiert identisch rendern.
+ *
+ * @param {HTMLElement} container
+ * @param {Array} highlights
+ */
+export function renderHighlightsReadOnly(container, highlights) {
+	for (const h of highlights) {
+		try {
+			const startNode = resolveXPath(h.startXpath, container)
+			const endNode = resolveXPath(h.endXpath, container)
+			if (!startNode || !endNode) continue
+
+			const range = document.createRange()
+			range.setStart(startNode, h.startOffset)
+			range.setEnd(endNode, h.endOffset)
+			if (!range.collapsed) {
+				wrapRange(range, h.color, h.id)
+			}
+		} catch {
+			// Stale highlight (Artikeltext hat sich geändert) — überspringen
+		}
+	}
+}
+
 // ─── HighlightEngine class ────────────────────────────────────────────────────
 
 export class HighlightEngine {

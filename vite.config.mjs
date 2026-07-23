@@ -2,6 +2,7 @@ import { createAppConfig } from '@nextcloud/vite-config'
 
 export default createAppConfig({
     main: 'src/main.js',
-    // Optional: weitere Einstiegspunkte
-    // admin: 'src/admin.js',
+    // Eigener, schlanker Bundle für die öffentliche Share-Ansicht (kein Login,
+    // kein Vuex-Store/Sidebar – nur Reader + Passwort-Gate).
+    public: 'src/public-main.js',
 })
