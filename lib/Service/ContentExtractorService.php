@@ -1864,6 +1864,39 @@ class ContentExtractorService {
 			$html
 		) ?? $html;
 
+		// Strip every class token except Merlin's own merlin-* marker classes
+		// (merlin-infobox, merlin-quote, merlin-hero-image, …).
+		//
+		// keepClasses=true on the Readability config (see processHtml()) is needed
+		// so those marker classes survive parsing — but it also lets every class
+		// from the SOURCE site through unfiltered. Those classes are inert today
+		// (the source stylesheet is stripped above), but only by accident: if the
+		// source site's class names ever happen to match a class Merlin's own CSS
+		// or the Nextcloud host CSS defines (e.g. a WordPress/Tailwind site using
+		// generic utility names like "fixed", "absolute", "hidden", "row"), the
+		// foreign element would suddenly be styled by Merlin's rules — exactly
+		// what happened with amadeu-antonio-stiftung.de's leaked donation-box
+		// markup (Tailwind classes "fixed", "pin-l", "pin-b", "absolute", …).
+		// Allowlisting merlin-* closes this for every domain at once instead of
+		// reacting to individual collisions. Every saveElements/<infobox> rule in
+		// content-filters/*.xml already assigns merlin-*-prefixed classes only.
+		$html = preg_replace_callback(
+			'/(<[^>]+\bclass=["\'])([^"\']*?)(["\'])/i',
+			static function (array $m): string {
+				$classes = preg_split('/\s+/', trim($m[2]), -1, PREG_SPLIT_NO_EMPTY);
+				$kept = array_values(array_filter(
+					$classes,
+					static fn(string $c): bool => str_starts_with($c, 'merlin-')
+				));
+				if ($kept === []) {
+					// Drop the entire class attribute
+					return preg_replace('/\s*\bclass=["\'][^"\']*["\']/i', '', $m[0]) ?? $m[0];
+				}
+				return $m[1] . implode(' ', $kept) . $m[3];
+			},
+			$html
+		) ?? $html;
+
 		//$path = __DIR__ . "/../../test/cleanHtml.html";
 		//file_put_contents($path, $html);
 
