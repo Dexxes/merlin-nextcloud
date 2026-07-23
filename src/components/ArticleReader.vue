@@ -1,70 +1,49 @@
 <template>
 	<div class="article-reader" :class="readerClasses">
 
-		<!-- Left floating panel: navigation + read toggle (Desktop only) -->
-		<div v-if="!isMobile" class="reader-panel reader-panel--left">
+		<!-- Bottom-center floating dock (Desktop only) — replaces the former left/right panels.
+		     Colored with the user's accent color; only the highest-priority actions live
+		     here (back, archive, favorite, share). Everything else sits behind "More". -->
+		<div v-if="!isMobile" class="reader-dock" :style="dockStyle">
 			<NcButton
+				class="dock-btn"
 				:title="t('merlin', 'Back to list')"
 				@click="$emit('close')">
 				<template #icon>
-					<ArrowLeft :size="20" />
+					<ArrowLeft :size="18" />
 				</template>
 			</NcButton>
 
+			<div class="dock-divider" />
+
 			<NcButton
+				class="dock-btn"
 				:title="t('merlin', 'Archive and return to list')"
-				type="secondary"
 				@click="archiveAndClose">
 				<template #icon>
-					<ArchiveArrowDown :size="20" />
+					<ArchiveArrowDown :size="18" />
 				</template>
 			</NcButton>
 
 			<NcButton
+				class="dock-btn"
 				:title="isFavoriteFromStore ? t('merlin', 'Remove from favorites') : t('merlin', 'Add to favorites')"
 				@click="toggleFavoriteStatus">
 				<template #icon>
-					<Star v-if="isFavoriteFromStore" :size="20" class="fav-btn--active" />
-					<StarOutline v-else :size="20" />
-				</template>
-			</NcButton>
-		</div>
-
-		<!-- Right floating panel: display controls + actions (Desktop only) -->
-		<div v-if="!isMobile" class="reader-panel reader-panel--right">
-			<NcButton
-				:title="isDarkMode ? t('merlin', 'Switch to light mode') : t('merlin', 'Switch to dark mode')"
-				@click="toggleDarkMode">
-				<template #icon>
-					<WeatherNight v-if="!isDarkMode" :size="20" />
-					<WhiteBalanceSunny v-else :size="20" />
-				</template>
-			</NcButton>
-
-			<NcButton
-				:title="t('merlin', 'Decrease font size')"
-				@click="decreaseFontSize">
-				<template #icon>
-					<FormatFontSizeDecrease :size="20" />
-				</template>
-			</NcButton>
-
-			<NcButton
-				:title="t('merlin', 'Increase font size')"
-				@click="increaseFontSize">
-				<template #icon>
-					<FormatFontSizeIncrease :size="20" />
+					<Star v-if="isFavoriteFromStore" :size="18" class="fav-btn--active" />
+					<StarOutline v-else :size="18" />
 				</template>
 			</NcButton>
 
 			<!-- Share dropdown -->
 			<div ref="shareWrapperRef" class="share-wrapper">
 				<NcButton
+					class="dock-btn"
 					:title="t('merlin', 'Share article')"
 					:class="{ 'share-btn--active': shareMenuOpen }"
 					@click.stop="toggleShareMenu">
 					<template #icon>
-						<ShareVariant :size="20" />
+						<ShareVariant :size="18" />
 					</template>
 				</NcButton>
 
@@ -102,55 +81,52 @@
 				</Teleport>
 			</div>
 
-			<!-- Tag picker -->
-			<div ref="tagWrapperRef" class="tag-wrapper">
-				<NcButton
-					:title="t('merlin', 'Manage tags')"
-					:class="{ 'tag-btn--active': tagMenuOpen }"
-					@click.stop="toggleTagMenu">
-					<template #icon>
-						<Tag :size="20" />
-					</template>
-				</NcButton>
-			</div>
+			<div class="dock-divider" />
 
-			<!-- Export dropdown -->
-			<div ref="exportWrapperRef" class="export-wrapper">
-				<NcButton
-					:title="t('merlin', 'Export article')"
-					:class="{ 'export-btn--active': exportMenuOpen }"
-					@click.stop="toggleExportMenu">
-					<template #icon>
-						<Download :size="20" />
-					</template>
-				</NcButton>
+			<!-- More: everything else (appearance, tags, export, delete) -->
+			<NcButton
+				class="dock-btn"
+				:title="t('merlin', 'More options')"
+				:class="{ 'more-btn--active': moreMenuOpen }"
+				@click.stop="moreMenuOpen = !moreMenuOpen">
+				<template #icon>
+					<DotsHorizontal :size="18" />
+				</template>
+			</NcButton>
 
-				<Teleport to="body">
-					<div
-						v-if="exportMenuOpen"
-						class="export-backdrop"
-						@click="exportMenuOpen = false" />
-					<ul
-						v-if="exportMenuOpen"
-						class="export-menu"
-						:class="{ 'dark-mode': isDarkMode }"
-						:style="exportMenuStyle">
-						<li @click="exportHtml(); exportMenuOpen = false">
-							<Download :size="16" />
-							<span>{{ t('merlin', 'Export as HTML') }}</span>
-						</li>
-					</ul>
-				</Teleport>
-			</div>
+			<Teleport to="body">
+				<div v-if="moreMenuOpen" class="export-backdrop" @click="moreMenuOpen = false" />
+				<ul v-if="moreMenuOpen" class="export-menu dock-anchored-menu" :class="{ 'dark-mode': isDarkMode }">
+					<li @click="toggleDarkMode(); moreMenuOpen = false">
+						<WeatherNight v-if="!isDarkMode" :size="16" />
+						<WhiteBalanceSunny v-else :size="16" />
+						<span>{{ isDarkMode ? t('merlin', 'Switch to light mode') : t('merlin', 'Switch to dark mode') }}</span>
+					</li>
+					<li @click="cycleFontSize(); moreMenuOpen = false">
+						<FormatFontSizeIncrease :size="16" />
+						<span>{{ t('merlin', 'Adjust font size') }}</span>
+					</li>
+					<li @click="moreMenuOpen = false; tagMenuOpen = true">
+						<Tag :size="16" />
+						<span>{{ t('merlin', 'Manage tags') }}</span>
+					</li>
+					<li @click="exportHtml(); moreMenuOpen = false">
+						<Download :size="16" />
+						<span>{{ t('merlin', 'Export as HTML') }}</span>
+					</li>
+					<li class="more-menu-danger" @click="confirmDelete(); moreMenuOpen = false">
+						<Delete :size="16" /><span>{{ t('merlin', 'Delete article') }}</span>
+					</li>
+				</ul>
+			</Teleport>
 
-			<!-- Tag picker Teleport (shared desktop+mobile) -->
+			<!-- Tag picker (opened from the More menu; shares the desktop dock anchor) -->
 			<Teleport to="body">
 				<div v-if="tagMenuOpen" class="export-backdrop" @click="tagMenuOpen = false" />
 				<ul
 					v-if="tagMenuOpen"
 					class="export-menu"
-					:class="{ 'tag-menu--mobile': isMobile, 'dark-mode': isDarkMode }"
-					:style="tagMenuStyle">
+					:class="{ 'tag-menu--mobile': isMobile, 'dock-anchored-menu': !isMobile, 'dark-mode': isDarkMode }">
 					<li v-if="allTags.length === 0" class="tag-menu-empty">
 						<span>{{ t('merlin', 'No tags defined yet') }}</span>
 					</li>
@@ -189,16 +165,6 @@
 					</li>
 				</ul>
 			</Teleport>
-
-			<!-- Delete button -->
-			<NcButton
-				:title="t('merlin', 'Delete article')"
-				class="delete-btn"
-				@click="confirmDelete">
-				<template #icon>
-					<Delete :size="20" />
-				</template>
-			</NcButton>
 		</div>
 
 		<!-- Mobile bottom toolbar (≤768px) — drei gleichbreite Buttons.
@@ -317,23 +283,10 @@
 				<!-- eslint-disable-next-line vue/no-v-html -->
 				<div class="article-body" v-html="processedContent" />
 
-				<!-- Article footer actions -->
+				<!-- Article footer -->
 				<footer class="article-footer">
 					<div class="next-article-divider" />
-					<div class="article-footer-actions">
-						<!-- Archive and return to list -->
-						<button class="footer-action-btn footer-action-btn--read" @click="archiveAndClose">
-							<ArchiveArrowDown :size="18" />
-							<span>{{ t('merlin', 'Archive and return') }}</span>
-						</button>
-
-						<!-- Next article (if available) -->
-						<button v-if="nextArticle" class="footer-action-btn footer-action-btn--next" @click="archiveAndGoToNext">
-							<span class="next-article-label">{{ t('merlin', 'Archive and go to next') }}</span>
-							<span class="next-article-title">{{ nextArticle.title }}</span>
-							<ArrowRight :size="18" class="next-article-arrow" />
-						</button>
-					</div>
+					<p class="end-of-article">{{ t('merlin', 'End of article') }}</p>
 				</footer>
 			</article>
 		</div>
@@ -455,8 +408,8 @@ export default {
 			showBottomBar: true,
 			_lastScrollTop: 0,
 			mobileMoreOpen: false,
+			moreMenuOpen: false,
 			tagMenuOpen: false,
-			tagMenuStyle: {},
 			newTagName: '',
 			newTagColor: TAG_COLORS[5], // blue default
 			tagColors: TAG_COLORS,
@@ -511,6 +464,11 @@ export default {
 
 		// Position + Farbe analog zu progressBar(in:) in ArticleReaderView.swift (iOS):
 		// links/rechts wachsen vertikal von oben, oben/unten wachsen horizontal von links.
+		// Dock background follows the user's chosen accent color (same source as the progress bar).
+		dockStyle() {
+			return { background: this.settings.accentColor || '#FF3B30' }
+		},
+
 		progressBarStyle() {
 			const color = this.settings.accentColor || '#FF3B30'
 			const pct = this.scrollPct + '%'
@@ -626,38 +584,9 @@ export default {
 			}
 		},
 
+		// Desktop: fixed-position CSS anchors the menu above the dock, so no rect calc needed.
 		toggleTagMenu() {
-			if (!this.tagMenuOpen) {
-				if (!this.isMobile) {
-					const btn = this.$refs.tagWrapperRef
-					if (btn) {
-						const rect = btn.getBoundingClientRect()
-						const menuWidth = 200
-						const left = Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)
-						this.tagMenuStyle = {
-							top: rect.bottom + 6 + 'px',
-							left: Math.max(8, left) + 'px',
-						}
-					}
-				}
-			}
 			this.tagMenuOpen = !this.tagMenuOpen
-		},
-
-		toggleExportMenu() {
-			if (!this.exportMenuOpen) {
-				const btn = this.$refs.exportWrapperRef
-				if (btn) {
-					const rect = btn.getBoundingClientRect()
-					const menuWidth = 190
-					const left = Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)
-					this.exportMenuStyle = {
-						top: rect.bottom + 6 + 'px',
-						left: Math.max(8, left) + 'px',
-					}
-				}
-			}
-			this.exportMenuOpen = !this.exportMenuOpen
 		},
 
 		toggleDarkMode() {
@@ -740,17 +669,17 @@ export default {
 
 		toggleShareMenu() {
 			if (!this.shareMenuOpen) {
-				// Auf Mobile wird der Teilen-Dialog per CSS unten rechts verankert
-				// (wie das Tag- und Mehr-Menü) statt relativ zu einem Button positioniert,
-				// da der frühere Toolbar-Button dafür entfernt wurde.
+				// Desktop: anchor the menu above the dock, centered on the share button
+				// (the dock sits at the bottom of the screen, so menus open upward).
 				const btn = this.isMobile ? null : this.$refs.shareWrapperRef
 				if (btn) {
 					const rect = btn.getBoundingClientRect()
 					const menuWidth = 190
-					const left = Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)
+					const left = Math.min(Math.max(8, rect.left + rect.width / 2 - menuWidth / 2), window.innerWidth - menuWidth - 8)
 					this.shareMenuStyle = {
-						top: rect.bottom + 6 + 'px',
-						left: Math.max(8, left) + 'px',
+						bottom: (window.innerHeight - rect.top + 8) + 'px',
+						top: 'auto',
+						left: left + 'px',
 					}
 				}
 			}
@@ -1022,58 +951,46 @@ export default {
 	color: #e0e0e0;
 }
 
-/* Floating side panels */
-.reader-panel {
-	position: absolute;
-	top: 16px;
+/* Bottom-center floating dock (replaces the former left/right panels). Background
+   is the user's accent color (see dockStyle), so buttons are always plain white
+   icons on top regardless of light/dark reader theme — no separate dark-mode
+   override needed like the old panels required. */
+.reader-dock {
+	position: fixed;
+	left: 50%;
+	bottom: 24px;
+	transform: translateX(-50%);
 	z-index: 10;
 	display: flex;
-	flex-direction: column;
-	gap: 6px;
-	background: var(--color-main-background);
-	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius-large);
+	align-items: center;
+	gap: 2px;
+	border-radius: 999px;
 	padding: 6px;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 
-.dark-mode .reader-panel {
-	background: #0d0d0d;
-	border-color: #2a2a2a;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+.reader-dock :deep(.button-vue) {
+	color: #fff !important;
+	background: transparent !important;
+	border-color: transparent !important;
 }
 
-/* NcButton (Default-Variante "secondary" seit @nextcloud/vue 9) zieht Text-,
-   Hintergrund- UND Rahmenfarbe aus Nextclouds globalen Theme-Variablen
-   (--color-primary-element-light etc.) — die folgen dem Theme der
-   Nextcloud-Instanz, nicht dem hier per Settings erzwungenen Reader-Theme.
-   Ohne diese Overrides behalten die Buttons auf dunklem Panel-/Toolbar-
-   Hintergrund den hellblauen Pill-Look des hellen Nextcloud-Themes. */
-.dark-mode .reader-panel :deep(.button-vue) {
-	color: #e0e0e0 !important;
-	background-color: rgba(255, 255, 255, 0.06) !important;
-	border-color: rgba(255, 255, 255, 0.12) !important;
+.reader-dock :deep(.button-vue:hover) {
+	background: rgba(255, 255, 255, 0.18) !important;
 }
 
-.dark-mode .reader-panel :deep(.button-vue:hover) {
-	background-color: rgba(255, 255, 255, 0.14) !important;
+.reader-dock :deep(.button-vue:active) {
+	background: rgba(255, 255, 255, 0.28) !important;
 }
 
-/* NcButton setzt :active auf --color-primary-element-light zurück —
-   ohne Override blitzt beim Klick kurz der helle Theme-Hintergrund auf. */
-.dark-mode .reader-panel :deep(.button-vue:active) {
-	background-color: rgba(255, 255, 255, 0.06) !important;
+.dock-divider {
+	width: 1px;
+	height: 20px;
+	background: rgba(255, 255, 255, 0.25);
+	margin: 0 4px;
 }
 
-.reader-panel--left {
-	left: 12px;
-}
-
-.reader-panel--right {
-	right: 12px;
-}
-
-/* Scrollable content — side padding leaves room for the floating panels */
+/* Scrollable content — bottom padding leaves room for the floating dock */
 .reader-content {
 	height: 100%;
 	overflow-y: auto;
@@ -1384,37 +1301,15 @@ article {
 	gap: 10px;
 }
 
-/* Shared styles for all footer action buttons */
-.footer-action-btn {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	width: 100%;
-	padding: 14px 20px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius-large);
-	cursor: pointer;
-	text-align: left;
+/* End of article marker (replaces the old archive/next-article footer buttons —
+   those actions now live in the dock). */
+.end-of-article {
+	margin: 0;
+	text-align: center;
+	font-family: 'Lora', Georgia, serif;
+	font-style: italic;
 	font-size: 0.95em;
-	color: var(--color-main-text);
-	background: var(--color-background-hover);
-	transition: background 0.15s ease, border-color 0.15s ease;
-}
-
-.footer-action-btn:hover {
-	background: var(--color-primary-light);
-	border-color: var(--color-primary);
-}
-
-/* "Mark as read and return" — subdued style */
-.footer-action-btn--read {
-	color: var(--color-text-lighter);
-	font-weight: 500;
-}
-
-/* "Next article" — prominent style */
-.footer-action-btn--next {
-	font-weight: 500;
+	color: var(--color-text-lighter, #999);
 }
 
 .next-article-label {
@@ -1437,16 +1332,6 @@ article {
 	color: var(--color-text-lighter);
 }
 
-.dark-mode .footer-action-btn {
-	background: #2a2a2a;
-	border-color: #444;
-}
-
-.dark-mode .footer-action-btn:hover {
-	background: #333;
-	border-color: #666;
-}
-
 @media (max-width: 768px) {
 	.reader-content {
 		padding: 24px 64px;
@@ -1457,48 +1342,14 @@ article {
 	}
 }
 
-/* Delete button — danger accent.
-   NcButton merges the class onto its own root <button class="button-vue delete-btn">,
-   so we must target it with :deep() from the component host. */
-/* Delete button — eigene Farbe, unabhängig von --color-error des Themes */
-:deep(.delete-btn) {
-	color: #9b1c1c !important;
-}
-
-:deep(.delete-btn:hover) {
-	background: rgba(155, 28, 28, 0.10) !important;
-}
-
-/* .reader-panel im Selektor ist nötig: die generischen Dark-Mode-Overrides
-   oben (".dark-mode .reader-panel .button-vue") sind spezifischer als
-   ".dark-mode .delete-btn" und würden Rot-Färbung und Hover sonst schlucken. */
-.dark-mode .reader-panel :deep(.delete-btn) {
-	color: #fca5a5 !important;
-}
-
-.dark-mode .reader-panel :deep(.delete-btn:hover) {
-	background-color: rgba(252, 165, 165, 0.12) !important;
-}
-
-/* NcButton behält den Focus-Hintergrund nach Klick (Chromium/WebKit) —
-   ohne Reset bleibt ein farbiger Kreis hinter dem Icon stehen, der wie
-   ein Dauerzustand aussieht statt eines echten :hover. */
-:deep(.delete-btn:focus),
-:deep(.delete-btn:focus-visible) {
-	background: transparent !important;
-	box-shadow: none !important;
-}
-
-.dark-mode :deep(.delete-btn:focus),
-.dark-mode :deep(.delete-btn:focus-visible) {
-	background: transparent !important;
-	box-shadow: none !important;
-}
-
 /* Favorit-Button — goldenes Icon wenn aktiv */
 :deep(.fav-btn--active) {
 	color: #f59e0b !important;
 	opacity: 1 !important;
+}
+
+.more-btn--active :deep(.button-vue) {
+	background: rgba(255, 255, 255, 0.18) !important;
 }
 
 /* Tag-Wrapper (ähnlich wie export-wrapper) */
@@ -1608,6 +1459,18 @@ article {
 	animation: exportMenuIn 0.12s ease;
 }
 
+/* Desktop "More" and "Manage tags" menus: anchored above the centered dock.
+   Uses margin-left instead of translateX to avoid clashing with the
+   scale() transform in the exportMenuIn keyframes above. */
+.dock-anchored-menu {
+	bottom: 76px !important;
+	top: auto !important;
+	left: 50% !important;
+	right: auto !important;
+	margin-left: -95px;
+	transform-origin: bottom center;
+}
+
 @keyframes exportMenuIn {
 	from { opacity: 0; transform: scale(0.93); }
 	to   { opacity: 1; transform: scale(1); }
@@ -1669,8 +1532,8 @@ article {
 }
 
 @media (max-width: 768px) {
-	/* Desktop-Panels ausblenden */
-	.reader-panel {
+	/* Desktop-Dock ausblenden */
+	.reader-dock {
 		display: none !important;
 	}
 
