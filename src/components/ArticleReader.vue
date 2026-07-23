@@ -286,7 +286,6 @@
 				<!-- Article footer -->
 				<footer class="article-footer">
 					<div class="next-article-divider" />
-					<p class="end-of-article">{{ t('merlin', 'End of article') }}</p>
 				</footer>
 			</article>
 		</div>
@@ -1299,17 +1298,6 @@ article {
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
-}
-
-/* End of article marker (replaces the old archive/next-article footer buttons —
-   those actions now live in the dock). */
-.end-of-article {
-	margin: 0;
-	text-align: center;
-	font-family: 'Lora', Georgia, serif;
-	font-style: italic;
-	font-size: 0.95em;
-	color: var(--color-text-lighter, #999);
 }
 
 .next-article-label {
