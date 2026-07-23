@@ -532,10 +532,4 @@ export default {
 	font-size: 12px;
 	font-style: italic;
 }
-
-/* Move the sidebar collapse/toggle button to the bottom (kept from original) */
-:deep(.app-navigation-toggle-wrapper) {
-	top: auto !important;
-	bottom: 0 !important;
-}
 </style>
