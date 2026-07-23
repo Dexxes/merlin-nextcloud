@@ -1897,6 +1897,31 @@ class ContentExtractorService {
 			$html
 		) ?? $html;
 
+		// Strip every id attribute that wasn't explicitly set by Merlin itself
+		// (none are, today — this is a forward-compatible merlin-* allowlist,
+		// same convention as the class filter above).
+		//
+		// Source-site ids are exactly as dangerous as source-site classes: they're
+		// inert once the source stylesheet/scripts are gone, but only by accident.
+		// An id is also unique-per-document by spec, so a leaked source id (e.g.
+		// "content", "main", "header") can collide with an id Merlin's own shell
+		// chrome uses elsewhere in the same page, with unpredictable CSS/JS
+		// side effects. The only thing this can break is same-document anchor
+		// links (<a href="#fn1"> → <sup id="fn1">) inside the article, which is
+		// an acceptable trade-off in a read-later reader view.
+		$html = preg_replace_callback(
+			'/(<[^>]+\bid=["\'])([^"\']*?)(["\'])/i',
+			static function (array $m): string {
+				$id = trim($m[2]);
+				if ($id !== '' && str_starts_with($id, 'merlin-')) {
+					return $m[0];
+				}
+				// Drop the entire id attribute
+				return preg_replace('/\s*\bid=["\'][^"\']*["\']/i', '', $m[0]) ?? $m[0];
+			},
+			$html
+		) ?? $html;
+
 		//$path = __DIR__ . "/../../test/cleanHtml.html";
 		//file_put_contents($path, $html);
 
