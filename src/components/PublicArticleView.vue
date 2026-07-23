@@ -145,14 +145,19 @@ export default {
 </script>
 
 <style>
-/* Nextclouds Basis-Layout (RENDER_AS_BASE) setzt html/body auf feste Höhe mit
-   overflow: hidden, weil normalerweise #content fürs Scrollen zuständig ist.
-   Die Public-View hat kein #content-Wrapper, daher hier explizit zurücksetzen
-   – sonst ist der Artikeltext bei längeren Inhalten nicht scrollbar. */
-html, body {
-	height: auto;
-	min-height: 100%;
+/* Der eigentliche Übeltäter: Nextclouds layout.base.php wrappt unseren App-Root
+   automatisch in <div id="content" class="app-public">. Core-CSS setzt darauf
+   height: var(--body-height) + overflow: clip (server.css) – "clip" erlaubt im
+   Gegensatz zu "hidden" nicht einmal programmatisches Scrollen. Bei längeren
+   Artikeln wird der Text dadurch hart abgeschnitten statt scrollbar zu sein.
+   body selbst hilft nicht, weil body position:fixed mit fester Höhe ist –
+   der Fix muss also am #content-Wrapper selbst ansetzen. */
+#content.app-public {
+	/* height bleibt wie von Core vorgegeben (var(--body-height), an den
+	   fixierten body angepasst) – nur overflow wird korrigiert, damit
+	   #content selbst zum scrollbaren Container wird. */
 	overflow-y: auto;
+	overflow-x: hidden;
 }
 </style>
 
