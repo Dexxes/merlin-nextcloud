@@ -4,7 +4,7 @@
 			<!-- Add article -->
 			<div class="sidebar-new-article">
 				<NcButton
-					type="primary"
+					variant="primary"
 					class="new-article-btn"
 					@click="$emit('add-article')">
 					<template #icon>

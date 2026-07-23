@@ -18,7 +18,7 @@
 					{{ t('merlin', 'Cancel') }}
 				</NcButton>
 				<NcButton
-					type="primary"
+					variant="primary"
 					:disabled="!isValidUrl || loading"
 					@click="handleAddArticle">
 					<template v-if="loading" #icon>
