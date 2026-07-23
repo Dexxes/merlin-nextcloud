@@ -144,6 +144,18 @@ export default {
 }
 </script>
 
+<style>
+/* Nextclouds Basis-Layout (RENDER_AS_BASE) setzt html/body auf feste Höhe mit
+   overflow: hidden, weil normalerweise #content fürs Scrollen zuständig ist.
+   Die Public-View hat kein #content-Wrapper, daher hier explizit zurücksetzen
+   – sonst ist der Artikeltext bei längeren Inhalten nicht scrollbar. */
+html, body {
+	height: auto;
+	min-height: 100%;
+	overflow-y: auto;
+}
+</style>
+
 <style scoped>
 .public-article-view {
 	min-height: 100vh;
