@@ -244,10 +244,35 @@ export default {
 </script>
 
 <style scoped>
-/* Move the sidebar collapse/toggle button to the bottom */
+/* Sidebar toggle: top-anchored (was force-pinned to the bottom, half off-screen
+   because the override didn't clear NcAppNavigation's default translateY(-50%)).
+   Styled to sit flush with the header when expanded, and as a slim edge handle
+   when the sidebar is collapsed — NcAppNavigation keeps it mounted at the
+   viewport edge either way, so no extra logic is needed. Uses Nextcloud's own
+   theming vars, so it's correct in both light and dark automatically. */
 :deep(.app-navigation-toggle-wrapper) {
-	top: auto !important;
-	bottom: 0 !important;
+	top: 12px !important;
+	right: -13px !important;
+}
+
+:deep(.app-navigation-toggle-wrapper button) {
+	width: 26px !important;
+	height: 26px !important;
+	background-color: var(--color-main-background) !important;
+	border: 1px solid var(--color-border) !important;
+	box-shadow: 2px 0 6px var(--color-box-shadow, rgba(0, 0, 0, 0.15));
+	color: var(--color-text-maxcontrast) !important;
+}
+
+:deep(.app-navigation-toggle-wrapper button:hover) {
+	background-color: var(--color-background-hover) !important;
+	color: var(--color-main-text) !important;
+}
+
+/* Expanded: sits flush with the header, no protruding shadow */
+:deep(.app-navigation:not(.app-navigation--close) .app-navigation-toggle-wrapper) {
+	right: 8px !important;
+	box-shadow: none;
 }
 
 /* ── Mobile PWA optimizations ───────────────────────────────────────── */
