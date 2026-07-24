@@ -81,7 +81,7 @@
   <!-- Titel, Bild und Teaser kommen zuverlässig aus den og:-Tags (automatischer
        Fallback), deshalb hier nur Autor und Datum. -->
   <metadata>
-    <author    xpath="//a[@rel='author']" />
+    <author    xpath="//span[@class='go-authors']/a/@content" />
     <published xpath="//time/@datetime" />
   </metadata>
 
