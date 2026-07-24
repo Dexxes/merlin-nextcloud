@@ -149,9 +149,16 @@ export default {
    body selbst hilft nicht, weil body position:fixed mit fester Höhe ist –
    der Fix muss also am #content-Wrapper selbst ansetzen. */
 #content.app-public {
-	/* height bleibt wie von Core vorgegeben (var(--body-height), an den
-	   fixierten body angepasst) – nur overflow wird korrigiert, damit
-	   #content selbst zum scrollbaren Container wird. */
+	/* Core setzt #content auf display:flex (row) – gedacht für Layouts mit
+	   Sidebar. Als Flex-Item muss unser Root-Block sein width:100% erst über
+	   flex-basis "erkämpfen", und ein Scrollbar (durch overflow-y:auto) frisst
+	   dabei einseitig von der rechten Kante der Content-Box, wodurch die
+	   Zentrierung von .pav-article sichtbar nach links verschoben wirkt.
+	   display:block eliminiert das komplett: der Root-Block ist dann ganz
+	   normal 100% breit, ohne Flex-Sizing-Eigenheiten.
+	   Height bleibt wie von Core vorgegeben (var(--body-height)) – nur
+	   display und overflow werden für diese Seite überschrieben. */
+	display: block;
 	overflow-y: auto;
 	overflow-x: hidden;
 }
@@ -159,10 +166,10 @@ export default {
 
 <style scoped>
 .public-article-view {
-	/* #content (Core) ist ein display:flex-Container ohne justify-content/width.
-	   Als Flex-Item schrumpft dieser Root-Block sonst auf seine Inhaltsbreite
-	   und hängt links – width:100% gibt ihm die volle Breite, damit .pav-article
-	   (max-width + margin:0 auto) wie vorgesehen zentrieren kann. */
+	/* #content.app-public ist jetzt display:block (siehe oben) – width:100%
+	   ist dadurch eigentlich der Block-Default, wird hier aber explizit
+	   gesetzt, damit .pav-article (max-width + margin:0 auto) zuverlässig
+	   über die volle Breite zentrieren kann. */
 	width: 100%;
 	min-height: 100vh;
 	background: var(--color-main-background, #fff);
