@@ -9,7 +9,6 @@ use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Db\ArticleShare;
 use OCA\Merlin\Db\ArticleShareMapper;
 use OCA\Merlin\Db\HighlightMapper;
-use OCA\Merlin\Service\ExportService;
 use OCA\Merlin\Service\TtsStreamService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Db\DoesNotExistException;
@@ -18,7 +17,6 @@ use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\ContentSecurityPolicy;
-use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
@@ -46,7 +44,6 @@ class PublicShareController extends Controller {
 		private ArticleShareMapper $shareMapper,
 		private ArticleMapper $articleMapper,
 		private HighlightMapper $highlightMapper,
-		private ExportService $exportService,
 		private TtsStreamService $ttsStream,
 		private ISession $session,
 		private IThrottler $throttler,
@@ -203,39 +200,6 @@ class PublicShareController extends Controller {
 			'readingTime' => $article->getReadingTime(),
 			'highlights'  => array_map(fn ($h) => $h->jsonSerialize(), $highlights),
 		]);
-	}
-
-	/**
-	 * HTML-Export des geteilten Artikels zum Download – nutzt denselben
-	 * ExportService wie der authentifizierte Export-Endpunkt.
-	 *
-	 * @PublicPage
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
-	#[PublicPage]
-	#[NoAdminRequired]
-	#[NoCSRFRequired]
-	public function exportHtml(string $token): DataDisplayResponse {
-		$share = $this->resolveAccessibleShare($token);
-		if ($share instanceof DataResponse) {
-			return new DataDisplayResponse('', $share->getStatus(), ['Content-Type' => 'text/plain']);
-		}
-
-		try {
-			$article = $this->articleMapper->find($share->getArticleId(), $share->getUserId());
-		} catch (DoesNotExistException) {
-			return new DataDisplayResponse('Article not found', Http::STATUS_NOT_FOUND);
-		}
-
-		$htmlContent = $this->exportService->exportHtml($article);
-		$response = new DataDisplayResponse($htmlContent, Http::STATUS_OK, ['Content-Type' => 'text/html']);
-		$response->addHeader(
-			'Content-Disposition',
-			'attachment; filename="' . preg_replace('/[^a-zA-Z0-9-_ ]/', '', $article->getTitle()) . '.html"'
-		);
-
-		return $response;
 	}
 
 	/**

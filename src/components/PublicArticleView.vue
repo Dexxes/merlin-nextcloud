@@ -38,7 +38,6 @@
 
 		<article v-else-if="state === 'ready'" class="pav-article">
 			<div class="pav-toolbar">
-				<a :href="exportUrl" class="pav-btn" download>{{ t('merlin', 'Download HTML') }}</a>
 				<button type="button" class="pav-btn" @click="toggleAudio">
 					{{ audioVisible ? t('merlin', 'Hide audio player') : t('merlin', 'Listen') }}
 				</button>
@@ -84,9 +83,6 @@ export default {
 	},
 
 	computed: {
-		exportUrl() {
-			return generateUrl(`/apps/merlin/s/${this.token}/export/html`)
-		},
 		ttsUrl() {
 			return generateUrl(`/apps/merlin/s/${this.token}/tts`)
 		},
@@ -163,6 +159,11 @@ export default {
 
 <style scoped>
 .public-article-view {
+	/* #content (Core) ist ein display:flex-Container ohne justify-content/width.
+	   Als Flex-Item schrumpft dieser Root-Block sonst auf seine Inhaltsbreite
+	   und hängt links – width:100% gibt ihm die volle Breite, damit .pav-article
+	   (max-width + margin:0 auto) wie vorgesehen zentrieren kann. */
+	width: 100%;
 	min-height: 100vh;
 	background: var(--color-main-background, #fff);
 	color: var(--color-main-text, #222);

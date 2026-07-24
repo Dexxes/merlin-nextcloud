@@ -51,7 +51,6 @@ return [
         ['name' => 'public_share#show',       'url' => '/s/{token}',              'verb' => 'GET'],
         ['name' => 'public_share#unlock',     'url' => '/s/{token}/unlock',       'verb' => 'POST'],
         ['name' => 'public_share#data',       'url' => '/s/{token}/data',         'verb' => 'GET'],
-        ['name' => 'public_share#exportHtml', 'url' => '/s/{token}/export/html',  'verb' => 'GET'],
         ['name' => 'public_share#tts',        'url' => '/s/{token}/tts',          'verb' => 'GET'],
 
         // Settings routes
