@@ -26,6 +26,16 @@ class ContentExtractorService {
 	 */
 	private const MAX_REDIRECTS = 10;
 
+	/**
+	 * Header-Namen, die eine Domain-Config über <fetch> setzen darf (kleingeschrieben).
+	 *
+	 * Whitelist statt Blacklist, weil die XML-Dateien Konfigurationsdaten sind:
+	 * Ein frei wählbarer Header-Name könnte sonst den Request umbiegen (Host),
+	 * Zugangsdaten anhängen (Authorization) oder den Body-Parser verwirren
+	 * (Content-Length, Transfer-Encoding).
+	 */
+	private const FETCH_HEADER_WHITELIST = ['cookie', 'user-agent', 'accept-language', 'referer'];
+
 	public function __construct(LoggerInterface $logger) { $this->logger = $logger; }
 
 	// ──────────────────────────────────────────────────────────────────────────
@@ -562,6 +572,10 @@ class ContentExtractorService {
 			$ips  = $this->assertPublicHostAndResolve($currentUrl);
 			$pins = $this->buildResolvePin($host, $port, $ips);
 
+			// Domain-spezifische Header (z. B. Consent-Cookies) werden für JEDEN Hop
+			// einzeln anhand des aktuellen Hosts geladen – siehe loadFetchOverrides().
+			$overrides = $this->loadFetchOverrides($currentUrl);
+
 			$ch   = curl_init($currentUrl);
 			$opts = [
 				CURLOPT_RETURNTRANSFER => true,
@@ -576,10 +590,12 @@ class ContentExtractorService {
 					: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:149.0) Gecko/20100101 Firefox/150.0',
 			];
 
+			$headers = [];
+
 			if (!$nobody) {
 				$opts[CURLOPT_AUTOREFERER] = true;
 				$opts[CURLOPT_ENCODING]    = ''; // Leerer String = alle unterstützten Encodings aktivieren
-				$opts[CURLOPT_HTTPHEADER]  = [
+				$headers = [
 					'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
 					'Accept-Encoding: gzip, deflate, br, zstd',
 					'Accept-Language: de,en-US;q=0.9,en;q=0.8',
@@ -597,6 +613,26 @@ class ContentExtractorService {
 					'Sec-GPC: 1',
 					'Upgrade-Insecure-Requests: 1',
 				];
+			}
+
+			foreach ($overrides as $name => $value) {
+				// User-Agent geht über CURLOPT_USERAGENT statt als Header-Zeile,
+				// sonst sendet curl den Header doppelt.
+				if (strcasecmp($name, 'User-Agent') === 0) {
+					$opts[CURLOPT_USERAGENT] = $value;
+					continue;
+				}
+				// Gleichnamigen Default entfernen, damit der Override ihn ersetzt
+				// statt einen zweiten Header derselben Art zu erzeugen.
+				$headers = array_values(array_filter(
+					$headers,
+					static fn(string $h): bool => stripos($h, $name . ':') !== 0
+				));
+				$headers[] = $name . ': ' . $value;
+			}
+
+			if ($headers !== []) {
+				$opts[CURLOPT_HTTPHEADER] = $headers;
 			}
 
 			curl_setopt_array($ch, $opts);
@@ -638,6 +674,54 @@ class ContentExtractorService {
 		}
 
 		throw new \Exception('Zu viele Redirects (>' . self::MAX_REDIRECTS . '): ' . $url);
+	}
+
+	/**
+	 * Lädt domain-spezifische HTTP-Header aus der <fetch>-Sektion von
+	 * content-filters/{domain}.xml.
+	 *
+	 * Anwendungsfall: Seiten wie golem.de antworten auf Server-Requests mit einem
+	 * 302 auf ihre Consent-Seite, bevor überhaupt Artikel-HTML ausgeliefert wird.
+	 * Ein mitgeschickter Consent-Cookie beendet diese Weiterleitung.
+	 *
+	 * Warum pro Redirect-Hop und nicht einmal pro Request: Cookies sind an einen
+	 * Host gebunden. Würden wir sie einmal setzen und der gesamten Redirect-Kette
+	 * mitgeben, landete das Cookie von Host A beim nächsten Hop auf Host B – genau
+	 * das Leck, das Browser über die Same-Origin-Regeln verhindern.
+	 *
+	 * @return array<string,string> Header-Name => Wert (nur Whitelist, CRLF-frei)
+	 */
+	private function loadFetchOverrides(string $url): array
+	{
+		$config = $this->loadDomainConfig($this->normalizeDomain($url));
+		if ($config === null || !isset($config->fetch)) {
+			return [];
+		}
+
+		$headers = [];
+
+		foreach ($config->fetch->header as $header) {
+			$name  = trim((string) ($header['name'] ?? ''));
+			$value = trim((string) ($header['value'] ?? ''));
+
+			if ($name === '' || $value === '') {
+				continue;
+			}
+
+			if (!in_array(strtolower($name), self::FETCH_HEADER_WHITELIST, true)) {
+				$this->logger->warning(
+					'Merlin: <fetch>-Header nicht erlaubt und ignoriert: ' . $name,
+					['url' => $url]
+				);
+				continue;
+			}
+
+			// CR/LF entfernen: Ein Wert mit Zeilenumbruch würde sonst weitere
+			// Header-Zeilen in den Request schmuggeln (Header-Injection).
+			$headers[$name] = str_replace(["\r", "\n"], '', $value);
+		}
+
+		return $headers;
 	}
 
 	/**

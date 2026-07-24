@@ -6,36 +6,12 @@
   ═══════════════════════════════════════════════════════════════════════════════
   PIPELINE-REIHENFOLGE
   ═══════════════════════════════════════════════════════════════════════════════
-  0. <fetch>        – HTTP-Header für den Abruf der Seite (vor allem anderen)
   1. <pre-filter>   – Entfernt/markiert Elemente VOR dem Readability-Durchlauf
   2. <images>       – Normalisiert Bild+Caption-Strukturen → <figure><figcaption> (vor Readability)
   3. <quotes>       – Wandelt seitenspezifische Zitat-Strukturen um (vor Readability)
   4. Readability    – Extrahiert den Artikel-Content
   5. <post-filter>  – Bereinigt den Readability-Output
   6. <metadata>     – Überschreibt extrahierte Metadaten mit eigenen XPath-Werten
-
-  ═══════════════════════════════════════════════════════════════════════════════
-  FETCH-HEADER  (<fetch>)
-  ═══════════════════════════════════════════════════════════════════════════════
-  Zusätzliche HTTP-Header für den Abruf dieser Domain. Gedacht für Seiten, die
-  Server-Requests ohne Consent-Cookie auf eine Zustimmungsseite umleiten
-  (z. B. golem.de) oder ohne bestimmte Header kein Artikel-HTML ausliefern.
-
-    <header name="Cookie" value="consent=1; multipage=single" />
-    <header name="User-Agent" value="Mozilla/5.0 (…)" />
-
-  Regeln:
-    · Erlaubt sind nur Cookie, User-Agent, Accept-Language und Referer.
-      Andere Namen werden ignoriert und protokolliert – eine Config-Datei soll
-      den Request nicht umbiegen (Host) oder Zugangsdaten anhängen (Authorization).
-    · Gleichnamige Standard-Header werden ersetzt, nicht ergänzt.
-    · Die Header gelten nur für Requests an genau diese Domain. Bei einem
-      Redirect auf einen anderen Host werden sie NICHT mitgeschickt, sondern
-      neu anhand des dortigen Hosts bestimmt.
-    · Zeilenumbrüche in Werten werden entfernt (Header-Injection).
-
-  Keine Zugangsdaten hier ablegen: Die Datei liegt im App-Verzeichnis, gilt für
-  alle Nutzer der Instanz und landet in Git und Backups.
 
   ═══════════════════════════════════════════════════════════════════════════════
   PRE-FILTER  (<pre-filter>)
@@ -162,32 +138,24 @@
   Weist allen Artikeln dieser Domain eine feste Kategorie zu, ohne XPath.
   Wird von <metadata><category> überschrieben, falls dort ein Wert gefunden wird.
 -->
-<domain name="sample.com">
-
-  <!-- ── Fetch-Header ───────────────────────────────────────────────────── -->
-  <!-- Nur nötig, wenn die Seite ohne bestimmte Header kein Artikel-HTML liefert. -->
-  <!--
-  <fetch>
-    <header name="Cookie" value="consent=1" />
-  </fetch>
-  -->
+<domain name="telepolis.de">
 
   <!-- ── Pre-Filter ─────────────────────────────────────────────────────── -->
   <pre-filter>
 
-    <!-- Entfernen per ID -->
+    <!-- Entfernen per ID 
     <remove id="cookie-banner" />
-    <remove id="paywall-overlay" />
+    <remove id="paywall-overlay" />-->
 
-    <!-- Entfernen per CSS-Klasse (Teilstring-Match) -->
+    <!-- Entfernen per CSS-Klasse (Teilstring-Match) 
     <remove class="ad-container" />
     <remove class="newsletter-signup" />
-    <remove class="related-articles" />
+    <remove class="related-articles" />-->
 
     <!-- Entfernen per XPath (volle Flexibilität) -->
-    <remove xpath="//div[@data-ad-unit]" />
-    <remove xpath="//section[contains(@class,'teaser-list')]" />
-    <remove xpath="//*[@aria-label='Werbung']" />
+    <remove xpath="//div[@data-component='RecommendationBox']" />
+    <!--<remove xpath="//section[contains(@class,'teaser-list')]" />
+    <remove xpath="//*[@aria-label='Werbung']" />-->
 
     <!-- Infoboxen markieren (werden im Reader besonders dargestellt) -->
     <infobox id="article-infobox" />
@@ -195,32 +163,13 @@
     <infobox xpath="//aside[contains(@class,'sidebar-facts')]" />
 
     <!-- Beliebige CSS-Klasse per XPath hinzufügen (vor Readability, Klasse bleibt erhalten) -->
-    <saveElements xpath="//aside[@data-type='related']" class="merlin-sidebar" />
-    <saveElements xpath="//div[contains(@class,'fact-box')]" class="merlin-facts" />
+    <!--<saveElements xpath="//aside[@data-type='related']" class="merlin-sidebar" />
+    <saveElements xpath="//div[contains(@class,'fact-box')]" class="merlin-facts" />-->
 
   </pre-filter>
 
   <!-- ── Zitate ─────────────────────────────────────────────────────────── -->
   <quotes>
-
-    <!-- Beispiel: BEM-Komponenten-Quote (z. B. Spiegel, Zeit) -->
-    <quote
-      container-xpath="//div[contains(@class,'component-quote') and not(contains(@class,'component-quote__'))]"
-      text-xpath=".//div[contains(@class,'component-quote__quote')]"
-      author-xpath=".//div[contains(@class,'component-quote__author')]"
-    />
-
-    <!-- Beispiel: einfaches Pull-Quote ohne Autor -->
-    <quote
-      container-xpath="//div[contains(@class,'pull-quote')]"
-      text-xpath=".//p[contains(@class,'pull-quote__text')]"
-    />
-
-    <!-- Beispiel: Container ist direkt der Zitattext (kein text-xpath nötig) -->
-    <quote
-      container-xpath="//figure[contains(@class,'article-quote')]"
-      author-xpath=".//figcaption"
-    />
 
   </quotes>
 
@@ -252,9 +201,6 @@
   <!-- ── Post-Filter ────────────────────────────────────────────────────── -->
   <post-filter>
 
-    <!-- Entfernen per Klasse aus dem Readability-Output -->
-    <remove class="article-footer-links" />
-    <remove xpath="//p[contains(@class,'subscription-hint')]" />
 
   </post-filter>
 
@@ -269,18 +215,6 @@
 
   <!-- ── Metadaten ──────────────────────────────────────────────────────── -->
   <metadata>
-
-    <title    xpath="//h1[contains(@class,'article-headline')]" />
-
-    <!-- Autor: erst XPath, dann JSON-LD, dann og:-Fallback -->
-    <author   xpath="//a[@rel='author']" />
-    <!-- <author   json="$.author.name" /> -->
-    <!-- <author   json="ld:$.author[0].name" /> -->
-    <!-- <author   json="next:$.pageProps.article.author" /> -->
-
-    <excerpt  xpath="//p[contains(@class,'article-intro')]" />
-    <image    xpath="//meta[@property='og:image']/@content" />
-    <published xpath="//time[@itemprop='datePublished']/@datetime" />
 
     <!-- Kategorie per XPath (überschreibt <category> unten) -->
     <!-- <category xpath="//meta[@property='article:section']/@content" /> -->
