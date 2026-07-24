@@ -94,14 +94,14 @@
 									max="28"
 									step="1"
 									@change="saveSettings">
-								<div class="slider__thumb" :style="{ left: fontSizePct + '%' }" />
+								<div class="slider__thumb" :style="{ left: fontSizeThumbLeft }" />
 							</div>
 							<div class="slider__value">{{ localSettings.fontSize }}px</div>
 						</div>
-						<div class="slider__ticks">
-							<span>{{ t('merlin', 'Small') }}</span>
-							<span>{{ t('merlin', 'Default') }}</span>
-							<span>{{ t('merlin', 'Large') }}</span>
+						<div class="slider__ticks slider__ticks--positioned">
+							<span class="slider__tick slider__tick--start">{{ t('merlin', 'Small') }}</span>
+							<span class="slider__tick slider__tick--default" :style="{ left: fontSizeDefaultTickLeft }">{{ t('merlin', 'Default') }}</span>
+							<span class="slider__tick slider__tick--end">{{ t('merlin', 'Large') }}</span>
 						</div>
 					</div>
 				</div>
@@ -125,7 +125,7 @@
 									max="2.0"
 									step="0.1"
 									@change="saveSettings">
-								<div class="slider__thumb" :style="{ left: lineHeightPct + '%' }" />
+								<div class="slider__thumb" :style="{ left: lineHeightThumbLeft }" />
 							</div>
 							<div class="slider__value">{{ Number(localSettings.lineHeight).toFixed(1) }}</div>
 						</div>
@@ -159,6 +159,8 @@
 					<button
 						type="button"
 						:class="['toggle', { 'is-on': localSettings.saveProgress }]"
+						:aria-pressed="localSettings.saveProgress"
+						:aria-label="t('merlin', 'Save reading position')"
 						@click="setSetting('saveProgress', !localSettings.saveProgress)">
 						<span class="toggle__switch" />
 					</button>
@@ -174,6 +176,8 @@
 					<button
 						type="button"
 						:class="['toggle', { 'is-on': localSettings.resumeOnOpen }]"
+						:aria-pressed="localSettings.resumeOnOpen"
+						:aria-label="t('merlin', 'Resume when opening')"
 						@click="setSetting('resumeOnOpen', !localSettings.resumeOnOpen)">
 						<span class="toggle__switch" />
 					</button>
@@ -185,12 +189,18 @@
 						<div class="field__hint">{{ t('merlin', 'Where the reading-progress bar appears. "Off" hides it entirely.') }}</div>
 					</div>
 					<div class="field__control">
-						<div class="segmented" role="tablist">
+						<div
+							class="segmented"
+							role="radiogroup"
+							:aria-label="t('merlin', 'Progress bar position')"
+							@keydown="onSegmentedKeydown($event, progressEdgeOptions, 'progressEdge')">
 							<button
 								v-for="opt in progressEdgeOptions"
 								:key="opt.value"
-								role="tab"
-								:aria-selected="localSettings.progressEdge === opt.value"
+								type="button"
+								role="radio"
+								:aria-checked="localSettings.progressEdge === opt.value"
+								:tabindex="localSettings.progressEdge === opt.value ? 0 : -1"
 								:class="['segmented__item', { 'is-active': localSettings.progressEdge === opt.value }]"
 								@click="setSetting('progressEdge', opt.value)">
 								{{ opt.label }}
@@ -223,7 +233,7 @@
 										type="color"
 										class="color-input"
 										:value="localSettings.accentColor"
-										@input="setSetting('accentColor', $event.target.value)">
+										@input="setSetting('accentColor', clampAccentLightness($event.target.value))">
 								</span>
 								<span class="swatch__label">{{ t('merlin', 'Custom') }}</span>
 								<span class="swatch__check"><Check :size="12" /></span>
@@ -250,12 +260,18 @@
 						<div class="field__hint">{{ t('merlin', 'Where the app lands when you open it.') }}</div>
 					</div>
 					<div class="field__control">
-						<div class="segmented" role="tablist">
+						<div
+							class="segmented"
+							role="radiogroup"
+							:aria-label="t('merlin', 'Default view')"
+							@keydown="onSegmentedKeydown($event, defaultViewOptions, 'defaultView')">
 							<button
 								v-for="opt in defaultViewOptions"
 								:key="opt.value"
-								role="tab"
-								:aria-selected="localSettings.defaultView === opt.value"
+								type="button"
+								role="radio"
+								:aria-checked="localSettings.defaultView === opt.value"
+								:tabindex="localSettings.defaultView === opt.value ? 0 : -1"
 								:class="['segmented__item', { 'is-active': localSettings.defaultView === opt.value }]"
 								@click="setSetting('defaultView', opt.value)">
 								<component :is="opt.icon" :size="14" />
@@ -369,6 +385,51 @@ import TagOutline from 'vue-material-design-icons/TagOutline.vue'
 import Close from 'vue-material-design-icons/Close.vue'
 import SettingsPreview from './SettingsPreview.vue'
 
+// Kleine, abhängigkeitsfreie Hex<->HSL-Konvertierung, nur für clampAccentLightness()
+// unten gebraucht (Kontrastproblem: sehr helle Akzentfarben verschlucken das
+// schwebende Dock im Reader, siehe ArticleReader.vue dockStyle()).
+function hexToHsl(hex) {
+	const r = parseInt(hex.slice(1, 3), 16) / 255
+	const g = parseInt(hex.slice(3, 5), 16) / 255
+	const b = parseInt(hex.slice(5, 7), 16) / 255
+	const max = Math.max(r, g, b); const min = Math.min(r, g, b)
+	let h = 0; let s = 0; const l = (max + min) / 2
+	if (max !== min) {
+		const d = max - min
+		s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+		switch (max) {
+		case r: h = (g - b) / d + (g < b ? 6 : 0); break
+		case g: h = (b - r) / d + 2; break
+		default: h = (r - g) / d + 4; break
+		}
+		h /= 6
+	}
+	return { h, s, l }
+}
+
+function hslToHex(h, s, l) {
+	let r, g, b
+	if (s === 0) {
+		r = g = b = l
+	} else {
+		const hue2rgb = (p, q, t) => {
+			if (t < 0) t += 1
+			if (t > 1) t -= 1
+			if (t < 1 / 6) return p + (q - p) * 6 * t
+			if (t < 1 / 2) return q
+			if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
+			return p
+		}
+		const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+		const p = 2 * l - q
+		r = hue2rgb(p, q, h + 1 / 3)
+		g = hue2rgb(p, q, h)
+		b = hue2rgb(p, q, h - 1 / 3)
+	}
+	const toHex = v => Math.round(v * 255).toString(16).padStart(2, '0')
+	return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase()
+}
+
 const DEFAULTS = {
 	theme: 'auto',
 	fontFamily: 'default',
@@ -397,6 +458,13 @@ export default {
 			savedFlash: false,
 			_flashTimer: null,
 			reportUrlStatus: null, // null | 'checking' | 'ok' | 'error'
+			// Letzte tatsächlich geprüfte reportBackendUrl: verhindert, dass der
+			// settings-Watcher bei jedem Save (z.B. Theme-Wechsel) erneut pingt,
+			// obwohl sich die URL gar nicht geändert hat.
+			_lastCheckedReportUrl: undefined,
+			// Zähler gegen Race-Conditions: eine spät eintreffende Antwort einer
+			// überholten Prüfung darf den Status einer neueren nicht überschreiben.
+			_reportCheckToken: 0,
 
 			themeOptions: [
 				{ value: 'light', label: t('merlin', 'Light') },
@@ -447,6 +515,27 @@ export default {
 			return ((Number(this.localSettings.fontSize) - min) / (max - min)) * 100
 		},
 
+		// Der native Range-Thumb bleibt immer innerhalb der Spurbreite (an den Enden um
+		// den halben Thumb-Durchmesser eingerückt). Der Fake-Thumb nutzte bisher reines
+		// `left: pct%`, wodurch er an 0%/100% zur Hälfte über den Rand hinausragte.
+		// THUMB_RADIUS (9px) entspricht der Hälfte der .slider__thumb-Breite (18px).
+		fontSizeThumbLeft() {
+			return this._thumbLeft(this.fontSizePct)
+		},
+
+		lineHeightThumbLeft() {
+			return this._thumbLeft(this.lineHeightPct)
+		},
+
+		// Der "Default"-Tick saß bisher optisch mittig (space-between), obwohl 17px auf
+		// der Skala 12–28 nicht in der Mitte liegt (das wäre 20). Position wird stattdessen
+		// exakt wie beim Thumb aus dem tatsächlichen Default-Wert berechnet.
+		fontSizeDefaultTickLeft() {
+			const min = 12; const max = 28
+			const pct = ((DEFAULTS.fontSize - min) / (max - min)) * 100
+			return this._thumbLeft(pct)
+		},
+
 		// Zeigt den "Custom"-Swatch als aktiv, wenn die aktuelle Farbe nicht
 		// in der vordefinierten Palette enthalten ist (z.B. von Mobile-Apps gesetzt).
 		isCustomAccentColor() {
@@ -462,7 +551,12 @@ export default {
 				// DEFAULT_SETTINGS) und muss für die Checkbox-Liste als Array vorliegen.
 				const excludedTagIds = this.parseExcludedTagIds(s && s.excludedTagIds)
 				this.localSettings = { ...DEFAULTS, ...s, excludedTagIds }
-				this.checkReportBackend(s && s.reportBackendUrl)
+				// Nur pingen, wenn sich die URL seit der letzten Prüfung wirklich geändert
+				// hat — sonst löst jedes Save (Theme, Slider, …) einen externen HTTP-Request aus.
+				const url = (s && s.reportBackendUrl) || ''
+				if (url !== this._lastCheckedReportUrl) {
+					this.checkReportBackend(url)
+				}
 			},
 		},
 	},
@@ -481,6 +575,25 @@ export default {
 
 	methods: {
 		...mapActions(['updateSettings', 'fetchTags']),
+
+		// Verhindert nahezu weiße/sehr helle Akzentfarben: Der schwebende Dock im Reader
+		// hat einen weißen/hellen Icon-Vordergrund bei dunklen Akzenten, aber bei sehr
+		// hellen Akzenten (nahe Weiß) verschwindet der Dock selbst fast unsichtbar vor
+		// dem hellen Hintergrund. Deckelt die HSL-Helligkeit statt die Farbe abzulehnen,
+		// damit der Colorpicker trotzdem nutzbar bleibt.
+		clampAccentLightness(hex) {
+			const MAX_LIGHTNESS = 0.82
+			const { h, s, l } = hexToHsl(hex)
+			if (l <= MAX_LIGHTNESS) return hex
+			return hslToHex(h, s, MAX_LIGHTNESS)
+		},
+
+		// Siehe fontSizeThumbLeft/lineHeightThumbLeft: hält den Fake-Thumb (und den
+		// Default-Tick) innerhalb der Spurbreite, analog zum nativen Range-Thumb.
+		_thumbLeft(pct) {
+			const THUMB_RADIUS = 9
+			return `calc(${THUMB_RADIUS}px + (100% - ${THUMB_RADIUS * 2}px) * ${pct / 100})`
+		},
 
 		setSetting(key, value) {
 			this.localSettings = { ...this.localSettings, [key]: value }
@@ -502,6 +615,32 @@ export default {
 			}
 		},
 
+		// WAI-ARIA "radiogroup"-Pattern: Pfeiltasten wechseln die Auswahl und wandern
+		// mit dem Fokus mit (roving tabindex), Home/End springen an die Enden.
+		// Ersetzt das vorherige role="tablist"/"tab", das ohne zugehörige Tabpanels
+		// semantisch falsch war und keine Pfeiltasten-Navigation anbot.
+		onSegmentedKeydown(event, options, settingKey) {
+			const nav = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }
+			let nextIndex
+			const currentIndex = options.findIndex(opt => opt.value === this.localSettings[settingKey])
+
+			if (event.key in nav) {
+				nextIndex = (currentIndex + nav[event.key] + options.length) % options.length
+			} else if (event.key === 'Home') {
+				nextIndex = 0
+			} else if (event.key === 'End') {
+				nextIndex = options.length - 1
+			} else {
+				return
+			}
+
+			event.preventDefault()
+			this.setSetting(settingKey, options[nextIndex].value)
+			this.$nextTick(() => {
+				event.currentTarget.querySelectorAll('[role="radio"]')[nextIndex]?.focus()
+			})
+		},
+
 		isTagExcluded(tagId) {
 			return this.localSettings.excludedTagIds.includes(tagId)
 		},
@@ -516,6 +655,9 @@ export default {
 
 		async checkReportBackend(url) {
 			const trimmed = (url || '').trim()
+			this._lastCheckedReportUrl = url || ''
+			const token = ++this._reportCheckToken
+
 			if (!trimmed) {
 				this.reportUrlStatus = null
 				return
@@ -527,6 +669,8 @@ export default {
 					method: 'GET',
 					signal: AbortSignal.timeout(5000),
 				})
+				// Eine neuere Prüfung ist inzwischen gestartet — diese Antwort ist veraltet.
+				if (token !== this._reportCheckToken) return
 				if (res.ok) {
 					const json = await res.json().catch(() => null)
 					this.reportUrlStatus = (json && json.ok) ? 'ok' : 'error'
@@ -534,6 +678,7 @@ export default {
 					this.reportUrlStatus = 'error'
 				}
 			} catch {
+				if (token !== this._reportCheckToken) return
 				this.reportUrlStatus = 'error'
 			}
 		},
@@ -553,13 +698,6 @@ export default {
 			} catch (error) {
 				console.error('Failed to save settings:', error)
 			}
-		},
-
-		resetSection(keys) {
-			const patch = {}
-			keys.forEach(k => { patch[k] = DEFAULTS[k] })
-			this.localSettings = { ...this.localSettings, ...patch }
-			this.saveSettings()
 		},
 
 		resetAll() {
@@ -921,6 +1059,22 @@ export default {
 	margin-top: 4px;
 	padding: 0 9px;
 }
+
+/* Font-size slider: "Default" (17px) liegt nicht in der Mitte der 12–28-Skala,
+   darum werden die Ticks hier absolut positioniert statt gleichmäßig verteilt. */
+.slider__ticks--positioned {
+	position: relative;
+	height: 14px;
+	padding: 0;
+}
+.slider__ticks--positioned .slider__tick {
+	position: absolute;
+	top: 0;
+	white-space: nowrap;
+}
+.slider__ticks--positioned .slider__tick--start { left: 0; }
+.slider__ticks--positioned .slider__tick--end { right: 0; }
+.slider__ticks--positioned .slider__tick--default { transform: translateX(-50%); }
 
 /* ── Toggle ───────────────────────────────────── */
 .toggle-row {

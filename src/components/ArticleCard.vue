@@ -34,7 +34,7 @@
 					<Web :size="16" />
 					{{ article.siteName }}
 				</span>
-				<span class="meta-time">
+				<span v-if="article.readingTime" class="meta-time">
 					<Clock :size="16" />
 					{{ t('merlin', '{minutes} min', { minutes: article.readingTime }) }}
 				</span>

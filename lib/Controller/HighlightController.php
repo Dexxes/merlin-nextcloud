@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
+use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Db\Highlight;
 use OCA\Merlin\Db\HighlightMapper;
 use OCP\AppFramework\Controller;
@@ -22,23 +23,27 @@ use OCP\IRequest;
  * both the Vue web-UI (session cookie) and native clients (iOS, Android,
  * browser extensions) that authenticate via HTTP Basic Auth and cannot
  * supply a Nextcloud requesttoken. Removing the attribute would break all
- * native clients; splitting routes into separate web/API prefixes is the
- * clean long-term fix (tracked). Residual CSRF risk for the web-UI path is
- * mitigated by Nextcloud's SameSite=Lax session cookie, which prevents
- * cross-site POST/PUT/DELETE in all modern browsers.
+ * native clients. CSRF protection for the cookie-authenticated web-UI path is
+ * instead enforced centrally by CsrfCookieAuthMiddleware, which demands a
+ * valid requesttoken for state-changing browser requests while skipping
+ * Basic/Bearer-authenticated (native) requests and safe methods. SameSite=Lax
+ * session cookies remain as an additional layer of defense.
  */
 class HighlightController extends Controller {
 	private HighlightMapper $highlightMapper;
+	private ArticleMapper $articleMapper;
 	private ?string $userId;
 
 	public function __construct(
 		string $appName,
 		IRequest $request,
 		HighlightMapper $highlightMapper,
+		ArticleMapper $articleMapper,
 		?string $userId
 	) {
 		parent::__construct($appName, $request);
 		$this->highlightMapper = $highlightMapper;
+		$this->articleMapper = $articleMapper;
 		$this->userId = $userId;
 	}
 
@@ -77,6 +82,15 @@ class HighlightController extends Controller {
 	): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
+		}
+
+		// Ownership-Prüfung: Der Artikel muss dem Nutzer gehören, bevor ein
+		// Highlight daran gespeichert wird (verhindert Highlights auf fremden/
+		// geratenen article_ids – analog zu TagController::addToArticle()).
+		try {
+			$this->articleMapper->find($articleId, $this->userId);
+		} catch (DoesNotExistException) {
+			return new DataResponse(['error' => 'Article not found'], Http::STATUS_NOT_FOUND);
 		}
 
 		$highlight = new Highlight();

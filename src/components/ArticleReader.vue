@@ -4,7 +4,7 @@
 		<!-- Bottom-center floating dock (Desktop only) — replaces the former left/right panels.
 		     Colored with the user's accent color; only the highest-priority actions live
 		     here (back, archive, favorite, share). Everything else sits behind "More". -->
-		<div v-if="!isMobile" class="reader-dock" :style="dockStyle">
+		<div v-if="!isMobile" ref="dockRef" class="reader-dock" :style="dockStyle">
 			<NcButton
 				class="dock-btn"
 				:title="t('merlin', 'Back to list')"
@@ -54,30 +54,31 @@
 						@click="shareMenuOpen = false" />
 					<ul
 						v-if="shareMenuOpen"
+						role="menu"
 						class="export-menu"
 						:class="{ 'share-menu--mobile': isMobile, 'dark-mode': isDarkMode }"
 						:style="shareMenuStyle">
-						<li v-if="hasNativeShare" @click="nativeShare(); shareMenuOpen = false">
+						<li v-if="hasNativeShare" role="menuitem" @click="nativeShare(); shareMenuOpen = false">
 							<ShareVariant :size="16" />
 							<span>{{ t('merlin', 'Share…') }}</span>
 						</li>
-						<li @click="copyLink(); shareMenuOpen = false">
+						<li role="menuitem" @click="copyLink(); shareMenuOpen = false">
 							<ContentCopy :size="16" />
 							<span>{{ t('merlin', 'Copy link') }}</span>
 						</li>
-						<li @click="shareByEmail(); shareMenuOpen = false">
+						<li role="menuitem" @click="shareByEmail(); shareMenuOpen = false">
 							<Email :size="16" />
 							<span>{{ t('merlin', 'Send by email') }}</span>
 						</li>
-						<li @click="shareToBluesky(); shareMenuOpen = false">
+						<li role="menuitem" @click="shareToBluesky(); shareMenuOpen = false">
 							<Butterfly :size="16" />
 							<span>{{ t('merlin', 'Share to Bluesky') }}</span>
 						</li>
-						<li @click="shareToMastodon(); shareMenuOpen = false">
+						<li role="menuitem" @click="shareToMastodon(); shareMenuOpen = false">
 							<Mastodon :size="16" />
 							<span>{{ t('merlin', 'Share to Mastodon') }}</span>
 						</li>
-						<li @click="shareMenuOpen = false; shareLinkDialogOpen = true">
+						<li role="menuitem" @click="shareMenuOpen = false; shareLinkDialogOpen = true">
 							<LinkVariant :size="16" />
 							<span>{{ t('merlin', 'Public link…') }}</span>
 						</li>
@@ -92,7 +93,7 @@
 				class="dock-btn"
 				:title="t('merlin', 'More options')"
 				:class="{ 'more-btn--active': moreMenuOpen }"
-				@click.stop="moreMenuOpen = !moreMenuOpen">
+				@click.stop="toggleMoreMenu">
 				<template #icon>
 					<DotsHorizontal :size="18" />
 				</template>
@@ -100,25 +101,30 @@
 
 			<Teleport to="body">
 				<div v-if="moreMenuOpen" class="export-backdrop" @click="moreMenuOpen = false" />
-				<ul v-if="moreMenuOpen" class="export-menu dock-anchored-menu" :class="{ 'dark-mode': isDarkMode }">
-					<li @click="toggleDarkMode(); moreMenuOpen = false">
+				<ul
+					v-if="moreMenuOpen"
+					role="menu"
+					class="export-menu dock-anchored-menu"
+					:class="{ 'dark-mode': isDarkMode }"
+					:style="dockAnchoredMenuStyle">
+					<li role="menuitem" @click="toggleDarkMode(); moreMenuOpen = false">
 						<WeatherNight v-if="!isDarkMode" :size="16" />
 						<WhiteBalanceSunny v-else :size="16" />
 						<span>{{ isDarkMode ? t('merlin', 'Switch to light mode') : t('merlin', 'Switch to dark mode') }}</span>
 					</li>
-					<li @click="cycleFontSize(); moreMenuOpen = false">
+					<li role="menuitem" @click="cycleFontSize(); moreMenuOpen = false">
 						<FormatFontSizeIncrease :size="16" />
 						<span>{{ t('merlin', 'Adjust font size') }}</span>
 					</li>
-					<li @click="moreMenuOpen = false; tagMenuOpen = true">
+					<li role="menuitem" @click="moreMenuOpen = false; openTagMenu()">
 						<Tag :size="16" />
 						<span>{{ t('merlin', 'Manage tags') }}</span>
 					</li>
-					<li @click="exportHtml(); moreMenuOpen = false">
+					<li role="menuitem" @click="exportHtml(); moreMenuOpen = false">
 						<Download :size="16" />
 						<span>{{ t('merlin', 'Export as HTML') }}</span>
 					</li>
-					<li class="more-menu-danger" @click="confirmDelete(); moreMenuOpen = false">
+					<li role="menuitem" class="more-menu-danger" @click="confirmDelete(); moreMenuOpen = false">
 						<Delete :size="16" /><span>{{ t('merlin', 'Delete article') }}</span>
 					</li>
 				</ul>
@@ -129,14 +135,18 @@
 				<div v-if="tagMenuOpen" class="export-backdrop" @click="tagMenuOpen = false" />
 				<ul
 					v-if="tagMenuOpen"
+					role="menu"
 					class="export-menu"
-					:class="{ 'tag-menu--mobile': isMobile, 'dock-anchored-menu': !isMobile, 'dark-mode': isDarkMode }">
-					<li v-if="allTags.length === 0" class="tag-menu-empty">
+					:class="{ 'tag-menu--mobile': isMobile, 'dock-anchored-menu': !isMobile, 'dark-mode': isDarkMode }"
+					:style="!isMobile ? dockAnchoredMenuStyle : null">
+					<li v-if="allTags.length === 0" role="none" class="tag-menu-empty">
 						<span>{{ t('merlin', 'No tags defined yet') }}</span>
 					</li>
 					<li
 						v-for="tag in allTags"
 						:key="tag.id"
+						role="menuitemcheckbox"
+						:aria-checked="articleHasTag(tag)"
 						@click="handleTagToggle(tag)">
 						<span class="tag-color-dot" :style="{ backgroundColor: tag.color }" />
 						<span class="tag-name">{{ tag.name }}</span>
@@ -144,7 +154,7 @@
 					</li>
 
 					<!-- New tag form -->
-					<li class="tag-new-form" @click.stop>
+					<li role="none" class="tag-new-form" @click.stop>
 						<input
 							v-model="newTagName"
 							class="tag-new-input"
@@ -197,34 +207,34 @@
 		<!-- Mobile „Mehr"-Menü — enthält auch Teilen + Erscheinungsbild, die früher eigene Buttons in der Bottom-Bar waren -->
 		<Teleport to="body">
 			<div v-if="mobileMoreOpen" class="export-backdrop" @click="mobileMoreOpen = false" />
-			<ul v-if="mobileMoreOpen" class="export-menu mobile-more-menu" :class="{ 'dark-mode': isDarkMode }">
-				<li @click="toggleFavoriteStatus(); mobileMoreOpen = false">
+			<ul v-if="mobileMoreOpen" role="menu" class="export-menu mobile-more-menu" :class="{ 'dark-mode': isDarkMode }">
+				<li role="menuitem" @click="toggleFavoriteStatus(); mobileMoreOpen = false">
 					<Star v-if="isFavoriteFromStore" :size="16" class="fav-btn--active" />
 					<StarOutline v-else :size="16" />
 					<span>{{ isFavoriteFromStore ? t('merlin', 'Remove from favorites') : t('merlin', 'Add to favorites') }}</span>
 				</li>
 
-				<li @click="mobileMoreOpen = false; tagMenuOpen = true">
+				<li role="menuitem" @click="mobileMoreOpen = false; openTagMenu()">
 					<Tag :size="16" />
 					<span>{{ t('merlin', 'Manage tags') }}</span>
 				</li>
 
-				<li @click.stop="mobileMoreOpen = false; toggleShareMenu()">
+				<li role="menuitem" @click.stop="mobileMoreOpen = false; toggleShareMenu()">
 					<ShareVariant :size="16" />
 					<span>{{ t('merlin', 'Share') }}</span>
 				</li>
 
-				<li @click="cycleFontSize(); mobileMoreOpen = false">
+				<li role="menuitem" @click="cycleFontSize(); mobileMoreOpen = false">
 					<FormatFontSizeIncrease :size="16" />
 					<span>{{ t('merlin', 'Adjust appearance') }}</span>
 				</li>
 
-				<li @click="toggleDarkMode(); mobileMoreOpen = false">
+				<li role="menuitem" @click="toggleDarkMode(); mobileMoreOpen = false">
 					<WeatherNight v-if="!isDarkMode" :size="16" />
 					<WhiteBalanceSunny v-else :size="16" />
 					<span>{{ isDarkMode ? t('merlin', 'Switch to light mode') : t('merlin', 'Switch to dark mode') }}</span>
 				</li>
-				<li class="more-menu-danger" @click="confirmDelete(); mobileMoreOpen = false">
+				<li role="menuitem" class="more-menu-danger" @click="confirmDelete(); mobileMoreOpen = false">
 					<Delete :size="16" /><span>{{ t('merlin', 'Delete article') }}</span>
 				</li>
 			</ul>
@@ -254,21 +264,21 @@
 						<a
 							v-if="article.siteName"
 							class="meta-site"
-							:href="article.url"
+							:href="safeArticleUrl"
 							target="_blank"
 							rel="noopener noreferrer">
 							<Web :size="16" />
 							{{ article.siteName }}
 						</a>
-						<span class="meta-date">
+						<span v-if="article.publishedAt" class="meta-date">
 							<Calendar :size="16" />
-							{{ article.publishedAt ? formatDate(article.publishedAt) : formatDate(article.createdAt) }}
+							{{ formatDate(article.publishedAt) }}
 						</span>
 						<span class="meta-added" :title="t('merlin', 'The day the article was added to your list')">
 							<CalendarPlus :size="16" />
 							{{ formatDate(article.createdAt) }}
 						</span>
-						<span class="meta-time">
+						<span v-if="article.readingTime" class="meta-time">
 							<Clock :size="16" />
 							{{ t('merlin', '{minutes} min', { minutes: article.readingTime }) }}
 						</span>
@@ -280,7 +290,7 @@
 							v-for="tag in articleTagsFromStore"
 							:key="tag.id"
 							class="article-tag-chip"
-							:style="{ backgroundColor: tag.color || '#6b7280' }">{{ tag.name }}</span>
+							:style="{ backgroundColor: tag.color || '#6b7280', color: contrastColor(tag.color || '#6b7280') }">{{ tag.name }}</span>
 					</div>
 				</header>
 
@@ -308,7 +318,6 @@ import { NcButton } from '@nextcloud/vue'
 import ArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
 import WeatherNight from 'vue-material-design-icons/WeatherNight.vue'
 import WhiteBalanceSunny from 'vue-material-design-icons/WhiteBalanceSunny.vue'
-import FormatFontSizeDecrease from 'vue-material-design-icons/FormatFontSizeDecrease.vue'
 import FormatFontSizeIncrease from 'vue-material-design-icons/FormatFontSizeIncrease.vue'
 import Download from 'vue-material-design-icons/Download.vue'
 import ShareVariant from 'vue-material-design-icons/ShareVariant.vue'
@@ -319,13 +328,11 @@ import Butterfly from 'vue-material-design-icons/Butterfly.vue'
 import Mastodon from 'vue-material-design-icons/Mastodon.vue'
 import Delete from 'vue-material-design-icons/Delete.vue'
 import DotsHorizontal from 'vue-material-design-icons/DotsHorizontal.vue'
-import CheckAll from 'vue-material-design-icons/CheckAll.vue'
 import ArchiveArrowDown from 'vue-material-design-icons/ArchiveArrowDown.vue'
 import Star from 'vue-material-design-icons/Star.vue'
 import StarOutline from 'vue-material-design-icons/StarOutline.vue'
 import Tag from 'vue-material-design-icons/Tag.vue'
 import Check from 'vue-material-design-icons/Check.vue'
-import ArrowRight from 'vue-material-design-icons/ArrowRight.vue'
 import Account from 'vue-material-design-icons/Account.vue'
 import Web from 'vue-material-design-icons/Web.vue'
 import Calendar from 'vue-material-design-icons/Calendar.vue'
@@ -368,7 +375,6 @@ export default {
 		ArrowLeft,
 		WeatherNight,
 		WhiteBalanceSunny,
-		FormatFontSizeDecrease,
 		FormatFontSizeIncrease,
 		Download,
 		ShareVariant,
@@ -380,13 +386,11 @@ export default {
 		Mastodon,
 		Delete,
 		DotsHorizontal,
-		CheckAll,
 		ArchiveArrowDown,
 		Star,
 		StarOutline,
 		Tag,
 		Check,
-		ArrowRight,
 		Account,
 		Web,
 		Calendar,
@@ -394,25 +398,22 @@ export default {
 		Clock,
 	},
 
-	emits: ['close', 'delete-article', 'open-next-article'],
+	emits: ['close', 'delete-article'],
 
 	props: {
 		article: {
 			type: Object,
 			required: true,
 		},
-		nextArticle: {
-			type: Object,
-			default: null,
-		},
 	},
 
 	data() {
 		return {
-			isDarkMode: false,
+			// Einzige Quelle der Wahrheit für das Erscheinungsbild dieser Reader-Instanz;
+			// 'dark'/'sepia' sind explizite Nutzerwahlen, 'auto' wird in mounted() einmalig
+			// anhand des OS-Farbschemas zu 'light'/'dark' aufgelöst (Sepia hängt nicht am OS).
+			themeMode: 'light',
 			fontSize: FONT_SIZE_DEFAULT,
-			exportMenuOpen: false,
-			exportMenuStyle: {},
 			shareMenuOpen: false,
 			shareMenuStyle: {},
 			shareLinkDialogOpen: false,
@@ -423,6 +424,7 @@ export default {
 			mobileMoreOpen: false,
 			moreMenuOpen: false,
 			tagMenuOpen: false,
+			dockAnchoredMenuStyle: {},
 			newTagName: '',
 			newTagColor: TAG_COLORS[5], // blue default
 			tagColors: TAG_COLORS,
@@ -454,10 +456,27 @@ export default {
 			return this.$store.state.tags || []
 		},
 
+		isDarkMode() {
+			return this.themeMode === 'dark'
+		},
+
+		isSepia() {
+			return this.themeMode === 'sepia'
+		},
+
 		readerClasses() {
 			return {
 				'dark-mode': this.isDarkMode,
+				'sepia-mode': this.isSepia,
 			}
+		},
+
+		// Sichere Variante der Artikel-URL für das href-Attribut: nur http(s)
+		// zulassen, damit ein bösartiges javascript:-Schema (z. B. bei fehl-
+		// geschlagener Extraktion in article.url verblieben) nicht per Klick
+		// ausgeführt werden kann. Vue sanitisiert v-bind:href NICHT.
+		safeArticleUrl() {
+			return this.sanitizeHref(this.article?.url)
 		},
 
 		articleStyles() {
@@ -478,8 +497,19 @@ export default {
 		// Position + Farbe analog zu progressBar(in:) in ArticleReaderView.swift (iOS):
 		// links/rechts wachsen vertikal von oben, oben/unten wachsen horizontal von links.
 		// Dock background follows the user's chosen accent color (same source as the progress bar).
+		// Icon-/Overlay-Farben werden je nach Helligkeit der Akzentfarbe umgeschaltet (siehe
+		// contrastColor), sonst verschwinden z. B. weiße Icons auf hellem Gelb komplett.
 		dockStyle() {
-			return { background: this.settings.accentColor || '#FF3B30' }
+			const accent = this.settings.accentColor || '#FF3B30'
+			const fg = this.contrastColor(accent)
+			const isLightFg = fg === '#1d1d1f'
+			return {
+				background: accent,
+				'--dock-fg': fg,
+				'--dock-overlay': isLightFg ? 'rgba(0, 0, 0, 0.12)' : 'rgba(255, 255, 255, 0.18)',
+				'--dock-overlay-active': isLightFg ? 'rgba(0, 0, 0, 0.20)' : 'rgba(255, 255, 255, 0.28)',
+				'--dock-divider': isLightFg ? 'rgba(0, 0, 0, 0.20)' : 'rgba(255, 255, 255, 0.25)',
+			}
 		},
 
 		progressBarStyle() {
@@ -520,12 +550,30 @@ export default {
 	},
 
 	mounted() {
-		this.isDarkMode = this.settings.theme === 'dark'
-			|| (this.settings.theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+		this.themeMode = this.resolveThemeMode(this.settings.theme)
 		this.fontSize = parseFontSize(this.settings.fontSize)
-		this._checkMobile = () => { this.isMobile = window.innerWidth <= 768 }
+		this._checkMobile = () => {
+			this.isMobile = window.innerWidth <= 768
+			// Re-anchor any open dropdown on resize — they're positioned in JS via
+			// getBoundingClientRect() at open time, so without this a resize with a
+			// menu open leaves it hanging at its old (now wrong) coordinates.
+			if (this.shareMenuOpen && !this.isMobile) {
+				this.shareMenuStyle = this._computeShareMenuStyle()
+			}
+			if (!this.isMobile && (this.moreMenuOpen || this.tagMenuOpen)) {
+				this.dockAnchoredMenuStyle = this._computeDockAnchoredMenuStyle()
+			}
+		}
 		this._checkMobile()
 		window.addEventListener('resize', this._checkMobile)
+		this._onKeydown = (event) => {
+			if (event.key !== 'Escape') return
+			this.shareMenuOpen = false
+			this.moreMenuOpen = false
+			this.tagMenuOpen = false
+			this.mobileMoreOpen = false
+		}
+		window.addEventListener('keydown', this._onKeydown)
 		this.$nextTick(() => {
 			this._restoreScrollPosition()
 			this._initHighlights()
@@ -539,6 +587,7 @@ export default {
 
 	beforeUnmount() {
 		window.removeEventListener('resize', this._checkMobile)
+		window.removeEventListener('keydown', this._onKeydown)
 		if (this._onScroll && this.$refs.readerContent) {
 			this.$refs.readerContent.removeEventListener('scroll', this._onScroll)
 		}
@@ -559,7 +608,7 @@ export default {
 	},
 
 	methods: {
-		...mapActions(['toggleRead', 'toggleArchive', 'toggleFavorite', 'addTag', 'addTagToArticle', 'removeTagFromArticle', 'updateSettings']),
+		...mapActions(['toggleArchive', 'toggleFavorite', 'addTag', 'addTagToArticle', 'removeTagFromArticle', 'updateSettings']),
 
 		async toggleFavoriteStatus() {
 			try {
@@ -597,75 +646,64 @@ export default {
 			}
 		},
 
-		// Desktop: fixed-position CSS anchors the menu above the dock, so no rect calc needed.
-		toggleTagMenu() {
-			this.tagMenuOpen = !this.tagMenuOpen
+		// Opens the tag picker; on desktop it shares the dock anchor with the "More"
+		// menu, so its position is computed the same way (see _computeDockAnchoredMenuStyle).
+		openTagMenu() {
+			if (!this.isMobile) {
+				this.dockAnchoredMenuStyle = this._computeDockAnchoredMenuStyle()
+			}
+			this.tagMenuOpen = true
+		},
+
+		toggleMoreMenu() {
+			if (!this.moreMenuOpen) {
+				this.dockAnchoredMenuStyle = this._computeDockAnchoredMenuStyle()
+			}
+			this.moreMenuOpen = !this.moreMenuOpen
+		},
+
+		// Anchors the "More"/"Manage tags" dropdowns above the actual dock element
+		// (via its measured rect) instead of relying on `left: 50%` in CSS, which
+		// centers on the viewport rather than the article column the dock sits over.
+		_computeDockAnchoredMenuStyle() {
+			const dock = this.$refs.dockRef
+			if (!dock) return {}
+			const rect = dock.getBoundingClientRect()
+			const menuWidth = 190
+			const left = Math.min(Math.max(8, rect.left + rect.width / 2 - menuWidth / 2), window.innerWidth - menuWidth - 8)
+			return {
+				bottom: (window.innerHeight - rect.top + 8) + 'px',
+				top: 'auto',
+				left: left + 'px',
+			}
+		},
+
+		// 'auto' (System) zu 'light'/'dark' auflösen; 'dark'/'sepia' bleiben explizit,
+		// da Sepia keine OS-Gegenentsprechung hat.
+		resolveThemeMode(theme) {
+			if (theme === 'dark' || theme === 'sepia') return theme
+			if (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark'
+			return 'light'
 		},
 
 		toggleDarkMode() {
-			this.isDarkMode = !this.isDarkMode
+			// Schneller Umschalter im Dock: pendelt nur zwischen hell/dunkel (auch aus Sepia
+			// heraus) — für Sepia gibt es die Auswahl über die Settings-Seite.
+			this.themeMode = this.isDarkMode ? 'light' : 'dark'
 			// Persistieren, sonst gilt der Toggle nur für diese Komponenten-Instanz:
 			// mounted() liest beim nächsten Artikel wieder settings.theme und der
 			// Hintergrund-Poll würde den lokalen Store mit dem Server-Wert überschreiben.
 			// Explizit 'dark'/'light' statt 'auto', damit die Wahl eindeutig ist.
 			this.updateSettings({
 				...this.settings,
-				theme: this.isDarkMode ? 'dark' : 'light',
+				theme: this.themeMode,
 			}).catch(() => {}) // Fehler wird bereits in der Store-Action geloggt
-		},
-
-		increaseFontSize() {
-			const next = FONT_SIZE_STEPS.find(s => s > this.fontSize)
-			if (next !== undefined) this.fontSize = next
-		},
-
-		decreaseFontSize() {
-			const prev = [...FONT_SIZE_STEPS].reverse().find(s => s < this.fontSize)
-			if (prev !== undefined) this.fontSize = prev
 		},
 
 		// Mobile: rotiert durch alle Schriftgrößen in einer Schaltfläche
 		cycleFontSize() {
 			const idx = FONT_SIZE_STEPS.findIndex(s => s >= this.fontSize)
 			this.fontSize = FONT_SIZE_STEPS[(idx + 1) % FONT_SIZE_STEPS.length]
-		},
-
-		goToNext() {
-			if (this.nextArticle) {
-				this.$emit('open-next-article', this.nextArticle)
-			}
-		},
-
-		async archiveAndGoToNext() {
-			if (!this.nextArticle) return
-			// Zielartikel VOR dem await sichern: durch das Archivieren wird der
-			// aktuelle Artikel reaktiv aus state.articles entfernt, wodurch das
-			// nextArticle-Computed in App.vue sofort auf null springt – die
-			// Prop wäre im finally-Block dann null und würde openArticle(null)
-			// auslösen, was eine leere Seite erzeugt.
-			const target = this.nextArticle
-			try {
-				if (!this.isArchivedFromStore) {
-					await this.toggleArchive(this.article.id)
-				}
-			} catch (error) {
-				console.error('Failed to archive article:', error)
-			} finally {
-				this.$emit('open-next-article', target)
-			}
-		},
-
-		async toggleReadStatus() {
-			try {
-				// Dispatch the Vuex action — this calls the API AND updates the store,
-				// so the article list in the overview reflects the change immediately.
-				await this.toggleRead(this.article.id)
-				showSuccess(this.isReadFromStore
-					? this.t('merlin', 'Marked as read')
-					: this.t('merlin', 'Marked as unread'))
-			} catch (error) {
-				console.error('Failed to toggle read status:', error)
-			}
 		},
 
 		async archiveAndClose() {
@@ -682,21 +720,26 @@ export default {
 
 		toggleShareMenu() {
 			if (!this.shareMenuOpen) {
-				// Desktop: anchor the menu above the dock, centered on the share button
-				// (the dock sits at the bottom of the screen, so menus open upward).
-				const btn = this.isMobile ? null : this.$refs.shareWrapperRef
-				if (btn) {
-					const rect = btn.getBoundingClientRect()
-					const menuWidth = 190
-					const left = Math.min(Math.max(8, rect.left + rect.width / 2 - menuWidth / 2), window.innerWidth - menuWidth - 8)
-					this.shareMenuStyle = {
-						bottom: (window.innerHeight - rect.top + 8) + 'px',
-						top: 'auto',
-						left: left + 'px',
-					}
-				}
+				this.shareMenuStyle = this._computeShareMenuStyle()
 			}
 			this.shareMenuOpen = !this.shareMenuOpen
+		},
+
+		// Desktop: anchor the menu above the dock, centered on the share button
+		// (the dock sits at the bottom of the screen, so menus open upward).
+		// Also re-run on resize (see _checkMobile) so an open menu doesn't drift
+		// away from its anchor when the window is resized.
+		_computeShareMenuStyle() {
+			const btn = this.isMobile ? null : this.$refs.shareWrapperRef
+			if (!btn) return {}
+			const rect = btn.getBoundingClientRect()
+			const menuWidth = 190
+			const left = Math.min(Math.max(8, rect.left + rect.width / 2 - menuWidth / 2), window.innerWidth - menuWidth - 8)
+			return {
+				bottom: (window.innerHeight - rect.top + 8) + 'px',
+				top: 'auto',
+				left: left + 'px',
+			}
 		},
 
 		async nativeShare() {
@@ -865,9 +908,40 @@ export default {
 			if (!img.parentNode) return
 			const ph = document.createElement('div')
 			ph.className = 'img-placeholder'
-			const alt = img.alt ? `<span class="img-placeholder__label">${img.alt}</span>` : ''
-			ph.innerHTML = `<span class="img-placeholder__icon" aria-hidden="true"></span>${alt}`
+
+			const icon = document.createElement('span')
+			icon.className = 'img-placeholder__icon'
+			icon.setAttribute('aria-hidden', 'true')
+			ph.appendChild(icon)
+
+			// img.alt stammt aus dem importierten Artikel (angreiferkontrolliert)
+			// und ist bereits entity-dekodiert. Über textContent statt innerHTML
+			// eingesetzt, damit ein alt-Wert wie "<img onerror=…>" als reiner Text
+			// behandelt wird und kein DOM/HTML mehr erzeugt (DOM-XSS-Schutz).
+			if (img.alt) {
+				const label = document.createElement('span')
+				label.className = 'img-placeholder__label'
+				label.textContent = img.alt
+				ph.appendChild(label)
+			}
+
 			img.parentNode.replaceChild(ph, img)
+		},
+
+		// Gibt die URL nur zurück, wenn sie ein sicheres Schema trägt (http/https)
+		// oder relativ/Anker ist; andernfalls null, damit kein javascript:- oder
+		// data:-Schema in ein href/src gelangt.
+		sanitizeHref(url) {
+			if (typeof url !== 'string') return null
+			// Führende Steuerzeichen/Whitespace entfernen (Browser ignorieren sie
+			// beim Scheme-Parsing, z. B. "java\tscript:").
+			const normalized = url.replace(/[\u0000-\u0020]+/g, '').toLowerCase()
+			if (normalized.startsWith('javascript:')
+				|| normalized.startsWith('vbscript:')
+				|| normalized.startsWith('data:')) {
+				return null
+			}
+			return url
 		},
 
 		// ── Highlights ──────────────────────────────────────────────────────
@@ -929,6 +1003,24 @@ export default {
 				...(hasTime ? { hour: '2-digit', minute: '2-digit' } : {}),
 			}).format(date)
 		},
+
+		// Wählt schwarzen oder weißen Vordergrund je nach wahrgenommener Helligkeit
+		// von `hex` (ITU-R BT.601 Luma). Gebraucht für Dock-Icons und Tag-Chips, deren
+		// Hintergrund frei wählbar ist (Akzentfarbe bzw. Tag-Farbe) — ein hart codiertes
+		// Weiß wird sonst z. B. bei Gelb (#FFCC00) unsichtbar.
+		contrastColor(hex) {
+			if (typeof hex !== 'string') return '#fff'
+			const normalized = hex.replace('#', '')
+			const full = normalized.length === 3
+				? normalized.split('').map(c => c + c).join('')
+				: normalized
+			if (!/^[0-9a-f]{6}$/i.test(full)) return '#fff'
+			const r = parseInt(full.substring(0, 2), 16)
+			const g = parseInt(full.substring(2, 4), 16)
+			const b = parseInt(full.substring(4, 6), 16)
+			const luma = (r * 299 + g * 587 + b * 114) / 1000
+			return luma > 170 ? '#1d1d1f' : '#fff'
+		},
 	},
 }
 </script>
@@ -964,12 +1056,19 @@ export default {
 	color: #e0e0e0;
 }
 
+/* Sepia: warmes Papier-Look, an die Sepia-Swatch-Vorschau in Settings.vue angelehnt. */
+.article-reader.sepia-mode {
+	background: #f4ecd8;
+	color: #5b4636;
+}
+
 /* Bottom-center floating dock (replaces the former left/right panels). Background
-   is the user's accent color (see dockStyle), so buttons are always plain white
-   icons on top regardless of light/dark reader theme — no separate dark-mode
+   is the user's accent color (see dockStyle); icon/overlay colors switch between
+   black and white via the --dock-* custom properties set in dockStyle so buttons
+   stay visible against light accents (e.g. yellow) too — no separate dark-mode
    override needed like the old panels required. */
 .reader-dock {
-	position: fixed;
+	position: absolute;
 	left: 50%;
 	bottom: 24px;
 	transform: translateX(-50%);
@@ -983,31 +1082,33 @@ export default {
 }
 
 .reader-dock :deep(.button-vue) {
-	color: #fff !important;
+	color: var(--dock-fg, #fff) !important;
 	background: transparent !important;
 	border-color: transparent !important;
 }
 
 .reader-dock :deep(.button-vue:hover) {
-	background: rgba(255, 255, 255, 0.18) !important;
+	background: var(--dock-overlay, rgba(255, 255, 255, 0.18)) !important;
 }
 
 .reader-dock :deep(.button-vue:active) {
-	background: rgba(255, 255, 255, 0.28) !important;
+	background: var(--dock-overlay-active, rgba(255, 255, 255, 0.28)) !important;
 }
 
 .dock-divider {
 	width: 1px;
 	height: 20px;
-	background: rgba(255, 255, 255, 0.25);
+	background: var(--dock-divider, rgba(255, 255, 255, 0.25));
 	margin: 0 4px;
 }
 
-/* Scrollable content — bottom padding leaves room for the floating dock */
+/* Scrollable content — bottom padding leaves room for the floating dock (24px
+   offset + ~56px pill height) plus breathing room, so the last lines of an
+   article never end up hidden behind it. */
 .reader-content {
 	height: 100%;
 	overflow-y: auto;
-	padding: 40px 80px;
+	padding: 40px 80px 120px;
 	box-sizing: border-box;
 }
 
@@ -1048,6 +1149,10 @@ article {
 
 .dark-mode .article-metadata {
 	color: #999;
+}
+
+.sepia-mode .article-metadata {
+	color: #8a7357;
 }
 
 .article-metadata span,
@@ -1308,32 +1413,6 @@ article {
 	margin-bottom: 16px;
 }
 
-.article-footer-actions {
-	display: flex;
-	flex-direction: column;
-	gap: 10px;
-}
-
-.next-article-label {
-	flex-shrink: 0;
-	color: var(--color-text-lighter);
-	white-space: nowrap;
-}
-
-.next-article-title {
-	flex: 1;
-	font-weight: 600;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.next-article-arrow {
-	flex-shrink: 0;
-	margin-left: auto;
-	color: var(--color-text-lighter);
-}
-
 @media (max-width: 768px) {
 	.reader-content {
 		padding: 24px 64px;
@@ -1351,7 +1430,7 @@ article {
 }
 
 .more-btn--active :deep(.button-vue) {
-	background: rgba(255, 255, 255, 0.18) !important;
+	background: var(--dock-overlay, rgba(255, 255, 255, 0.18)) !important;
 }
 
 /* Tag-Wrapper (ähnlich wie export-wrapper) */
@@ -1461,15 +1540,11 @@ article {
 	animation: exportMenuIn 0.12s ease;
 }
 
-/* Desktop "More" and "Manage tags" menus: anchored above the centered dock.
-   Uses margin-left instead of translateX to avoid clashing with the
-   scale() transform in the exportMenuIn keyframes above. */
+/* Desktop "More" and "Manage tags" menus: anchored above the dock via the
+   dockAnchoredMenuStyle computed in JS (see _computeDockAnchoredMenuStyle),
+   which measures the dock's actual position instead of assuming it's
+   centered in the viewport. */
 .dock-anchored-menu {
-	bottom: 76px !important;
-	top: auto !important;
-	left: 50% !important;
-	right: auto !important;
-	margin-left: -95px;
 	transform-origin: bottom center;
 }
 

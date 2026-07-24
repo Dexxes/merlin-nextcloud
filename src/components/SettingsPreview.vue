@@ -11,7 +11,7 @@
 			</span>
 		</div>
 
-		<div :class="['settings-preview__body', { 'is-dark': resolvedTheme === 'dark' }]">
+		<div :class="['settings-preview__body', { 'is-dark': resolvedTheme === 'dark', 'is-sepia': resolvedTheme === 'sepia' }]">
 			<article class="settings-preview__article" :style="articleStyle">
 				<h1 class="settings-preview__article-title">
 					{{ t('merlin', 'The quiet craft of reading well') }}
@@ -82,6 +82,7 @@ export default {
 	computed: {
 		resolvedTheme() {
 			if (this.settings.theme === 'dark') return 'dark'
+			if (this.settings.theme === 'sepia') return 'sepia'
 			if (this.settings.theme === 'light') return 'light'
 			// 'auto' — follow the document's NC theme
 			if (typeof document !== 'undefined'
@@ -160,6 +161,11 @@ export default {
 	color: #e0e0e0;
 }
 
+.settings-preview__body.is-sepia {
+	background: #f4ecd8;
+	color: #5b4636;
+}
+
 .settings-preview__article {
 	max-width: 800px;
 	margin: 0 auto;
@@ -182,6 +188,9 @@ export default {
 }
 .settings-preview__body.is-dark .settings-preview__article-meta {
 	color: #999;
+}
+.settings-preview__body.is-sepia .settings-preview__article-meta {
+	color: #8a7357;
 }
 
 .settings-preview__article-meta span {
@@ -206,6 +215,9 @@ export default {
 }
 .settings-preview__body.is-dark .settings-preview__progress {
 	background: #333;
+}
+.settings-preview__body.is-sepia .settings-preview__progress {
+	background: #ddcda3;
 }
 
 .settings-preview__progress-fill {

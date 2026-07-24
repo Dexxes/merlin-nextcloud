@@ -5,13 +5,12 @@
 	         :counts="counts"
 	         :current-filter="currentFilter"
 	         :current-tag-id="currentTagId"
-			 :enable-pinning="false"
+	         :view="view"
 	         @add-article="showAddArticleDialog = true"
 	         @filter="setFilter"
 	         @filter-tag="filterByTag"
 	         @filter-category="filterByCategory"
 	         @delete-tag="handleDeleteTag"
-	         @toggle-pin-tag="onTogglePinTag"
 	         @open-settings="openSettings"
 		/>
 
@@ -26,10 +25,8 @@
 			<ArticleReader
 				v-else-if="view === 'reader' && currentArticle"
 				:article="currentArticle"
-				:next-article="nextArticle"
 				@close="closeReader"
-				@delete-article="onDeleteArticle"
-				@open-next-article="openArticle" />
+				@delete-article="onDeleteArticle" />
 
 			<Settings v-else-if="view === 'settings'" />
 		</NcAppContent>
@@ -85,16 +82,6 @@ export default {
 	computed: {
 		...mapState(['articles', 'counts', 'tags', 'currentArticle', 'loading', 'view', 'settings']),
 		...mapGetters(['filteredArticles']),
-
-		nextArticle() {
-			if (!this.currentArticle) return null
-			// filteredArticles statt articles, damit "nächster Artikel" nicht in
-			// einen per excludedTagIds ausgeblendeten Artikel navigiert.
-			const idx = this.filteredArticles.findIndex(a => a.id === this.currentArticle.id)
-			return idx !== -1 && idx < this.filteredArticles.length - 1
-				? this.filteredArticles[idx + 1]
-				: null
-		},
 	},
 
 	mounted() {
@@ -233,11 +220,6 @@ export default {
 		openSettings() {
 			this.currentFilter = null
 			this.SET_VIEW('settings')
-		},
-
-		onTogglePinTag(tagId) {
-			// Tag-Pinning not yet implemented server-side
-			console.warn('[Merlin] onTogglePinTag not implemented', tagId)
 		},
 	},
 }

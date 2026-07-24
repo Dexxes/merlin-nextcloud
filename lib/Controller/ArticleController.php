@@ -27,10 +27,11 @@ use Psr\Log\LoggerInterface;
  * both the Vue web-UI (session cookie) and native clients (iOS, Android,
  * browser extensions) that authenticate via HTTP Basic Auth and cannot
  * supply a Nextcloud requesttoken. Removing the attribute would break all
- * native clients; splitting routes into separate web/API prefixes is the
- * clean long-term fix (tracked). Residual CSRF risk for the web-UI path is
- * mitigated by Nextcloud's SameSite=Lax session cookie, which prevents
- * cross-site POST/PUT/DELETE in all modern browsers.
+ * native clients. CSRF protection for the cookie-authenticated web-UI path is
+ * instead enforced centrally by CsrfCookieAuthMiddleware, which demands a
+ * valid requesttoken for state-changing browser requests while skipping
+ * Basic/Bearer-authenticated (native) requests and safe methods. SameSite=Lax
+ * session cookies remain as an additional layer of defense.
  */
 class ArticleController extends Controller {
 	private ArticleMapper $articleMapper;

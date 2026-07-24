@@ -57,6 +57,9 @@ class ExtensionController extends Controller {
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
 	public function add(string $url, ?string $title = null, ?array $tags = null, ?string $html = null): DataResponse {
+		if ($this->userId === null) {
+			return new DataResponse(['status' => 0, 'error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
+		}
 		try {
 			// 1. Save a placeholder article immediately so the client is not blocked.
 			$article = new Article();

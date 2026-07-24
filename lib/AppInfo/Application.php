@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\Merlin\AppInfo;
 
 use OCA\Merlin\Listener\AddContentSecurityPolicyListener;
+use OCA\Merlin\Middleware\CsrfCookieAuthMiddleware;
 use OCA\Merlin\Search\ArticleSearchProvider;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
@@ -31,6 +32,11 @@ class Application extends App implements IBootstrap {
 			AddContentSecurityPolicyEvent::class,
 			AddContentSecurityPolicyListener::class,
 		);
+
+		// Zustandsabhängiger CSRF-Schutz: erzwingt einen requesttoken nur für
+		// cookie-authentifizierte Web-UI-Writes, lässt native Clients (Basic/Bearer)
+		// unangetastet. Ohne globalen Flag → gilt nur für Merlin-Controller.
+		$context->registerMiddleware(CsrfCookieAuthMiddleware::class);
 	}
 
 	public function boot(IBootContext $context): void {

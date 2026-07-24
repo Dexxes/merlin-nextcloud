@@ -50,7 +50,8 @@
 				<p v-if="article.excerpt" class="pav-excerpt">{{ article.excerpt }}</p>
 				<div class="pav-meta">
 					<span v-if="article.author">{{ article.author }}</span>
-					<a v-if="article.siteName" :href="article.url" target="_blank" rel="noopener noreferrer">{{ article.siteName }}</a>
+					<a v-if="article.siteName && safeArticleUrl" :href="safeArticleUrl" target="_blank" rel="noopener noreferrer">{{ article.siteName }}</a>
+					<span v-else-if="article.siteName">{{ article.siteName }}</span>
 					<span v-if="article.readingTime">{{ t('merlin', '{minutes} min', { minutes: article.readingTime }) }}</span>
 				</div>
 			</header>
@@ -85,6 +86,21 @@ export default {
 	computed: {
 		ttsUrl() {
 			return generateUrl(`/apps/merlin/s/${this.token}/tts`)
+		},
+
+		// Nur http(s)/relative/Anker-URLs im href zulassen. article.url wird vom
+		// Share-Owner kontrolliert; ein javascript:-Schema wuerde sonst beim Klick
+		// eines Share-Besuchers ausgefuehrt (Vue sanitisiert v-bind:href NICHT).
+		safeArticleUrl() {
+			const url = this.article?.url
+			if (typeof url !== 'string') return null
+			const normalized = url.replace(/[\u0000-\u0020]+/g, '').toLowerCase()
+			if (normalized.startsWith('javascript:')
+				|| normalized.startsWith('vbscript:')
+				|| normalized.startsWith('data:')) {
+				return null
+			}
+			return url
 		},
 	},
 

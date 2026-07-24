@@ -343,8 +343,13 @@ export default createStore({
 
 		async updateSettings({ commit }, settings) {
 			try {
-				await settingsAPI.updateSettings(settings)
-				commit('SET_SETTINGS', settings)
+				const response = await settingsAPI.updateSettings(settings)
+				// Den vom Server kanonisch typisierten Stand committen, nicht die rohen
+				// Client-Typen: sonst weicht state.settings vom Ergebnis eines fetchSettings()/
+				// pollForUpdates() ab (String vs. Number/Boolean) und JSON.stringify ist beim
+				// nächsten Poll garantiert ungleich, was einen unnötigen SET_SETTINGS-Zyklus
+				// auslöst (siehe SettingsController::update()).
+				commit('SET_SETTINGS', { ...settings, ...(response && response.settings) })
 			} catch (error) {
 				console.error('Failed to update settings:', error)
 				throw error

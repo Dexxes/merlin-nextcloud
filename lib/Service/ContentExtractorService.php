@@ -269,8 +269,13 @@ class ContentExtractorService {
 				?: ($heroImageData['src'] ?? null);
 			$publishedAt = $this->extractPublishedDate($html, $content);
 		}
-		else
-			$content = "<a href='" . $url . "'>Zum Video</a>";
+		else {
+			// $url in ein Attribut eingebettet → escapen, damit ein URL mit ' oder
+			// " nicht aus dem href ausbricht. Der finale sanitizeHtml()-Durchlauf
+			// filtert zusätzlich ein evtl. javascript:-Schema heraus.
+			$escapedVideoUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+			$content = '<a href="' . $escapedVideoUrl . '">Zum Video</a>';
+		}
 
 		// ── Step 5: Apply domain metadata overrides ───────────────────────────
 		if (!empty($domainMeta['title']))     { $title     = $domainMeta['title']; }
@@ -315,6 +320,16 @@ class ContentExtractorService {
 		}
 
 		$content = $this->stripDuplicateMetadata($content, $title, $excerpt);
+
+		// ── Step 8: HTML-Sanitizing (XSS-Schutz) ──────────────────────────────
+		// Letzter Schritt vor der Rückgabe: Der Inhalt wird im Web-Reader und in
+		// der öffentlichen Share-Ansicht per v-html gerendert. cleanHtml() und die
+		// Readability-Pipeline entfernen zwar <script>/<style>, aber KEINE
+		// Event-Handler-Attribute (onerror, onload, …), javascript:-URLs oder
+		// gefährliche Tags (<iframe>, <object>, <form>). sanitizeHtml() schließt
+		// diese Lücke serverseitig per DOM-Allowlist, statt die XSS-Abwehr allein
+		// der Content-Security-Policy zu überlassen (Defense-in-Depth).
+		$content = $this->sanitizeHtml($content);
 
 		return [
 			'url'         => $url,
@@ -1929,6 +1944,178 @@ class ContentExtractorService {
 		$html = preg_replace('/<!--(.*)-->/Uis', '', $html);
 
 		return trim($html);
+	}
+
+	/**
+	 * DOM-basierter Allowlist-Sanitizer gegen Stored-XSS.
+	 *
+	 * Warum zusätzlich zu cleanHtml()? cleanHtml() arbeitet mit RegExp und filtert
+	 * nur <script>/<style>, Klassen und IDs. Es entfernt NICHT die eigentlich
+	 * gefährlichen Vektoren: Event-Handler-Attribute (onerror, onload, onclick, …),
+	 * javascript:-/data:-URLs und gefährliche Tags (<iframe>, <object>, <embed>,
+	 * <form>, …). Da der Inhalt per v-html gerendert wird – auch unauthentifiziert
+	 * in der öffentlichen Share-Ansicht – wird hier über eine strikte Tag- und
+	 * Attribut-Allowlist auf DOM-Ebene bereinigt.
+	 *
+	 * Allowlist statt Denylist: nur explizit erlaubte Tags/Attribute überleben,
+	 * alles andere wird entfernt bzw. (bei unbekannten Tags) durch seinen Textinhalt
+	 * ersetzt. Das ist gegen neue/obskure Vektoren robuster als eine Sperrliste.
+	 */
+	private function sanitizeHtml(string $html): string {
+		if (trim($html) === '') {
+			return $html;
+		}
+
+		// Erlaubte Tags – deckt den vom Reader gerenderten Inhalt ab (Fließtext,
+		// Listen, Tabellen, Zitate, Bilder/Figuren, semantische Container).
+		static $allowedTags = [
+			'p', 'br', 'hr', 'span', 'div', 'section', 'article', 'header', 'footer', 'aside',
+			'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+			'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'del', 'ins', 'mark', 'small', 'sub', 'sup',
+			'a', 'blockquote', 'q', 'cite', 'code', 'pre', 'kbd', 'samp', 'var', 'abbr', 'time',
+			'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+			'img', 'figure', 'figcaption', 'picture', 'source',
+			'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'caption', 'colgroup', 'col',
+		];
+
+		// Pro Tag erlaubte Attribute. Alles nicht Gelistete (insb. alle on*-Handler,
+		// style, srcset auf beliebige URLs …) wird entfernt.
+		static $allowedAttrs = [
+			'*'          => ['class', 'id', 'title', 'lang', 'dir'],
+			'a'          => ['href', 'target', 'rel'],
+			'img'        => ['src', 'alt', 'width', 'height'],
+			'source'     => ['src', 'type', 'media'],
+			'time'       => ['datetime'],
+			'td'         => ['colspan', 'rowspan'],
+			'th'         => ['colspan', 'rowspan', 'scope'],
+			'col'        => ['span'],
+			'colgroup'   => ['span'],
+		];
+
+		$prev = libxml_use_internal_errors(true);
+		$dom  = new \DOMDocument('1.0', 'UTF-8');
+		// Wrapper-Element mit eindeutigem data-Attribut, um den Inhalt nach dem
+		// Parsen zuverlässig wiederzufinden. XML-PI nur als Encoding-Hint.
+		$dom->loadHTML(
+			'<?xml encoding="utf-8" ?><div data-merlin-sanitize-root="1">' . $html . '</div>',
+			LIBXML_NOERROR | LIBXML_NOWARNING
+		);
+		libxml_clear_errors();
+
+		// getElementById() ist bei loadHTML() unzuverlässig (ohne DTD werden keine
+		// IDs registriert) – deshalb den Wrapper per XPath über das data-Attribut holen.
+		$xpath = new \DOMXPath($dom);
+		$root  = $xpath->query('//div[@data-merlin-sanitize-root="1"]')->item(0);
+		libxml_use_internal_errors($prev);
+
+		if ($root === null) {
+			// Parsing fehlgeschlagen – im Zweifel den Inhalt verwerfen statt
+			// ungefiltert durchzureichen (fail-closed).
+			return '';
+		}
+
+		$allowedTagSet = array_flip($allowedTags);
+
+		// Alle Elemente einsammeln, BEVOR wir den Baum verändern (eine Live-NodeList
+		// während der Iteration zu mutieren überspringt Knoten).
+		$elements = [];
+		foreach ($dom->getElementsByTagName('*') as $el) {
+			$elements[] = $el;
+		}
+
+		foreach ($elements as $el) {
+			// Bereits durch das Entfernen eines Vorfahren aus dem Baum gelöst?
+			if ($el->ownerDocument === null || $el->parentNode === null) {
+				continue;
+			}
+
+			$tag = strtolower($el->nodeName);
+
+			// Der Wrapper selbst wird nicht mit ausgegeben (nur seine Kinder),
+			// daher hier überspringen.
+			if ($el === $root) {
+				continue;
+			}
+
+			// Nicht erlaubtes Tag: <script>/<style>/<iframe>/<object>/<form>/… komplett
+			// samt Inhalt entfernen; bei rein strukturellen Unknowns bliebe zwar Text
+			// erhalten – da wir aber fail-closed sein wollen und die Allowlist den
+			// gesamten Reader-Content abdeckt, entfernen wir das ganze Element.
+			if (!isset($allowedTagSet[$tag])) {
+				$el->parentNode->removeChild($el);
+				continue;
+			}
+
+			$this->sanitizeAttributes($el, $tag, $allowedAttrs);
+		}
+
+		// Nur die Kinder des Wrapper-Containers zurückgeben.
+		$out = '';
+		foreach ($root->childNodes as $child) {
+			$serialized = $dom->saveHTML($child);
+			if ($serialized !== false) {
+				$out .= $serialized;
+			}
+		}
+
+		return trim($out);
+	}
+
+	/**
+	 * Entfernt an einem Element alle nicht erlaubten Attribute und neutralisiert
+	 * gefährliche URL-Schemata in href/src.
+	 *
+	 * @param array<string, list<string>> $allowedAttrs
+	 */
+	private function sanitizeAttributes(\DOMElement $el, string $tag, array $allowedAttrs): void {
+		$globalAllowed = $allowedAttrs['*'] ?? [];
+		$tagAllowed    = $allowedAttrs[$tag] ?? [];
+		$allowed       = array_flip(array_merge($globalAllowed, $tagAllowed));
+
+		// Attribute-Liste vorher kopieren – das Entfernen mutiert die Live-NamedNodeMap.
+		$attrNames = [];
+		foreach ($el->attributes as $attr) {
+			$attrNames[] = $attr->nodeName;
+		}
+
+		foreach ($attrNames as $name) {
+			$lname = strtolower($name);
+
+			// Nicht erlaubt (fängt insbesondere ALLE on*-Handler und style ab).
+			if (!isset($allowed[$lname])) {
+				$el->removeAttribute($name);
+				continue;
+			}
+
+			// URL-Attribute gegen gefährliche Schemata absichern.
+			if ($lname === 'href' || $lname === 'src') {
+				$value = trim($el->getAttribute($name));
+				if ($this->isDangerousUrl($value)) {
+					$el->removeAttribute($name);
+					continue;
+				}
+			}
+		}
+
+		// Bei Links, die in einem neuen Tab geöffnet werden, rel härten
+		// (Schutz gegen window.opener-Tabnabbing).
+		if ($tag === 'a' && $el->getAttribute('target') === '_blank') {
+			$el->setAttribute('rel', 'noopener noreferrer');
+		}
+	}
+
+	/**
+	 * true, wenn die URL ein gefährliches Schema trägt (javascript:, data:, vbscript:).
+	 * Relative URLs, Anchor-Links (#…), sowie http/https/mailto sind erlaubt.
+	 */
+	private function isDangerousUrl(string $url): bool {
+		// Führende Steuerzeichen/Whitespace entfernen – Browser ignorieren sie beim
+		// Scheme-Parsing (z. B. "java\tscript:…").
+		$normalized = strtolower(preg_replace('/[\x00-\x20]+/', '', $url) ?? $url);
+
+		return str_starts_with($normalized, 'javascript:')
+			|| str_starts_with($normalized, 'vbscript:')
+			|| str_starts_with($normalized, 'data:');
 	}
 
 	// ──────────────────────────────────────────────────────────────────────────
