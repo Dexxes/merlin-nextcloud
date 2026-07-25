@@ -13,7 +13,8 @@ merlin-nextcloud/
 │   │   ├── FeedController.php
 │   │   ├── TtsController.php
 │   │   ├── ExtensionController.php
-│   │   └── SettingsController.php
+│   │   ├── SettingsController.php
+│   │   └── PageController.php
 │   ├── Service/              # Geschäftslogik
 │   │   ├── ContentExtractorService.php
 │   │   ├── FeedService.php
@@ -38,5 +39,5 @@ src/
     ├── ArticleCard.vue
     ├── ArticleReader.vue
     ├── AddArticleDialog.vue
-    └── SettingsDialog.vue
+    └── Settings.vue
 ```

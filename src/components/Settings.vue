@@ -356,6 +356,60 @@
 					</div>
 				</div>
 			</section>
+
+			<!-- ── About ───────────────────────────────────────── -->
+			<section class="section">
+				<header class="section__head">
+					<span class="section__icon"><InformationOutline :size="18" /></span>
+					<div>
+						<h2 class="section__title">{{ t('merlin', 'About Merlin') }}</h2>
+						<p class="section__desc">{{ t('merlin', 'App version, developer, and useful links.') }}</p>
+					</div>
+				</header>
+
+				<div class="field">
+					<div class="field__label">{{ t('merlin', 'Version') }}</div>
+					<div class="field__control">{{ versionLabel || '—' }}</div>
+				</div>
+
+				<div class="field">
+					<div class="field__label">{{ t('merlin', 'Developer') }}</div>
+					<div class="field__control">{{ appInfo.author || '—' }}</div>
+				</div>
+
+				<div class="field">
+					<div class="field__label">{{ t('merlin', 'License') }}</div>
+					<div class="field__control">{{ licenceLabel || '—' }}</div>
+				</div>
+
+				<div v-if="appInfo.website || appInfo.bugs || appInfo.donate" class="about-links">
+					<a
+						v-if="appInfo.website"
+						class="about-links__link"
+						:href="appInfo.website"
+						target="_blank"
+						rel="noopener noreferrer">
+						{{ t('merlin', 'Source code on GitHub') }}
+					</a>
+					<a
+						v-if="appInfo.bugs"
+						class="about-links__link"
+						:href="appInfo.bugs"
+						target="_blank"
+						rel="noopener noreferrer">
+						{{ t('merlin', 'Report a bug') }}
+					</a>
+					<a
+						v-if="appInfo.donate"
+						class="about-links__link"
+						:href="appInfo.donate"
+						target="_blank"
+						rel="noopener noreferrer">
+						{{ t('merlin', 'Donate') }}
+					</a>
+				</div>
+			</section>
+
 			<div class="settings-page__footer">
 				<button class="btn btn--ghost" @click="resetAll">
 					<Refresh :size="14" />
@@ -373,6 +427,7 @@
 
 <script>
 import { mapState, mapActions } from 'vuex'
+import { loadState } from '@nextcloud/initial-state'
 import BookOpen from 'vue-material-design-icons/BookOpen.vue'
 import Clock from 'vue-material-design-icons/Clock.vue'
 import ViewGrid from 'vue-material-design-icons/ViewGrid.vue'
@@ -383,6 +438,7 @@ import Star from 'vue-material-design-icons/Star.vue'
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
 import TagOutline from 'vue-material-design-icons/TagOutline.vue'
 import Close from 'vue-material-design-icons/Close.vue'
+import InformationOutline from 'vue-material-design-icons/InformationOutline.vue'
 import SettingsPreview from './SettingsPreview.vue'
 
 // Kleine, abhängigkeitsfreie Hex<->HSL-Konvertierung, nur für clampAccentLightness()
@@ -430,6 +486,12 @@ function hslToHex(h, s, l) {
 	return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase()
 }
 
+// Lizenz-Identifier aus info.xml (SPDX-ähnliche Kurzform) auf den vollen SPDX-Namen
+// gemappt; unbekannte Kürzel werden roh angezeigt statt die Section fehlschlagen zu lassen.
+const LICENCE_LABELS = {
+	agpl: 'AGPL-3.0-or-later',
+}
+
 const DEFAULTS = {
 	theme: 'auto',
 	fontFamily: 'default',
@@ -449,12 +511,16 @@ export default {
 
 	components: {
 		BookOpen, Clock, ViewGrid, Refresh, Check,
-		Inbox, Star, AlertCircleOutline, TagOutline, Close, SettingsPreview
+		Inbox, Star, AlertCircleOutline, TagOutline, Close,
+		InformationOutline, SettingsPreview
 	},
 
 	data() {
 		return {
 			localSettings: { ...DEFAULTS },
+			// Vom Server per Initial-State geliefert (siehe PageController::buildAppInfo());
+			// leeres Objekt als Fallback, falls appInfo aus irgendeinem Grund fehlt.
+			appInfo: loadState('merlin', 'appInfo', {}),
 			savedFlash: false,
 			_flashTimer: null,
 			reportUrlStatus: null, // null | 'checking' | 'ok' | 'error'
@@ -540,6 +606,18 @@ export default {
 		// in der vordefinierten Palette enthalten ist (z.B. von Mobile-Apps gesetzt).
 		isCustomAccentColor() {
 			return !this.accentColorOptions.some(opt => opt.value === this.localSettings.accentColor)
+		},
+
+		// "1.0.4 (c344b51)" wenn eine Build-Kennung vorhanden ist, sonst nur die Version.
+		versionLabel() {
+			if (!this.appInfo.version) return ''
+			return this.appInfo.build ? `${this.appInfo.version} (${this.appInfo.build})` : this.appInfo.version
+		},
+
+		licenceLabel() {
+			const raw = this.appInfo.licence
+			if (!raw) return ''
+			return LICENCE_LABELS[raw] || raw
 		},
 	},
 
@@ -1301,5 +1379,31 @@ export default {
 	border-top-color: transparent;
 	border-radius: 50%;
 	animation: spin 0.7s linear infinite;
+}
+
+/* ── About links ─────────────────────────────────────────── */
+.about-links {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	padding: 16px 0 0;
+}
+
+.about-links__link {
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--color-primary, #0082c9);
+	text-decoration: none;
+}
+.about-links__link:hover {
+	text-decoration: underline;
+}
+
+.about-links__link:not(:last-child)::after {
+	content: "·";
+	margin-left: 8px;
+	color: var(--color-text-lighter);
+	font-weight: 400;
 }
 </style>

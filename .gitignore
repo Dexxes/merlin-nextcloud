@@ -5,6 +5,7 @@
 # Build artifacts
 /js/
 /css/*.css.map
+appinfo/build.txt
 
 # Development
 .vscode/
