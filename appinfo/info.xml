@@ -36,7 +36,7 @@ Perfect for keeping track of interesting articles, research materials, or any we
     <screenshot>https://raw.githubusercontent.com/Dexxes/merlin-core/refs/heads/main/appinfo/screenshot2.jpg</screenshot>
 
     <dependencies>
-        <php min-version="8.0" max-version="8.4"/>
+        <php min-version="8.0" max-version="8.5"/>
         <nextcloud min-version="30" max-version="35"/>
     </dependencies>
 
