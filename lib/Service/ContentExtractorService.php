@@ -100,8 +100,17 @@ class ContentExtractorService {
 			// real target before fetching, so we get the actual article.
 			$url = $this->resolveRedirectUrl($url);
 
-			// Fetch HTML content from the network.
-			['body' => $rawHtml, 'httpCharset' => $httpCharset] = $this->fetchUrl($url);
+			// Fetch HTML content from the network. httpRequestFollowingRedirects()
+			// (aufgerufen über fetchUrl()) folgt jeder 3xx-Kette bereits vollständig,
+			// unabhängig davon, ob der Host in resources/url-shorteners.json steht –
+			// resolveRedirectUrl() deckt nur die Vorab-Auflösung ohne Body-Download ab.
+			// $finalUrl ist daher die tatsächliche Artikel-URL nach ALLEN Redirects,
+			// auch bei Shortenern/Trackern, die nicht auf der kuratierten Liste stehen.
+			// Domain-Filter-Auswahl und die gespeicherte Artikel-URL müssen sich darauf
+			// stützen, sonst greift bei unbekannten Shortenern die falsche (oder gar
+			// keine) Content-Filter-Konfiguration.
+			['body' => $rawHtml, 'httpCharset' => $httpCharset, 'finalUrl' => $finalUrl] = $this->fetchUrl($url);
+			$url = $finalUrl;
 
 			return $this->processHtml($url, $rawHtml, $httpCharset, $trace);
 		}
@@ -565,14 +574,14 @@ class ContentExtractorService {
 	 *   - charset from Content-Type header →  skip mb_detect_encoding on full body
 	 *   - meta charset fallback            →  scan only the first 2 KB
 	 *
-	 * @return array{body: string, httpCharset: ?string}
+	 * @return array{body: string, httpCharset: ?string, finalUrl: string}
 	 * @throws \Exception wenn ein Hop auf eine private/reservierte Adresse zeigt oder
 	 *                     der Request fehlschlägt (siehe httpRequestFollowingRedirects()).
 	 */
 	private function fetchUrl(string $url): array
 	{
 		$result = $this->httpRequestFollowingRedirects($url, nobody: false);
-		return ['body' => $result['body'], 'httpCharset' => $result['httpCharset']];
+		return ['body' => $result['body'], 'httpCharset' => $result['httpCharset'], 'finalUrl' => $result['finalUrl']];
 	}
 
 	/**
