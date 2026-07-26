@@ -215,7 +215,7 @@ export default {
 			const data = e.response ? e.response.data : null
 			if (data && Array.isArray(data.errors) && data.errors.length) {
 				const details = data.errors
-					.map(err => (err.line ? `Zeile ${err.line}: ${err.message}` : err.message))
+					.map(err => (err.line ? `${this.t('merlin', 'Line')} ${err.line}: ${err.message}` : err.message))
 					.join(' · ')
 				this.error = `${data.message || ''} ${details}`.trim()
 				return
