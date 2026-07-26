@@ -29,7 +29,7 @@
   </post-filter>
 
   <metadata>
-    <author xpath="//span[contains(@class, 'BylineNamesWrapper-']/text()" />
+    <author xpath="//span[contains(@class, 'BylineNamesWrapper-')]/text()" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
     <author   xpath="//span[@class='author-name']" />

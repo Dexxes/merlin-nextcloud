@@ -4,6 +4,32 @@
   Beispieldatei – zeigt alle verfügbaren Optionen und Regeltypen.
 
   ═══════════════════════════════════════════════════════════════════════════════
+  WO LIEGEN DIESE DATEIEN?
+  ═══════════════════════════════════════════════════════════════════════════════
+  Es gibt DREI Ebenen pro Domain, die zu EINER Config zusammengeführt werden
+  (Bundle < Admin-Custom < User-Custom – jede Ebene gewinnt gegenüber der davor):
+
+    content-filters/{domain}.xml   – mit der App mitgeliefert (Bundle), diese Datei
+                                      hier ist die kommentierte Referenz aller Optionen
+    merlin_cfilter (DB, scope='admin')  – instanzweit, über Verwaltungseinstellungen →
+                                      Merlin → Content-Filter gepflegt
+    merlin_cfilter (DB, scope='user')   – privat pro Nutzer, über die persönlichen
+                                      Einstellungen → Merlin gepflegt, sichtbar nur
+                                      für den jeweiligen Nutzer
+
+  Admin- und User-Custom liegen in der Datenbank (nicht mehr im Dateisystem) und sind
+  damit automatisch Teil des normalen Nextcloud-DB-Backups.
+
+  Zusammenführung:
+    · Listen-Sektionen (pre-filter, post-filter, quotes, images) werden ergänzt;
+      Custom-Regeln laufen NACH den Regeln der jeweils darunterliegenden Ebene.
+    · <fetch><header> wird je name-Attribut ersetzt, <json> je id-Attribut.
+    · <metadata>-Felder und <category>: definiert eine Custom-Ebene ein Feld,
+      ersetzt sie die komplette Kette dieses Feldes aus den darunterliegenden Ebenen.
+    · Einzelne Regeln einer darunterliegenden Ebene lassen sich über <disable>
+      abschalten (siehe unten) – auch eine Admin-Regel aus dem User-Layer heraus.
+
+  ═══════════════════════════════════════════════════════════════════════════════
   PIPELINE-REIHENFOLGE
   ═══════════════════════════════════════════════════════════════════════════════
   0. <fetch>        – HTTP-Header für den Abruf der Seite (vor allem anderen)
@@ -36,6 +62,53 @@
 
   Keine Zugangsdaten hier ablegen: Die Datei liegt im App-Verzeichnis, gilt für
   alle Nutzer der Instanz und landet in Git und Backups.
+
+  ═══════════════════════════════════════════════════════════════════════════════
+  BUNDLE-REGELN ABSCHALTEN  (<disable>)     — nur in custom/-Dateien sinnvoll
+  ═══════════════════════════════════════════════════════════════════════════════
+  Der Merge ist additiv: eine eigene Regel kann eine mitgelieferte ergänzen, aber
+  nicht loswerden. Genau dafür ist <disable> da – etwa wenn ein Bundle-<remove>
+  nach einem Redesign der Website zu viel entfernt.
+
+  Zwei Formen:
+
+    <disable section="pre-filter" />
+      Verwirft die KOMPLETTE Bundle-Sektion. Eigene Regeln derselben Sektion
+      gelten weiterhin – section-disable plus eigene Sektion ergibt also einen
+      vollständigen Ersatz.
+      Möglich für: fetch, pre-filter, images, quotes, post-filter, json,
+      metadata, category.
+
+    <disable>
+      <pre-filter>
+        <remove class="supplementary" />
+      </pre-filter>
+      <metadata>
+        <author />
+      </metadata>
+      <json id="ld" />
+    </disable>
+      Verwirft EINZELNE Bundle-Regeln. Die Verschachtelung in den Sektionsnamen
+      ist nötig, weil <remove> sowohl in pre-filter als auch in post-filter
+      vorkommt – ohne sie wäre nicht entscheidbar, welche Regel gemeint ist.
+      <json> steht wrapper-los direkt in <disable>, wie im Dokument selbst.
+
+  Getroffen wird per Teilmengen-Vergleich: Jedes am Disable-Eintrag angegebene
+  Attribut muss bei der Bundle-Regel identisch sein, zusätzliche Attribute der
+  Bundle-Regel stören nicht. Praktische Folge:
+    <remove class="ads" />  trifft genau diese eine Regel.
+    <author />              schaltet die Bundle-Autorenregel(n) unabhängig von
+                            ihrem XPath ab.
+
+  ═══════════════════════════════════════════════════════════════════════════════
+  NOTIZ  (<note>)
+  ═══════════════════════════════════════════════════════════════════════════════
+  Freitextfeld für Administratoren, z. B. "XPath am 12.03. nach Redesign
+  angepasst". Wird beim Abruf ignoriert und erscheint in der Verwaltungsoberfläche.
+
+  Wichtig: Speichern über die Weboberfläche schreibt die Datei neu und verliert
+  dabei alle XML-Kommentare. Notizen gehören deshalb in <note> und nicht in einen
+  Kommentarblock wie diesen.
 
   ═══════════════════════════════════════════════════════════════════════════════
   PRE-FILTER  (<pre-filter>)
@@ -130,6 +203,17 @@
     2. json-Attribut  (falls angegeben und xpath keinen Treffer lieferte)
     3. Automatischer og:/article:-Fallback
 
+  Mehrere Regeln je Feld sind erlaubt und bilden eine Fallback-Kette in
+  Dokumentreihenfolge – nützlich, wenn eine Seite je Artikeltyp unterschiedliche
+  Layouts ausliefert (taz.de nutzt das für zwei Autoren-Varianten):
+
+    <author xpath="//span[@class='Autor']" />
+    <author xpath="//span[contains(@class,'typo-name-detail-bold')]" />
+
+  Beim Merge gilt die Kette als Einheit: Definiert ein Custom-Filter mindestens
+  eine <author>-Regel, ersetzen SEINE Regeln die komplette Bundle-Kette für
+  author – nicht einzelne Einträge daraus.
+
   json-Attribut-Syntax:
     json="sourceId:$.pfad.zum.wert"   – benannte Quelle aus <json id="sourceId">
     json="$.pfad.zum.wert"            – Quelle "default" (JSON-LD oder erster <json>)
@@ -163,6 +247,29 @@
   Wird von <metadata><category> überschrieben, falls dort ein Wert gefunden wird.
 -->
 <domain name="sample.com">
+
+  <!-- ── Notiz ──────────────────────────────────────────────────────────── -->
+  <!-- Nur in custom/-Dateien sinnvoll. Überlebt das Speichern über die
+       Weboberfläche, anders als XML-Kommentare. -->
+  <!--
+  <note>XPath für den Autor am 12.03. nach dem Redesign angepasst.</note>
+  -->
+
+  <!-- ── Bundle-Regeln abschalten ───────────────────────────────────────── -->
+  <!-- Nur in custom/-Dateien sinnvoll: hebt einzelne Regeln oder ganze
+       Sektionen des mitgelieferten Filters auf. -->
+  <!--
+  <disable section="post-filter" />
+  <disable>
+    <pre-filter>
+      <remove class="supplementary" />
+    </pre-filter>
+    <metadata>
+      <author />
+    </metadata>
+    <json id="ld" />
+  </disable>
+  -->
 
   <!-- ── Fetch-Header ───────────────────────────────────────────────────── -->
   <!-- Nur nötig, wenn die Seite ohne bestimmte Header kein Artikel-HTML liefert. -->

@@ -230,7 +230,7 @@ class ArticleController extends Controller {
 				set_time_limit(120);
 
 				try {
-					$extracted = $extractor->extract($url);
+					$extracted = $extractor->extract($url, null, $userId);
 
 					$article = $mapper->find($articleId, $userId);
 

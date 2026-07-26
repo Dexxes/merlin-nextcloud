@@ -59,6 +59,44 @@ Alternativ über die Weboberfläche: **Apps** → **Deine Apps** → **Merlin** 
 2. Im App-Menü sollte ein **Merlin**-Icon erscheinen
 3. App öffnen und einen ersten Artikel hinzufügen
 
+## Content-Filter (empfohlen)
+
+Content-Filter bereiten gespeicherte Artikel pro Website auf: Sie entfernen Werbung
+und Navigation, bevor der Artikel extrahiert wird, und korrigieren Titel, Autor oder
+Datum. Rund 60 Filter sind mitgeliefert; Administratoren können sie unter
+**Verwaltungseinstellungen → Merlin → Content-Filter** ergänzen.
+
+### Eigene Filter (Admin und persönlich)
+
+Eigene Filter liegen in der Nextcloud-Datenbank (Tabelle `merlin_cfilter`), nicht mehr
+in einem Dateisystem-Pfad – ein `merlin.custom_filters_dir`-Eintrag in `config.php`
+wird nicht mehr benötigt und kann entfernt werden, falls er aus einer älteren Version
+noch vorhanden ist. Es gibt zwei Ebenen:
+
+* **Admin-Custom** (instanzweit, unter Verwaltungseinstellungen → Merlin →
+  Content-Filter): gilt für alle Nutzer, die keinen eigenen Override haben.
+* **Persönlicher Override** (unter Einstellungen → Merlin, für jeden angemeldeten
+  Nutzer): privat, nur für den eigenen Account sichtbar, gewinnt gegenüber dem
+  mitgelieferten und dem Admin-Filter.
+
+Weil beide Ebenen Teil der Datenbank sind, sind sie automatisch im normalen
+Nextcloud-Datenbank-Backup enthalten – kein separates Verzeichnis-Backup nötig. Jeder
+Filter lässt sich zusätzlich in der Admin-Oberfläche als XML herunterladen und auf
+einer anderen Instanz importieren.
+
+### Merge-Logik testen
+
+Nach Änderungen an der Filter-Verarbeitung prüft ein eigenständiges Skript die
+Zusammenführung von mitgelieferten und eigenen Filtern (benötigt weder Composer noch
+eine Nextcloud-Umgebung):
+
+```bash
+cd /pfad/zu/nextcloud/apps/merlin
+php tools/test-content-filter-merge.php
+```
+
+Exit-Code 0 bedeutet, dass alle Prüfungen bestanden wurden.
+
 ## TTS-Vorlesefunktion (optional)
 
 Die Audio-Vorlesefunktion (genutzt von iOS/iPad über `PiperAudioService.swift`) benötigt einen separaten Piper-Daemon, der **lokal auf dem Nextcloud-Server** läuft und nicht Teil der Nextcloud-App selbst ist.

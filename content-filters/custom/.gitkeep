@@ -1,0 +1,9 @@
+# Standard-Ablage für admin-erstellte Content-Filter.
+#
+# Dieser Ordner wird bei einem App-Update ERSETZT. Für den produktiven Betrieb
+# deshalb in config/config.php einen Pfad ausserhalb des App-Verzeichnisses setzen:
+#
+#   'merlin.custom_filters_dir' => '/var/lib/merlin/content-filters',
+#
+# Die *.xml-Dateien hier sind per .gitignore ausgenommen; diese Datei existiert nur,
+# damit der Ordner nach einem Checkout vorhanden ist.

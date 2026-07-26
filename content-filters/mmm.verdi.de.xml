@@ -19,7 +19,7 @@
     <image    xpath="..." />   – Bild-URL (bei @content-Attributen: xpath="//meta[...]/@content")
     <published xpath="..." />  – Veröffentlichungsdatum (ISO 8601 oder deutsches Format)
 -->
-<domain name="verdi.de">
+<domain name="mmm.verdi.de">
 
   <pre-filter>
     <remove xpath="//article/header" />

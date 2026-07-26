@@ -57,6 +57,36 @@ return [
         ['name' => 'settings#get', 'url' => '/api/settings', 'verb' => 'GET'],
         ['name' => 'settings#update', 'url' => '/api/settings', 'verb' => 'PUT'],
 
+        // Content-Filter-Verwaltung (nur Admins; ContentFilterController trägt
+        // bewusst kein NoAdminRequired/NoCSRFRequired). Die {domain}-Requirement
+        // engt den Platzhalter auf zulässige Domainzeichen ein: unpassende Werte
+        // enden so als 404 im Router, statt erst im Controller geprüft zu werden.
+        ['name' => 'contentFilter#index',   'url' => '/api/admin/content-filters', 'verb' => 'GET'],
+        ['name' => 'contentFilter#import',  'url' => '/api/admin/content-filters/import', 'verb' => 'POST'],
+        ['name' => 'contentFilter#show',    'url' => '/api/admin/content-filters/{domain}', 'verb' => 'GET',
+            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+        ['name' => 'contentFilter#update',  'url' => '/api/admin/content-filters/{domain}', 'verb' => 'PUT',
+            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+        ['name' => 'contentFilter#destroy', 'url' => '/api/admin/content-filters/{domain}', 'verb' => 'DELETE',
+            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+        ['name' => 'contentFilter#test',    'url' => '/api/admin/content-filters/{domain}/test', 'verb' => 'POST',
+            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+        ['name' => 'contentFilter#export',  'url' => '/api/admin/content-filters/{domain}/export', 'verb' => 'GET',
+            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+
+        // Persönliche Content-Filter-Overrides (jeder eingeloggte Nutzer; eigener
+        // Routen-Präfix statt /api/admin/... zu teilen, damit die Berechtigungsgrenze
+        // nicht verwischt – siehe UserContentFilterController-Docblock).
+        ['name' => 'userContentFilter#index',   'url' => '/api/user/content-filters', 'verb' => 'GET'],
+        ['name' => 'userContentFilter#show',    'url' => '/api/user/content-filters/{domain}', 'verb' => 'GET',
+            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+        ['name' => 'userContentFilter#update',  'url' => '/api/user/content-filters/{domain}', 'verb' => 'PUT',
+            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+        ['name' => 'userContentFilter#destroy', 'url' => '/api/user/content-filters/{domain}', 'verb' => 'DELETE',
+            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+        ['name' => 'userContentFilter#test',    'url' => '/api/user/content-filters/{domain}/test', 'verb' => 'POST',
+            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+
         // PWA: Web App Manifest + Service Worker
         ['name' => 'manifest#index',       'url' => '/manifest.webmanifest', 'verb' => 'GET'],
         ['name' => 'service_worker#index', 'url' => '/sw.js',                'verb' => 'GET'],

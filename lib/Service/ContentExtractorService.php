@@ -33,10 +33,35 @@ class ContentExtractorService {
 	 * Ein frei wählbarer Header-Name könnte sonst den Request umbiegen (Host),
 	 * Zugangsdaten anhängen (Authorization) oder den Body-Parser verwirren
 	 * (Content-Length, Transfer-Encoding).
+	 *
+	 * Die Liste steht in ContentFilterSchema, weil sie an zwei Stellen gilt: hier
+	 * beim Abruf und im ContentFilterValidator, der einen unerlaubten Header schon
+	 * beim Speichern in der Admin-UI ablehnt. Zwei Kopien würden auseinanderlaufen.
 	 */
-	private const FETCH_HEADER_WHITELIST = ['cookie', 'user-agent', 'accept-language', 'referer'];
+	private const FETCH_HEADER_WHITELIST = ContentFilterSchema::FETCH_HEADER_WHITELIST;
 
-	public function __construct(LoggerInterface $logger) { $this->logger = $logger; }
+	private ContentFilterRepository $contentFilters;
+
+	/**
+	 * UID des Nutzers, in dessen Kontext gerade extrahiert wird – für die Dauer
+	 * genau eines extract()/extractFromHtml()-Aufrufs, danach durch den
+	 * nächsten Aufruf überschrieben.
+	 *
+	 * Warum ein Instanzfeld statt eines Parameters, der durch alle acht
+	 * loadDomainConfig()-Aufrufstellen (Fetch-Header, Bilder, Zitate, Pre-/
+	 * Post-Filter, Infoboxen, Klassenmarker, Metadaten) durchgereicht werden
+	 * müsste: extract()/extractFromHtml() sind nicht reentrant (processHtml()
+	 * ruft sich nie selbst auf), und der Service wird pro Request neu
+	 * konstruiert – ein Datenleck zwischen Nutzern ist damit ausgeschlossen.
+	 * loadDomainConfig() liest dieses Feld, statt dass jede private
+	 * Applier-Methode einen zusätzlichen $userId-Parameter bekäme.
+	 */
+	private ?string $currentUserId = null;
+
+	public function __construct(LoggerInterface $logger, ContentFilterRepository $contentFilters) {
+		$this->logger         = $logger;
+		$this->contentFilters = $contentFilters;
+	}
 
 	// ──────────────────────────────────────────────────────────────────────────
 	// Public API & Orchestration
@@ -58,10 +83,18 @@ class ContentExtractorService {
 	 *   publishedAt: ?\DateTime,
 	 *   category: ?string
 	 * }
+	 * @param ContentFilterTrace|null $trace Optionale Regel-Diagnose für den
+	 *        Filter-Testlauf in den Admin-Einstellungen. Im Normalbetrieb null,
+	 *        dann entsteht kein zusätzlicher Aufwand.
+	 * @param string|null $userId UID des aufrufenden Nutzers, für die private
+	 *        User-Custom-Ebene der Content-Filter (siehe $currentUserId). null
+	 *        bei fehlendem Nutzerkontext – dann greift nur Bundle+Admin-Custom.
 	 * @throws \Exception
 	 */
-	public function extract(string $url): array
+	public function extract(string $url, ?ContentFilterTrace $trace = null, ?string $userId = null): array
 	{
+		$this->currentUserId = $userId;
+
 		try {
 			// Resolve tracking/redirect URLs (e.g. google.com/url?url=...) to their
 			// real target before fetching, so we get the actual article.
@@ -70,8 +103,8 @@ class ContentExtractorService {
 			// Fetch HTML content from the network.
 			['body' => $rawHtml, 'httpCharset' => $httpCharset] = $this->fetchUrl($url);
 
-			return $this->processHtml($url, $rawHtml, $httpCharset);
-		} 
+			return $this->processHtml($url, $rawHtml, $httpCharset, $trace);
+		}
 		catch (ParseException $e) 
 		{
 			$this->logger->error('Failed to parse article: ' . $e->getMessage(), ['url' => $url]);
@@ -98,13 +131,16 @@ class ContentExtractorService {
 	 *   publishedAt: ?\DateTime,
 	 *   category: ?string
 	 * }
+	 * @param string|null $userId UID des aufrufenden Nutzers, siehe extract().
 	 */
-	public function extractFromHtml(string $url, string $html): array
+	public function extractFromHtml(string $url, string $html, ?string $userId = null): array
 	{
-		try 
+		$this->currentUserId = $userId;
+
+		try
 		{
 			return $this->processHtml($url, $html);
-		} 
+		}
 		catch (ParseException $e) 
 		{
 			$this->logger->error('Failed to parse article: ' . $e->getMessage(), ['url' => $url]);
@@ -125,7 +161,12 @@ class ContentExtractorService {
 	 * @param string      $rawHtml     Roher HTML-Body
 	 * @param string|null $httpCharset Charset aus dem HTTP-Content-Type-Header (Vorrang vor <meta>)
 	 */
-	private function processHtml(string $url, string $rawHtml, ?string $httpCharset = null): array
+	private function processHtml(
+		string $url,
+		string $rawHtml,
+		?string $httpCharset = null,
+		?ContentFilterTrace $trace = null
+	): array
 	{
 		// Normalise domain (strips www.) for config-file lookup
 		$domain = $this->normalizeDomain($url);
@@ -183,24 +224,24 @@ class ContentExtractorService {
 		// Must run on the ORIGINAL HTML before any pre-filter stripping,
 		// because applyRemoveRules() removes all <script> tags — which would
 		// destroy JSON-LD and other embedded JSON sources before they can be read.
-		$domainMeta = $this->extractDomainMetadata($rawHtml, $domain);
+		$domainMeta = $this->extractDomainMetadata($rawHtml, $domain, $trace);
 
 		// ── Step 1: Pre-filter ────────────────────────────────────────────────
 		// Apply per-domain <pre-filter> remove rules BEFORE Readability sees
 		// the HTML, so filtered elements are never considered as article content.
-		$rawHtml = $this->applyPreFilters($rawHtml, $domain);
+		$rawHtml = $this->applyPreFilters($rawHtml, $domain, $trace);
 		$rawHtml = html_entity_decode($rawHtml, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
 		// ── Step 1b: Infobox markers ──────────────────────────────────────────
 		// Add 'merlin-infobox' CSS class to elements declared as <infobox> in
 		// the domain config. Must run BEFORE Readability so the class survives.
-		$rawHtml = $this->applyInfoboxMarkers($rawHtml, $domain);
+		$rawHtml = $this->applyInfoboxMarkers($rawHtml, $domain, $trace);
 		$rawHtml = html_entity_decode($rawHtml, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
 		// ── Step 1c: Custom class markers ────────────────────────────────────
 		// Add arbitrary CSS classes to elements declared as <saveElements> in
 		// the domain config. Must run BEFORE Readability so the classes survive.
-		$rawHtml = $this->applyClassMarkers($rawHtml, $domain);
+		$rawHtml = $this->applyClassMarkers($rawHtml, $domain, $trace);
 		$rawHtml = html_entity_decode($rawHtml, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
 		// Nur von Step 5 (domainMeta-Override) oder dem Video-Zweig unten gesetzt,
@@ -215,7 +256,7 @@ class ContentExtractorService {
 			// Rewrap domain-specific image+caption structures into standard
 			// <figure><img><figcaption> HTML so Readability preserves them.
 			// Must run before Readability; affects all images in the article body.
-			$rawHtml = $this->normalizeImageCaptions($rawHtml, $domain);
+			$rawHtml = $this->normalizeImageCaptions($rawHtml, $domain, $trace);
 
 			// ── Step 3: Quote normalisation + Readability ──────────────────────────
 			// Normalise quote structures before Readability:
@@ -224,7 +265,7 @@ class ContentExtractorService {
 			//   3. <q> elements → merlin-quote-inline class
 			// keepClasses=true (below) ensures Readability does NOT strip class attributes,
 			// so all Merlin marker classes survive post-processing.
-			$html = $this->normalizeQuotes($rawHtml, $domain);
+			$html = $this->normalizeQuotes($rawHtml, $domain, $trace);
 
 			$readabilityConfig = new Configuration([
 				'fixRelativeURLs' => true,
@@ -296,7 +337,7 @@ class ContentExtractorService {
 
 		// ── Step 6: Post-filter ───────────────────────────────────────────────
 		// Apply per-domain <post-filter> remove rules to the Readability content.
-		$content = $this->applyPostFilters($content, $domain);
+		$content = $this->applyPostFilters($content, $domain, $trace);
 
 		// ── Step 7: Cleanup pipeline ──────────────────────────────────────────
 		$wordCount   = str_word_count(strip_tags($content));
@@ -1033,7 +1074,7 @@ class ContentExtractorService {
 	 * which are then rendered correctly in the reader for ALL images in the article body.
 	 * The hero image extraction also benefits because it searches for <figcaption> within <figure>.
 	 */
-	private function normalizeImageCaptions(string $html, string $domain): string {
+	private function normalizeImageCaptions(string $html, string $domain, ?ContentFilterTrace $trace = null): string {
 		try {
 			$config = $this->loadDomainConfig($domain);
 			if ($config === null || !isset($config->images->caption)) {
@@ -1055,7 +1096,22 @@ class ContentExtractorService {
 				$captionXpath   = trim((string) ($rule['caption-xpath'] ?? ''));
 				if ($containerXpath === '' || $captionXpath === '') continue;
 
-				$containers = iterator_to_array($xpath->query($containerXpath) ?: []);
+				$containerResult = @$xpath->query($containerXpath);
+				if ($containerResult === false) {
+					$this->logger->warning('content-filters: invalid images container-xpath skipped', [
+						'xpath'  => $containerXpath,
+						'domain' => $domain,
+					]);
+					$trace?->record('images', $rule, 0, 'Ungültiger XPath-Ausdruck');
+					continue;
+				}
+
+				$containers = iterator_to_array($containerResult);
+				// Gezählt wird der Container-Treffer, nicht die ersetzte Figure:
+				// so unterscheidet die UI "XPath trifft nichts" von "XPath trifft,
+				// aber im Container steckt kein <img>".
+				$trace?->record('images', $rule, count($containers));
+
 				foreach ($containers as $container) {
 					if (!$container instanceof \DOMElement) continue;
 
@@ -1128,7 +1184,7 @@ class ContentExtractorService {
 	 *
 	 * keepClasses=true on the Readability config ensures all added classes survive.
 	 */
-	private function normalizeQuotes(string $html, string $domain): string {
+	private function normalizeQuotes(string $html, string $domain, ?ContentFilterTrace $trace = null): string {
 		try {
 			$prev = libxml_use_internal_errors(true);
 			$dom  = new \DOMDocument('1.0', 'UTF-8');
@@ -1149,7 +1205,19 @@ class ContentExtractorService {
 					$authorXpath    = trim((string) ($rule['author-xpath'] ?? ''));
 					if ($containerXpath === '') continue;
 
-					$containers = iterator_to_array($xpath->query($containerXpath) ?: []);
+					$containerResult = @$xpath->query($containerXpath);
+					if ($containerResult === false) {
+						$this->logger->warning('content-filters: invalid quotes container-xpath skipped', [
+							'xpath'  => $containerXpath,
+							'domain' => $domain,
+						]);
+						$trace?->record('quotes', $rule, 0, 'Ungültiger XPath-Ausdruck');
+						continue;
+					}
+
+					$containers = iterator_to_array($containerResult);
+					$trace?->record('quotes', $rule, count($containers));
+
 					foreach ($containers as $container) {
 						if ($textXpath !== '') {
 							$textResult = $xpath->query($textXpath, $container);
@@ -1269,46 +1337,29 @@ class ContentExtractorService {
 	/**
 	 * Normalise a URL host to a bare domain name for config-file lookup.
 	 * Strips www. prefix; no further subdomain stripping (exact match semantics).
+	 *
+	 * Delegiert ans ContentFilterRepository, weil die Admin-UI dieselbe
+	 * Normalisierung braucht (Prüfung, ob eine Test-URL zum bearbeiteten Filter
+	 * gehört) und zwei Kopien dieser Regel auseinanderlaufen würden.
 	 */
 	private function normalizeDomain(string $url): string {
-		$host = strtolower(parse_url($url, PHP_URL_HOST) ?? '');
-		return preg_replace('/^www\./i', '', $host);
+		return $this->contentFilters->normalizeUrlDomain($url);
 	}
 
 	/**
-	 * Load the per-domain config from content-filters/{domain}.xml.
-	 * Returns null when no file exists for that domain.
+	 * Load the per-domain config for $domain.
+	 * Returns null when neither a bundled, admin- noch user-erstellter Filter existiert.
+	 *
+	 * Warum nur noch eine Delegation: Die Config kann aus drei Quellen kommen –
+	 * dem mitgelieferten Filter in content-filters/, einem vom Admin über die
+	 * Weboberfläche angelegten Filter und einem privaten Override des
+	 * aufrufenden Nutzers ($currentUserId, siehe dort). Das Zusammenführen aller
+	 * drei Quellen und das Caching übernimmt ContentFilterRepository; alle acht
+	 * Aufrufstellen dieser Methode sehen weiterhin ein einzelnes
+	 * SimpleXMLElement und bleiben unverändert.
 	 */
 	private function loadDomainConfig(string $domain): ?\SimpleXMLElement {
-		if ($domain === '') {
-			return null;
-		}
-		// Use realpath() to resolve the ../../ traversal to an absolute path,
-		// avoiding issues with open_basedir restrictions or symlinked app dirs.
-		$dir = realpath(__DIR__ . '/../../content-filters');
-		if ($dir === false) {
-			return null;
-		}
-		$path = $dir . '/' . $domain . '.xml';
-		if (!file_exists($path)) {
-			return null;
-		}
-		// Use file_get_contents + simplexml_load_string instead of simplexml_load_file
-		// to avoid libxml resolving the path as an external entity, which triggers
-		// "Failed to load external entity" errors in hardened PHP environments.
-		$raw = file_get_contents($path);
-		if ($raw === false) {
-			return null;
-		}
-		try {
-			$prev = libxml_use_internal_errors(true);
-			$xml  = simplexml_load_string($raw);
-			libxml_clear_errors();
-			libxml_use_internal_errors($prev);
-			return ($xml instanceof \SimpleXMLElement) ? $xml : null;
-		} catch (\Throwable) {
-			return null;
-		}
+		return $this->contentFilters->getMerged($domain, $this->currentUserId);
 	}
 
 	/**
@@ -1318,24 +1369,18 @@ class ContentExtractorService {
 	 * @param \SimpleXMLElement[] $rules
 	 * @param bool $returnFullDocument  true  → vollständiges HTML-Dokument zurückgeben (Pre-Filter, Readability erwartet das)
 	 *                                  false → nur Body-Children zurückgeben (Post-Filter, Readability-Extrakt ist ein Fragment)
+	 * @param string|null $traceSection Sektionsname für den Trace (null = keine Diagnose)
 	 */
-	private function applyRemoveRules(string $html, array $rules, string $context = '', bool $returnFullDocument = false): string {
+	private function applyRemoveRules(
+		string $html,
+		array $rules,
+		string $context = '',
+		bool $returnFullDocument = false,
+		?ContentFilterTrace $trace = null,
+		?string $traceSection = null
+	): string {
 		if (empty($html)) {
 			return $html;
-		}
-
-		$removeIds     = [];
-		$removeClasses = [];
-		$removeXpaths  = [];
-
-		foreach ($rules as $rule) {
-			if (isset($rule['id'])) {
-				$removeIds[] = (string) $rule['id'];
-			} elseif (isset($rule['class'])) {
-				$removeClasses[] = (string) $rule['class'];
-			} elseif (isset($rule['xpath'])) {
-				$removeXpaths[] = (string) $rule['xpath'];
-			}
 		}
 
 		// <script>- und <style>-Tags (inkl. Inhalt) per RegEx entfernen, bevor der DOM-Parser
@@ -1361,37 +1406,55 @@ class ContentExtractorService {
 		$xpath    = new \DOMXPath($dom);
 		$toRemove = [];
 
-		foreach ($removeIds as $id) {
-			$esc = str_replace('"', '\\"', $id);
-			foreach ($xpath->query('//*[@id="' . $esc . '"]') as $node) {
-				$toRemove[] = $node;
-			}
-		}
+		// Je Regel abfragen statt die Regeln vorher in drei Listen nach Typ zu
+		// flachzuklopfen: nur so lässt sich die Trefferzahl der EINZELNEN Regel
+		// erfassen, die die Admin-UI anzeigt. Die entfernte Knotenmenge ist
+		// identisch – alle Abfragen laufen weiterhin vollständig, bevor der erste
+		// Knoten entfernt wird (sonst würden spätere Regeln auf einem bereits
+		// veränderten Baum arbeiten).
+		foreach ($rules as $rule) {
+			$error   = null;
+			$matches = 0;
 
-		foreach ($removeClasses as $class) {
-			// Wortgrenzen-Match: verhindert, dass "foo" auch "foobar" oder "prefix-foo" trifft.
-			$esc = str_replace("'", "", $class); // einfache Anführungszeichen im Klassenname sind extrem selten
-			$expr = "//*[contains(concat(' ', normalize-space(@class), ' '), ' " . $esc . " ')]";
-			foreach ($xpath->query($expr) as $node) {
-				$toRemove[] = $node;
-			}
-		}
-
-		foreach ($removeXpaths as $expr) {
-			$expr = trim($expr);
-			if ($expr === '') {
+			if (isset($rule['id'])) {
+				$esc    = str_replace('"', '\\"', (string) $rule['id']);
+				$result = $xpath->query('//*[@id="' . $esc . '"]');
+			} elseif (isset($rule['class'])) {
+				// Wortgrenzen-Match: verhindert, dass "foo" auch "foobar" oder "prefix-foo" trifft.
+				$esc    = str_replace("'", "", (string) $rule['class']); // einfache Anführungszeichen im Klassenname sind extrem selten
+				$result = $xpath->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' " . $esc . " ')]");
+			} elseif (isset($rule['xpath'])) {
+				$expr = trim((string) $rule['xpath']);
+				if ($expr === '') {
+					continue;
+				}
+				$result = @$xpath->query($expr);
+				if ($result === false) {
+					$this->logger->warning('content-filters: invalid XPath skipped', [
+						'xpath'   => $expr,
+						'context' => $context,
+					]);
+					$error = 'Ungültiger XPath-Ausdruck';
+				}
+			} else {
 				continue;
 			}
-			$result = @$xpath->query($expr);
+
 			if ($result === false) {
-				$this->logger->warning('content-filters: invalid XPath skipped', [
-					'xpath'   => $expr,
-					'context' => $context,
-				]);
-				continue;
+				// Auch die id-/class-Zweige können scheitern: XPath kennt keine
+				// Backslash-Escapes, ein Anführungszeichen im id-Wert erzeugt also
+				// einen ungültigen Ausdruck. Für die Diagnose in der Admin-UI ist
+				// "fehlerhaft" die richtige Auskunft, nicht "0 Treffer".
+				$error ??= 'Regel konnte nicht ausgewertet werden';
+			} else {
+				foreach ($result as $node) {
+					$toRemove[] = $node;
+					$matches++;
+				}
 			}
-			foreach ($result as $node) {
-				$toRemove[] = $node;
+
+			if ($trace !== null && $traceSection !== null) {
+				$trace->record($traceSection, $rule, $matches, $error);
 			}
 		}
 
@@ -1442,21 +1505,21 @@ class ContentExtractorService {
 	 * Apply <pre-filter> remove rules from the per-domain config.
 	 * Runs on the raw fetched HTML BEFORE Readability.
 	 */
-	private function applyPreFilters(string $html, string $domain): string {
+	private function applyPreFilters(string $html, string $domain, ?ContentFilterTrace $trace = null): string {
 		$config = $this->loadDomainConfig($domain);
 		if ($config === null) {
 			return $html;
 		}
 		$rules = $config->xpath('pre-filter/remove') ?: [];
 		// returnFullDocument=true: Readability braucht ein vollständiges HTML-Dokument als Input.
-		return $this->applyRemoveRules($html, $rules, $domain, true);
+		return $this->applyRemoveRules($html, $rules, $domain, true, $trace, 'pre-filter');
 	}
 
 	/**
 	 * Apply <post-filter> remove rules to the Readability-extracted HTML.
 	 * Runs AFTER Readability, on the extracted content DOM.
 	 */
-	private function applyPostFilters(string $html, string $domain): string {
+	private function applyPostFilters(string $html, string $domain, ?ContentFilterTrace $trace = null): string {
 		if (empty($html)) {
 			return $html;
 		}
@@ -1465,7 +1528,7 @@ class ContentExtractorService {
 			return $html;
 		}
 		$rules = $config->xpath('post-filter/remove') ?: [];
-		return $this->applyRemoveRules($html, $rules, $domain);
+		return $this->applyRemoveRules($html, $rules, $domain, false, $trace, 'post-filter');
 	}
 
 	/**
@@ -1479,7 +1542,7 @@ class ContentExtractorService {
 	 *
 	 * Returns a full HTML document (same contract as applyPreFilters).
 	 */
-	private function applyInfoboxMarkers(string $html, string $domain): string {
+	private function applyInfoboxMarkers(string $html, string $domain, ?ContentFilterTrace $trace = null): string {
 		$config = $this->loadDomainConfig($domain);
 		if ($config === null) {
 			return $html;
@@ -1518,17 +1581,21 @@ class ContentExtractorService {
 				continue;
 			}
 
-			$result = @$xpath->query($expr);
+			$result  = @$xpath->query($expr);
+			$matches = 0;
 			if ($result === false) {
 				$this->logger->warning('content-filters: invalid infobox XPath skipped', [
 					'xpath'   => $expr,
 					'context' => $domain,
 				]);
+				$trace?->record('pre-filter', $rule, 0, 'Ungültiger XPath-Ausdruck');
 				continue;
 			}
 			foreach ($result as $node) {
 				$toMark[] = $node;
+				$matches++;
 			}
+			$trace?->record('pre-filter', $rule, $matches);
 		}
 
 		foreach ($toMark as $node) {
@@ -1562,7 +1629,7 @@ class ContentExtractorService {
 	 *
 	 * Returns a full HTML document (same contract as applyPreFilters).
 	 */
-	private function applyClassMarkers(string $html, string $domain): string {
+	private function applyClassMarkers(string $html, string $domain, ?ContentFilterTrace $trace = null): string {
 		$config = $this->loadDomainConfig($domain);
 		if ($config === null) {
 			return $html;
@@ -1598,10 +1665,13 @@ class ContentExtractorService {
 					'xpath'   => $xpathExpr,
 					'context' => $domain,
 				]);
+				$trace?->record('pre-filter', $rule, 0, 'Ungültiger XPath-Ausdruck');
 				continue;
 			}
 
+			$matches = 0;
 			foreach ($result as $node) {
+				$matches++;
 				if (!($node instanceof \DOMElement)) {
 					continue;
 				}
@@ -1611,6 +1681,7 @@ class ContentExtractorService {
 					$node->setAttribute('class', trim($existing . ' ' . $class));
 				}
 			}
+			$trace?->record('pre-filter', $rule, $matches);
 		}
 
 		$out = $dom->saveHTML();
@@ -1649,7 +1720,7 @@ class ContentExtractorService {
 	 *
 	 * @return array{title?: string, author?: string, excerpt?: string, image?: string, published?: string}
 	 */
-	private function extractDomainMetadata(string $html, string $domain): array {
+	private function extractDomainMetadata(string $html, string $domain, ?ContentFilterTrace $trace = null): array {
 		$config = $this->loadDomainConfig($domain);
 		$meta   = ($config !== null && isset($config->metadata)) ? $config->metadata : null;
 
@@ -1666,7 +1737,7 @@ class ContentExtractorService {
 		//file_put_contents($path, $html);
 
 		$xpath       = new \DOMXPath($dom);
-		$jsonSources = $this->extractJsonSources($html, $config, $domain);
+		$jsonSources = $this->extractJsonSources($html, $config, $domain, $trace);
 		$result      = [];
 
 		foreach (array_keys(self::OG_FALLBACK_XPATHS) as $field) {
@@ -1674,6 +1745,9 @@ class ContentExtractorService {
 			//    A field may have multiple sibling elements in the domain config
 			//    (e.g. two <author xpath="..."/> rules for different page layouts).
 			//    SimpleXML's foreach iterates all of them in document order.
+			//    Jeder Eintrag trägt seinen Regelknoten mit (rule = null beim
+			//    automatischen og:-Fallback), damit der Trace die Trefferzahl der
+			//    EINZELNEN Regel zuordnen kann statt nur des Feldes.
 			$xpathExprs = [];
 			$jsonPaths  = [];
 			if ($meta !== null && isset($meta->$field)) {
@@ -1682,25 +1756,37 @@ class ContentExtractorService {
 					// as $meta->{$field['xpath']} (string-offset bug).
 					$e = trim((string) ($el['xpath'] ?? ''));
 					if ($e !== '') {
-						$xpathExprs[] = $e;
+						$xpathExprs[] = ['expr' => $e, 'rule' => $el];
 					}
 					$j = trim((string) ($el['json'] ?? ''));
 					if ($j !== '') {
-						$jsonPaths[] = $j;
+						$jsonPaths[] = ['path' => $j, 'rule' => $el];
 					}
 				}
 			}
 
 			// 2. Always append the og:/article: fallback so it's tried when all
 			//    custom rules are absent or return no match.
-			$xpathExprs[] = self::OG_FALLBACK_XPATHS[$field];
+			$xpathExprs[] = ['expr' => self::OG_FALLBACK_XPATHS[$field], 'rule' => null];
 
 			// 3. Try XPath expressions first; first non-empty result wins
 			$value = '';
-			foreach ($xpathExprs as $expr)
+			foreach ($xpathExprs as $candidate)
 			{
+				$expr = $candidate['expr'];
+				$rule = $candidate['rule'];
+
 				$nodes = @$xpath->query($expr);
-				if ($nodes === false || $nodes->length === 0) {
+				if ($nodes === false) {
+					if ($trace !== null && $rule !== null) {
+						$trace->record('metadata', $rule, 0, 'Ungültiger XPath-Ausdruck');
+					}
+					continue;
+				}
+				if ($trace !== null && $rule !== null) {
+					$trace->record('metadata', $rule, $nodes->length);
+				}
+				if ($nodes->length === 0) {
 					continue;
 				}
 				$value = [];
@@ -1722,7 +1808,10 @@ class ContentExtractorService {
 
 			// 4. If XPath found nothing, try JSON paths
 			if ($value === '' && !empty($jsonPaths)) {
-				foreach ($jsonPaths as $jsonPath) {
+				foreach ($jsonPaths as $jsonCandidate) {
+					$jsonPath = $jsonCandidate['path'];
+					$jsonRule = $jsonCandidate['rule'];
+
 					// Syntax: "sourceId:$.path"  — sourceId must NOT start with "$"
 					//         "$.path"            — no prefix → use "default" source
 					// The "$" guard prevents misidentifying a plain JSONPath (which
@@ -1738,10 +1827,16 @@ class ContentExtractorService {
 
 					$sourceData = $jsonSources[$sourceId] ?? null;
 					if ($sourceData === null) {
+						if ($trace !== null && $jsonRule !== null) {
+							$trace->record('metadata', $jsonRule, 0, 'JSON-Quelle "' . $sourceId . '" nicht gefunden');
+						}
 						continue;
 					}
 
 					$resolved = $this->resolveJsonPath($sourceData, $actualPath);
+					if ($trace !== null && $jsonRule !== null) {
+						$trace->record('metadata', $jsonRule, ($resolved !== null && $resolved !== '') ? 1 : 0);
+					}
 					if ($resolved !== null && $resolved !== '') {
 						$value = [$resolved];
 						break;
@@ -1789,7 +1884,12 @@ class ContentExtractorService {
 	 *
 	 * @return array<string, mixed>  Map of id → decoded JSON (associative array)
 	 */
-	private function extractJsonSources(string $html, ?\SimpleXMLElement $config, string $domain): array
+	private function extractJsonSources(
+		string $html,
+		?\SimpleXMLElement $config,
+		string $domain,
+		?ContentFilterTrace $trace = null
+	): array
 	{
 		$prev = libxml_use_internal_errors(true);
 		$dom  = new \DOMDocument();
@@ -1828,11 +1928,22 @@ class ContentExtractorService {
 
 			if ($id === '' || $xpathExpr === '') {
 				$this->logger->warning('content-filters: <json> element missing id or xpath, skipped', ['domain' => $domain]);
+				$trace?->record('json', $def, 0, 'id oder xpath fehlt');
 				continue;
 			}
 
 			$nodes = @$xpath->query($xpathExpr);
-			if ($nodes === false || $nodes->length === 0) {
+			if ($nodes === false) {
+				$trace?->record('json', $def, 0, 'Ungültiger XPath-Ausdruck');
+				continue;
+			}
+
+			// Ohne diesen Zähler sähe der Admin bei einer nicht gefundenen Quelle
+			// nur "JSON-Quelle nicht gefunden" am metadata-Feld – nicht, dass schon
+			// der Quell-XPath hier ins Leere lief.
+			$trace?->record('json', $def, $nodes->length);
+
+			if ($nodes->length === 0) {
 				continue;
 			}
 
@@ -1844,6 +1955,7 @@ class ContentExtractorService {
 
 			$json = trim($node->textContent ?? '');
 			if ($json === '') {
+				$trace?->record('json', $def, $nodes->length, 'Gefundenes Element ist leer');
 				continue;
 			}
 
@@ -1853,6 +1965,7 @@ class ContentExtractorService {
 					'id'     => $id,
 					'domain' => $domain,
 				]);
+				$trace?->record('json', $def, $nodes->length, 'Inhalt ist kein gültiges JSON');
 				continue;
 			}
 

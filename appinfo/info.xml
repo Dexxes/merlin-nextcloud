@@ -40,6 +40,13 @@ Perfect for keeping track of interesting articles, research materials, or any we
         <nextcloud min-version="30" max-version="35"/>
     </dependencies>
 
+    <settings>
+        <admin>OCA\Merlin\Settings\AdminSettings</admin>
+        <admin-section>OCA\Merlin\Settings\AdminSection</admin-section>
+        <personal>OCA\Merlin\Settings\PersonalSettings</personal>
+        <personal-section>OCA\Merlin\Settings\PersonalSection</personal-section>
+    </settings>
+
     <navigations>
         <navigation>
             <name>Merlin</name>

@@ -101,8 +101,8 @@ class ExtensionController extends Controller {
 					// If the extension sent the page HTML, use it directly (avoids a second
 					// network fetch and works for paywalled / JS-rendered pages).
 					$extracted = $html
-						? $extractor->extractFromHtml($url, $html)
-						: $extractor->extract($url);
+						? $extractor->extractFromHtml($url, $html, $userId)
+						: $extractor->extract($url, null, $userId);
 					$article   = $mapper->find($articleId, $userId);
 					$article->setUrl($extracted['url'] ?? $url);
 					$article->setTitle($extracted['title']);
