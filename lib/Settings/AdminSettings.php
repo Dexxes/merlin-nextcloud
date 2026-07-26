@@ -11,6 +11,7 @@ use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IL10N;
 use OCP\Settings\ISettings;
+use OCP\Util;
 
 /**
  * Verwaltungseinstellungen für Merlin: Pflege der Content-Filter.
@@ -42,6 +43,10 @@ class AdminSettings implements ISettings {
 			'filters' => $this->repository->listFilters(),
 			'schema'  => ContentFilterSchema::describe(),
 		]);
+
+		// Siehe PersonalSettings::getForm(): ohne diesen Aufruf lädt Core auf der
+		// "settings"-Seite nur deren eigene Übersetzungen, nicht die von Merlin.
+		Util::addTranslations(Application::APP_ID);
 
 		return new TemplateResponse(Application::APP_ID, 'admin-settings');
 	}

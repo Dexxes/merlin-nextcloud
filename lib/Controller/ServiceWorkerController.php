@@ -27,6 +27,16 @@ class ServiceWorkerController extends Controller {
 		$js = <<<'JS'
 // Merlin Service Worker — minimal pass-through (no offline caching)
 self.addEventListener('fetch', (event) => {
+  // Navigation requests (mode 'navigate') can't be re-fetched via
+  // event.request directly – fetch() throws a TypeError on a
+  // navigate-mode Request. Passing the plain URL instead makes an
+  // equivalent same-origin request without that restriction. Requests
+  // outside this worker's scope never reach this handler at all, so
+  // this only ever fires for pages under /apps/merlin/.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(fetch(event.request.url));
+    return;
+  }
   event.respondWith(fetch(event.request));
 });
 JS;

@@ -197,7 +197,19 @@
         "yours": "deine",
         "admin default": "Admin-Standard",
         "built-in": "vordefiniert",
-        "Line": "Zeile"
+        "Line": "Zeile",
+        "Search website…": "Website suchen…",
+        "Shipped with the app": "Mit der App ausgeliefert",
+        "own": "eigene",
+        "Has your own rules": "Hat eigene Regeln",
+        "Users with their own private override for this website (content not visible to admins)": "Nutzer mit eigenen privaten Regeln für diese Website (Inhalt für Admins nicht sichtbar)",
+        "%n user override_::_%n user overrides": [
+            "%n Nutzer-Override",
+            "%n Nutzer-Overrides"
+        ],
+        "No match.": "Keine Treffer.",
+        "Add website": "Website hinzufügen",
+        "Import XML file": "XML-Datei importieren"
     },
     "pluralForm": "nplurals=2; plural=(n != 1);"
 }

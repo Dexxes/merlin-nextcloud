@@ -12,6 +12,7 @@ use OCP\AppFramework\Services\IInitialState;
 use OCP\IL10N;
 use OCP\IUserSession;
 use OCP\Settings\ISettings;
+use OCP\Util;
 
 /**
  * Persönliche Einstellungen für Merlin: Pflege des eigenen, privaten
@@ -48,6 +49,12 @@ class PersonalSettings implements ISettings {
 			'domains' => $domains,
 			'schema'  => ContentFilterSchema::describe(),
 		]);
+
+		// Die Personal-Settings-Seite läuft unter der Shell der "settings"-App;
+		// Core lädt dort automatisch nur deren eigene Übersetzungen. Ohne diesen
+		// Aufruf bleibt OC.L10N für "merlin" leer und alle t()-Aufrufe im Vue-Code
+		// fallen auf den englischen Quelltext zurück.
+		Util::addTranslations(Application::APP_ID);
 
 		return new TemplateResponse(Application::APP_ID, 'personal-settings');
 	}

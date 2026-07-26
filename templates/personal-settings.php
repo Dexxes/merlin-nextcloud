@@ -3,4 +3,4 @@ script('merlin', 'merlin-personal');
 style('merlin', 'merlin-personal');
 ?>
 
-<div id="merlin-personal-settings"></div>
+<div id="merlin-personal-settings" class="section"></div>
