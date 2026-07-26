@@ -5,6 +5,14 @@
 			{{ t('merlin', 'Content filters clean up saved articles per website. Rules from the app and your administrator apply to everyone; here you can add your own private rules on top — only you will see them, and they take priority over everyone else\'s.') }}
 		</p>
 
+		<div v-if="isAdmin" class="merlin-personal__admin-hint">
+			<Cog :size="20" />
+			<span>
+				{{ t('merlin', 'As an administrator, you can also manage instance-wide filters.') }}
+				<a :href="adminSettingsUrl">{{ t('merlin', 'Open administration settings') }}</a>
+			</span>
+		</div>
+
 		<div v-if="error" class="merlin-personal__error">
 			<AlertCircleOutline :size="20" />
 			<span>{{ error }}</span>
@@ -56,6 +64,7 @@ import { loadState } from '@nextcloud/initial-state'
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
 import Check from 'vue-material-design-icons/Check.vue'
 import Close from 'vue-material-design-icons/Close.vue'
+import Cog from 'vue-material-design-icons/Cog.vue'
 import FilterList from '../admin/FilterList.vue'
 import PersonalFilterEditor from './PersonalFilterEditor.vue'
 import {
@@ -73,17 +82,21 @@ export default {
 		AlertCircleOutline,
 		Check,
 		Close,
+		Cog,
 		FilterList,
 		PersonalFilterEditor,
 	},
 
 	data() {
 		// Erststand kommt aus PersonalSettings::getForm(); ohne ihn wüsste die
-		// Oberfläche erst nach einem Roundtrip, welche Domains es gibt.
+		// Oberfläche erst nach einem Roundtrip, welche Domains es gibt, und ob
+		// der aktuelle Nutzer Admin ist (nur dann existiert adminSettingsUrl).
 		const initial = loadState('merlin', 'userContentFilters', null) || {}
 		return {
 			domains: initial.domains || [],
 			schema: initial.schema || null,
+			isAdmin: initial.isAdmin || false,
+			adminSettingsUrl: initial.adminSettingsUrl || null,
 			selected: null,
 			detail: null,
 			draft: null,
@@ -241,6 +254,23 @@ export default {
 	color: var(--color-text-maxcontrast);
 	margin: 4px 0 20px;
 	line-height: 1.5;
+}
+
+.merlin-personal__admin-hint {
+	display: flex;
+	gap: 10px;
+	align-items: flex-start;
+	padding: 10px 14px;
+	border-radius: var(--border-radius-large, 8px);
+	margin-bottom: 16px;
+	font-size: 0.95em;
+	background-color: var(--color-primary-element-light);
+	color: var(--color-main-text);
+}
+
+.merlin-personal__admin-hint a {
+	font-weight: bold;
+	text-decoration: underline;
 }
 
 .merlin-personal__error,

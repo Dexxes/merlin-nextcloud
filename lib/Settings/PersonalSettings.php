@@ -9,7 +9,9 @@ use OCA\Merlin\Service\ContentFilterRepository;
 use OCA\Merlin\Service\ContentFilterSchema;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
+use OCP\IGroupManager;
 use OCP\IL10N;
+use OCP\IURLGenerator;
 use OCP\IUserSession;
 use OCP\Settings\ISettings;
 use OCP\Util;
@@ -27,6 +29,8 @@ class PersonalSettings implements ISettings {
 		private IInitialState $initialState,
 		private ContentFilterRepository $repository,
 		private IUserSession $userSession,
+		private IGroupManager $groupManager,
+		private IURLGenerator $urlGenerator,
 	) {
 	}
 
@@ -43,11 +47,21 @@ class PersonalSettings implements ISettings {
 			];
 		}, $this->repository->listFilters());
 
+		// Admins verwalten instanzweite Filter auf einer separaten Seite
+		// (AdminSettings). Statt sie dorthin suchen zu lassen, verlinken wir
+		// direkt aus den persönlichen Einstellungen – nur für Admins sichtbar,
+		// da Nicht-Admins dort ohnehin keine funktionierende API vorfänden.
+		$isAdmin = $userId !== '' && $this->groupManager->isAdmin($userId);
+
 		// Erststand mitgeben, damit die Oberfläche nicht erst nach einem
 		// Roundtrip die Domainliste zeigt.
 		$this->initialState->provideInitialState('userContentFilters', [
-			'domains' => $domains,
-			'schema'  => ContentFilterSchema::describe(),
+			'domains'         => $domains,
+			'schema'          => ContentFilterSchema::describe(),
+			'isAdmin'         => $isAdmin,
+			'adminSettingsUrl' => $isAdmin
+				? $this->urlGenerator->linkToRoute('settings.AdminSettings.index', ['section' => Application::APP_ID])
+				: null,
 		]);
 
 		// Die Personal-Settings-Seite läuft unter der Shell der "settings"-App;
