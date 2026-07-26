@@ -259,6 +259,16 @@ class ContentExtractorService {
 		// unten keine "undefined variable"-Warnung auslösen.
 		$excerpt = null;
 
+		// Der Video-Zweig unten überspringt Readability komplett und hat daher nie
+		// $siteName gesetzt (undefined variable → null im Rückgabewert). Da
+		// PublicArticleView.vue/ArticleReader.vue den URL-Link an
+		// "article.siteName && safeArticleUrl" knüpfen, fehlte für Video-Domains
+		// (z. B. ardmediathek.de) die komplette URL-Anzeige in den Metadaten.
+		// extractSiteName() wertet ohnehin nur den Host aus $url aus, ist also in
+		// beiden Zweigen identisch berechenbar – deshalb hier vorab setzen.
+		$siteName = $this->extractSiteName($rawHtml, $url);
+		$siteName = html_entity_decode($siteName ?? '', ENT_QUOTES, 'UTF-8');
+
 		if($domainMeta['category'] != "Video")
 		{
 			// ── Step 2b: Image caption normalisation ─────────────────────────────
@@ -316,9 +326,6 @@ class ContentExtractorService {
 
 			$author = $readability->getAuthor() ?: '';
 			$author = html_entity_decode($author, ENT_QUOTES, 'UTF-8');
-
-			$siteName = $this->extractSiteName($html, $url);
-			$siteName = html_entity_decode($siteName, ENT_QUOTES, 'UTF-8');
 
 			// Prefer og:image (most reliable), fall back to Readability's detected image,
 			// then scan raw HTML for a prominent hero figure (rescued before Readability drops it).
