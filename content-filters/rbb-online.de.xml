@@ -21,6 +21,8 @@
 -->
 <domain name="rbb-online.de">
 
+<category>Video</category>
+
   <pre-filter>
     <remove xpath="//section[contains(@class,'layoutrelated_content')]" />
     <remove xpath="//div[contains(@class,'logo-sendung')]" />
