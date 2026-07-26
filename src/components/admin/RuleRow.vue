@@ -163,8 +163,13 @@ export default {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
-	gap: 6px;
-	padding: 4px 0;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: var(--border-radius, 4px);
+}
+
+.rule-row:not(.rule-row--readonly):hover {
+	background-color: var(--color-background-hover);
 }
 
 .rule-row--readonly {

@@ -120,8 +120,9 @@ export default {
 .rule-section {
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius-large, 8px);
-	padding: 10px 12px;
-	margin-bottom: 12px;
+	padding: 14px 16px;
+	margin-bottom: 14px;
+	background-color: var(--color-main-background);
 }
 
 .rule-section__header {
@@ -130,7 +131,9 @@ export default {
 	justify-content: space-between;
 	align-items: baseline;
 	gap: 8px;
-	margin-bottom: 6px;
+	margin-bottom: 10px;
+	padding-bottom: 10px;
+	border-bottom: 1px solid var(--color-border);
 }
 
 .rule-section__header h4 {
@@ -143,6 +146,10 @@ export default {
 
 .rule-section__header code {
 	font-family: monospace;
+	font-size: 0.95em;
+	background-color: var(--color-background-dark);
+	padding: 1px 6px;
+	border-radius: var(--border-radius, 4px);
 }
 
 .rule-section__desc {
@@ -161,8 +168,8 @@ export default {
 
 .rule-section__bundle {
 	border-inline-start: 3px solid var(--color-border-dark, var(--color-border));
-	padding-inline-start: 8px;
-	margin-bottom: 8px;
+	padding-inline-start: 10px;
+	margin-bottom: 10px;
 }
 
 .rule-section__bundle--off {
@@ -179,19 +186,22 @@ export default {
 .rule-section__add {
 	display: flex;
 	align-items: center;
-	gap: 4px;
-	background: transparent;
+	gap: 6px;
+	background-color: var(--color-background-hover);
 	border: 1px dashed var(--color-border-dark, var(--color-border));
-	border-radius: var(--border-radius, 4px);
-	padding: 3px 8px;
-	margin-top: 4px;
+	border-radius: var(--border-radius-large, 8px);
+	padding: 6px 12px;
+	margin-top: 6px;
 	cursor: pointer;
 	color: var(--color-text-maxcontrast);
 	font-size: 0.85em;
+	font-weight: 600;
 }
 
 .rule-section__add:hover {
-	color: var(--color-main-text);
+	color: var(--color-primary-element-text, #fff);
+	background-color: var(--color-primary-element, #0082c9);
 	border-color: var(--color-primary-element, #0082c9);
+	border-style: solid;
 }
 </style>

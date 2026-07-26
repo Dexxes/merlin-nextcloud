@@ -125,36 +125,42 @@ export default {
 .filter-list {
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius-large, 8px);
-	padding: 10px;
+	padding: 12px;
 	background-color: var(--color-main-background);
 }
 
 .filter-list__search {
 	width: 100%;
-	margin-bottom: 8px;
+	margin-bottom: 10px;
+	border-radius: var(--border-radius-large, 8px);
 }
 
 .filter-list__items {
 	list-style: none;
-	margin: 0 0 10px;
+	margin: 0 0 12px;
 	padding: 0;
 	max-height: 420px;
 	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
 }
 
 .filter-list__item {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 6px;
+	gap: 8px;
 	width: 100%;
 	text-align: start;
 	background: transparent;
 	border: none;
-	border-radius: var(--border-radius, 4px);
-	padding: 6px 8px;
+	border-radius: var(--border-radius-large, 8px);
+	padding: 8px 10px;
 	cursor: pointer;
 	color: var(--color-main-text);
+	font-size: 0.95em;
+	transition: background-color 0.1s ease-in-out;
 }
 
 .filter-list__item:hover {
@@ -163,7 +169,7 @@ export default {
 
 .filter-list__item--active {
 	background-color: var(--color-primary-element-light, var(--color-background-dark));
-	font-weight: bold;
+	font-weight: 600;
 }
 
 .filter-list__domain {
@@ -179,13 +185,15 @@ export default {
 }
 
 .filter-list__badge {
-	font-size: 0.7rem;
-	line-height: 1.4;
-	padding: 0 5px;
-	border-radius: 8px;
+	font-size: 0.68rem;
+	line-height: 1.5;
+	padding: 1px 6px;
+	border-radius: 10px;
 	background-color: var(--color-background-dark);
 	color: var(--color-text-maxcontrast);
-	font-weight: normal;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.02em;
 }
 
 .filter-list__badge--own {
@@ -200,28 +208,56 @@ export default {
 
 .filter-list__empty {
 	color: var(--color-text-maxcontrast);
-	padding: 8px;
+	padding: 10px;
+	text-align: center;
+	font-size: 0.9em;
 }
 
 .filter-list__actions {
 	border-top: 1px solid var(--color-border);
-	padding-top: 10px;
+	padding-top: 12px;
 }
 
 .filter-list__label {
 	display: block;
 	font-size: 0.85em;
+	font-weight: 600;
 	color: var(--color-text-maxcontrast);
-	margin: 8px 0 2px;
+	margin: 10px 0 4px;
 }
 
 .filter-list__row {
 	display: flex;
-	gap: 4px;
+	gap: 6px;
 }
 
 .filter-list__row input {
 	flex: 1;
 	min-width: 0;
+	border-radius: var(--border-radius-large, 8px);
+}
+
+.filter-list__row button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 34px;
+	flex-shrink: 0;
+	border-radius: var(--border-radius-large, 8px);
+	border: 1px solid var(--color-border-dark, var(--color-border));
+	background-color: var(--color-background-hover);
+	color: var(--color-main-text);
+	cursor: pointer;
+}
+
+.filter-list__row button:hover:not(:disabled) {
+	background-color: var(--color-primary-element, #0082c9);
+	color: var(--color-primary-element-text, #fff);
+	border-color: var(--color-primary-element, #0082c9);
+}
+
+.filter-list__row button:disabled {
+	opacity: 0.5;
+	cursor: default;
 }
 </style>

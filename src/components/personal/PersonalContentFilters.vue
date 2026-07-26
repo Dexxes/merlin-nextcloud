@@ -228,13 +228,19 @@ export default {
 
 <style scoped>
 .merlin-personal {
-	max-width: 1100px;
+	max-width: 1200px;
+}
+
+.merlin-personal h2 {
+	margin-bottom: 4px;
+	font-size: 1.3rem;
 }
 
 .merlin-personal__intro {
 	max-width: 70ch;
 	color: var(--color-text-maxcontrast);
-	margin-bottom: 16px;
+	margin: 4px 0 20px;
+	line-height: 1.5;
 }
 
 .merlin-personal__error,
@@ -242,10 +248,10 @@ export default {
 	display: flex;
 	gap: 10px;
 	align-items: flex-start;
-	padding: 10px 12px;
+	padding: 10px 14px;
 	border-radius: var(--border-radius-large, 8px);
-	background-color: var(--color-background-hover);
-	margin-bottom: 12px;
+	margin-bottom: 16px;
+	font-size: 0.95em;
 }
 
 .merlin-personal__error {
@@ -264,13 +270,19 @@ export default {
 	border: none;
 	color: inherit;
 	cursor: pointer;
-	padding: 0 4px;
+	padding: 2px 4px;
+	border-radius: var(--border-radius, 4px);
+	display: flex;
+}
+
+.merlin-personal__dismiss:hover {
+	background-color: rgba(255, 255, 255, 0.2);
 }
 
 .merlin-personal__layout {
 	display: grid;
-	grid-template-columns: minmax(220px, 300px) 1fr;
-	gap: 20px;
+	grid-template-columns: minmax(240px, 300px) 1fr;
+	gap: 24px;
 	align-items: start;
 }
 
@@ -282,10 +294,15 @@ export default {
 
 .merlin-personal__detail {
 	min-width: 0;
+	background-color: var(--color-main-background);
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius-large, 8px);
+	padding: 20px 24px;
 }
 
 .merlin-personal__empty {
 	color: var(--color-text-maxcontrast);
 	padding: 24px 0;
+	text-align: center;
 }
 </style>

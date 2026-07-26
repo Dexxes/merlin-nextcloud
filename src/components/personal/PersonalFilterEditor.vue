@@ -184,16 +184,19 @@ export default {
 	flex-wrap: wrap;
 	justify-content: space-between;
 	align-items: flex-start;
-	gap: 10px;
-	margin-bottom: 12px;
+	gap: 12px;
+	margin-bottom: 16px;
+	padding-bottom: 16px;
+	border-bottom: 1px solid var(--color-border);
 }
 
 .filter-editor__header h3 {
 	margin: 0;
+	font-size: 1.15rem;
 }
 
 .filter-editor__origin {
-	margin: 2px 0 0;
+	margin: 4px 0 0;
 	font-size: 0.85em;
 	color: var(--color-text-maxcontrast);
 }
@@ -201,57 +204,107 @@ export default {
 .filter-editor__actions {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 6px;
+	gap: 8px;
 	align-items: center;
 }
 
+.filter-editor__actions button {
+	border-radius: var(--border-radius-pill, 20px);
+	padding: 7px 18px;
+	border: 1px solid var(--color-border-dark, var(--color-border));
+	background-color: var(--color-main-background);
+	color: var(--color-main-text);
+	cursor: pointer;
+	font-weight: 600;
+	font-size: 0.9em;
+}
+
+.filter-editor__actions button:hover:not(:disabled) {
+	background-color: var(--color-background-hover);
+}
+
+.filter-editor__actions button:first-child {
+	background-color: var(--color-primary-element, #0082c9);
+	border-color: var(--color-primary-element, #0082c9);
+	color: var(--color-primary-element-text, #fff);
+}
+
+.filter-editor__actions button:first-child:hover:not(:disabled) {
+	background-color: var(--color-primary-element-hover, #006ba3);
+}
+
+.filter-editor__actions button:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
 .filter-editor__danger {
-	color: var(--color-error-text, #c0392b);
+	color: var(--color-error-text, #c0392b) !important;
+	background-color: var(--color-main-background) !important;
+	border-color: var(--color-border-dark, var(--color-border)) !important;
+}
+
+.filter-editor__danger:hover:not(:disabled) {
+	background-color: var(--color-error, #e9322d) !important;
+	border-color: var(--color-error, #e9322d) !important;
+	color: #fff !important;
 }
 
 .filter-editor__mergeerror {
 	background-color: var(--color-error, #e9322d);
 	color: #fff;
-	padding: 6px 10px;
+	padding: 8px 12px;
 	border-radius: var(--border-radius, 4px);
+	margin-bottom: 12px;
 }
 
 .filter-editor__hint {
 	font-size: 0.85em;
 	color: var(--color-text-maxcontrast);
 	max-width: 70ch;
-	margin-bottom: 10px;
+	margin-bottom: 16px;
+	line-height: 1.5;
 }
 
 .filter-editor__note {
 	display: block;
-	margin-bottom: 12px;
+	margin-bottom: 20px;
 }
 
 .filter-editor__note span {
 	display: block;
 	font-size: 0.85em;
+	font-weight: 600;
 	color: var(--color-text-maxcontrast);
-	margin-bottom: 2px;
+	margin-bottom: 4px;
 }
 
 .filter-editor__note textarea {
 	width: 100%;
+	border-radius: var(--border-radius-large, 8px);
+	resize: vertical;
 }
 
 .filter-editor__category {
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius-large, 8px);
-	padding: 10px 12px;
-	margin-bottom: 12px;
+	padding: 14px 16px;
+	margin-bottom: 16px;
+	background-color: var(--color-background-hover);
 }
 
 .filter-editor__category h4 {
-	margin: 0 0 4px;
+	margin: 0 0 8px;
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;
 	align-items: baseline;
+}
+
+.filter-editor__category input {
+	width: 100%;
+	max-width: 320px;
+	border-radius: var(--border-radius-large, 8px);
 }
 
 .filter-editor__desc {
@@ -266,7 +319,7 @@ export default {
 	display: flex;
 	gap: 10px;
 	align-items: center;
-	margin: 0 0 4px;
+	margin: 0 0 8px;
 }
 
 .filter-editor__section-off {
@@ -276,30 +329,39 @@ export default {
 }
 
 .filter-editor__source {
-	margin-top: 16px;
+	margin-top: 20px;
+	border-top: 1px solid var(--color-border);
+	padding-top: 12px;
 }
 
 .filter-editor__source summary {
 	cursor: pointer;
 	font-size: 0.9em;
+	font-weight: 600;
+	color: var(--color-text-maxcontrast);
+}
+
+.filter-editor__source summary:hover {
+	color: var(--color-main-text);
 }
 
 .filter-editor__sources {
 	display: grid;
 	gap: 12px;
-	margin-top: 8px;
+	margin-top: 10px;
 }
 
 .filter-editor__sources h5 {
-	margin: 0 0 2px;
+	margin: 0 0 4px;
+	font-size: 0.9em;
 }
 
 .filter-editor__sources pre {
 	max-height: 320px;
 	overflow: auto;
 	background-color: var(--color-background-dark);
-	border-radius: var(--border-radius, 4px);
-	padding: 8px;
+	border-radius: var(--border-radius-large, 8px);
+	padding: 10px;
 	font-size: 0.75em;
 	font-family: monospace;
 	white-space: pre;

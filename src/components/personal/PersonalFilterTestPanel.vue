@@ -165,8 +165,9 @@ export default {
 .test-panel {
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius-large, 8px);
-	padding: 10px 12px;
-	margin-top: 16px;
+	padding: 14px 16px;
+	margin-top: 20px;
+	background-color: var(--color-background-hover);
 }
 
 .test-panel h4 {
@@ -181,13 +182,34 @@ export default {
 
 .test-panel__form {
 	display: flex;
-	gap: 6px;
-	margin: 8px 0;
+	gap: 8px;
+	margin: 10px 0;
 }
 
 .test-panel__form input {
 	flex: 1;
 	min-width: 0;
+	border-radius: var(--border-radius-large, 8px);
+}
+
+.test-panel__form button {
+	border-radius: var(--border-radius-pill, 20px);
+	padding: 7px 18px;
+	border: 1px solid var(--color-primary-element, #0082c9);
+	background-color: var(--color-primary-element, #0082c9);
+	color: var(--color-primary-element-text, #fff);
+	cursor: pointer;
+	font-weight: 600;
+	font-size: 0.9em;
+}
+
+.test-panel__form button:hover:not(:disabled) {
+	background-color: var(--color-primary-element-hover, #006ba3);
+}
+
+.test-panel__form button:disabled {
+	opacity: 0.6;
+	cursor: default;
 }
 
 .test-panel__error {
