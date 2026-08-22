@@ -1,0 +1,11 @@
+# Dev-only files that must not end up in the app store release tarball.
+# `make dist` builds the release via `git archive`, which honors export-ignore.
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/INSTALLATION.md export-ignore
+/STRUCTURE.md export-ignore
+/Makefile export-ignore
+/package.json export-ignore
+/src export-ignore
+/tools export-ignore
+/vite.config.mjs export-ignore
