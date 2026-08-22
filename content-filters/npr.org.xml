@@ -56,7 +56,7 @@
 
     <caption
       container-xpath="//div[contains(@class,'bucketwrap') and contains(@class,'image')]"
-      caption-xpath=".//div[@aria-label='Image caption']/p/text()[1]"
+      caption-xpath=".//div[@class='caption']/p/text()[not(parent::b)] | .//div[@class='caption']/p/b[@class='credit']"
     />
 
   </images>

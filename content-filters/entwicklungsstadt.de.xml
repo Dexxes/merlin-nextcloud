@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<domain name="entwicklungsstadt.de">
+
+  <pre-filter>
+  <remove xpath="//div[contains(@class, 'fusion-content-tb')]/p/strong"/>
+  </pre-filter>
+
+  <images>
+  
+    <caption
+        container-xpath="//div[contains(@class,'wp-caption')]"
+        caption-xpath=".//p"
+    />
+
+  </images>
+
+  <post-filter>
+    <!-- Hier post-Readability-Remove-Regeln eintragen -->
+  </post-filter>
+
+  <metadata>
+    <image xpath="//meta[@property='og:image']/@content" />
+    <author xpath="//meta[@name='author']/@content" />
+    <!-- Beispiele:
+    <title    xpath="//h1[@class='article-title']" />
+    <author   xpath="//span[@class='author-name']" />
+    <excerpt  xpath="//p[@class='article-intro']" />
+    <image    xpath="//meta[@property='og:image']/@content" />
+    <published xpath="//time[@itemprop='datePublished']/@datetime" />
+    -->
+  </metadata>
+
+</domain>

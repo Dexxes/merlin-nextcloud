@@ -33,6 +33,8 @@
     <remove xpath="//p[contains(@class,'Korrespondent')]" />
     <remove xpath="//h2[contains(@class,'seiteneinstieg-longread')]" />
     <remove xpath="//p[contains(@class,'typo-r-subline-longread-b')]" />
+    <remove xpath="//h1" />
+    <remove id="Kommentarbereich" />
   </pre-filter>
 
 <!-- ── Zitate ─────────────────────────────────────────────────────────── -->
@@ -52,7 +54,6 @@
     <author   xpath="//span[contains(@class, 'typo-name-detail-bold')]" />
     <!-- Beispiele:
     <author   xpath="//span[@class='typo-name-detail-bold link ']" />
-    <title    xpath="//h1[@class='article-title']" />
     <excerpt  xpath="//p[@class='article-intro']" />
     <image    xpath="//meta[@property='og:image']/@content" />
     <published xpath="//time[@itemprop='datePublished']/@datetime" />

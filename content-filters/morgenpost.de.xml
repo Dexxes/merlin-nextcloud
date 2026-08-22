@@ -24,13 +24,24 @@
   <pre-filter>
     <remove xpath="//section[@aria-label='Auch interessant']"/>
     <remove class="text-brand" />
+    <remove id="bt-player"/>
+    <remove xpath="//ul[contains(@class, 'data-group=summary')]"/>
+    <remove xpath="//a[@data-track-v2-label='Autorenbild']/.." />
   </pre-filter>
+
+  <quotes>
+    <quote
+          container-xpath="//blockquote"
+          author-xpath=".//address"
+        />
+  </quotes>
 
   <post-filter>
     <!-- Hier post-Readability-Remove-Regeln eintragen -->
   </post-filter>
 
   <metadata>
+    <excerpt  xpath="//meta[@property='og:description']/@content" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
     <author   xpath="//span[@class='author-name']" />

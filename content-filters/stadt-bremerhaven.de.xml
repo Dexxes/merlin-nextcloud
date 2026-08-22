@@ -22,6 +22,8 @@
 <domain name="stadt-bremerhaven.de">
 
   <pre-filter>
+    <remove class="post-byline" />
+    <remove class="author-bio google-anno-skip" />
     <remove class="aawp-disclaimer" />
     <remove xpath="//*[@class='aawp']" />
     <remove xpath="//iframe" />
@@ -33,9 +35,9 @@
   </post-filter>
 
   <metadata>
+    <author   xpath="//p[@class='bio-name']/a" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
-    <author   xpath="//span[@class='author-name']" />
     <excerpt  xpath="//p[@class='article-intro']" />
     <image    xpath="//meta[@property='og:image']/@content" />
     <published xpath="//time[@itemprop='datePublished']/@datetime" />

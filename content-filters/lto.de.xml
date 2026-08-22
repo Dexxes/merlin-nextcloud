@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Merlin Content-Filter: spiegel.de
-
   Verfügbare Sektionen:
     <pre-filter>   – Regeln, die auf das rohe HTML VOR dem Readability-Durchlauf angewendet werden
     <post-filter>  – Regeln, die auf den von Readability extrahierten HTML-Content angewendet werden
@@ -19,31 +17,27 @@
     <image    xpath="..." />   – Bild-URL (bei @content-Attributen: xpath="//meta[...]/@content")
     <published xpath="..." />  – Veröffentlichungsdatum (ISO 8601 oder deutsches Format)
 -->
-<domain name="spiegel.de">
+<domain name="lto.de">
 
   <pre-filter>
-    <!--<remove xpath="//article/header" />-->
-    <!--<remove xpath="//svg[@data-link-flag]" />-->
-    <!--<remove xpath="//div[@data-has-paid-access-hidden='' and @data-not-gift-article-hidden='']" />-->
-    <remove xpath="//section[@data-area='related_articles']" />
-    <!--<remove xpath="//*[@x-effect]" />-->
+    <remove class="reader__intro" />
   </pre-filter>
 
   <post-filter>
     <!-- Hier post-Readability-Remove-Regeln eintragen -->
   </post-filter>
 
-<images>
-  <caption
-      container-xpath="//main//figure"
-      caption-xpath=".//figcaption"
+  <images>
+    <caption
+      container-xpath="//div[@class='article-text-wrapper']//figure"
+      caption-xpath=".//figcaption/text()"
     />
-</images>
+  </images>
 
   <metadata>
+    <author   xpath="//p[@class='reader__meta-info']/a/text()" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
-    <author   xpath="//span[@class='author-name']" />
     <excerpt  xpath="//p[@class='article-intro']" />
     <image    xpath="//meta[@property='og:image']/@content" />
     <published xpath="//time[@itemprop='datePublished']/@datetime" />

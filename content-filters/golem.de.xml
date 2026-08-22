@@ -38,6 +38,7 @@
     <remove xpath="//ul[contains(@class,'go-alink-list')]" />
     <remove class="supplementary" />
     <remove class="implied" />
+    <remove class="go-article-header__intro" />
 
     <!-- Header-Beiwerk: Meta-Zeile, Button-Leiste, Serien-Label -->
     <remove xpath="//div[contains(@class,'go-article-header__meta')]" />
