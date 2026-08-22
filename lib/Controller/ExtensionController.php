@@ -56,7 +56,7 @@ class ExtensionController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function add(string $url, ?string $title = null, ?array $tags = null, ?string $html = null): DataResponse {
+	public function add(string $url, ?string $title = null, ?array $tags = null, ?string $html = null, ?string $author = null): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['status' => 0, 'error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
 		}
@@ -68,7 +68,7 @@ class ExtensionController extends Controller {
 			$article->setTitle($title ?? (parse_url($url, PHP_URL_HOST) ?: $url));
 			$article->setContent('');
 			$article->setExcerpt('');
-			$article->setAuthor('');
+			$article->setAuthor($author ?? '');
 			$article->setSiteName(parse_url($url, PHP_URL_HOST) ?: '');
 			$article->setImageUrl('');
 			$article->setCategory(null);
@@ -88,7 +88,7 @@ class ExtensionController extends Controller {
 			$mapper    = $this->articleMapper;
 			$userId    = $this->userId;
 
-			register_shutdown_function(static function () use ($articleId, $url, $html, $extractor, $mapper, $userId): void {
+			register_shutdown_function(static function () use ($articleId, $url, $html, $title, $author, $extractor, $mapper, $userId): void {
 				// Release the HTTP connection so the client is unblocked immediately.
 				if (function_exists('fastcgi_finish_request')) {
 					fastcgi_finish_request();
@@ -103,6 +103,15 @@ class ExtensionController extends Controller {
 					$extracted = $html
 						? $extractor->extractFromHtml($url, $html, $userId)
 						: $extractor->extract($url, null, $userId);
+					// Caller-supplied title/author (e.g. a mail's subject/sender) win over
+					// whatever the extraction pipeline guessed from the HTML — relevant for
+					// plain-text mails wrapped as HTML, which have no meaningful <title>/byline.
+					if ($title !== null && $title !== '') {
+						$extracted['title'] = $title;
+					}
+					if ($author !== null && $author !== '') {
+						$extracted['author'] = $author;
+					}
 					$article   = $mapper->find($articleId, $userId);
 					$article->setUrl($extracted['url'] ?? $url);
 					$article->setTitle($extracted['title']);
