@@ -24,6 +24,11 @@ return [
         // TTS route (kombinierter Proxy-Endpunkt: Synthese + Streaming in einem Request)
         ['name' => 'tts#synthesize', 'url' => '/api/articles/{id}/tts', 'verb' => 'GET'],
 
+        // YouTube-Embed-Proxy (siehe YoutubeEmbedController-Docblock): gibt dem
+        // iOS/iPad-Reader eine echte https-Origin für YouTube-iframes, damit
+        // der Player nicht mit Error 153 abbricht (loadFileURL-Origin ist file://).
+        ['name' => 'youtube_embed#show', 'url' => '/api/youtube-embed', 'verb' => 'GET'],
+
         // Export routes
         ['name' => 'article#exportHtml', 'url' => '/api/articles/{id}/export/html', 'verb' => 'GET'],
 

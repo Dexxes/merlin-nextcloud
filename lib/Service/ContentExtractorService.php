@@ -40,6 +40,32 @@ class ContentExtractorService {
 	 */
 	private const FETCH_HEADER_WHITELIST = ContentFilterSchema::FETCH_HEADER_WHITELIST;
 
+	/**
+	 * Trennzeichen, das in Bildunterschriften jeden Zeilenumbruch ersetzt.
+	 *
+	 * Bildunterschriften sollen immer einlaufender Fließtext sein: Quellseiten
+	 * packen dort gerne Titel, Copyright und Fotografennamen als eigene Blöcke
+	 * bzw. per <br> untereinander, was im Reader unter dem Bild als mehrzeiliger
+	 * Klotz landet. flattenCaptions() ersetzt jeden solchen Umbruch durch den
+	 * Bullet – der Wortlaut bleibt erhalten, nur die Zeilenstruktur fällt weg.
+	 */
+	private const CAPTION_BULLET    = '•';
+	private const CAPTION_SEPARATOR = ' ' . self::CAPTION_BULLET . ' ';
+
+	/**
+	 * Tags, die innerhalb einer <figcaption> einen sichtbaren Umbruch erzeugen.
+	 *
+	 * Bewusst nur Block-Elemente: Inline-Auszeichnung (<a>, <em>, <span>, …)
+	 * bleibt unangetastet, weil sie ohnehin in derselben Zeile rendert.
+	 */
+	private const CAPTION_BLOCK_TAGS = [
+		'p', 'div', 'section', 'article', 'header', 'footer', 'aside',
+		'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+		'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+		'blockquote', 'pre', 'figure', 'figcaption',
+		'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'caption',
+	];
+
 	private ContentFilterRepository $contentFilters;
 
 	/**
@@ -235,19 +261,30 @@ class ContentExtractorService {
 		// destroy JSON-LD and other embedded JSON sources before they can be read.
 		$domainMeta = $this->extractDomainMetadata($rawHtml, $domain, $trace);
 
-		// ── Step 1: Pre-filter ────────────────────────────────────────────────
+		//When the excerpt is too long, short it
+		if(isset($domainMeta) && key_exists("excerpt", $domainMeta) && strlen($domainMeta['excerpt']) > 300)
+			$domainMeta['excerpt'] = substr($domainMeta['excerpt'],0,300) . "...";
+
+		// ── Step 3: Image caption normalisation ─────────────────────────────
+		// Rewrap domain-specific image+caption structures into standard
+		// <figure><img><figcaption> HTML so Readability preserves them.
+		// Must run before Readability; affects all images in the article body.
+		if($domainMeta['category'] != "Video")
+			$rawHtml = $this->normalizeImageCaptions($rawHtml, $domain, $trace);
+
+		// ── Step 4: Pre-filter ────────────────────────────────────────────────
 		// Apply per-domain <pre-filter> remove rules BEFORE Readability sees
 		// the HTML, so filtered elements are never considered as article content.
 		$rawHtml = $this->applyPreFilters($rawHtml, $domain, $trace);
 		$rawHtml = html_entity_decode($rawHtml, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
-		// ── Step 1b: Infobox markers ──────────────────────────────────────────
+		// ── Step 5: Infobox markers ──────────────────────────────────────────
 		// Add 'merlin-infobox' CSS class to elements declared as <infobox> in
 		// the domain config. Must run BEFORE Readability so the class survives.
 		$rawHtml = $this->applyInfoboxMarkers($rawHtml, $domain, $trace);
 		$rawHtml = html_entity_decode($rawHtml, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
-		// ── Step 1c: Custom class markers ────────────────────────────────────
+		// ── Step 6: Custom class markers ────────────────────────────────────
 		// Add arbitrary CSS classes to elements declared as <saveElements> in
 		// the domain config. Must run BEFORE Readability so the classes survive.
 		$rawHtml = $this->applyClassMarkers($rawHtml, $domain, $trace);
@@ -271,13 +308,7 @@ class ContentExtractorService {
 
 		if($domainMeta['category'] != "Video")
 		{
-			// ── Step 2b: Image caption normalisation ─────────────────────────────
-			// Rewrap domain-specific image+caption structures into standard
-			// <figure><img><figcaption> HTML so Readability preserves them.
-			// Must run before Readability; affects all images in the article body.
-			$rawHtml = $this->normalizeImageCaptions($rawHtml, $domain, $trace);
-
-			// ── Step 3: Quote normalisation + Readability ──────────────────────────
+			// ── Step 7: Quote normalisation + Readability ──────────────────────────
 			// Normalise quote structures before Readability:
 			//   1. Domain-specific <quotes> rules from the content-filter XML
 			//   2. Standard <blockquote> elements → merlin-quote class
@@ -314,7 +345,7 @@ class ContentExtractorService {
 				$readability->parse($rawHtml);
 			}
 
-			// ── Step 4: Collect Readability results ───────────────────────────────
+			// ── Step 8: Collect Readability results ───────────────────────────────
 			$title = $readability->getTitle() ?: $this->extractTitleFromHtml($html);
 			$title = html_entity_decode($title, ENT_QUOTES, 'UTF-8');
 
@@ -344,18 +375,18 @@ class ContentExtractorService {
 			$content = '<a href="' . $escapedVideoUrl . '">Zum Video</a>';
 		}
 
-		// ── Step 5: Apply domain metadata overrides ───────────────────────────
+		// ── Step 9: Apply domain metadata overrides ───────────────────────────
 		if (!empty($domainMeta['title']))     { $title     = $domainMeta['title']; }
 		if (!empty($domainMeta['author']))    { $author    = $domainMeta['author']; }
 		if (!empty($domainMeta['excerpt']))   { $excerpt   = $domainMeta['excerpt']; }
 		if (!empty($domainMeta['image']))     { $imageUrl  = $domainMeta['image']; }
 		if (!empty($domainMeta['published'])) { $publishedAt = $this->parseDateString($domainMeta['published']); }
 
-		// ── Step 6: Post-filter ───────────────────────────────────────────────
+		// ── Step 10: Post-filter ───────────────────────────────────────────────
 		// Apply per-domain <post-filter> remove rules to the Readability content.
 		$content = $this->applyPostFilters($content, $domain, $trace);
 
-		// ── Step 7: Cleanup pipeline ──────────────────────────────────────────
+		// ── Step 11: Cleanup pipeline ──────────────────────────────────────────
 		$wordCount   = str_word_count(strip_tags($content));
 		$readingTime = max(1, (int) ceil($wordCount / 200));
 
@@ -363,7 +394,7 @@ class ContentExtractorService {
 
 		$normalizedImageUrl = $imageUrl ? $this->normalizeUrl($imageUrl, $url) : null;
 
-		// ── Step 7b: Hero-Image in Content einfügen ───────────────────────────
+		// ── Step 12: Hero-Image in Content einfügen ───────────────────────────
 		// Readability entfernt Hero-Bilder aus <figure>-Containern, wenn sie vor
 		// dem Fließtext stehen. Falls der extrahierte Content kein <img> enthält
 		// (geprüft anhand der ersten 1000 Zeichen), aber imageUrl bekannt ist,
@@ -388,7 +419,7 @@ class ContentExtractorService {
 
 		$content = $this->stripDuplicateMetadata($content, $title, $excerpt);
 
-		// ── Step 8: HTML-Sanitizing (XSS-Schutz) ──────────────────────────────
+		// ── Step 13: HTML-Sanitizing (XSS-Schutz) ──────────────────────────────
 		// Letzter Schritt vor der Rückgabe: Der Inhalt wird im Web-Reader und in
 		// der öffentlichen Share-Ansicht per v-html gerendert. cleanHtml() und die
 		// Readability-Pipeline entfernen zwar <script>/<style>, aber KEINE
@@ -1146,9 +1177,22 @@ class ContentExtractorService {
 						]);
 						continue;
 					}
+					// caption-xpath kann ein Union-Ausdruck sein (z.B.
+					// ".//p/text()[not(parent::b)] | .//p/b[@class='credit']"),
+					// der mehrere Knoten in Dokumentreihenfolge liefert – etwa
+					// Fließtext-Textknoten UND ein separates Credit-Element.
+					// item(0) allein hätte hier nur den ersten Treffer genommen
+					// und den Rest (inkl. Credit) stillschweigend verworfen.
 					$captionText = '';
 					if ($captionResult->length > 0) {
-						$captionText = trim($captionResult->item(0)->textContent);
+						$parts = [];
+						foreach ($captionResult as $node) {
+							$text = trim($node->textContent);
+							if ($text !== '') {
+								$parts[] = $text;
+							}
+						}
+						$captionText = trim(implode(' ', $parts));
 					}
 
 					// Build <figure><img ...><figcaption>…</figcaption></figure>
@@ -1714,7 +1758,7 @@ class ContentExtractorService {
 	 */
 	private const OG_FALLBACK_XPATHS = [
 		'title'     => "//meta[@property='og:title']/@content",
-		'excerpt'   => "//meta[@property='og:description']/@content",
+		'excerpt'   => "//meta[@property='og:description']/@content | //meta[@name='twitter:description']/@content",
 		'image'     => "//meta[@property='og:image']/@content",
 		'author'    => "//meta[@property='article:author']/@content",
 		'published' => "//meta[@property='article:published_time']/@content",
@@ -1863,7 +1907,7 @@ class ContentExtractorService {
 			if ($value !== '')
 			{
 				if (count($value) > 1)
-					$value = implode(', ', $value);
+					$value = implode('', $value);
 				else
 					$value = $value[0];
 
@@ -2192,7 +2236,14 @@ class ContentExtractorService {
 		];
 
 		// Pro Tag erlaubte Attribute. Alles nicht Gelistete (insb. alle on*-Handler,
-		// style, srcset auf beliebige URLs …) wird entfernt.
+		// style, srcset auf beliebige URLs …) wird entfernt. `srcset` fehlt hier
+		// bewusst — <source> trägt es laut Spec statt `src`, sodass jedes
+		// <picture><source srcset="…"> sonst leerläuft und der Reader auf das
+		// <img>-Fallback der Quellseite zurückfällt (bei taz.de z. B. bewusst ein
+		// 14px-Platzhalter statt des echten Bilds). resolvePictureElements() liest
+		// `srcset` deshalb VOR diesem Allowlist-Durchlauf aus und schreibt den besten
+		// Kandidaten in ein einzelnes <img src>, das dann ganz normal die img-Regel
+		// unten durchläuft.
 		static $allowedAttrs = [
 			'*'          => ['class', 'id', 'title', 'lang', 'dir'],
 			'a'          => ['href', 'target', 'rel'],
@@ -2203,6 +2254,11 @@ class ContentExtractorService {
 			'th'         => ['colspan', 'rowspan', 'scope'],
 			'col'        => ['span'],
 			'colgroup'   => ['span'],
+			// iframe steht bewusst NICHT auf $allowedTags (generisches iframe-Embed
+			// ist ein XSS-Vektor) – erlaubt sind nur YouTube-Embeds, siehe
+			// isAllowedYoutubeEmbedSrc(). Deren Attribute laufen trotzdem durch
+			// dieselbe Allowlist-Logik, deshalb der Eintrag hier.
+			'iframe'     => ['src', 'width', 'height', 'frameborder', 'allow', 'allowfullscreen', 'referrerpolicy'],
 		];
 
 		$prev = libxml_use_internal_errors(true);
@@ -2227,6 +2283,19 @@ class ContentExtractorService {
 			return '';
 		}
 
+		// Muss VOR dem generischen Allowlist-Durchlauf laufen: der liest gleich
+		// `srcset` aus den <source>-Kindern jedes <picture> aus, das Attribut
+		// steht unten aber nicht auf der Allowlist und würde sonst weggeworfen,
+		// bevor wir es je zu Gesicht bekommen.
+		$this->resolvePictureElements($dom);
+
+		// Läuft hier statt als eigener Pipeline-Schritt, weil der Content dafür
+		// sonst ein zweites Mal komplett geparst werden müsste – und weil erst
+		// jetzt ALLE Bildunterschriften im Baum stehen (die aus der Quellseite,
+		// die von normalizeImageCaptions() umgebauten und die nachträglich
+		// eingefügte Hero-Caption aus Step 7b).
+		$this->flattenCaptions($dom);
+
 		$allowedTagSet = array_flip($allowedTags);
 
 		// Alle Elemente einsammeln, BEVOR wir den Baum verändern (eine Live-NodeList
@@ -2250,7 +2319,30 @@ class ContentExtractorService {
 				continue;
 			}
 
-			// Nicht erlaubtes Tag: <script>/<style>/<iframe>/<object>/<form>/… komplett
+			// <iframe> ist grundsätzlich ein XSS-Vektor und steht deshalb nicht auf
+			// $allowedTags – Ausnahme: YouTube-Embeds (taz.de, Blogs, … betten die
+			// häufig ein). Nur bei einer Quelle aus isAllowedYoutubeEmbedSrc() bleibt
+			// das Element erhalten, alles andere fällt auf den generischen
+			// Denylist-Zweig unten durch und wird entfernt.
+			if ($tag === 'iframe') {
+				if ($this->isAllowedYoutubeEmbedSrc($el->getAttribute('src'))) {
+					$this->sanitizeAttributes($el, $tag, $allowedAttrs);
+					// Erzwungen statt nur erlaubt: Nextclouds eigener
+					// Referrer-Policy-Header steht standardmäßig auf
+					// "no-referrer" (Security-Default via .htaccess/nginx).
+					// Ohne einen Referrer verweigert YouTubes Player den Embed
+					// ("Error 153"). Das per-Element-Attribut überschreibt die
+					// Seiten-Policy für genau diesen iframe-Request – auf die
+					// Quellseite (die es i. d. R. nicht mitliefert) ist hier
+					// kein Verlass, also selbst setzen statt nur durchlassen.
+					$el->setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+				} else {
+					$el->parentNode->removeChild($el);
+				}
+				continue;
+			}
+
+			// Nicht erlaubtes Tag: <script>/<style>/<object>/<form>/… komplett
 			// samt Inhalt entfernen; bei rein strukturellen Unknowns bliebe zwar Text
 			// erhalten – da wir aber fail-closed sein wollen und die Allowlist den
 			// gesamten Reader-Content abdeckt, entfernen wir das ganze Element.
@@ -2272,6 +2364,209 @@ class ContentExtractorService {
 		}
 
 		return trim($out);
+	}
+
+	/**
+	 * Macht aus jeder Bildunterschrift eine einzige Zeile: Umbrüche werden durch
+	 * self::CAPTION_SEPARATOR ("•") ersetzt.
+	 *
+	 * Sichtbare Umbrüche entstehen in einer <figcaption> auf genau zwei Wegen –
+	 * beide werden hier abgebaut:
+	 *   1. <br>-Elemente         → Trenner-Textknoten
+	 *   2. Block-Elemente        → aufgelöst (Kinder bleiben), Trenner davor/danach
+	 *
+	 * Reine Whitespace-Umbrüche im Quell-HTML (Einrückung) sind KEINE sichtbaren
+	 * Umbrüche und werden deshalb zu einem Leerzeichen zusammengefasst statt zu
+	 * einem Trenner – sonst bekäme jede eingerückte Caption Bullets, die im
+	 * Browser nie zu sehen waren.
+	 *
+	 * Inline-Auszeichnung (<a href="…">, <em>, <span>) bleibt erhalten, deshalb
+	 * arbeitet die Bereinigung auf den Textknoten statt auf textContent.
+	 */
+	private function flattenCaptions(\DOMDocument $dom): void {
+		$captions = iterator_to_array($dom->getElementsByTagName('figcaption'));
+		if ($captions === []) {
+			return;
+		}
+
+		$xpath = new \DOMXPath($dom);
+
+		foreach ($captions as $caption) {
+			// Kann beim Auflösen einer umschliessenden Caption aus dem Baum
+			// gefallen sein (verschachtelte <figcaption> im Quell-HTML).
+			if (!$caption instanceof \DOMElement || $caption->parentNode === null) {
+				continue;
+			}
+
+			// 1. <br> durch den Trenner ersetzen.
+			foreach (iterator_to_array($caption->getElementsByTagName('br')) as $br) {
+				$br->parentNode?->replaceChild($dom->createTextNode(self::CAPTION_SEPARATOR), $br);
+			}
+
+			// 2. Block-Elemente auflösen. Rückwärts (= von innen nach aussen),
+			//    damit verschachtelte Blöcke nicht ins Leere greifen.
+			$blocks = [];
+			foreach ($caption->getElementsByTagName('*') as $el) {
+				if (in_array(strtolower($el->nodeName), self::CAPTION_BLOCK_TAGS, true)) {
+					$blocks[] = $el;
+				}
+			}
+			foreach (array_reverse($blocks) as $block) {
+				$parent = $block->parentNode;
+				if ($parent === null) {
+					continue;
+				}
+				// Trenner VOR und NACH dem Block: ein Block beendet auch die Zeile,
+				// der nachfolgende Inhalt begönne sonst ohne Trennung
+				// (<div><p>A</p><span>B</span></div> rendert A und B untereinander).
+				// Überzählige Trenner fallen in Schritt 3 wieder weg.
+				$parent->insertBefore($dom->createTextNode(self::CAPTION_SEPARATOR), $block);
+				while ($block->firstChild !== null) {
+					$parent->insertBefore($block->firstChild, $block);
+				}
+				$parent->insertBefore($dom->createTextNode(self::CAPTION_SEPARATOR), $block);
+				$parent->removeChild($block);
+			}
+
+			// 3. Textknoten glätten: Whitespace vereinheitlichen, Trenner-Ketten
+			//    zusammenfassen, führende Trenner entfernen.
+			$lastVisible    = null;
+			$afterSeparator = true;   // Caption-Anfang zählt wie "gerade getrennt"
+			foreach ($xpath->query('.//text()', $caption) as $text) {
+				$value = preg_replace('/\s+/u', ' ', (string) $text->nodeValue) ?? '';
+				$value = preg_replace(
+					'/(?:\s*' . self::CAPTION_BULLET . '\s*)+/u',
+					self::CAPTION_SEPARATOR,
+					$value
+				) ?? $value;
+				if ($afterSeparator) {
+					$value = preg_replace('/^\s*(?:' . self::CAPTION_BULLET . '\s*)?/u', '', $value) ?? $value;
+				}
+				$text->nodeValue = $value;
+
+				if (trim($value) !== '') {
+					$lastVisible    = $text;
+					$afterSeparator = (bool) preg_match('/' . self::CAPTION_BULLET . '\s*$/u', $value);
+				}
+			}
+
+			// 4. Trenner am Ende abschneiden (entsteht, wenn die Caption mit einem
+			//    Block oder einem <br> aufhört).
+			if ($lastVisible !== null) {
+				$lastVisible->nodeValue = preg_replace(
+					'/\s*(?:' . self::CAPTION_BULLET . '\s*)?$/u',
+					'',
+					(string) $lastVisible->nodeValue
+				) ?? '';
+			}
+		}
+	}
+
+	/**
+	 * Löst jedes <picture> in seinen besten Bildkandidaten auf und ersetzt es
+	 * durch ein einzelnes <img src="…">, BEVOR der generische Allowlist-Filter
+	 * (sanitizeAttributes) `srcset` von den <source>-Kindern entfernt.
+	 *
+	 * Grund: <source> trägt die eigentlichen Bild-URLs ausschließlich über
+	 * `srcset` (nie `src`) – ohne diese Auflösung bleibt nach dem Sanitizing nur
+	 * das <img>-Fallback-Element von <picture> übrig. Manche Seiten (z. B.
+	 * taz.de) legen dort absichtlich einen winzigen Low-Quality-Platzhalter ab,
+	 * den echte Browser dank <picture>-Auswahlalgorithmus nie rendern – unser
+	 * DOM-Parser kennt diesen Algorithmus aber nicht und würde ihn 1:1 in den
+	 * Reader übernehmen (sichtbar als winzig dargestelltes "Hero image").
+	 *
+	 * Wählt pro <picture> den <source> mit der größten per "Nw"-Deskriptor
+	 * bekannten Breite; ist keine Breite bekannt, gewinnt der erste <source>
+	 * ohne `media`-Attribut (die geräteunabhängige Standardvariante) vor
+	 * mobil-spezifischen Breakpoints. Liefert kein <source> einen auswertbaren
+	 * Kandidaten, bleibt das <picture> unverändert (heutiges Verhalten).
+	 */
+	private function resolvePictureElements(\DOMDocument $dom): void {
+		foreach (iterator_to_array($dom->getElementsByTagName('picture')) as $picture) {
+			if (!$picture instanceof \DOMElement || $picture->parentNode === null) {
+				continue;
+			}
+
+			$best         = null;
+			$bestHasMedia = true;
+
+			foreach (iterator_to_array($picture->getElementsByTagName('source')) as $source) {
+				if (!$source instanceof \DOMElement) {
+					continue;
+				}
+				$candidate = $this->bestSrcsetCandidate($source->getAttribute('srcset'));
+				if ($candidate === null) {
+					continue;
+				}
+				$hasMedia = $source->getAttribute('media') !== '';
+
+				$better =
+					$best === null
+					|| ($candidate['width'] !== null && ($best['width'] === null || $candidate['width'] > $best['width']))
+					|| ($candidate['width'] === null && $best['width'] === null && $bestHasMedia && !$hasMedia);
+
+				if ($better) {
+					$best         = $candidate;
+					$bestHasMedia = $hasMedia;
+				}
+			}
+
+			if ($best === null) {
+				continue;
+			}
+
+			// Bestehendes <img>-Fallback wiederverwenden (behält alt/title),
+			// sonst eines anlegen — <picture> ohne <img>-Kind ist ungültiges
+			// HTML, kommt in der Praxis aber vereinzelt vor.
+			$img = null;
+			foreach ($picture->childNodes as $child) {
+				if ($child instanceof \DOMElement && strtolower($child->nodeName) === 'img') {
+					$img = $child;
+				}
+			}
+			if ($img === null) {
+				$img = $dom->createElement('img');
+				$picture->appendChild($img);
+			}
+			$img->setAttribute('src', $best['url']);
+
+			$picture->removeChild($img);
+			$picture->parentNode->replaceChild($img, $picture);
+		}
+	}
+
+	/**
+	 * Parst einen `srcset`-Wert ("url1 800w, url2 1200w" oder auch nur "url")
+	 * und liefert den Kandidaten mit der größten bekannten Breite. Kandidaten
+	 * ohne "Nw"-Breitendeskriptor (z. B. taz.de: nackte URL ohne Deskriptor,
+	 * oder "x"-Pixeldichte-Deskriptoren) gelten als Breite `null` und werden
+	 * nur als Fallback verwendet, wenn kein Kandidat mit bekannter Breite
+	 * vorliegt — der jeweils erste gewinnt dann.
+	 *
+	 * @return array{url: string, width: int|null}|null
+	 */
+	private function bestSrcsetCandidate(string $srcset): ?array {
+		$srcset = trim($srcset);
+		if ($srcset === '') {
+			return null;
+		}
+
+		$best = null;
+		foreach (explode(',', $srcset) as $entry) {
+			$parts = preg_split('/\s+/', trim($entry), -1, PREG_SPLIT_NO_EMPTY);
+			if ($parts === [] || $parts[0] === '') {
+				continue;
+			}
+			$url   = $parts[0];
+			$width = null;
+			if (isset($parts[1]) && preg_match('/^(\d+)w$/', $parts[1], $m)) {
+				$width = (int) $m[1];
+			}
+			if ($best === null || ($width !== null && ($best['width'] === null || $width > $best['width']))) {
+				$best = ['url' => $url, 'width' => $width];
+			}
+		}
+		return $best;
 	}
 
 	/**
@@ -2315,6 +2610,44 @@ class ContentExtractorService {
 		if ($tag === 'a' && $el->getAttribute('target') === '_blank') {
 			$el->setAttribute('rel', 'noopener noreferrer');
 		}
+	}
+
+	/**
+	 * true, wenn $src ein YouTube-Embed ist (https, Host exakt youtube.com/
+	 * www.youtube.com/www.youtube-nocookie.com, Pfad /embed/…). Das ist die
+	 * einzige Ausnahme von der iframe-Denylist in sanitizeHtml() – bewusst eng
+	 * gefasst (kein Wildcard-Host, kein Schema-Downgrade), weil ein erlaubtes
+	 * iframe sonst zum offenen SSRF-/Clickjacking-Vektor würde. Passend dazu
+	 * muss AddContentSecurityPolicyListener frame-src auf dieselben Hosts
+	 * begrenzen, sonst rendert der Browser das Embed trotz durchgelassenem
+	 * Markup nicht.
+	 */
+	private function isAllowedYoutubeEmbedSrc(string $src): bool {
+		$src = trim($src);
+		if ($src === '') {
+			return false;
+		}
+
+		$parts = parse_url($src);
+		if ($parts === false || !isset($parts['scheme'], $parts['host'], $parts['path'])) {
+			return false;
+		}
+
+		if (strtolower($parts['scheme']) !== 'https') {
+			return false;
+		}
+
+		static $allowedHosts = [
+			'www.youtube.com',
+			'youtube.com',
+			'www.youtube-nocookie.com',
+			'youtube-nocookie.com',
+		];
+		if (!in_array(strtolower($parts['host']), $allowedHosts, true)) {
+			return false;
+		}
+
+		return str_starts_with($parts['path'], '/embed/');
 	}
 
 	/**

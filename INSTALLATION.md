@@ -1,125 +1,97 @@
-# Merlin – Installationsanleitung
+# Merlin – Installation Guide
 
-Merlin ist eine Leselisten-App für Nextcloud: Artikel speichern, in einer aufgeräumten Oberfläche lesen, optional per Piper-TTS vorlesen lassen.
+Merlin is a read-it-later app for Nextcloud: save articles, read them in a clean interface, optionally have them read aloud via Piper TTS.
 
-## Voraussetzungen
+## Requirements
 
-- **Nextcloud**: Version 30–35
-- **PHP**: 8.0–8.4 (Extensions: `php-xml`, `php-mbstring`, `php-curl`, `php-json`)
-- **Datenbank**: MySQL, PostgreSQL oder SQLite
-- **Node.js**: 20.x oder höher, **npm**: 10.x oder höher (nur zum Bauen des Frontends)
-- **Composer**: https://getcomposer.org/
+- **Nextcloud**: version 30–35
+- **PHP**: 8.0–8.4 (extensions: `php-xml`, `php-mbstring`, `php-curl`, `php-json`)
+- **Database**: MySQL, PostgreSQL, or SQLite
 
 ## Installation
 
-### 1. App-Verzeichnis vorbereiten
+Merlin is distributed via the Nextcloud App Store as a ready-built release package –
+no Composer or npm steps required, the package already contains all dependencies and
+the built frontend assets.
 
-Die App-ID lautet `merlin` (siehe `appinfo/info.xml`). Code in den Nextcloud-Apps-Ordner kopieren:
+1. Open **Administration settings → Apps**
+2. Search for **Merlin**
+3. Click **Download and enable**
 
-```bash
-cd /path/to/your/merlin-nextcloud
-cp -r . /path/to/nextcloud/apps/merlin
-cd /path/to/nextcloud/apps/merlin
-```
-
-### 2. PHP-Abhängigkeiten installieren
-
-```bash
-composer install --no-dev --optimize-autoloader
-```
-
-### 3. Frontend bauen
-
-```bash
-npm install
-npm run build
-```
-
-### 4. Berechtigungen setzen
-
-```bash
-chown -R www-data:www-data /path/to/nextcloud/apps/merlin
-chmod -R 755 /path/to/nextcloud/apps/merlin
-```
-
-`www-data` ggf. durch den tatsächlichen Webserver-User ersetzen (z. B. `apache`, `nginx`).
-
-### 5. App aktivieren
+Alternatively via the command line, if the package has already been manually
+extracted to `/path/to/nextcloud/apps/merlin`:
 
 ```bash
 cd /path/to/nextcloud
 php occ app:enable merlin
 ```
 
-Alternativ über die Weboberfläche: **Apps** → **Deine Apps** → **Merlin** → **Aktivieren**.
+### Verify the installation
 
-### 6. Installation prüfen
+1. Reload the Nextcloud page
+2. A **Merlin** icon should appear in the app menu
+3. Open the app and add a first article
 
-1. Nextcloud-Seite neu laden
-2. Im App-Menü sollte ein **Merlin**-Icon erscheinen
-3. App öffnen und einen ersten Artikel hinzufügen
+## Content filters (recommended)
 
-## Content-Filter (empfohlen)
+Content filters clean up saved articles per website: they strip ads and navigation
+before the article is extracted, and correct title, author, or date. About 60 filters
+are bundled; administrators can add more under
+**Administration settings → Merlin → Content filters**.
 
-Content-Filter bereiten gespeicherte Artikel pro Website auf: Sie entfernen Werbung
-und Navigation, bevor der Artikel extrahiert wird, und korrigieren Titel, Autor oder
-Datum. Rund 60 Filter sind mitgeliefert; Administratoren können sie unter
-**Verwaltungseinstellungen → Merlin → Content-Filter** ergänzen.
+### Custom filters (admin and personal)
 
-### Eigene Filter (Admin und persönlich)
+Custom filters live in the Nextcloud database (table `merlin_cfilter`), not in a
+filesystem path – a `merlin.custom_filters_dir` entry in `config.php` is no longer
+needed and can be removed if it's still present from an older version. There are two
+levels:
 
-Eigene Filter liegen in der Nextcloud-Datenbank (Tabelle `merlin_cfilter`), nicht mehr
-in einem Dateisystem-Pfad – ein `merlin.custom_filters_dir`-Eintrag in `config.php`
-wird nicht mehr benötigt und kann entfernt werden, falls er aus einer älteren Version
-noch vorhanden ist. Es gibt zwei Ebenen:
+* **Admin custom** (instance-wide, under Administration settings → Merlin →
+  Content filters): applies to all users who don't have their own override.
+* **Personal override** (under Settings → Merlin, for each logged-in user): private,
+  visible only to that account, takes precedence over both the bundled and the admin
+  filter.
 
-* **Admin-Custom** (instanzweit, unter Verwaltungseinstellungen → Merlin →
-  Content-Filter): gilt für alle Nutzer, die keinen eigenen Override haben.
-* **Persönlicher Override** (unter Einstellungen → Merlin, für jeden angemeldeten
-  Nutzer): privat, nur für den eigenen Account sichtbar, gewinnt gegenüber dem
-  mitgelieferten und dem Admin-Filter.
+Because both levels are part of the database, they're automatically included in
+regular Nextcloud database backups – no separate directory backup needed. Each filter
+can also be downloaded as XML in the admin UI and imported on another instance.
 
-Weil beide Ebenen Teil der Datenbank sind, sind sie automatisch im normalen
-Nextcloud-Datenbank-Backup enthalten – kein separates Verzeichnis-Backup nötig. Jeder
-Filter lässt sich zusätzlich in der Admin-Oberfläche als XML herunterladen und auf
-einer anderen Instanz importieren.
+### Testing the merge logic
 
-### Merge-Logik testen
-
-Nach Änderungen an der Filter-Verarbeitung prüft ein eigenständiges Skript die
-Zusammenführung von mitgelieferten und eigenen Filtern (benötigt weder Composer noch
-eine Nextcloud-Umgebung):
+After changes to filter processing, a standalone script verifies the merging of
+bundled and custom filters (needs neither Composer nor a running Nextcloud
+environment, just PHP – for administrators with SSH access to the server):
 
 ```bash
-cd /pfad/zu/nextcloud/apps/merlin
+cd /path/to/nextcloud/apps/merlin
 php tools/test-content-filter-merge.php
 ```
 
-Exit-Code 0 bedeutet, dass alle Prüfungen bestanden wurden.
+Exit code 0 means all checks passed.
 
-## TTS-Vorlesefunktion (optional)
+## TTS read-aloud feature (optional)
 
-Die Audio-Vorlesefunktion (genutzt von iOS/iPad über `PiperAudioService.swift`) benötigt einen separaten Piper-Daemon, der **lokal auf dem Nextcloud-Server** läuft und nicht Teil der Nextcloud-App selbst ist.
+The audio read-aloud feature (used by iOS/iPad via `PiperAudioService.swift`) requires a separate Piper daemon that runs **locally on the Nextcloud server** and is not part of the App Store package – this part still needs to be set up manually.
 
 ```
 iOS → GET /index.php/apps/merlin/api/articles/{id}/tts?lang=de
-       → TtsController.php (Artikel laden, HTML→Plaintext, dt. Abkürzungen auflösen)
-       → POST http://127.0.0.1:5051/synthesize  (Piper-Daemon)
-       → GET  http://127.0.0.1:5051/stream/{session_id}  (MP3-Stream, an iOS durchgereicht)
+       → TtsController.php (load article, HTML→plaintext, expand German abbreviations)
+       → POST http://127.0.0.1:5051/synthesize  (Piper daemon)
+       → GET  http://127.0.0.1:5051/stream/{session_id}  (MP3 stream, relayed to iOS)
 ```
 
-### Daemon einrichten
+### Setting up the daemon
 
-Quelle: `server-tools/merlin-tts/merlin-piper-server.py`
+Source: `server-tools/merlin-tts/merlin-piper-server.py`
 
 ```bash
-cd /opt/merlin-tts   # oder gewünschtes Zielverzeichnis
+cd /opt/merlin-tts   # or your target directory of choice
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt   # fastapi, uvicorn, piper-tts, pydantic
 ```
 
-Als systemd-Dienst einrichten (Vorlage: `server-tools/merlin-tts/merlin-tts.service`):
+Set it up as a systemd service (template: `server-tools/merlin-tts/merlin-tts.service`):
 
 ```bash
 cp server-tools/merlin-tts/merlin-tts.service /etc/systemd/system/
@@ -127,64 +99,39 @@ systemctl daemon-reload
 systemctl enable --now merlin-tts
 ```
 
-Der Daemon hört standardmäßig auf `127.0.0.1:5051` und stellt `POST /synthesize`, `GET /stream/{id}` sowie `DELETE /stream/{id}` bereit.
+The daemon listens on `127.0.0.1:5051` by default and exposes `POST /synthesize`, `GET /stream/{id}`, and `DELETE /stream/{id}`.
 
-### Wichtig: PHP-FPM-Timeout
+### Important: PHP-FPM timeout
 
-Wenn `request_terminate_timeout` im PHP-FPM-Pool (Synology-Default: 30 s) gesetzt ist, bricht der TTS-Stream nach 30 Sekunden ab. Das lässt sich **nicht** per PHP-Code umgehen – `request_terminate_timeout` in der FPM-Pool-Konfiguration auf `0` setzen und PHP-FPM neu starten.
+If `request_terminate_timeout` is set in the PHP-FPM pool (Synology default: 30 s), the TTS stream will cut off after 30 seconds. This **cannot** be worked around in PHP code – set `request_terminate_timeout` to `0` in the FPM pool configuration and restart PHP-FPM.
 
-## Nächste Schritte
+## Next steps
 
-1. **Ersten Artikel hinzufügen**: "Artikel hinzufügen" klicken und eine URL einfügen
-2. **RSS-Feeds konfigurieren**: Feeds für automatischen Artikel-Import hinterlegen
-3. **Einstellungen anpassen**: Leseeinstellungen im Settings-Panel anpassen
-4. **Browser-Erweiterung einrichten**: Pocket-kompatible API für Firefox/Chrome-Erweiterung nutzen
+1. **Add your first article**: click "Add article" and paste a URL
+2. **Configure RSS feeds**: set up feeds for automatic article import
+3. **Adjust settings**: customize reading settings in the settings panel
+4. **Set up the browser extension**: use the Pocket-compatible API for the Firefox/Chrome extension
 
 ## Troubleshooting
 
-### App erscheint nach Aktivierung nicht
-- Browser-Cache leeren
-- `php occ maintenance:repair` ausführen
-- Nextcloud-Log prüfen: `tail -f /path/to/nextcloud/data/nextcloud.log`
+### App doesn't appear after activation
+- Clear the browser cache
+- Run `php occ maintenance:repair`
+- Check the Nextcloud log: `tail -f /path/to/nextcloud/data/nextcloud.log`
 
-### Build-Fehler
-- Node.js-Version prüfen (20+): `node --version`
-- npm-Cache leeren: `npm cache clean --force`
-- `node_modules` löschen und neu installieren: `rm -rf node_modules && npm install`
+### PHP errors
+- Check the PHP version (8.0–8.4): `php --version`
+- Check required extensions: `php-xml`, `php-mbstring`, `php-curl`, `php-json`
 
-### PHP-Fehler
-- PHP-Version prüfen (8.0–8.4): `php --version`
-- Benötigte Extensions prüfen: `php-xml`, `php-mbstring`, `php-curl`, `php-json`
+### Database errors
+- Run migrations manually: `php occ migrations:execute merlin`
+- Check database permissions
 
-### Datenbankfehler
-- Migrationen manuell ausführen: `php occ migrations:execute merlin`
-- Datenbankberechtigungen prüfen
-
-### TTS funktioniert nicht / bricht nach 30 s ab
-- Piper-Daemon läuft? `systemctl status merlin-tts`
-- Erreichbar? `curl http://127.0.0.1:5051/synthesize`
-- `request_terminate_timeout` in der PHP-FPM-Pool-Config auf `0` (siehe oben)
-
-## Entwicklungsmodus
-
-```bash
-npm run dev    # Entwicklungs-Build mit Watch-Modus
-npm run watch  # Watch-Modus für Vite
-```
-
-## Produktions-Optimierung
-
-1. **Autoloader optimieren:**
-   ```bash
-   composer install --no-dev --optimize-autoloader --classmap-authoritative
-   ```
-2. **Assets minifizieren:**
-   ```bash
-   npm run build
-   ```
-3. **Caching aktivieren:** Redis/Memcached für Nextcloud konfigurieren, Browser-Caching-Header setzen
-4. **Performance:** PHP OPcache aktivieren, Datenbank-Query-Caching konfigurieren
+### TTS doesn't work / cuts off after 30 s
+- Is the Piper daemon running? `systemctl status merlin-tts`
+- Is it reachable? `curl http://127.0.0.1:5051/synthesize`
+- Set `request_terminate_timeout` to `0` in the PHP-FPM pool config (see above)
 
 ---
 
-**Weitere Hilfe?** Siehe [README.md](README.md) sowie `Structure.md` in diesem Verzeichnis.
+**Need more help?** See [README.md](README.md) and `Structure.md` in this directory.

@@ -10,12 +10,17 @@ merlin-nextcloud/
 │   ├── Controller/          # HTTP-Controller
 │   │   ├── ArticleController.php
 │   │   ├── TagController.php
-│   │   ├── FeedController.php
+│   │   ├── ShareController.php               # Öffentliche Share-Links verwalten (erstellen, Passwort/Ablauf)
+│   │   ├── PublicShareController.php          # Öffentliche API hinter einem Share-Link (kein Login)
+│   │   ├── HighlightController.php            # REST-API für Textmarkierungen
 │   │   ├── TtsController.php
 │   │   ├── ExtensionController.php
+│   │   ├── ManifestController.php             # PWA-Manifest
+│   │   ├── ServiceWorkerController.php         # Liefert den Service-Worker (PWA)
+│   │   ├── YoutubeEmbedController.php          # Proxy für eingebettete YouTube-Player (CSP)
 │   │   ├── SettingsController.php
-│   │   ├── ContentFilterController.php       # Admin-API für Content-Filter
-│   │   ├── UserContentFilterController.php   # Personal-API: eigener Override
+│   │   ├── ContentFilterController.php        # Admin-API für Content-Filter
+│   │   ├── UserContentFilterController.php    # Personal-API: eigener Override
 │   │   └── PageController.php
 │   ├── Service/              # Geschäftslogik
 │   │   ├── ContentExtractorService.php
@@ -25,7 +30,7 @@ merlin-nextcloud/
 │   │   ├── ContentFilterValidator.php    # Prüfung vor dem Speichern
 │   │   ├── ContentFilterSerializer.php   # JSON ↔ XML für den Regel-Builder
 │   │   ├── ContentFilterTrace.php        # Trefferzähler für den Testlauf
-│   │   ├── FeedService.php
+│   │   ├── TtsStreamService.php          # Ausgelagert aus TtsController: gemeinsamer Stream-Pfad für authentifizierten und öffentlichen (Share-)Endpunkt
 │   │   └── ExportService.php
 │   ├── Settings/             # Verwaltungs- und persönliche Einstellungen
 │   │   ├── AdminSection.php
@@ -37,15 +42,19 @@ merlin-nextcloud/
 │   │   └── UserDeletedListener.php   # Räumt private Content-Filter-Overrides auf
 │   ├── Db/                   # Datenbankschicht
 │   │   ├── Article.php / ArticleMapper.php
-│   │   ├── Tag.php / TagMapper.php
-│   │   └── Feed.php / FeedMapper.php
-│   └── Migration/            # Datenbank-Migrationen
-├── content-filters/          # Mitgelieferte Filter, eine Datei je Domain
+│   │   ├── ArticleShare.php / ArticleShareMapper.php   # Öffentliche Share-Links (Token, Passwort, Ablauf)
+│   │   ├── Highlight.php / HighlightMapper.php         # Textmarkierungen je Artikel
+│   │   └── Tag.php / TagMapper.php
+│   └── Migration/            # Datenbank-Migrationen (Version1000Date20240101000000 … 000020)
+├── content-filters/          # Mitgelieferte Filter, eine Datei je Domain (~55 Domains, z. B. spiegel.de, zeit.de, taz.de, youtube.com)
 │   ├── 000.sample.com.xml    # Kommentierte Referenz aller Regeltypen
 │   └── 000dead.xml           # Parkliste toter Domains (kein gültiges XML)
 └── tools/
-    └── test-content-filter-merge.php  # Testharness (pures PHP, ohne Composer)
+    ├── test-content-filter-merge.php  # Testharness (pures PHP, ohne Composer)
+    └── test-caption-flatten.php       # Testharness: Bildunterschriften einzeilig ("•")
 ```
+
+Hinweis: `FeedController`/`FeedService`/`Feed(Mapper)` aus einer früheren Version existieren nicht mehr.
 
 ### Content-Filter-Kette
 
@@ -82,17 +91,28 @@ src/
 ├── public-main.js           # Einstiegspunkt öffentliche Share-Ansicht
 ├── admin-main.js            # Einstiegspunkt Verwaltungseinstellungen
 ├── personal-main.js         # Einstiegspunkt persönliche Einstellungen
+├── highlight-engine.js      # Framework-unabhängige Logik zum Setzen/Wiederfinden von Textmarkierungen im DOM
 ├── App.vue                  # Hauptkomponente
-├── store/                   # State Management
+├── store/
+│   └── index.js             # State Management
 ├── api/                     # API-Wrapper
-│   ├── contentFilters.js        # Admin-Endpunkte (/api/admin/content-filters)
-│   └── userContentFilters.js    # Personal-Endpunkte (/api/user/content-filters)
+│   ├── articles.js
+│   ├── tags.js
+│   ├── shares.js                 # Share-Link-Endpunkte (/api/articles/{id}/shares)
+│   ├── highlights.js             # Highlight-Endpunkte (/api/articles/{id}/highlights)
+│   ├── settings.js
+│   ├── contentFilters.js         # Admin-Endpunkte (/api/admin/content-filters)
+│   └── userContentFilters.js     # Personal-Endpunkte (/api/user/content-filters)
 └── components/
     ├── ArticleList.vue
     ├── ArticleCard.vue
     ├── ArticleReader.vue
     ├── AddArticleDialog.vue
+    ├── Sidebar.vue
+    ├── ShareLinkDialog.vue        # Dialog zum Anlegen/Verwalten von Share-Links
+    ├── PublicArticleView.vue      # Ansicht für öffentliche Share-Links (public-main.js)
     ├── Settings.vue
+    ├── SettingsPreview.vue
     ├── admin/               # Content-Filter-Verwaltung (instanzweit)
     │   ├── ContentFilterAdmin.vue   # Wurzel: Liste, Editor
     │   ├── FilterList.vue           # Domainliste, neue Domain, XML-Import (showImport-Prop)

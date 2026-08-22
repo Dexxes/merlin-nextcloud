@@ -65,7 +65,7 @@ class ArticleSearchProvider implements IProvider {
 				subline:      $article->getSiteName() ?? $article->getUrl() ?? '',
 				// Deep-link: open Reader and immediately show the article
 				resourceUrl:  $appUrl . '#article-' . $article->getId(),
-				icon:         $this->urlGenerator->imagePath(Application::APP_ID, 'icon-32.png.svg'),
+				icon:         $this->urlGenerator->imagePath(Application::APP_ID, 'icon-32.png'),
 				rounded:      false,
 			);
 		}, $articles);

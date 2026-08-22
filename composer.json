@@ -9,7 +9,7 @@
         }
     ],
     "require": {
-        "php": "^8.4",
+        "php": "^8.0",
         "fivefilters/readability.php": "^3.3",
         "patrickschur/language-detection": "^5.3"
     },
@@ -19,7 +19,7 @@
     },
     "autoload": {
         "psr-4": {
-            "OCA\\Reader\\": "lib/"
+            "OCA\\Merlin\\": "lib/"
         }
     },
     "scripts": {
@@ -29,9 +29,6 @@
     },
     "config": {
         "optimize-autoloader": true,
-        "classmap-authoritative": true,
-        "platform": {
-            "php": "8.4"
-        }
+        "classmap-authoritative": true
     }
 }

@@ -1,57 +1,57 @@
 # Merlin
 
-Eine plattformübergreifende Leselisten-App, die Nextcloud als Backend (und Frontend) nutzt. Artikel landen per Browser-Erweiterung, Smartphone-Apps oder direktem Link in einer aufgeräumten, werbefreien Leseansicht – synchron über alle deine Geräte.
+A cross-platform read-it-later app that uses Nextcloud as its backend (and frontend). Articles land in a clean, ad-free reading view via browser extension, mobile apps, or a direct link – synced across all your devices.
 
-Entstanden aus der Frustration darüber, dass Mozilla Pocket beerdigt hat.
+Born out of frustration with Mozilla killing off Pocket.
 
-## Plattformen
+## Platforms
 
-| Verzeichnis | Plattform | Stack |
+| Directory | Platform | Stack |
 |---|---|---|
-| `merlin-nextcloud` | Nextcloud-App (Backend + Web-UI) | PHP 8.0–8.4, Nextcloud 30–35, Vue 3, OCP-Framework |
+| `merlin-nextcloud` | Nextcloud app (backend + web UI) | PHP 8.0–8.4, Nextcloud 30–35, Vue 3, OCP framework |
 | `merlin-ios` | iOS 18+ | Swift 6, SwiftUI, AVFoundation, SPM |
-| `merlin-ipad` | iPadOS 15+ | wie iOS (eigenes, niedrigeres Deployment-Target) |
+| `merlin-ipad` | iPadOS 15+ | like iOS (own, lower deployment target) |
 | `merlin-android` | Android 6.0+ (minSdk 23, target 34) | Kotlin, Jetpack Compose |
 | `merlin-firefox` | Firefox (Manifest V3) | JS/WebExtension |
 | `merlin-chrome` | Chrome/Edge (Manifest V3) | JS/WebExtension |
 | `merlin-thunderbird` | Thunderbird 115+ | JS |
 
-Dieses Repository (`merlin-nextcloud`) enthält die Nextcloud-App: Backend-API und Web-Oberfläche.
+This repository (`merlin-nextcloud`) contains the Nextcloud app: backend API and web interface.
 
 ## Features
 
-### Kernfunktionen
-- **Artikel speichern**: Per URL hinzufügen, automatische Inhaltsextraktion
-- **Distraktionsfreies Lesen**: Text und Bild; keine Werbung, kein Schnickschnack
-- **Tags & Organisation**: Artikel kategorisieren und filtern
-- **Volltextsuche**: Über Titel, Inhalt und Autor
-- **Favoriten** und **Archiv**
+### Core features
+- **Save articles**: Add via URL, automatic content extraction
+- **Distraction-free reading**: Text and images; no ads, no clutter
+- **Tags & organization**: Categorize and filter articles
+- **Full-text search**: Across title, content, and author
+- **Favorites** and **archive**
 
-### Leseerlebnis
-- **Dark Mode**: Hell, Dunkel oder automatisch (Systemeinstellung)
-- **Anpassbare Typografie**: Schriftgröße, -familie, Zeilenhöhe, Inhaltsbreite
-- **Lesezeit-Schätzung** pro Artikel
-- **Responsive Design** für Desktop, Tablet und Mobile
+### Reading experience
+- **Dark mode**: Light, dark, or automatic (follows system setting)
+- **Customizable typography**: Font size, font family, line height, content width
+- **Reading time estimate** per article
+- **Responsive design** for desktop, tablet, and mobile
 
-### Vorlesefunktion (TTS)
-Artikel können über eine lokale Piper-TTS-Pipeline vorgelesen werden (aktuell über die iOS/iPadOS-App). Der Server extrahiert den Plaintext, löst deutsche Abkürzungen auf und streamt das Audio direkt an den Client.
+### Text-to-speech (TTS)
+Articles can be read aloud via a local Piper TTS pipeline (currently via the iOS/iPadOS app). The server extracts the plain text, expands German abbreviations, and streams the audio directly to the client.
 
-### Weitere Funktionen
-- **Browser-Erweiterungen** für Firefox und Chrome/Edge
-- **Thunderbird-Erweiterung** zum Teilen von Links aus E-Mails
+### Additional features
+- **Browser extensions** for Firefox and Chrome/Edge
+- **Thunderbird extension** for sharing links from emails
 
-## Voraussetzungen
+## Requirements
 
 - Nextcloud 30–35
 - PHP 8.0–8.4
-- MySQL, PostgreSQL oder SQLite
+- MySQL, PostgreSQL, or SQLite
 
-Details zur Installation, zum Build-Prozess und zur optionalen TTS-Pipeline stehen in **[INSTALLATION.md](INSTALLATION.md)**, Architektur in **[STRUCTURE.md](STRUCTURE.md)**.
+Details on installation, the build process, and the optional TTS pipeline are in **[INSTALLATION.md](INSTALLATION.md)**, architecture in **[STRUCTURE.md](STRUCTURE.md)**.
 
 ## Credits
 
-- Aufgebaut mit dem [Nextcloud App Framework](https://docs.nextcloud.com/server/latest/developer_manual/)
-- Inhaltsextraktion mit [fivefilters/readability.php](https://github.com/fivefilters/readability.php)
-- RSS-Parsing mit [SimplePie](https://simplepie.org/)
-- UI-Komponenten von [@nextcloud/vue](https://nextcloud-vue-components.netlify.app/)
-- Sprachsynthese mit [Piper TTS](https://github.com/rhasspy/piper)
+- Built with the [Nextcloud App Framework](https://docs.nextcloud.com/server/latest/developer_manual/)
+- Content extraction with [fivefilters/readability.php](https://github.com/fivefilters/readability.php)
+- RSS parsing with [SimplePie](https://simplepie.org/)
+- UI components from [@nextcloud/vue](https://nextcloud-vue-components.netlify.app/)
+- Speech synthesis with [Piper TTS](https://github.com/rhasspy/piper)

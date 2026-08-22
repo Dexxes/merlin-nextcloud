@@ -28,12 +28,12 @@ Perfect for keeping track of interesting articles, research materials, or any we
     <category>organization</category>
     <category>tools</category>
 
-    <website>https://github.com/Dexxes/merlin-core/</website>
-    <bugs>https://github.com/Dexxes/merlin-core/issues</bugs>
-    <repository type="git">https://github.com/Dexxes/merlin-core.git</repository>
+    <website>https://github.com/Dexxes/merlin-nextcloud/</website>
+    <bugs>https://github.com/Dexxes/merlin-nextcloud/issues</bugs>
+    <repository type="git">https://github.com/Dexxes/merlin-nextcloud.git</repository>
 
-    <screenshot>https://raw.githubusercontent.com/Dexxes/merlin-core/refs/heads/main/appinfo/screenshot1.jpg</screenshot>
-    <screenshot>https://raw.githubusercontent.com/Dexxes/merlin-core/refs/heads/main/appinfo/screenshot2.jpg</screenshot>
+    <screenshot>https://raw.githubusercontent.com/Dexxes/merlin-nextcloud/refs/heads/main/appinfo/screenshot1.jpg</screenshot>
+    <screenshot>https://raw.githubusercontent.com/Dexxes/merlin-nextcloud/refs/heads/main/appinfo/screenshot2.jpg</screenshot>
 
     <dependencies>
         <php min-version="8.0" max-version="8.5"/>

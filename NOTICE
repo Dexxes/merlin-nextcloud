@@ -1,0 +1,54 @@
+Merlin for Nextcloud
+Copyright (C) 2026 Julian von Bülow
+
+This program is licensed under the GNU Affero General Public License v3.0
+or later (AGPL-3.0-or-later). See the LICENSE file for the full text.
+
+This NOTICE file lists third-party dependencies bundled into Merlin's
+built frontend (js/) that are themselves licensed under the GNU Affero
+General Public License. Their inclusion is part of why Merlin as a whole
+must be, and is, distributed under the AGPL-3.0-or-later.
+
+================================================================================
+AGPL-3.0-or-later dependencies bundled into the built frontend
+================================================================================
+
+@nextcloud/vue (v9.5.0)
+  https://github.com/nextcloud-libraries/nextcloud-vue
+  Copyright (C) Nextcloud GmbH and Nextcloud contributors
+
+@nextcloud/dialogs (v6.4.2)
+  https://github.com/nextcloud-libraries/nextcloud-dialogs
+  Copyright (C) Nextcloud GmbH and Nextcloud contributors
+
+@nextcloud/files (v3.12.2)
+  https://github.com/nextcloud-libraries/nextcloud-files
+  Copyright (C) Nextcloud GmbH and Nextcloud contributors
+  (transitive dependency, pulled in via @nextcloud/vue)
+
+================================================================================
+Other copyleft (GPL-3.0-or-later) dependency bundled into the built frontend
+================================================================================
+
+@nextcloud/axios (v2.5.2)
+  https://github.com/nextcloud-libraries/nextcloud-axios
+  Copyright (C) Nextcloud GmbH and Nextcloud contributors
+
+================================================================================
+AGPL-3.0-or-later build-time tooling (not distributed, dev-only)
+================================================================================
+
+The following are used only to build/lint Merlin and are not included in
+the distributed app or its bundled assets:
+
+  @nextcloud/babel-config     (v1.3.0)
+  @nextcloud/eslint-config    (v8.4.2)
+  @nextcloud/stylelint-config (v3.2.1)
+  @nextcloud/vite-config      (v2.5.2)
+
+================================================================================
+
+All other bundled runtime dependencies (see package.json / composer.json)
+are licensed under permissive terms (MIT, Apache-2.0, BSD) or LGPL-3.0
+(smalot/pdfparser, tecnickcom/tcpdf), which are compatible with, and do
+not require, AGPL relicensing of the code that merely uses them.
