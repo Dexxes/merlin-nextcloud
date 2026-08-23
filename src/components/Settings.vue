@@ -357,6 +357,76 @@
 				</div>
 			</section>
 
+			<!-- ── Paywall subscriptions ──────────────────────── -->
+			<section v-if="paywallDomains.length" class="section">
+				<header class="section__head">
+					<span class="section__icon"><LockOutline :size="18" /></span>
+					<div>
+						<h2 class="section__title">{{ t('merlin', 'Paywall subscriptions') }}</h2>
+						<p class="section__desc">{{ t('merlin', 'Store your own subscription login for supported paywalled websites (like Tagesspiegel Plus) so Merlin can save the full article instead of the paywalled excerpt. Your password is stored encrypted and only used to log in on your behalf.') }}</p>
+					</div>
+				</header>
+
+				<div v-if="credError" class="credential-alert credential-alert--error">
+					{{ credError }}
+					<button class="credential-alert__dismiss" @click="credError = ''"><Close :size="14" /></button>
+				</div>
+				<div v-if="credNotice" class="credential-alert credential-alert--ok">{{ credNotice }}</div>
+
+				<div v-for="entry in paywallDomains" :key="entry.domain" class="credential-row">
+					<div class="toggle-row">
+						<div class="toggle-row__text">
+							<div class="toggle-row__title">{{ entry.domain }}</div>
+							<div class="toggle-row__hint" :class="credentialStatusClass(entry)">
+								{{ credentialStatusLabel(entry) }}
+							</div>
+						</div>
+						<div class="credential-row__actions">
+							<button class="btn btn--ghost" :disabled="credSaving" @click="toggleCredentialForm(entry.domain)">
+								{{ entry.credential ? t('merlin', 'Update login') : t('merlin', 'Connect') }}
+							</button>
+							<button
+								v-if="entry.credential"
+								class="btn btn--ghost btn--danger"
+								:disabled="credSaving"
+								@click="removeCredential(entry.domain)">
+								{{ t('merlin', 'Remove') }}
+							</button>
+						</div>
+					</div>
+
+					<form
+						v-if="credentialFormDomain === entry.domain"
+						class="credential-form"
+						@submit.prevent="saveCredential(entry.domain)">
+						<label :for="`merlin-cred-username-${entry.domain}`">{{ t('merlin', 'Email or username') }}</label>
+						<input
+							:id="`merlin-cred-username-${entry.domain}`"
+							v-model="credForm.username"
+							type="text"
+							autocomplete="username"
+							required>
+
+						<label :for="`merlin-cred-password-${entry.domain}`">{{ t('merlin', 'Password') }}</label>
+						<input
+							:id="`merlin-cred-password-${entry.domain}`"
+							v-model="credForm.password"
+							type="password"
+							autocomplete="current-password"
+							required>
+
+						<div class="credential-form__actions">
+							<button type="submit" class="btn btn--primary" :disabled="credSaving">
+								{{ credSaving ? t('merlin', 'Checking…') : t('merlin', 'Save and log in') }}
+							</button>
+							<button type="button" class="btn btn--ghost" :disabled="credSaving" @click="cancelCredentialForm">
+								{{ t('merlin', 'Cancel') }}
+							</button>
+						</div>
+					</form>
+				</div>
+			</section>
+
 			<!-- ── About ───────────────────────────────────────── -->
 			<section class="section">
 				<header class="section__head">
@@ -439,7 +509,13 @@ import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue
 import TagOutline from 'vue-material-design-icons/TagOutline.vue'
 import Close from 'vue-material-design-icons/Close.vue'
 import InformationOutline from 'vue-material-design-icons/InformationOutline.vue'
+import LockOutline from 'vue-material-design-icons/LockOutline.vue'
 import SettingsPreview from './SettingsPreview.vue'
+import {
+	deleteSiteCredential,
+	listSiteCredentials,
+	saveSiteCredential,
+} from '../api/siteCredentials.js'
 
 // Kleine, abhängigkeitsfreie Hex<->HSL-Konvertierung, nur für clampAccentLightness()
 // unten gebraucht (Kontrastproblem: sehr helle Akzentfarben verschlucken das
@@ -512,7 +588,7 @@ export default {
 	components: {
 		BookOpen, Clock, ViewGrid, Refresh, Check,
 		Inbox, Star, AlertCircleOutline, TagOutline, Close,
-		InformationOutline, SettingsPreview
+		InformationOutline, LockOutline, SettingsPreview
 	},
 
 	data() {
@@ -522,6 +598,17 @@ export default {
 			// leeres Objekt als Fallback, falls appInfo aus irgendeinem Grund fehlt.
 			appInfo: loadState('merlin', 'appInfo', {}),
 			savedFlash: false,
+			// Paywall-Abo-Zugangsdaten (Tagesspiegel Plus & Co.) - kein Initial-State
+			// vom Server, da diese Seite (anders als die Nextcloud-Personal-Settings)
+			// Teil des normalen App-Ladens ist und den zusätzlichen Payload nicht auf
+			// jeder Seite mitschleppen soll; wird stattdessen bei mounted() geladen.
+			credentials: [],
+			availableDomains: [],
+			credentialFormDomain: null,
+			credForm: { username: '', password: '' },
+			credSaving: false,
+			credError: '',
+			credNotice: '',
 			_flashTimer: null,
 			reportUrlStatus: null, // null | 'checking' | 'ok' | 'error'
 			// Letzte tatsächlich geprüfte reportBackendUrl: verhindert, dass der
@@ -619,6 +706,15 @@ export default {
 			if (!raw) return ''
 			return LICENCE_LABELS[raw] || raw
 		},
+
+		/** Verbundene Domains zuerst, Rest alphabetisch (siehe credentials/availableDomains). */
+		paywallDomains() {
+			const byDomain = new Map(this.credentials.map(c => [c.domain, c]))
+			return [...this.availableDomains]
+				.sort((a, b) => a.localeCompare(b))
+				.map(domain => ({ domain, credential: byDomain.get(domain) || null }))
+				.sort((a, b) => (b.credential ? 1 : 0) - (a.credential ? 1 : 0))
+		},
 	},
 
 	watch: {
@@ -645,6 +741,7 @@ export default {
 		if (!this.tags.length) {
 			this.fetchTags()
 		}
+		this.refreshCredentials()
 	},
 
 	beforeUnmount() {
@@ -781,6 +878,88 @@ export default {
 		resetAll() {
 			this.localSettings = { ...DEFAULTS }
 			this.saveSettings()
+		},
+
+		async refreshCredentials() {
+			try {
+				const data = await listSiteCredentials()
+				this.credentials = data.credentials
+				this.availableDomains = data.availableDomains
+			} catch (e) {
+				// Still schweigen statt Fehlermeldung: die Sektion blendet sich bei
+				// leerem availableDomains ohnehin komplett aus (v-if="paywallDomains.length"),
+				// ein Ladefehler soll die restliche Settings-Seite nicht stören.
+				console.error('Failed to load paywall subscriptions:', e)
+			}
+		},
+
+		credentialStatusLabel(entry) {
+			if (!entry.credential) {
+				return this.t('merlin', 'Not connected')
+			}
+			switch (entry.credential.status) {
+			case 'ok':
+				return this.t('merlin', 'Connected')
+			case 'invalid_credentials':
+				return this.t('merlin', 'Login failed – check your password')
+			case 'login_flow_broken':
+				return this.t('merlin', 'Login is temporarily unavailable')
+			default:
+				return this.t('merlin', 'Not checked yet')
+			}
+		},
+
+		credentialStatusClass(entry) {
+			if (!entry.credential) return ''
+			return entry.credential.status === 'ok' ? 'toggle-row__hint--ok' : 'toggle-row__hint--error'
+		},
+
+		toggleCredentialForm(domain) {
+			if (this.credentialFormDomain === domain) {
+				this.cancelCredentialForm()
+				return
+			}
+			this.credentialFormDomain = domain
+			this.credForm = { username: '', password: '' }
+			this.credNotice = ''
+		},
+
+		cancelCredentialForm() {
+			this.credentialFormDomain = null
+			this.credForm = { username: '', password: '' }
+		},
+
+		async saveCredential(domain) {
+			this.credSaving = true
+			this.credError = ''
+			this.credNotice = ''
+			try {
+				await saveSiteCredential(domain, this.credForm.username, this.credForm.password)
+				this.credNotice = this.t('merlin', 'Connected. Merlin will use this login for {domain} from now on.', { domain })
+				this.cancelCredentialForm()
+				await this.refreshCredentials()
+			} catch (e) {
+				const data = e.response ? e.response.data : null
+				this.credError = (data && data.message) || e.message || String(e)
+			} finally {
+				this.credSaving = false
+			}
+		},
+
+		async removeCredential(domain) {
+			this.credSaving = true
+			this.credError = ''
+			this.credNotice = ''
+			try {
+				await deleteSiteCredential(domain)
+				this.credentials = this.credentials.filter(c => c.domain !== domain)
+				this.credNotice = this.t('merlin', 'Login removed.')
+			} catch (e) {
+				const data = e.response ? e.response.data : null
+				this.credError = (data && data.message) || e.message || String(e)
+			} finally {
+				this.credSaving = false
+			}
 		},
 	},
 }
@@ -1405,5 +1584,108 @@ export default {
 	margin-left: 8px;
 	color: var(--color-text-lighter);
 	font-weight: 400;
+}
+
+/* ── Paywall subscriptions ───────────────────────────────── */
+.credential-alert {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 8px 12px;
+	border-radius: 8px;
+	margin-bottom: 12px;
+	font-size: 13px;
+}
+
+.credential-alert--error {
+	background: rgba(210, 50, 50, 0.10);
+	color: var(--color-error, #d23232);
+}
+
+.credential-alert--ok {
+	background: rgba(70, 186, 97, 0.12);
+	color: var(--color-success, #46ba61);
+}
+
+.credential-alert__dismiss {
+	margin-left: auto;
+	background: transparent;
+	border: none;
+	color: inherit;
+	cursor: pointer;
+	padding: 2px;
+	display: flex;
+}
+
+.credential-row {
+	padding: 4px 0;
+	border-bottom: 1px solid var(--color-border);
+}
+.credential-row:last-child { border-bottom: none; }
+.credential-row .toggle-row { border-bottom: none; padding: 12px 0; }
+
+.credential-row__actions {
+	display: flex;
+	gap: 8px;
+	flex-shrink: 0;
+}
+
+.toggle-row__hint--ok { color: var(--color-success, #46ba61); }
+.toggle-row__hint--error { color: var(--color-error, #d23232); }
+
+.credential-form {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	max-width: 360px;
+	padding: 0 0 16px;
+}
+
+.credential-form label {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--color-text-lighter);
+	margin-top: 8px;
+}
+
+.credential-form input {
+	padding: 8px 12px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+	font: inherit;
+	box-sizing: border-box;
+}
+.credential-form input:focus {
+	outline: none;
+	border-color: var(--color-primary, #0082c9);
+}
+
+.credential-form__actions {
+	display: flex;
+	gap: 8px;
+	margin-top: 12px;
+}
+
+.btn--primary {
+	background: var(--color-primary, #0082c9);
+	color: var(--color-primary-text, #fff);
+}
+.btn--primary:hover:not(:disabled) {
+	background: var(--color-primary-hover, var(--color-primary, #0082c9));
+}
+.btn--primary:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+.btn--danger {
+	color: var(--color-error, #d23232);
+}
+
+.btn--ghost:disabled {
+	opacity: 0.5;
+	cursor: default;
 }
 </style>
