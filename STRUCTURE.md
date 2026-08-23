@@ -31,7 +31,10 @@ merlin-nextcloud/
 │   │   ├── ContentFilterSerializer.php   # JSON ↔ XML für den Regel-Builder
 │   │   ├── ContentFilterTrace.php        # Trefferzähler für den Testlauf
 │   │   ├── TtsStreamService.php          # Ausgelagert aus TtsController: gemeinsamer Stream-Pfad für authentifizierten und öffentlichen (Share-)Endpunkt
-│   │   └── ExportService.php
+│   │   ├── ExportService.php
+│   │   └── Login/                        # 🔜 geplant: Paywall-Abo-Login (siehe PLATFORMS.md)
+│   │       ├── LoginProviderInterface.php     # login(username, password): Cookie-Bundle
+│   │       └── PianoJsonFormLoginProvider.php # type="piano-json-form" (z. B. tagesspiegel.de)
 │   ├── Settings/             # Verwaltungs- und persönliche Einstellungen
 │   │   ├── AdminSection.php
 │   │   ├── AdminSettings.php
@@ -44,7 +47,8 @@ merlin-nextcloud/
 │   │   ├── Article.php / ArticleMapper.php
 │   │   ├── ArticleShare.php / ArticleShareMapper.php   # Öffentliche Share-Links (Token, Passwort, Ablauf)
 │   │   ├── Highlight.php / HighlightMapper.php         # Textmarkierungen je Artikel
-│   │   └── Tag.php / TagMapper.php
+│   │   ├── Tag.php / TagMapper.php
+│   │   └── SiteCredential.php / SiteCredentialMapper.php  # 🔜 geplant: verschlüsselte Paywall-Zugangsdaten je Nutzer/Domain
 │   └── Migration/            # Datenbank-Migrationen (Version1000Date20240101000000 … 000020)
 ├── content-filters/          # Mitgelieferte Filter, eine Datei je Domain (~55 Domains, z. B. spiegel.de, zeit.de, taz.de, youtube.com)
 │   ├── 000.sample.com.xml    # Kommentierte Referenz aller Regeltypen
@@ -79,6 +83,34 @@ der Merger wieder ein `SimpleXMLElement` liefert. Die Grammatik steht ausschlies
 in `ContentFilterSchema` – Validator, Serializer, Merger und die Vue-Builder leiten
 sich daraus ab. Das Herkunftsattribut (`data-merlin-origin`) kennt seit der
 Drei-Ebenen-Erweiterung drei Werte (`bundle`/`admin`/`user`) statt zwei.
+
+### Paywall-Abo-Login (🔜 geplant)
+
+Damit `ContentExtractorService` auch Artikel hinter einer Abo-Paywall (z. B. Tagesspiegel Plus)
+extrahieren kann, bekommt die content-filter-XML eine neue optionale `<login>`-Sektion pro Domain:
+
+```
+<login type="piano-json-form" page="https://mein.tagesspiegel.de/customer/login">
+  <ajax-endpoint url="https://mein.tagesspiegel.de/ajax/login" />
+  <persist-cookie name="sso_token" />
+  <persist-cookie name="sso_user_data" />
+  <persist-cookie name="authId" />
+  <persist-cookie name="__utp" />
+</login>
+```
+
+`type` wählt eine `Service/Login/*LoginProvider`-Implementierung (Whitelist analog
+`FETCH_HEADER_WHITELIST`); `page` dient sowohl als Einstiegs-URL für den CSRF-Cookie-Schritt als
+auch als UI-Link ("Zugangsdaten bei Tagesspiegel prüfen"). Nutzername/Passwort werden verschlüsselt
+pro Nutzer/Domain in `Db\SiteCredential` abgelegt (`OCP\Security\ICrypto`), der gewonnene
+Session-Cookie hält bei Tagesspiegel ca. 365 Tage und wird über `loadFetchOverrides()` in den
+bestehenden Fetch-Pfad injiziert.
+
+**UX-Anforderung:** Erkennt `ContentExtractorService` beim erstmaligen Speichern eines
+Paywall-Artikels einer Domain ohne (gültige) Zugangsdaten die Paywall weiterhin, muss
+`ArticleController` das als eindeutige "Login erforderlich"-Antwort signalisieren statt als
+stillen Extraktions-Fehlschlag – Grundlage für einen Login-Dialog in allen Clients (siehe
+`PLATFORMS.md`, Abschnitt 3/4 – die Client-seitige Umsetzung ist ein eigener Folgeschritt).
 
 ## Frontend (Vue 3)
 

@@ -92,6 +92,13 @@ return [
         ['name' => 'userContentFilter#test',    'url' => '/api/user/content-filters/{domain}/test', 'verb' => 'POST',
             'requirements' => ['domain' => '[a-z0-9.\-]+']],
 
+        // Paywall-Abo-Zugangsdaten (jeder eingeloggte Nutzer, eigene private Ebene).
+        ['name' => 'siteCredential#index',   'url' => '/api/user/site-credentials', 'verb' => 'GET'],
+        ['name' => 'siteCredential#update',  'url' => '/api/user/site-credentials/{domain}', 'verb' => 'PUT',
+            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+        ['name' => 'siteCredential#destroy', 'url' => '/api/user/site-credentials/{domain}', 'verb' => 'DELETE',
+            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+
         // PWA: Web App Manifest + Service Worker
         ['name' => 'manifest#index',       'url' => '/manifest.webmanifest', 'verb' => 'GET'],
         ['name' => 'service_worker#index', 'url' => '/sw.js',                'verb' => 'GET'],

@@ -18,7 +18,7 @@ Merlin is a powerful read-it-later application for Nextcloud that allows you to:
 Perfect for keeping track of interesting articles, research materials, or any web content you want to read later.
     ]]></description>
 
-    <version>1.0.4</version>
+    <version>1.0.5</version>
     <licence>agpl</licence>
 
     <author>Julian von Bülow</author>
