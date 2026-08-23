@@ -34,10 +34,17 @@ class SiteCredentialController extends Controller {
 		parent::__construct($appName, $request);
 	}
 
-	/** Alle eigenen Paywall-Zugangsdaten (Domain + Status, kein Passwort). */
+	/**
+	 * Eigene Paywall-Zugangsdaten (Domain + Status, kein Passwort) plus alle
+	 * Domains, die überhaupt Paywall-Login unterstützen (für die "Abo
+	 * hinzufügen"-Auswahl in der Personal-Settings-UI).
+	 */
 	#[NoAdminRequired]
 	public function index(): DataResponse {
-		return new DataResponse($this->service->listForUser((string) $this->userId));
+		return new DataResponse([
+			'credentials'      => $this->service->listForUser((string) $this->userId),
+			'availableDomains' => $this->service->listLoginCapableDomains(),
+		]);
 	}
 
 	/**

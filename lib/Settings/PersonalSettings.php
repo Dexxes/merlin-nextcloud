@@ -7,6 +7,7 @@ namespace OCA\Merlin\Settings;
 use OCA\Merlin\AppInfo\Application;
 use OCA\Merlin\Service\ContentFilterRepository;
 use OCA\Merlin\Service\ContentFilterSchema;
+use OCA\Merlin\Service\SiteCredentialService;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IGroupManager;
@@ -28,6 +29,7 @@ class PersonalSettings implements ISettings {
 		private IL10N $l,
 		private IInitialState $initialState,
 		private ContentFilterRepository $repository,
+		private SiteCredentialService $siteCredentials,
 		private IUserSession $userSession,
 		private IGroupManager $groupManager,
 		private IURLGenerator $urlGenerator,
@@ -62,6 +64,11 @@ class PersonalSettings implements ISettings {
 			'adminSettingsUrl' => $isAdmin
 				? $this->urlGenerator->linkToRoute('settings.AdminSettings.index', ['section' => Application::APP_ID])
 				: null,
+		]);
+
+		$this->initialState->provideInitialState('siteCredentials', [
+			'credentials'      => $this->siteCredentials->listForUser($userId),
+			'availableDomains' => $this->siteCredentials->listLoginCapableDomains(),
 		]);
 
 		// Die Personal-Settings-Seite läuft unter der Shell der "settings"-App;

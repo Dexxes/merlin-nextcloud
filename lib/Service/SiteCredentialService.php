@@ -203,6 +203,28 @@ class SiteCredentialService {
 	}
 
 	/**
+	 * Alle Domains, die eine gültige <login>-Sektion im Bundle haben (aktuell
+	 * nur tagesspiegel.de) - Grundlage für die "Abo hinzufügen"-Auswahl in
+	 * der Personal-Settings-UI. Iteriert alle Bundle-Domains einmalig; bei
+	 * der aktuellen Größenordnung (~55 Domains) unproblematisch, da nur beim
+	 * Laden der Einstellungsseite aufgerufen, nicht pro Artikel-Fetch.
+	 *
+	 * @return list<string>
+	 */
+	public function listLoginCapableDomains(): array {
+		$domains = [];
+		foreach ($this->filterRepository->listFilters() as $entry) {
+			if (!$entry['hasBundle']) {
+				continue;
+			}
+			if ($this->loadLoginConfig($entry['domain']) !== null) {
+				$domains[] = $entry['domain'];
+			}
+		}
+		return $domains;
+	}
+
+	/**
 	 * @return list<array{domain:string,status:string,lastLoginAt:?string}>
 	 */
 	public function listForUser(string $userId): array {
