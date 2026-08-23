@@ -4,6 +4,16 @@ All notable changes to Merlin are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning based on
 [SemVer](https://semver.org/).
 
+## [1.0.5]
+
+### Added
+- Paywall subscription login (e.g. Tagesspiegel Plus): encrypted per-user
+  credentials, automatic login and session-cookie injection when fetching
+  articles, plus a "Paywall subscriptions" section in Personal Settings to
+  connect/disconnect an account. Version bump is required for Nextcloud to
+  pick up the new `/api/user/site-credentials*` routes (route table is
+  cached and keyed by app version).
+
 ## [1.0.4]
 
 First version that will be submitted to the Nextcloud App Store.
