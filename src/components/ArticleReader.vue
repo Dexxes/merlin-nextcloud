@@ -294,6 +294,11 @@
 					</div>
 				</header>
 
+				<VideoPlayer
+					v-if="article.url"
+					:article-id="article.id"
+					:article-url="article.url" />
+
 				<!-- eslint-disable-next-line vue/no-v-html -->
 				<div class="article-body" v-html="processedContent" />
 
@@ -343,6 +348,7 @@ import * as articlesAPI from '../api/articles'
 import * as highlightsAPI from '../api/highlights'
 import { HighlightEngine } from '../highlight-engine'
 import ShareLinkDialog from './ShareLinkDialog.vue'
+import VideoPlayer from './VideoPlayer.vue'
 
 const TAG_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899']
 
@@ -380,6 +386,7 @@ export default {
 		ShareVariant,
 		LinkVariant,
 		ShareLinkDialog,
+		VideoPlayer,
 		ContentCopy,
 		Email,
 		Butterfly,
