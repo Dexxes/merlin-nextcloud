@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Listener;
 
+use OCA\Merlin\Db\SiteCredentialMapper;
 use OCA\Merlin\Service\ContentFilterRepository;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
@@ -25,6 +26,7 @@ use Psr\Log\LoggerInterface;
 class UserDeletedListener implements IEventListener {
 	public function __construct(
 		private ContentFilterRepository $repository,
+		private SiteCredentialMapper $siteCredentialMapper,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -43,6 +45,17 @@ class UserDeletedListener implements IEventListener {
 			// verwaiste Zeilen sind unschön, aber harmlos (nie wieder erreichbar,
 			// da user_id nirgends sonst referenziert wird).
 			$this->logger->error('content-filters: Aufräumen der User-Overrides nach Nutzerlöschung fehlgeschlagen', [
+				'userId'    => $userId,
+				'exception' => $e,
+			]);
+		}
+
+		try {
+			$this->siteCredentialMapper->deleteAllForUser($userId);
+		} catch (\Throwable $e) {
+			// Gleiches Fail-open-Prinzip wie oben: verwaiste, aber verschlüsselte
+			// Zeilen sind unschön, dürfen die Nutzerlöschung aber nicht blockieren.
+			$this->logger->error('site-credentials: Aufräumen der Paywall-Zugangsdaten nach Nutzerlöschung fehlgeschlagen', [
 				'userId'    => $userId,
 				'exception' => $e,
 			]);

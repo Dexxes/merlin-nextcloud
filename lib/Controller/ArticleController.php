@@ -9,6 +9,7 @@ use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Db\TagMapper;
 use OCA\Merlin\Service\ContentExtractorService;
 use OCA\Merlin\Service\ExportService;
+use OCA\Merlin\Service\Login\PaywallLoginRequiredException;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -251,6 +252,21 @@ class ArticleController extends Controller {
 					$article->setUpdatedAt(new \DateTime());
 					$article->setIsProcessing(0);
 					$mapper->update($article);
+				} catch (PaywallLoginRequiredException $e) {
+					// Erstes Speichern eines Paywall-Artikels ohne (gültige)
+					// Zugangsdaten: kein genereller Fehlschlag, sondern ein
+					// Zustand, auf den der Client mit einem Login-Dialog
+					// reagieren soll (Polling auf requiresLoginDomain, siehe
+					// Article::jsonSerialize() und PLATFORMS.md).
+					try {
+						$blocked = $mapper->find($articleId, $userId);
+						$blocked->setIsProcessing(0);
+						$blocked->setRequiresLoginDomain($e->domain);
+						$blocked->setRequiresLoginPage($e->loginPage);
+						$mapper->update($blocked);
+					} catch (\Throwable $e2) {
+						// Ignore – nothing more we can do.
+					}
 				} catch (\Throwable $e) {
 					// Extraction failed – clear the processing flag so the spinner stops.
 					try {

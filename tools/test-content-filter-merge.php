@@ -579,7 +579,27 @@ namespace {
 		if (str_starts_with($name, '000')) {
 			continue;
 		}
-		$found = $validator->validate((string) file_get_contents($path), $name);
+		// <login> ist bewusst NICHT Teil von ContentFilterSchema::SECTIONS und
+		// läuft nie durch ContentFilterValidator (siehe Service\Login\LoginConfig-
+		// Docblock: Admin/User dürfen nie einen Login-Endpoint definieren, nur
+		// Bundle-Dateien). Für diesen Schema-Test daher per DOM entfernt (nicht
+		// per Regex - ein <login> könnte auch nur in einem Kommentartext
+		// erwähnt sein, siehe tagesspiegel.de.xml), eigene Prüfung läuft über
+		// LoginConfig::isValid() (siehe SiteCredentialService).
+		$rawXml = (string) file_get_contents($path);
+		$prevXml = libxml_use_internal_errors(true);
+		$domForStripping = new DOMDocument('1.0', 'UTF-8');
+		$xml = $rawXml;
+		if ($domForStripping->loadXML($rawXml, LIBXML_NONET | LIBXML_NOENT)) {
+			foreach (iterator_to_array($domForStripping->getElementsByTagName('login')) as $loginNode) {
+				$loginNode->parentNode?->removeChild($loginNode);
+			}
+			$xml = $domForStripping->saveXML() ?: $rawXml;
+		}
+		libxml_clear_errors();
+		libxml_use_internal_errors($prevXml);
+
+		$found = $validator->validate($xml, $name);
 		if ($found !== []) {
 			$bundleErrors[] = $name . ': ' . $found[0]['message'];
 		}

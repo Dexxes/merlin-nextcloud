@@ -48,6 +48,10 @@ use OCP\AppFramework\Db\Entity;
  * @method void setScrollProgress(float $scrollProgress)
  * @method int getScrollUpdatedAt()
  * @method void setScrollUpdatedAt(int $scrollUpdatedAt)
+ * @method string|null getRequiresLoginDomain()
+ * @method void setRequiresLoginDomain(?string $requiresLoginDomain)
+ * @method string|null getRequiresLoginPage()
+ * @method void setRequiresLoginPage(?string $requiresLoginPage)
  */
 class Article extends Entity implements JsonSerializable {
 	protected $userId;
@@ -70,6 +74,12 @@ class Article extends Entity implements JsonSerializable {
 	protected $category;
 	protected $scrollProgress;
 	protected $scrollUpdatedAt;
+	// Gesetzt, wenn die Extraktion an einer Paywall scheiterte, für die der
+	// Nutzer keine (gültigen) Zugangsdaten hinterlegt hat (siehe
+	// Service\Login\PaywallLoginRequiredException, ArticleController::create()).
+	// requiresLoginDomain === null ist der Normalfall (keine Paywall-Sperre).
+	protected $requiresLoginDomain;
+	protected $requiresLoginPage;
 
 	public function __construct() {
 		$this->addType('userId', 'string');
@@ -97,6 +107,8 @@ class Article extends Entity implements JsonSerializable {
 		$this->addType('category', 'string');
 		$this->addType('scrollProgress', 'float');
 		$this->addType('scrollUpdatedAt', 'integer');
+		$this->addType('requiresLoginDomain', 'string');
+		$this->addType('requiresLoginPage', 'string');
 	}
 
 	public function jsonSerialize(): array {
@@ -124,6 +136,12 @@ class Article extends Entity implements JsonSerializable {
 			'category'     => $this->getCategory(),
 			'scrollProgress'  => (float) ($this->getScrollProgress() ?? 0),
 			'scrollUpdatedAt' => (int) ($this->getScrollUpdatedAt() ?? 0),
+			// null im Normalfall. Gesetzt: Client soll einen Login-Dialog für
+			// requiresLoginDomain anbieten (requiresLoginPage als Info-Link),
+			// danach das Speichern erneut anstoßen (POST /api/articles erneut,
+			// kein dedizierter Retry-Endpunkt).
+			'requiresLoginDomain' => $this->getRequiresLoginDomain(),
+			'requiresLoginPage'   => $this->getRequiresLoginPage(),
 		];
 	}
 }
