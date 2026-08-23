@@ -9,6 +9,7 @@ use OCA\Merlin\Service\SiteCredentialService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
@@ -23,6 +24,15 @@ use OCP\IRequest;
  * Die Liste (index()) zeigt nur Domain + Login-Status, damit die
  * Personal-Settings-UI einen "verbunden"/"Zugangsdaten prüfen"-Zustand
  * anzeigen kann.
+ *
+ * Security note – NoCSRFRequired: siehe TagController/ArticleController (gleiches
+ * Muster). Diese Endpunkte bedienen sowohl die Personal-Settings-Vue-UI
+ * (Session-Cookie) als auch native Clients (iOS u. a.), die per HTTP Basic Auth
+ * authentifizieren und keinen Nextcloud-requesttoken mitschicken können. Ohne
+ * das Attribut weist CsrfCookieAuthMiddleware jeden Basic-Auth-Request mit
+ * HTTP 412 zurück. CSRF-Schutz für den Cookie-Pfad übernimmt weiterhin zentral
+ * CsrfCookieAuthMiddleware (verlangt dort einen gültigen requesttoken,
+ * überspringt Basic/Bearer-authentifizierte Requests und sichere Methoden).
  */
 class SiteCredentialController extends Controller {
 	public function __construct(
@@ -40,6 +50,7 @@ class SiteCredentialController extends Controller {
 	 * hinzufügen"-Auswahl in der Personal-Settings-UI).
 	 */
 	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	public function index(): DataResponse {
 		return new DataResponse([
 			'credentials'      => $this->service->listForUser((string) $this->userId),
@@ -55,6 +66,7 @@ class SiteCredentialController extends Controller {
 	 * Login-Versuch geht gegen die externe Paywall-Seite, nicht gegen Merlin.
 	 */
 	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	#[UserRateLimit(limit: 10, period: 300)]
 	public function update(string $domain): DataResponse {
 		$username = trim((string) ($this->request->getParam('username') ?? ''));
@@ -80,6 +92,7 @@ class SiteCredentialController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	public function destroy(string $domain): DataResponse {
 		$this->service->delete((string) $this->userId, $domain);
 		return new DataResponse(['domain' => $domain, 'deleted' => true]);
