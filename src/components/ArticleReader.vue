@@ -545,6 +545,7 @@ export default {
 				this._restoreScrollPosition()
 				this._initHighlights()
 				this._addImageErrorHandlers()
+				this._executeEmbedScripts()
 			})
 		},
 	},
@@ -578,6 +579,7 @@ export default {
 			this._restoreScrollPosition()
 			this._initHighlights()
 			this._addImageErrorHandlers()
+			this._executeEmbedScripts()
 			if (this.$refs.readerContent) {
 				this._onScroll = this._handleScroll.bind(this)
 				this.$refs.readerContent.addEventListener('scroll', this._onScroll, { passive: true })
@@ -889,6 +891,28 @@ export default {
 			this._lastScrollTop = newOffset
 		},
 
+		// ── Embed-Widget-Skripte (Instagram/X) ──────────────────────────────
+
+		// v-html setzt den Inhalt über .innerHTML – <script>-Tags, die dabei ins
+		// DOM gelangen, werden vom Browser NIE ausgeführt (Standardverhalten,
+		// nicht Vue-spezifisch). Der Sanitizer lässt aber genau zwei <script>-Tags
+		// durch (isAllowedWidgetScriptSrc() im Backend: Instagrams embed.js,
+		// X' widgets.js) – ohne diesen Schritt blieben deren <blockquote>s für
+		// immer als reiner Link/Zitat-Fallback stehen, statt zum Post/Reel zu
+		// werden. Jedes gefundene <script> wird deshalb durch eine neu erzeugte
+		// Kopie ersetzt; nur DAS bringt den Browser dazu, es auszuführen.
+		_executeEmbedScripts() {
+			const bodyEl = this.$el?.querySelector('.article-body')
+			if (!bodyEl) return
+			bodyEl.querySelectorAll('script').forEach(oldScript => {
+				const newScript = document.createElement('script')
+				for (const attr of oldScript.attributes) {
+					newScript.setAttribute(attr.name, attr.value)
+				}
+				oldScript.replaceWith(newScript)
+			})
+		},
+
 		// ── Image error placeholders ────────────────────────────────────────
 
 		_addImageErrorHandlers() {
@@ -1188,6 +1212,35 @@ article {
 	display: block;
 	margin: 2em auto;
 	border-radius: 4px;
+}
+
+/* Video-Embeds (YouTube/Vimeo/Twitch/TikTok/Facebook/Arte), siehe
+   isAllowedVideoEmbedSrc() im Backend. 16:9 als bester Kompromiss über alle
+   Hosts hinweg – einzelne Embeds bringen zwar eigene width/height mit, die
+   überschreiben sich per Inline-Attribut aber nicht gegen dieses CSS. */
+.article-body :deep(iframe) {
+	display: block;
+	width: 100%;
+	max-width: 100%;
+	aspect-ratio: 16 / 9;
+	border: 0;
+	margin: 2em auto;
+}
+
+/* Instagram-/X-Embeds (siehe isAllowedWidgetScriptSrc()) rendern sich nach
+   dem Laden des Widget-Skripts selbst komplett neu und bringen ihr eigenes
+   Kartendesign mit – die generische Zitat-Optik für <blockquote> unten würde
+   nur bis zum Laden sichtbar sein und dann falsch wirken, deshalb hier
+   zurückgesetzt. */
+.article-body :deep(blockquote.instagram-media),
+.article-body :deep(blockquote.twitter-tweet) {
+	border-left: none;
+	padding-left: 0;
+	font-style: normal;
+	color: inherit;
+	max-width: 100%;
+	overflow: hidden;
+	margin: 2em auto;
 }
 
 .article-body :deep(.img-placeholder) {
