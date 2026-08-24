@@ -55,9 +55,10 @@ class VideoStreamController extends Controller {
 		}
 
 		return new DataResponse([
-			'available' => true,
-			'type'      => $resolved['type'],
-			'url'       => $resolved['url'],
+			'available'    => true,
+			'type'         => $resolved['type'],
+			'variants'     => $resolved['variants'],
+			'defaultIndex' => $resolved['defaultIndex'],
 		]);
 	}
 }

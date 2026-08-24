@@ -10,6 +10,19 @@
 <template>
 	<div v-if="playable" class="video-player">
 		<video ref="videoEl" controls playsinline @error="handlePlaybackError" />
+
+		<!-- Nur bei mehr als einer Variante zeigen (z. B. Standard vs.
+			Gebärdensprache/Audiodeskription bei ARD/ZDF) - sonst wäre die
+			Auswahl bedeutungslos. -->
+		<select
+			v-if="variants.length > 1"
+			class="video-player-variant"
+			:value="selectedIndex"
+			@change="selectVariant(Number($event.target.value))">
+			<option v-for="(variant, index) in variants" :key="variant.url" :value="index">
+				{{ variant.label }}
+			</option>
+		</select>
 	</div>
 </template>
 
@@ -50,6 +63,8 @@ export default {
 	data() {
 		return {
 			playable: false,
+			variants: [],
+			selectedIndex: 0,
 		}
 	},
 
@@ -63,6 +78,8 @@ export default {
 			handler() {
 				this._teardown()
 				this.playable = false
+				this.variants = []
+				this.selectedIndex = 0
 				if (hasNativeVideoHost(this.articleUrl)) {
 					this._resolveAndLoad()
 				}
@@ -82,23 +99,51 @@ export default {
 			} catch {
 				return
 			}
-			if (!data?.available || data.type !== 'hls' || typeof data.url !== 'string') {
+			if (!data?.available || data.type !== 'hls' || !Array.isArray(data.variants) || data.variants.length === 0) {
 				return
 			}
 
+			this.variants = data.variants
+			this.selectedIndex = Number.isInteger(data.defaultIndex) && data.variants[data.defaultIndex]
+				? data.defaultIndex
+				: 0
+
 			this.playable = true
 			await this.$nextTick()
-			this._attach(data.url)
+			this._attach(this.variants[this.selectedIndex].url)
 		},
 
-		_attach(streamUrl) {
+		selectVariant(index) {
+			if (!this.variants[index] || index === this.selectedIndex) return
+			this.selectedIndex = index
+
+			// Abspielposition beim Varianten-Wechsel beibehalten (z. B. von
+			// Gebärdensprache auf Normal mitten im Video umschalten), statt
+			// wieder bei 0 zu beginnen.
+			const video = this.$refs.videoEl
+			const resumeAt = video?.currentTime ?? 0
+			const wasPlaying = video && !video.paused
+
+			this._teardown()
+			this._attach(this.variants[index].url, { resumeAt, autoplay: wasPlaying })
+		},
+
+		_attach(streamUrl, { resumeAt = 0, autoplay = false } = {}) {
 			const video = this.$refs.videoEl
 			if (!video) return
+
+			const seekAndPlay = () => {
+				if (resumeAt > 0) video.currentTime = resumeAt
+				if (autoplay) video.play().catch(() => {})
+			}
 
 			// Safari unterstützt HLS nativ über <video src>, alle anderen
 			// gängigen Browser brauchen hls.js (MediaSource-basiert).
 			if (video.canPlayType('application/vnd.apple.mpegurl')) {
 				video.src = streamUrl
+				if (resumeAt > 0 || autoplay) {
+					video.addEventListener('loadedmetadata', seekAndPlay, { once: true })
+				}
 				return
 			}
 
@@ -115,6 +160,9 @@ export default {
 					this._teardown()
 				}
 			})
+			if (resumeAt > 0 || autoplay) {
+				hls.on(Hls.Events.MANIFEST_PARSED, seekAndPlay)
+			}
 			hls.loadSource(streamUrl)
 			hls.attachMedia(video)
 		},
@@ -155,5 +203,16 @@ export default {
 	object-fit: contain;
 	border-radius: 4px;
 	background: #000;
+}
+
+.video-player-variant {
+	display: block;
+	margin: 0.5em auto 0;
+	padding: 4px 8px;
+	font-size: 0.85em;
+	border-radius: 4px;
+	border: 1px solid var(--color-border, #ccc);
+	background: var(--color-main-background, #fff);
+	color: var(--color-main-text, #222);
 }
 </style>
