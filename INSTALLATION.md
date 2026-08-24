@@ -105,6 +105,10 @@ The daemon listens on `127.0.0.1:5051` by default and exposes `POST /synthesize`
 
 If `request_terminate_timeout` is set in the PHP-FPM pool (Synology default: 30 s), the TTS stream will cut off after 30 seconds. This **cannot** be worked around in PHP code – set `request_terminate_timeout` to `0` in the FPM pool configuration and restart PHP-FPM.
 
+### Important: request body size limit (HTTP 413 when saving an article)
+
+The browser extension sends the client-rendered page HTML for some sites instead of just the URL (`html` field on the save request, e.g. for JS-heavy SPAs where a server-side fetch alone wouldn't see the real content) – for a page like ARD Mediathek or ZDF this can easily be several MB. If saving such an article fails with `413 Payload Too Large`, Nextcloud's own web server/PHP-FPM in front of it is rejecting the request body before it reaches this app. Raise `client_max_body_size` in nginx (or the Apache equivalent) and `post_max_size`/`upload_max_filesize` in `php.ini` to a few times that (e.g. 20 MB), then reload/restart the web server and PHP-FPM.
+
 ## Next steps
 
 1. **Add your first article**: click "Add article" and paste a URL
