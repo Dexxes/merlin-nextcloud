@@ -29,6 +29,21 @@ use OCP\Security\CSP\AddContentSecurityPolicyEvent;
  * iframe (instagram.com/platform.twitter.com) once it runs, so both
  * directives are needed for the embed to actually render.
  *
+ * connect-src: hls.js (native ARD/ZDF/Arte-Player, siehe
+ * VideoStreamResolverService) lädt HLS-Manifest/-Segmente per fetch/XHR statt
+ * über ein natives <video src>, das fällt unter connect-src statt media-src/
+ * frame-src. Nextclouds eigene Baseline-CSP setzt hier default `'self'`, was
+ * jeden Request zum Sender-CDN blockiert (live bestätigt: "Refused to
+ * connect... violates connect-src 'self'" für *.ard-mcdn.de). Die konkreten
+ * CDN-Hosts sind pro Video/Sendung unterschiedlich (Wildcard-Subdomains statt
+ * fester Hosts wie bei frame-src oben), deshalb hier bewusst per
+ * Wildcard-Pattern statt einzeln aufgezählt:
+ *   - *.ard-mcdn.de       (ARD, z. B. sportschau-vod.ard-mcdn.de)
+ *   - *.akamaized.net     (ZDF, z. B. zdfvod.akamaized.net)
+ *   - *.akamaihd.net      (ZDF-Fallback-CDN, z. B. nrodlzdf-a.akamaihd.net)
+ * Arte nutzt nach bisheriger Recherche ebenfalls Akamai, ist also potenziell
+ * durch dieselben beiden Akamai-Wildcards mitabgedeckt.
+ *
  * @template-implements IEventListener<AddContentSecurityPolicyEvent>
  */
 class AddContentSecurityPolicyListener implements IEventListener {
@@ -52,6 +67,10 @@ class AddContentSecurityPolicyListener implements IEventListener {
 
 		$policy->addAllowedScriptDomain('https://www.instagram.com');
 		$policy->addAllowedScriptDomain('https://platform.twitter.com');
+
+		$policy->addAllowedConnectDomain('https://*.ard-mcdn.de');
+		$policy->addAllowedConnectDomain('https://*.akamaized.net');
+		$policy->addAllowedConnectDomain('https://*.akamaihd.net');
 
 		$event->addPolicy($policy);
 	}
