@@ -294,13 +294,19 @@
 					</div>
 				</header>
 
-				<VideoPlayer
-					v-if="article.url"
-					:article-id="article.id"
-					:article-url="article.url" />
+				<div class="article-body" :class="{ 'has-native-video': videoPlayable }">
+					<!-- eslint-disable-next-line vue/no-v-html -->
+					<div v-if="heroAndRestContent.heroHtml" v-html="heroAndRestContent.heroHtml" />
 
-				<!-- eslint-disable-next-line vue/no-v-html -->
-				<div class="article-body" v-html="processedContent" />
+					<VideoPlayer
+						v-if="article.url"
+						:article-id="article.id"
+						:article-url="article.url"
+						@playable-change="videoPlayable = $event" />
+
+					<!-- eslint-disable-next-line vue/no-v-html -->
+					<div v-html="heroAndRestContent.restHtml" />
+				</div>
 
 				<!-- Article footer -->
 				<footer class="article-footer">
@@ -425,6 +431,10 @@ export default {
 			shareMenuStyle: {},
 			shareLinkDialogOpen: false,
 			hasNativeShare: typeof navigator !== 'undefined' && !!navigator.share,
+			// true, sobald VideoPlayer erfolgreich einen nativen Stream lädt -
+			// blendet dann den redundanten "Zum Video"-Fallback-Link aus (siehe
+			// .merlin-video-fallback-link weiter unten).
+			videoPlayable: false,
 			isMobile: false,
 			showBottomBar: true,
 			_lastScrollTop: 0,
@@ -538,6 +548,26 @@ export default {
 
 		processedContent() {
 			return this.article.content || ''
+		},
+
+		// Trennt eine führende <figure class="merlin-hero-image"> (siehe
+		// ContentExtractorService Step 12) vom restlichen Content ab, damit der
+		// VideoPlayer zwischen Hero-Bild und Rest platziert werden kann statt
+		// immer ganz oben. Nur ein Split, wenn die Figure wirklich das erste
+		// Element ist - sonst bleibt alles wie zuvor in restHtml.
+		heroAndRestContent() {
+			const html = this.processedContent
+			if (!html) return { heroHtml: '', restHtml: html }
+
+			const doc = new DOMParser().parseFromString(html, 'text/html')
+			const hero = doc.body.firstElementChild
+			if (!hero || hero.tagName !== 'FIGURE' || !hero.classList.contains('merlin-hero-image')) {
+				return { heroHtml: '', restHtml: html }
+			}
+
+			const heroHtml = hero.outerHTML
+			hero.remove()
+			return { heroHtml, restHtml: doc.body.innerHTML }
 		},
 	},
 
@@ -1207,6 +1237,13 @@ article {
 .article-body {
 	font-size: inherit;
 	line-height: inherit;
+}
+
+/* Der "Zum Video"-Fallback-Link (siehe ContentExtractorService, Video-Zweig)
+   wird redundant, sobald VideoPlayer erfolgreich einen nativen Stream
+   gefunden hat - videoPlayable steuert diese Klasse. */
+.article-body.has-native-video :deep(.merlin-video-fallback-link) {
+	display: none;
 }
 
 .article-body :deep(p) {

@@ -45,6 +45,8 @@ export default {
 		},
 	},
 
+	emits: ['playable-change'],
+
 	data() {
 		return {
 			playable: false,
@@ -52,6 +54,10 @@ export default {
 	},
 
 	watch: {
+		playable(val) {
+			this.$emit('playable-change', val)
+		},
+
 		articleId: {
 			immediate: true,
 			handler() {
@@ -129,8 +135,16 @@ export default {
 </script>
 
 <style scoped>
+/* Feste Obergrenze statt volle Spaltenbreite: ein 16:9-Video, das die ganze
+   (teils sehr breite) Reader-Spalte ausfüllt, wirkt beim Abspielen unruhig
+   groß und verliert seine Zentrierung, sobald die reale Videobreite ins
+   Spiel kommt. Echtes "groß ansehen" gibt es ohnehin über den nativen
+   Vollbildmodus der <video>-Controls - hier reicht ein angenehm lesbares
+   Inline-Format. margin: 0 auto zentriert unabhängig vom umgebenden
+   Layout (auch wenn .article-body z. B. mal Flex/Grid würde). */
 .video-player {
-	margin: 0 0 2em;
+	max-width: 720px;
+	margin: 0 auto 2em;
 }
 
 .video-player video {
@@ -138,6 +152,7 @@ export default {
 	width: 100%;
 	max-width: 100%;
 	aspect-ratio: 16 / 9;
+	object-fit: contain;
 	border-radius: 4px;
 	background: #000;
 }
