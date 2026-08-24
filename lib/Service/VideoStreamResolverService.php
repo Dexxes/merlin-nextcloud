@@ -348,7 +348,12 @@ class VideoStreamResolverService {
 	// ──────────────────────────────────────────────────────────────────────
 
 	private function resolveArte(string $articleUrl): ?array {
-		if (preg_match('#(\d{6}-\d{3}-[AF]|LIVE)#', $articleUrl, $m) !== 1) {
+		// Arte nutzt mehrere ID-Formate in freier Wildbahn: das klassische
+		// "129847-001-A" (numerisch + Episoden-/A-F-Suffix) UND kürzere,
+		// zweibuchstabig-präfixierte IDs wie "RC-027957" (z. B. Serien-
+		// Kurzformate) - die Player-API akzeptiert beide gleichermaßen, nur
+		// diese Regex kannte das zweite Format ursprünglich nicht.
+		if (preg_match('#(\d{6}-\d{3}-[AF]|[A-Z]{2}-\d+|LIVE)#', $articleUrl, $m) !== 1) {
 			return null;
 		}
 		$videoId = $m[1];
