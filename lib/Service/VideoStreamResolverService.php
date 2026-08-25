@@ -384,14 +384,16 @@ class VideoStreamResolverService {
 		// "API_HLS_NG_MA" statt nur "HLS..."), deshalb str_contains() statt
 		// str_starts_with() - Letzteres hatte hier jeden Stream verworfen.
 		//
-		// Mehrere Sprach-/Untertitel-Kombinationen ("Originalfassung - UT
-		// deutsch" etc.) sind bei Arte KEINE eigenen Stream-Einträge/URLs
-		// wie bei ARD/ZDF, sondern Audio-/Untertitel-Spuren INNERHALB eines
-		// einzigen HLS-Manifests (stream.versions[]) - eine Sprachauswahl
-		// über das Varianten-Dropdown ist hier also (noch) nicht möglich,
-		// das bräuchte eine separate Anbindung an hls.js' Audio-Track-API.
-		// Label orientiert sich deshalb an der Qualität, falls es doch
-		// mehrere Stream-Einträge gibt (z. B. unterschiedliche Auflösungen).
+		// Anders als zunächst angenommen sind die Sprach-/Untertitel-
+		// Kombinationen ("Originalfassung - UT deutsch" etc.) bei Arte
+		// SEHR WOHL eigene Stream-Einträge mit jeweils eigener Manifest-URL
+		// (genau wie bei ARD/ZDF) - live verifiziert per API-Response:
+		// jeder streams[]-Eintrag trägt eine eigene .url UND ein
+		// .versions[]-Array mit dem eigentlichen Label ("Originalfassung -
+		// UT deutsch", "Originalfassung", …), während .mainQuality.label
+		// nur die Bildqualität beschreibt (z. B. "720p") und deshalb NICHT
+		// zum Beschriften taugt - das hatte zuvor zu einem für alle
+		// Varianten identischen "720p"-Label geführt.
 		$variants = [];
 		foreach ($streams as $stream) {
 			if (!is_array($stream)) {
@@ -402,8 +404,12 @@ class VideoStreamResolverService {
 			if (!str_contains($protocol, 'HLS') || !is_string($url) || !$this->looksLikeHlsUrl($url)) {
 				continue;
 			}
-			$label = $this->firstNonEmptyString([$stream['mainQuality']['label'] ?? null])
-				?? ('Version ' . (count($variants) + 1));
+			$versions = $stream['versions'] ?? null;
+			$firstVersion = is_array($versions) && is_array($versions[0] ?? null) ? $versions[0] : null;
+			$label = $this->firstNonEmptyString([
+				$firstVersion['label'] ?? null,
+				$firstVersion['shortLabel'] ?? null,
+			]) ?? ('Version ' . (count($variants) + 1));
 			$variants[] = ['label' => $label, 'url' => $url];
 		}
 
