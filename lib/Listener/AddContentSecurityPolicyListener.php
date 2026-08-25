@@ -38,15 +38,37 @@ use OCP\Security\CSP\AddContentSecurityPolicyEvent;
  * CDN-Hosts sind pro Video/Sendung unterschiedlich (Wildcard-Subdomains statt
  * fester Hosts wie bei frame-src oben), deshalb hier bewusst per
  * Wildcard-Pattern statt einzeln aufgezählt:
- *   - *.ard-mcdn.de       (ARD, z. B. sportschau-vod.ard-mcdn.de)
+ *   - *.ard-mcdn.de       (zentrales ARD-CDN, mp4-Fallback-Qualitäten)
  *   - *.akamaized.net     (ZDF, z. B. zdfvod.akamaized.net)
  *   - *.akamaihd.net      (ZDF-Fallback-CDN, z. B. nrodlzdf-a.akamaihd.net)
  * Arte nutzt nach bisheriger Recherche ebenfalls Akamai, ist also potenziell
  * durch dieselben beiden Akamai-Wildcards mitabgedeckt.
  *
+ * Live bestätigt (SWR-Artikel, siehe Commit-Historie): das eigentliche
+ * HLS-Master-Manifest liegt NICHT unter *.ard-mcdn.de, sondern unter einer
+ * senderspezifischen Domain der ARD-Anstalt selbst (hier av-adaptive.swr.de)
+ * - *.ard-mcdn.de deckt bei diesem Sender nur die mp4-Fallback-Qualitäten ab,
+ * nicht die m3u8, an der hls.js tatsächlich hängt. Da die ARD Mediathek
+ * Inhalte aller Landesrundfunkanstalten aggregiert, braucht es potenziell
+ * für jede Anstalt deren eigene CDN-Domain - deshalb hier zusätzlich die
+ * Domains der Anstalten, die dieser Instanz bereits als Artikel-Domains
+ * bekannt sind (siehe content-filters/), auf Verdacht mit demselben Muster.
+ *
  * @template-implements IEventListener<AddContentSecurityPolicyEvent>
  */
 class AddContentSecurityPolicyListener implements IEventListener {
+	/**
+	 * Domains von ARD-Landesrundfunkanstalten, deren HLS-CDN (Muster
+	 * av-adaptive.<domain>, live bestätigt für swr.de) nicht unter den
+	 * zentralen *.ard-mcdn.de-Wildcard fällt - siehe Klassen-Docblock.
+	 *
+	 * @var list<string>
+	 */
+	private const ARD_ANSTALT_DOMAINS = [
+		'swr.de', 'ndr.de', 'wdr.de', 'br.de', 'hr.de', 'mdr.de',
+		'rbb-online.de', 'sr.de', 'radiobremen.de', 'daserste.de',
+	];
+
 	public function handle(Event $event): void {
 		if (!$event instanceof AddContentSecurityPolicyEvent) {
 			return;
@@ -71,6 +93,9 @@ class AddContentSecurityPolicyListener implements IEventListener {
 		$policy->addAllowedConnectDomain('https://*.ard-mcdn.de');
 		$policy->addAllowedConnectDomain('https://*.akamaized.net');
 		$policy->addAllowedConnectDomain('https://*.akamaihd.net');
+		foreach (self::ARD_ANSTALT_DOMAINS as $domain) {
+			$policy->addAllowedConnectDomain('https://*.' . $domain);
+		}
 
 		$event->addPolicy($policy);
 	}
