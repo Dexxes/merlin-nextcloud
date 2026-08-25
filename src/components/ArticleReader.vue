@@ -295,13 +295,17 @@
 				</header>
 
 				<div class="article-body" :class="{ 'has-native-video': videoPlayable }">
+					<!-- Bei abspielbarem Video dient das Hero-Bild als Poster im
+						Player (siehe :poster-url unten) statt zusätzlich separat
+						darüber angezeigt zu werden. -->
 					<!-- eslint-disable-next-line vue/no-v-html -->
-					<div v-if="heroAndRestContent.heroHtml" v-html="heroAndRestContent.heroHtml" />
+					<div v-if="heroAndRestContent.heroHtml && !videoPlayable" v-html="heroAndRestContent.heroHtml" />
 
 					<VideoPlayer
 						v-if="article.url"
 						:article-id="article.id"
 						:article-url="article.url"
+						:poster-url="heroAndRestContent.heroImageUrl"
 						@playable-change="videoPlayable = $event" />
 
 					<!-- eslint-disable-next-line vue/no-v-html -->
@@ -557,17 +561,21 @@ export default {
 		// Element ist - sonst bleibt alles wie zuvor in restHtml.
 		heroAndRestContent() {
 			const html = this.processedContent
-			if (!html) return { heroHtml: '', restHtml: html }
+			if (!html) return { heroHtml: '', heroImageUrl: '', restHtml: html }
 
 			const doc = new DOMParser().parseFromString(html, 'text/html')
 			const hero = doc.body.firstElementChild
 			if (!hero || hero.tagName !== 'FIGURE' || !hero.classList.contains('merlin-hero-image')) {
-				return { heroHtml: '', restHtml: html }
+				return { heroHtml: '', heroImageUrl: '', restHtml: html }
 			}
 
 			const heroHtml = hero.outerHTML
+			// Dient bei einem abspielbaren Video als Poster-Bild statt separat
+			// über der Figure angezeigt zu werden (siehe VideoPlayer-Bindung
+			// unten) - deshalb schon hier mit heraustrennen.
+			const heroImageUrl = hero.querySelector('img')?.src ?? ''
 			hero.remove()
-			return { heroHtml, restHtml: doc.body.innerHTML }
+			return { heroHtml, heroImageUrl, restHtml: doc.body.innerHTML }
 		},
 	},
 

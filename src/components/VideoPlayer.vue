@@ -9,7 +9,7 @@
 -->
 <template>
 	<div v-if="playable" class="video-player">
-		<video ref="videoEl" controls playsinline @error="handlePlaybackError" />
+		<video ref="videoEl" :poster="posterUrl" controls playsinline @error="handlePlaybackError" />
 
 		<!-- Nur bei mehr als einer Variante zeigen (z. B. Standard vs.
 			Gebärdensprache/Audiodeskription bei ARD/ZDF) - sonst wäre die
@@ -55,6 +55,13 @@ export default {
 		articleUrl: {
 			type: String,
 			required: true,
+		},
+		// Hero-Bild des Artikels (siehe ArticleReader.vue), dient als
+		// Video-Poster statt zusätzlich separat über dem Player angezeigt zu
+		// werden - leer, wenn der Artikel keins hat.
+		posterUrl: {
+			type: String,
+			default: '',
 		},
 	},
 
