@@ -379,11 +379,19 @@ class VideoStreamResolverService {
 			return null;
 		}
 
-		// Mehrere Sprach-/Untertitel-Fassungen (z. B. "VOSTF", "VF") sind bei
-		// Arte üblich - alle HLS-Einträge sammeln statt nur den ersten, siehe
-		// buildVariantResult(). Die genauen Label-Feldnamen sind aus der
-		// Recherche nicht live verifiziert, deshalb mehrere Kandidaten
-		// probieren und sonst nummeriert benennen statt zu verwerfen.
+		// Live verifiziert (siehe Commit-Historie): Arte stellt dem
+		// eigentlichen Protokoll ein "API_"-Präfix voran (z. B.
+		// "API_HLS_NG_MA" statt nur "HLS..."), deshalb str_contains() statt
+		// str_starts_with() - Letzteres hatte hier jeden Stream verworfen.
+		//
+		// Mehrere Sprach-/Untertitel-Kombinationen ("Originalfassung - UT
+		// deutsch" etc.) sind bei Arte KEINE eigenen Stream-Einträge/URLs
+		// wie bei ARD/ZDF, sondern Audio-/Untertitel-Spuren INNERHALB eines
+		// einzigen HLS-Manifests (stream.versions[]) - eine Sprachauswahl
+		// über das Varianten-Dropdown ist hier also (noch) nicht möglich,
+		// das bräuchte eine separate Anbindung an hls.js' Audio-Track-API.
+		// Label orientiert sich deshalb an der Qualität, falls es doch
+		// mehrere Stream-Einträge gibt (z. B. unterschiedliche Auflösungen).
 		$variants = [];
 		foreach ($streams as $stream) {
 			if (!is_array($stream)) {
@@ -391,14 +399,11 @@ class VideoStreamResolverService {
 			}
 			$protocol = strtoupper((string) ($stream['protocol'] ?? ''));
 			$url = $stream['url'] ?? null;
-			if (!str_starts_with($protocol, 'HLS') || !is_string($url) || !$this->looksLikeHlsUrl($url)) {
+			if (!str_contains($protocol, 'HLS') || !is_string($url) || !$this->looksLikeHlsUrl($url)) {
 				continue;
 			}
-			$label = $this->firstNonEmptyString([
-				$stream['versionShortLibelle'] ?? null,
-				$stream['versionLibelle'] ?? null,
-				$stream['audioLanguage'] ?? null,
-			]) ?? ('Version ' . (count($variants) + 1));
+			$label = $this->firstNonEmptyString([$stream['mainQuality']['label'] ?? null])
+				?? ('Version ' . (count($variants) + 1));
 			$variants[] = ['label' => $label, 'url' => $url];
 		}
 
