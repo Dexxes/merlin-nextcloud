@@ -59,6 +59,7 @@ class VideoStreamController extends Controller {
 			'type'         => $resolved['type'],
 			'variants'     => $resolved['variants'],
 			'defaultIndex' => $resolved['defaultIndex'],
+			'variantMode'  => $resolved['variantMode'],
 		]);
 	}
 }

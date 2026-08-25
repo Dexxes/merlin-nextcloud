@@ -19,7 +19,7 @@
 			class="video-player-variant"
 			:value="selectedIndex"
 			@change="selectVariant(Number($event.target.value))">
-			<option v-for="(variant, index) in variants" :key="variant.url" :value="index">
+			<option v-for="(variant, index) in variants" :key="index + ':' + variant.label" :value="index">
 				{{ variant.label }}
 			</option>
 		</select>
@@ -65,6 +65,7 @@ export default {
 			playable: false,
 			variants: [],
 			selectedIndex: 0,
+			variantMode: 'url',
 		}
 	},
 
@@ -80,6 +81,7 @@ export default {
 				this.playable = false
 				this.variants = []
 				this.selectedIndex = 0
+				this.variantMode = 'url'
 				if (hasNativeVideoHost(this.articleUrl)) {
 					this._resolveAndLoad()
 				}
@@ -104,6 +106,7 @@ export default {
 			}
 
 			this.variants = data.variants
+			this.variantMode = data.variantMode === 'audioTrack' ? 'audioTrack' : 'url'
 			this.selectedIndex = Number.isInteger(data.defaultIndex) && data.variants[data.defaultIndex]
 				? data.defaultIndex
 				: 0
@@ -115,6 +118,25 @@ export default {
 
 		selectVariant(index) {
 			if (!this.variants[index] || index === this.selectedIndex) return
+
+			// Bei Arte stecken alle Varianten als Audio-Spuren im selben
+			// HLS-Manifest (siehe VideoStreamResolverService::resolveArte()) -
+			// hier reicht ein Umschalten des Audio-Tracks, ein Neuladen der
+			// (identischen) Manifest-URL wäre unnötig und würde die Wiedergabe
+			// unterbrechen statt sie nahtlos fortzusetzen.
+			if (this.variantMode === 'audioTrack') {
+				const video = this.$refs.videoEl
+				if (this._hls) {
+					this._hls.audioTrack = index
+				} else if (video?.audioTracks) {
+					for (let i = 0; i < video.audioTracks.length; i++) {
+						video.audioTracks[i].enabled = i === index
+					}
+				}
+				this.selectedIndex = index
+				return
+			}
+
 			this.selectedIndex = index
 
 			// Abspielposition beim Varianten-Wechsel beibehalten (z. B. von
@@ -144,6 +166,9 @@ export default {
 				if (resumeAt > 0 || autoplay) {
 					video.addEventListener('loadedmetadata', seekAndPlay, { once: true })
 				}
+				if (this.variantMode === 'audioTrack') {
+					this._watchNativeAudioTracks(video, streamUrl)
+				}
 				return
 			}
 
@@ -163,8 +188,43 @@ export default {
 			if (resumeAt > 0 || autoplay) {
 				hls.on(Hls.Events.MANIFEST_PARSED, seekAndPlay)
 			}
+			if (this.variantMode === 'audioTrack') {
+				// Die tatsächlichen Sprach-/UT-Varianten sind erst nach dem Parsen
+				// des Manifests bekannt (siehe resolveArte()-Docblock im Backend) -
+				// das Backend liefert bis dahin nur einen Platzhalter-Eintrag.
+				hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
+					if (hls.audioTracks.length > 1) {
+						this.variants = hls.audioTracks.map((track, i) => ({
+							label: track.name || track.lang || `Version ${i + 1}`,
+							url: streamUrl,
+						}))
+						this.selectedIndex = hls.audioTrack
+					}
+				})
+			}
 			hls.loadSource(streamUrl)
 			hls.attachMedia(video)
+		},
+
+		// Safari-Pendant zu Hls.Events.AUDIO_TRACKS_UPDATED oben: bei nativer
+		// HLS-Wiedergabe (kein hls.js) liefert die AudioTrackList des
+		// <video>-Elements dieselbe Information, aber erst sobald der Browser
+		// sie aus dem Manifest gelesen hat (addtrack-Event statt sofort
+		// verfügbar).
+		_watchNativeAudioTracks(video, streamUrl) {
+			if (!video.audioTracks) return
+			const sync = () => {
+				if (video.audioTracks.length > 1) {
+					this.variants = Array.from(video.audioTracks).map((track, i) => ({
+						label: track.label || track.language || `Version ${i + 1}`,
+						url: streamUrl,
+					}))
+					this.selectedIndex = Array.from(video.audioTracks).findIndex(t => t.enabled)
+				}
+			}
+			video.audioTracks.addEventListener('addtrack', sync)
+			video.audioTracks.addEventListener('change', sync)
+			sync()
 		},
 
 		handlePlaybackError() {
