@@ -295,21 +295,27 @@
 				</header>
 
 				<div class="article-body" :class="{ 'has-native-video': videoPlayable }">
-					<!-- data-hl-flatten: the hero/rest split (see heroAndRestContent) and the
-						VideoPlayer inserted between them are presentational only - they don't
-						exist in the raw article-content HTML that highlight XPaths are computed
-						against on other platforms. highlight-engine.js sees through
-						data-hl-flatten wrappers (their children count as direct children of
-						.article-body) and skips data-hl-exclude subtrees entirely, so a
-						highlight's XPath still resolves as if this split never happened. -->
+					<!-- Bei abspielbarem Video dient das Hero-Bild als Poster im
+						Player (siehe :poster-url unten) statt zusätzlich separat
+						darüber angezeigt zu werden.
+
+						data-hl-flatten: der Hero/Rest-Split (siehe heroAndRestContent) und der
+						dazwischen eingefügte VideoPlayer sind rein präsentationell - sie
+						existieren nicht im rohen article-content-HTML, gegen das Highlight-XPaths
+						auf anderen Plattformen berechnet werden. highlight-engine.js sieht durch
+						data-hl-flatten-Wrapper hindurch (ihre Kinder zählen als direkte Kinder von
+						.article-body) und überspringt data-hl-exclude-Teilbäume komplett, sodass
+						der XPath eines Highlights weiterhin so auflöst, als hätte dieser Split nie
+						stattgefunden. -->
 					<!-- eslint-disable-next-line vue/no-v-html -->
-					<div v-if="heroAndRestContent.heroHtml" data-hl-flatten v-html="heroAndRestContent.heroHtml" />
+					<div v-if="heroAndRestContent.heroHtml && !videoPlayable" data-hl-flatten v-html="heroAndRestContent.heroHtml" />
 
 					<VideoPlayer
 						v-if="article.url"
 						data-hl-exclude
 						:article-id="article.id"
 						:article-url="article.url"
+						:poster-url="heroAndRestContent.heroImageUrl"
 						@playable-change="videoPlayable = $event" />
 
 					<!-- eslint-disable-next-line vue/no-v-html -->
@@ -565,17 +571,21 @@ export default {
 		// Element ist - sonst bleibt alles wie zuvor in restHtml.
 		heroAndRestContent() {
 			const html = this.processedContent
-			if (!html) return { heroHtml: '', restHtml: html }
+			if (!html) return { heroHtml: '', heroImageUrl: '', restHtml: html }
 
 			const doc = new DOMParser().parseFromString(html, 'text/html')
 			const hero = doc.body.firstElementChild
 			if (!hero || hero.tagName !== 'FIGURE' || !hero.classList.contains('merlin-hero-image')) {
-				return { heroHtml: '', restHtml: html }
+				return { heroHtml: '', heroImageUrl: '', restHtml: html }
 			}
 
 			const heroHtml = hero.outerHTML
+			// Dient bei einem abspielbaren Video als Poster-Bild statt separat
+			// über der Figure angezeigt zu werden (siehe VideoPlayer-Bindung
+			// unten) - deshalb schon hier mit heraustrennen.
+			const heroImageUrl = hero.querySelector('img')?.src ?? ''
 			hero.remove()
-			return { heroHtml, restHtml: doc.body.innerHTML }
+			return { heroHtml, heroImageUrl, restHtml: doc.body.innerHTML }
 		},
 	},
 
