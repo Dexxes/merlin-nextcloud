@@ -24,6 +24,9 @@ return [
         // TTS route (kombinierter Proxy-Endpunkt: Synthese + Streaming in einem Request)
         ['name' => 'tts#synthesize', 'url' => '/api/articles/{id}/tts', 'verb' => 'GET'],
 
+        // Native ARD/ZDF/Arte-Stream-Auflösung (siehe VideoStreamResolverService-Docblock)
+        ['name' => 'videoStream#resolve', 'url' => '/api/articles/{id}/video-stream', 'verb' => 'GET'],
+
         // YouTube-Embed-Proxy (siehe YoutubeEmbedController-Docblock): gibt dem
         // iOS/iPad-Reader eine echte https-Origin für YouTube-iframes, damit
         // der Player nicht mit Error 153 abbricht (loadFileURL-Origin ist file://).

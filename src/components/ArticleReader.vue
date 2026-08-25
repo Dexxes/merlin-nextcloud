@@ -294,8 +294,19 @@
 					</div>
 				</header>
 
-				<!-- eslint-disable-next-line vue/no-v-html -->
-				<div class="article-body" v-html="processedContent" />
+				<div class="article-body" :class="{ 'has-native-video': videoPlayable }">
+					<!-- eslint-disable-next-line vue/no-v-html -->
+					<div v-if="heroAndRestContent.heroHtml" v-html="heroAndRestContent.heroHtml" />
+
+					<VideoPlayer
+						v-if="article.url"
+						:article-id="article.id"
+						:article-url="article.url"
+						@playable-change="videoPlayable = $event" />
+
+					<!-- eslint-disable-next-line vue/no-v-html -->
+					<div v-html="heroAndRestContent.restHtml" />
+				</div>
 
 				<!-- Article footer -->
 				<footer class="article-footer">
@@ -343,6 +354,7 @@ import * as articlesAPI from '../api/articles'
 import * as highlightsAPI from '../api/highlights'
 import { HighlightEngine } from '../highlight-engine'
 import ShareLinkDialog from './ShareLinkDialog.vue'
+import VideoPlayer from './VideoPlayer.vue'
 
 const TAG_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899']
 
@@ -380,6 +392,7 @@ export default {
 		ShareVariant,
 		LinkVariant,
 		ShareLinkDialog,
+		VideoPlayer,
 		ContentCopy,
 		Email,
 		Butterfly,
@@ -418,6 +431,10 @@ export default {
 			shareMenuStyle: {},
 			shareLinkDialogOpen: false,
 			hasNativeShare: typeof navigator !== 'undefined' && !!navigator.share,
+			// true, sobald VideoPlayer erfolgreich einen nativen Stream lädt -
+			// blendet dann den redundanten "Zum Video"-Fallback-Link aus (siehe
+			// .merlin-video-fallback-link weiter unten).
+			videoPlayable: false,
 			isMobile: false,
 			showBottomBar: true,
 			_lastScrollTop: 0,
@@ -532,6 +549,26 @@ export default {
 		processedContent() {
 			return this.article.content || ''
 		},
+
+		// Trennt eine führende <figure class="merlin-hero-image"> (siehe
+		// ContentExtractorService Step 12) vom restlichen Content ab, damit der
+		// VideoPlayer zwischen Hero-Bild und Rest platziert werden kann statt
+		// immer ganz oben. Nur ein Split, wenn die Figure wirklich das erste
+		// Element ist - sonst bleibt alles wie zuvor in restHtml.
+		heroAndRestContent() {
+			const html = this.processedContent
+			if (!html) return { heroHtml: '', restHtml: html }
+
+			const doc = new DOMParser().parseFromString(html, 'text/html')
+			const hero = doc.body.firstElementChild
+			if (!hero || hero.tagName !== 'FIGURE' || !hero.classList.contains('merlin-hero-image')) {
+				return { heroHtml: '', restHtml: html }
+			}
+
+			const heroHtml = hero.outerHTML
+			hero.remove()
+			return { heroHtml, restHtml: doc.body.innerHTML }
+		},
 	},
 
 	watch: {
@@ -545,6 +582,7 @@ export default {
 				this._restoreScrollPosition()
 				this._initHighlights()
 				this._addImageErrorHandlers()
+				this._executeEmbedScripts()
 			})
 		},
 	},
@@ -578,6 +616,7 @@ export default {
 			this._restoreScrollPosition()
 			this._initHighlights()
 			this._addImageErrorHandlers()
+			this._executeEmbedScripts()
 			if (this.$refs.readerContent) {
 				this._onScroll = this._handleScroll.bind(this)
 				this.$refs.readerContent.addEventListener('scroll', this._onScroll, { passive: true })
@@ -889,6 +928,28 @@ export default {
 			this._lastScrollTop = newOffset
 		},
 
+		// ── Embed-Widget-Skripte (Instagram/X) ──────────────────────────────
+
+		// v-html setzt den Inhalt über .innerHTML – <script>-Tags, die dabei ins
+		// DOM gelangen, werden vom Browser NIE ausgeführt (Standardverhalten,
+		// nicht Vue-spezifisch). Der Sanitizer lässt aber genau zwei <script>-Tags
+		// durch (isAllowedWidgetScriptSrc() im Backend: Instagrams embed.js,
+		// X' widgets.js) – ohne diesen Schritt blieben deren <blockquote>s für
+		// immer als reiner Link/Zitat-Fallback stehen, statt zum Post/Reel zu
+		// werden. Jedes gefundene <script> wird deshalb durch eine neu erzeugte
+		// Kopie ersetzt; nur DAS bringt den Browser dazu, es auszuführen.
+		_executeEmbedScripts() {
+			const bodyEl = this.$el?.querySelector('.article-body')
+			if (!bodyEl) return
+			bodyEl.querySelectorAll('script').forEach(oldScript => {
+				const newScript = document.createElement('script')
+				for (const attr of oldScript.attributes) {
+					newScript.setAttribute(attr.name, attr.value)
+				}
+				oldScript.replaceWith(newScript)
+			})
+		},
+
 		// ── Image error placeholders ────────────────────────────────────────
 
 		_addImageErrorHandlers() {
@@ -1178,6 +1239,13 @@ article {
 	line-height: inherit;
 }
 
+/* Der "Zum Video"-Fallback-Link (siehe ContentExtractorService, Video-Zweig)
+   wird redundant, sobald VideoPlayer erfolgreich einen nativen Stream
+   gefunden hat - videoPlayable steuert diese Klasse. */
+.article-body.has-native-video :deep(.merlin-video-fallback-link) {
+	display: none;
+}
+
 .article-body :deep(p) {
 	margin: 1.5em 0;
 }
@@ -1188,6 +1256,35 @@ article {
 	display: block;
 	margin: 2em auto;
 	border-radius: 4px;
+}
+
+/* Video-Embeds (YouTube/Vimeo/Twitch/TikTok/Facebook/Arte), siehe
+   isAllowedVideoEmbedSrc() im Backend. 16:9 als bester Kompromiss über alle
+   Hosts hinweg – einzelne Embeds bringen zwar eigene width/height mit, die
+   überschreiben sich per Inline-Attribut aber nicht gegen dieses CSS. */
+.article-body :deep(iframe) {
+	display: block;
+	width: 100%;
+	max-width: 100%;
+	aspect-ratio: 16 / 9;
+	border: 0;
+	margin: 2em auto;
+}
+
+/* Instagram-/X-Embeds (siehe isAllowedWidgetScriptSrc()) rendern sich nach
+   dem Laden des Widget-Skripts selbst komplett neu und bringen ihr eigenes
+   Kartendesign mit – die generische Zitat-Optik für <blockquote> unten würde
+   nur bis zum Laden sichtbar sein und dann falsch wirken, deshalb hier
+   zurückgesetzt. */
+.article-body :deep(blockquote.instagram-media),
+.article-body :deep(blockquote.twitter-tweet) {
+	border-left: none;
+	padding-left: 0;
+	font-style: normal;
+	color: inherit;
+	max-width: 100%;
+	overflow: hidden;
+	margin: 2em auto;
 }
 
 .article-body :deep(.img-placeholder) {

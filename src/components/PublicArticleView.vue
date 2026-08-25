@@ -119,6 +119,7 @@ export default {
 				this.$nextTick(() => {
 					if (this.$refs.bodyEl) {
 						renderHighlightsReadOnly(this.$refs.bodyEl, this.article.highlights || [])
+						this._executeEmbedScripts()
 					}
 				})
 			} catch (error) {
@@ -133,6 +134,25 @@ export default {
 					this.state = 'error'
 				}
 			}
+		},
+
+		// v-html setzt den Inhalt über .innerHTML – <script>-Tags, die dabei ins
+		// DOM gelangen, werden vom Browser NIE ausgeführt (Standardverhalten,
+		// nicht Vue-spezifisch). Der Sanitizer lässt aber genau zwei <script>-Tags
+		// durch (isAllowedWidgetScriptSrc() im Backend: Instagrams embed.js, X'
+		// widgets.js) – ohne diesen Schritt blieben deren <blockquote>s für immer
+		// als reiner Link/Zitat-Fallback stehen, statt zum Post/Reel zu werden.
+		// Jedes gefundene <script> wird deshalb durch eine neu erzeugte Kopie
+		// ersetzt; nur DAS bringt den Browser dazu, es auszuführen.
+		_executeEmbedScripts() {
+			if (!this.$refs.bodyEl) return
+			this.$refs.bodyEl.querySelectorAll('script').forEach(oldScript => {
+				const newScript = document.createElement('script')
+				for (const attr of oldScript.attributes) {
+					newScript.setAttribute(attr.name, attr.value)
+				}
+				oldScript.replaceWith(newScript)
+			})
 		},
 
 		async handleUnlock() {
@@ -293,6 +313,27 @@ export default {
 .pav-body :deep(img) {
 	max-width: 100%;
 	height: auto;
+}
+
+/* Video-Embeds (YouTube/Vimeo/Twitch/TikTok/Facebook/Arte), siehe
+   isAllowedVideoEmbedSrc() im Backend. */
+.pav-body :deep(iframe) {
+	display: block;
+	width: 100%;
+	max-width: 100%;
+	aspect-ratio: 16 / 9;
+	border: 0;
+	margin: 2em auto;
+}
+
+/* Instagram-/X-Embeds (siehe isAllowedWidgetScriptSrc()) rendern sich nach
+   dem Laden des Widget-Skripts selbst neu und bringen ihr eigenes
+   Kartendesign mit. */
+.pav-body :deep(blockquote.instagram-media),
+.pav-body :deep(blockquote.twitter-tweet) {
+	max-width: 100%;
+	overflow: hidden;
+	margin: 2em auto;
 }
 
 .pav-body :deep(p) {
