@@ -54,7 +54,7 @@ class VideoStreamResolverService {
 	}
 
 	/**
-	 * @return array{type: 'hls', variants: list<array{label: string, url: string}>, defaultIndex: int}|null
+	 * @return array{type: 'hls', variants: list<array{label: string, url: string, subtitleLanguage?: string|null}>, defaultIndex: int}|null
 	 */
 	public function resolve(string $articleUrl): ?array {
 		$host = strtolower((string) parse_url($articleUrl, PHP_URL_HOST));
@@ -384,14 +384,16 @@ class VideoStreamResolverService {
 		// "API_HLS_NG_MA" statt nur "HLS..."), deshalb str_contains() statt
 		// str_starts_with() - Letzteres hatte hier jeden Stream verworfen.
 		//
-		// Mehrere Sprach-/Untertitel-Kombinationen ("Originalfassung - UT
-		// deutsch" etc.) sind bei Arte KEINE eigenen Stream-Einträge/URLs
-		// wie bei ARD/ZDF, sondern Audio-/Untertitel-Spuren INNERHALB eines
-		// einzigen HLS-Manifests (stream.versions[]) - eine Sprachauswahl
-		// über das Varianten-Dropdown ist hier also (noch) nicht möglich,
-		// das bräuchte eine separate Anbindung an hls.js' Audio-Track-API.
-		// Label orientiert sich deshalb an der Qualität, falls es doch
-		// mehrere Stream-Einträge gibt (z. B. unterschiedliche Auflösungen).
+		// Anders als zunächst angenommen sind die Sprach-/Untertitel-
+		// Kombinationen ("Originalfassung - UT deutsch" etc.) bei Arte
+		// SEHR WOHL eigene Stream-Einträge mit jeweils eigener Manifest-URL
+		// (genau wie bei ARD/ZDF) - live verifiziert per API-Response:
+		// jeder streams[]-Eintrag trägt eine eigene .url UND ein
+		// .versions[]-Array mit dem eigentlichen Label ("Originalfassung -
+		// UT deutsch", "Originalfassung", …), während .mainQuality.label
+		// nur die Bildqualität beschreibt (z. B. "720p") und deshalb NICHT
+		// zum Beschriften taugt - das hatte zuvor zu einem für alle
+		// Varianten identischen "720p"-Label geführt.
 		$variants = [];
 		foreach ($streams as $stream) {
 			if (!is_array($stream)) {
@@ -402,12 +404,43 @@ class VideoStreamResolverService {
 			if (!str_contains($protocol, 'HLS') || !is_string($url) || !$this->looksLikeHlsUrl($url)) {
 				continue;
 			}
-			$label = $this->firstNonEmptyString([$stream['mainQuality']['label'] ?? null])
-				?? ('Version ' . (count($variants) + 1));
-			$variants[] = ['label' => $label, 'url' => $url];
+			$versions = $stream['versions'] ?? null;
+			$firstVersion = is_array($versions) && is_array($versions[0] ?? null) ? $versions[0] : null;
+			$label = $this->firstNonEmptyString([
+				$firstVersion['label'] ?? null,
+				$firstVersion['shortLabel'] ?? null,
+			]) ?? ('Version ' . (count($variants) + 1));
+			// Jedes Manifest bettet offenbar trotzdem mehrere Untertitel-Spuren
+			// ein statt nur die zur Version passende - Browser/hls.js wählen
+			// sonst per Systemsprache aus, nicht nach der hier gewählten
+			// Version ("UT französisch" zeigte z. B. weiterhin deutsche UT).
+			// subtitleLanguage kommt deshalb mit, damit das Frontend die
+			// passende Spur nach dem Laden aktiv erzwingen kann - "und"
+			// bedeutet laut Arte-API "keine Untertitel" für diese Version.
+			$subtitleLanguage = is_string($firstVersion['subtitleLanguage'] ?? null)
+				? $firstVersion['subtitleLanguage']
+				: null;
+			$variants[] = ['label' => $label, 'url' => $url, 'subtitleLanguage' => $subtitleLanguage];
 		}
 
-		return $this->buildVariantResult($variants);
+		$result = $this->buildVariantResult($variants);
+		if ($result === null) {
+			return null;
+		}
+
+		// Kein Varianten-Dropdown für Arte: Die Tonspur ist über alle
+		// Versionen hinweg identisch (immer die Originalfassung), die
+		// einzige echte Auswahl ist die Untertitelsprache - und die lässt
+		// sich bereits über die native CC-Schaltfläche des <video>-Elements
+		// steuern (siehe subtitleLanguage oben). Ein zusätzliches Dropdown
+		// wäre redundant, deshalb nur die als Standard gewählte Variante
+		// zurückgeben - VideoPlayer.vue blendet das Dropdown ohnehin schon
+		// aus, sobald variants.length <= 1 ist.
+		return [
+			'type'         => 'hls',
+			'variants'     => [$result['variants'][$result['defaultIndex']]],
+			'defaultIndex' => 0,
+		];
 	}
 
 	// ──────────────────────────────────────────────────────────────────────
@@ -470,8 +503,8 @@ class VideoStreamResolverService {
 	 * Gebärdensprache/Audiodeskription nie stillschweigend die Vorauswahl
 	 * ist - bleibt aber im Dropdown wählbar.
 	 *
-	 * @param list<array{label: string, url: string}> $variants
-	 * @return array{type: 'hls', variants: list<array{label: string, url: string}>, defaultIndex: int}|null
+	 * @param list<array{label: string, url: string, subtitleLanguage?: string|null}> $variants
+	 * @return array{type: 'hls', variants: list<array{label: string, url: string, subtitleLanguage?: string|null}>, defaultIndex: int}|null
 	 */
 	private function buildVariantResult(array $variants): ?array {
 		$seenUrls = [];
