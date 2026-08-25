@@ -295,17 +295,25 @@
 				</header>
 
 				<div class="article-body" :class="{ 'has-native-video': videoPlayable }">
+					<!-- data-hl-flatten: the hero/rest split (see heroAndRestContent) and the
+						VideoPlayer inserted between them are presentational only - they don't
+						exist in the raw article-content HTML that highlight XPaths are computed
+						against on other platforms. highlight-engine.js sees through
+						data-hl-flatten wrappers (their children count as direct children of
+						.article-body) and skips data-hl-exclude subtrees entirely, so a
+						highlight's XPath still resolves as if this split never happened. -->
 					<!-- eslint-disable-next-line vue/no-v-html -->
-					<div v-if="heroAndRestContent.heroHtml" v-html="heroAndRestContent.heroHtml" />
+					<div v-if="heroAndRestContent.heroHtml" data-hl-flatten v-html="heroAndRestContent.heroHtml" />
 
 					<VideoPlayer
 						v-if="article.url"
+						data-hl-exclude
 						:article-id="article.id"
 						:article-url="article.url"
 						@playable-change="videoPlayable = $event" />
 
 					<!-- eslint-disable-next-line vue/no-v-html -->
-					<div v-html="heroAndRestContent.restHtml" />
+					<div data-hl-flatten v-html="heroAndRestContent.restHtml" />
 				</div>
 
 				<!-- Article footer -->
