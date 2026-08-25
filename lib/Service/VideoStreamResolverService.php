@@ -54,7 +54,7 @@ class VideoStreamResolverService {
 	}
 
 	/**
-	 * @return array{type: 'hls', variants: list<array{label: string, url: string}>, defaultIndex: int, variantMode: 'url'|'audioTrack'}|null
+	 * @return array{type: 'hls', variants: list<array{label: string, url: string}>, defaultIndex: int}|null
 	 */
 	public function resolve(string $articleUrl): ?array {
 		$host = strtolower((string) parse_url($articleUrl, PHP_URL_HOST));
@@ -387,13 +387,11 @@ class VideoStreamResolverService {
 		// Mehrere Sprach-/Untertitel-Kombinationen ("Originalfassung - UT
 		// deutsch" etc.) sind bei Arte KEINE eigenen Stream-Einträge/URLs
 		// wie bei ARD/ZDF, sondern Audio-/Untertitel-Spuren INNERHALB eines
-		// einzigen HLS-Manifests (stream.versions[]). Diese Methode liefert
-		// deshalb weiterhin nur EINE Manifest-URL (nach Qualität dedupliziert,
-		// falls es doch mehrere Stream-Einträge gibt); die Sprachauswahl
-		// selbst passiert im Frontend über hls.js' Audio-Track-API
-		// (Hls.Events.AUDIO_TRACKS_UPDATED / hls.audioTrack), sobald das
-		// Manifest geladen ist - dafür markiert buildVariantResult() das
-		// Ergebnis unten mit variantMode 'audioTrack' statt 'url'.
+		// einzigen HLS-Manifests (stream.versions[]) - eine Sprachauswahl
+		// über das Varianten-Dropdown ist hier also (noch) nicht möglich,
+		// das bräuchte eine separate Anbindung an hls.js' Audio-Track-API.
+		// Label orientiert sich deshalb an der Qualität, falls es doch
+		// mehrere Stream-Einträge gibt (z. B. unterschiedliche Auflösungen).
 		$variants = [];
 		foreach ($streams as $stream) {
 			if (!is_array($stream)) {
@@ -409,7 +407,7 @@ class VideoStreamResolverService {
 			$variants[] = ['label' => $label, 'url' => $url];
 		}
 
-		return $this->buildVariantResult($variants, 'audioTrack');
+		return $this->buildVariantResult($variants);
 	}
 
 	// ──────────────────────────────────────────────────────────────────────
@@ -473,10 +471,9 @@ class VideoStreamResolverService {
 	 * ist - bleibt aber im Dropdown wählbar.
 	 *
 	 * @param list<array{label: string, url: string}> $variants
-	 * @param 'url'|'audioTrack' $variantMode
-	 * @return array{type: 'hls', variants: list<array{label: string, url: string}>, defaultIndex: int, variantMode: 'url'|'audioTrack'}|null
+	 * @return array{type: 'hls', variants: list<array{label: string, url: string}>, defaultIndex: int}|null
 	 */
-	private function buildVariantResult(array $variants, string $variantMode = 'url'): ?array {
+	private function buildVariantResult(array $variants): ?array {
 		$seenUrls = [];
 		$deduped = [];
 		foreach ($variants as $variant) {
@@ -498,7 +495,7 @@ class VideoStreamResolverService {
 			}
 		}
 
-		return ['type' => 'hls', 'variants' => $deduped, 'defaultIndex' => $defaultIndex, 'variantMode' => $variantMode];
+		return ['type' => 'hls', 'variants' => $deduped, 'defaultIndex' => $defaultIndex];
 	}
 
 	/**
