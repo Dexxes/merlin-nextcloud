@@ -297,19 +297,29 @@
 				<div class="article-body" :class="{ 'has-native-video': videoPlayable }">
 					<!-- Bei abspielbarem Video dient das Hero-Bild als Poster im
 						Player (siehe :poster-url unten) statt zusätzlich separat
-						darüber angezeigt zu werden. -->
+						darüber angezeigt zu werden.
+
+						data-hl-flatten: der Hero/Rest-Split (siehe heroAndRestContent) und der
+						dazwischen eingefügte VideoPlayer sind rein präsentationell - sie
+						existieren nicht im rohen article-content-HTML, gegen das Highlight-XPaths
+						auf anderen Plattformen berechnet werden. highlight-engine.js sieht durch
+						data-hl-flatten-Wrapper hindurch (ihre Kinder zählen als direkte Kinder von
+						.article-body) und überspringt data-hl-exclude-Teilbäume komplett, sodass
+						der XPath eines Highlights weiterhin so auflöst, als hätte dieser Split nie
+						stattgefunden. -->
 					<!-- eslint-disable-next-line vue/no-v-html -->
-					<div v-if="heroAndRestContent.heroHtml && !videoPlayable" v-html="heroAndRestContent.heroHtml" />
+					<div v-if="heroAndRestContent.heroHtml && !videoPlayable" data-hl-flatten v-html="heroAndRestContent.heroHtml" />
 
 					<VideoPlayer
 						v-if="article.url"
+						data-hl-exclude
 						:article-id="article.id"
 						:article-url="article.url"
 						:poster-url="heroAndRestContent.heroImageUrl"
 						@playable-change="videoPlayable = $event" />
 
 					<!-- eslint-disable-next-line vue/no-v-html -->
-					<div v-html="heroAndRestContent.restHtml" />
+					<div data-hl-flatten v-html="heroAndRestContent.restHtml" />
 				</div>
 
 				<!-- Article footer -->
