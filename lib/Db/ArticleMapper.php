@@ -172,6 +172,37 @@ class ArticleMapper extends QBMapper {
 	}
 
 	/**
+	 * Summiert die Bytegröße der Textspalten aller Artikel eines Nutzers
+	 * (strlen() statt DB-seitigem LENGTH()/OCTET_LENGTH() – vermeidet
+	 * Portabilitätsunterschiede zwischen MySQL/PostgreSQL/SQLite und liefert
+	 * verlässlich die Bytelänge, nicht die Zeichenanzahl). Dient der
+	 * Speicherverbrauchs-Anzeige in den iOS-Einstellungen (Pendant zu
+	 * ArticleRepository::getStorageStats() in merlin-standalone-server).
+	 *
+	 * @return array{count: int, bytes: int}
+	 */
+	public function getStorageStats(string $userId): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('title', 'content', 'excerpt', 'author', 'site_name', 'url', 'image_url')
+			->from($this->getTableName())
+			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)));
+
+		$result = $qb->executeQuery();
+
+		$count = 0;
+		$bytes = 0;
+		while ($row = $result->fetch()) {
+			$count++;
+			foreach ($row as $value) {
+				$bytes += strlen((string)($value ?? ''));
+			}
+		}
+		$result->closeCursor();
+
+		return ['count' => $count, 'bytes' => $bytes];
+	}
+
+	/**
 	 * Reset isProcessing = 0 for every article that has been stuck in the
 	 * processing state for longer than $ageMinutes minutes.
 	 *

@@ -65,6 +65,9 @@ return [
         ['name' => 'settings#get', 'url' => '/api/settings', 'verb' => 'GET'],
         ['name' => 'settings#update', 'url' => '/api/settings', 'verb' => 'PUT'],
 
+        // Speicherverbrauch (für iOS-Einstellungen: DB-Speicher pro Nutzer)
+        ['name' => 'storage#get', 'url' => '/api/storage', 'verb' => 'GET'],
+
         // Content-Filter-Verwaltung (nur Admins; ContentFilterController trägt
         // bewusst kein NoAdminRequired/NoCSRFRequired). Die {domain}-Requirement
         // engt den Platzhalter auf zulässige Domainzeichen ein: unpassende Werte
