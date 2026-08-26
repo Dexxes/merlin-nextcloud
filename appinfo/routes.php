@@ -16,6 +16,7 @@ return [
         ['name' => 'article#toggleFavorite', 'url' => '/api/articles/{id}/favorite', 'verb' => 'PUT'],
         ['name' => 'article#toggleArchive', 'url' => '/api/articles/{id}/archive', 'verb' => 'PUT'],
         ['name' => 'article#updateProgress', 'url' => '/api/articles/{id}/progress', 'verb' => 'PUT'],
+        ['name' => 'article#retryExtraction', 'url' => '/api/articles/{id}/retry-extraction', 'verb' => 'POST'],
         ['name' => 'article#search', 'url' => '/api/articles/search', 'verb' => 'GET'],
 
         // SSE: push article-ready events when processing finishes
