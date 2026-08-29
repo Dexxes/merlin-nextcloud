@@ -25,6 +25,9 @@ export async function getArticles(filters = {}) {
 	if (filters.category) {
 		params.append('category', filters.category)
 	}
+	if (filters.contentType) {
+		params.append('contentType', filters.contentType)
+	}
 
 	const url = generateUrl(`/apps/merlin/api/articles?${params.toString()}`)
 	const response = await axios.get(url)

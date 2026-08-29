@@ -101,7 +101,8 @@ class ArticleController extends Controller {
 		?bool $isFavorite = null,
 		?bool $isArchived = null,
 		?int $tagId = null,
-		?string $category = null
+		?string $category = null,
+		?string $contentType = null
 	): DataResponse {
 		$filters = array_filter([
 			'is_read'    => $isRead,
@@ -110,6 +111,16 @@ class ArticleController extends Controller {
 			'tag_id'     => $tagId,
 			'category'   => $category,
 		], fn($value) => $value !== null);
+
+		// contentType=page/video: Seiten/Videos-Aufteilung auf oberster Ebene,
+		// orthogonal zu isRead/isFavorite/isArchived. "video" ist gleichbedeutend
+		// mit category=Video; "page" ist alles andere (category ungleich Video).
+		if ($contentType === 'video') {
+			$filters['category'] = 'Video';
+		} elseif ($contentType === 'page') {
+			unset($filters['category']);
+			$filters['not_category'] = 'Video';
+		}
 
 		// Clear articles stuck in processing state from crashed/previous sessions.
 		$this->articleMapper->clearStuckProcessing($this->userId);
