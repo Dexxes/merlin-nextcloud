@@ -5,6 +5,7 @@
 # Build artifacts
 /js/
 /css/*.css.map
+/css/*.css
 appinfo/build.txt
 
 # Development
