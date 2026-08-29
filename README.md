@@ -10,10 +10,10 @@ Born out of frustration with Mozilla killing off Pocket.
 |---|---|---|
 | [`merlin-nextcloud`](https://github.com/Dexxes/merlin-nextcloud) | Nextcloud app (backend + web UI) | PHP 8.0-8.4, Nextcloud 30-35, Vue 3, OCP framework |
 | [`merlin-standalone-server`](https://github.com/Dexxes/merlin-standalone-server) | Standalone server (backend, no Nextcloud) | PHP 8.4, no framework, PDO/SQLite |
-| `merlin-ios` (unreleased) | iOS 18+ | Swift 6, SwiftUI, AVFoundation, SPM |
+| [`merlin-ios`](https://github.com/Dexxes/merlin-ios) | iOS 18+ | Swift 6, SwiftUI, AVFoundation, SPM |
 | `merlin-ipad` (unreleased) | iPadOS 15+ | like iOS (own, lower deployment target) |
 | `merlin-android` (unreleased) | Android 6.0+ (minSdk 23, target 34) | Kotlin, Jetpack Compose  |
-| `merlin-firefox` (unreleased) | Firefox (Manifest V3) | JS/WebExtension |
+| [`merlin-firefox`](https://github.com/Dexxes/merlin-firefox) | Firefox | JS/WebExtension |
 | `merlin-chrome` (unreleased) | Chrome/Edge (Manifest V3) | JS/WebExtension |
 | [`merlin-thunderbird`](https://github.com/Dexxes/merlin-thunderbird) | Thunderbird 115+ | JS |
 
