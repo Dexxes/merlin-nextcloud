@@ -75,6 +75,12 @@ class ArticleMapper extends QBMapper {
 		if (isset($filters['category'])) {
 			$qb->andWhere($qb->expr()->eq('a.category', $qb->createNamedParameter($filters['category'])));
 		}
+		if (isset($filters['not_category'])) {
+			$qb->andWhere($qb->expr()->orX(
+				$qb->expr()->isNull('a.category'),
+				$qb->expr()->neq('a.category', $qb->createNamedParameter($filters['not_category']))
+			));
+		}
 
 		// Favoriten-Ansicht: chronologisch nach Favorisierungszeitpunkt statt
 		// nach Erstellungsdatum sortieren. Archiv-Ansicht analog nach
@@ -129,11 +135,13 @@ class ArticleMapper extends QBMapper {
 
 		$result = $qb->executeQuery();
 
-		$total = 0;
-		$unread = 0;
-		$favorites = 0;
-		$archived = 0;
-		$videos = 0;
+		// Seiten/Videos sind die obersten Kategorien (category = "Video" oder
+		// nicht), Unread/Favorites/Archived darunter je Kategorie gezählt -
+		// siehe getCounts() in merlin-standalone-server/src/Db/ArticleRepository.php.
+		$counts = [
+			'pages'  => ['total' => 0, 'unread' => 0, 'favorites' => 0, 'archived' => 0],
+			'videos' => ['total' => 0, 'unread' => 0, 'favorites' => 0, 'archived' => 0],
+		];
 
 		while ($row = $result->fetch()) {
 			$isArchived = (bool)(int)$row['is_archived'];
@@ -141,34 +149,25 @@ class ArticleMapper extends QBMapper {
 			// Rohes SELECT ohne Entity-Hydration: is_favorite ist hier ein
 			// DATETIME-String oder NULL, kein Integer mehr – nicht (int)/(bool)
 			// casten (führt bei Datums-Strings zu Fehlinterpretation).
-			$favorite   = $row['is_favorite'] !== null;
-			$isVideo    = ($row['category'] ?? '') === 'Video';
+			$favorite = $row['is_favorite'] !== null;
+			$group    = ($row['category'] ?? '') === 'Video' ? 'videos' : 'pages';
 
 			if ($isArchived) {
-				$archived++;
+				$counts[$group]['archived']++;
 			} else {
-				$total++;
+				$counts[$group]['total']++;
 				if (!$read) {
-					$unread++;
-				}
-				if ($isVideo) {
-					$videos++;
+					$counts[$group]['unread']++;
 				}
 			}
 			if ($favorite) {
-				$favorites++;
+				$counts[$group]['favorites']++;
 			}
 		}
 
 		$result->closeCursor();
 
-		return [
-			'total'     => $total,
-			'unread'    => $unread,
-			'favorites' => $favorites,
-			'archived'  => $archived,
-			'videos'    => $videos,
-		];
+		return $counts;
 	}
 
 	/**

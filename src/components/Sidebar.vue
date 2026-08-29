@@ -14,52 +14,83 @@
 				</NcButton>
 			</div>
 
-			<!-- Top-level filters -->
+			<!-- Top-level filters: Pages and Videos, each with their own
+			     Unread(/Unwatched)/Favorites/Archived sub-views. -->
+			<li class="filter-caption-row app-navigation-caption">
+				<span class="filter-caption-label">{{ t('merlin', 'Pages') }}</span>
+			</li>
 			<NcAppNavigationItem
 				:name="t('merlin', 'Unread')"
-				:active="currentFilter === 'unread'"
-				@click="$emit('filter', 'unread')">
+				:active="currentFilter === 'pages-unread'"
+				@click="$emit('filter', 'pages-unread')">
 				<template #icon>
 					<InboxOutline :size="20" />
 				</template>
 				<template #counter>
-					<NcCounterBubble :count="counts.unread" />
+					<NcCounterBubble :count="counts.pages.unread" />
 				</template>
 			</NcAppNavigationItem>
 
 			<NcAppNavigationItem
 				:name="t('merlin', 'Favorites')"
-				:active="currentFilter === 'favorites'"
-				@click="$emit('filter', 'favorites')">
+				:active="currentFilter === 'pages-favorites'"
+				@click="$emit('filter', 'pages-favorites')">
 				<template #icon>
 					<Star :size="20" />
 				</template>
 				<template #counter>
-					<NcCounterBubble :count="counts.favorites" />
+					<NcCounterBubble :count="counts.pages.favorites" />
 				</template>
 			</NcAppNavigationItem>
 
 			<NcAppNavigationItem
 				:name="t('merlin', 'Archived')"
-				:active="currentFilter === 'archived'"
-				@click="$emit('filter', 'archived')">
+				:active="currentFilter === 'pages-archived'"
+				@click="$emit('filter', 'pages-archived')">
 				<template #icon>
 					<Archive :size="20" />
 				</template>
 				<template #counter>
-					<NcCounterBubble :count="counts.archived" />
+					<NcCounterBubble :count="counts.pages.archived" />
 				</template>
 			</NcAppNavigationItem>
 
+			<li class="filter-caption-row app-navigation-caption">
+				<span class="filter-caption-label">{{ t('merlin', 'Videos') }}</span>
+			</li>
 			<NcAppNavigationItem
-				:name="t('merlin', 'Video')"
-				:active="currentFilter === 'video'"
-				@click="$emit('filter-category', 'Video')">
+				:name="t('merlin', 'Unwatched')"
+				:active="currentFilter === 'videos-unread'"
+				@click="$emit('filter', 'videos-unread')">
 				<template #icon>
 					<PlayCircleOutline :size="20" />
 				</template>
 				<template #counter>
-					<NcCounterBubble :count="counts.videos" />
+					<NcCounterBubble :count="counts.videos.unread" />
+				</template>
+			</NcAppNavigationItem>
+
+			<NcAppNavigationItem
+				:name="t('merlin', 'Favorites')"
+				:active="currentFilter === 'videos-favorites'"
+				@click="$emit('filter', 'videos-favorites')">
+				<template #icon>
+					<Star :size="20" />
+				</template>
+				<template #counter>
+					<NcCounterBubble :count="counts.videos.favorites" />
+				</template>
+			</NcAppNavigationItem>
+
+			<NcAppNavigationItem
+				:name="t('merlin', 'Archived')"
+				:active="currentFilter === 'videos-archived'"
+				@click="$emit('filter', 'videos-archived')">
+				<template #icon>
+					<Archive :size="20" />
+				</template>
+				<template #counter>
+					<NcCounterBubble :count="counts.videos.archived" />
 				</template>
 			</NcAppNavigationItem>
 
@@ -238,7 +269,6 @@ export default {
 		'add-article',
 		'filter',
 		'filter-tag',
-		'filter-category',
 		'delete-tag',
 		'open-settings',
 	],
@@ -272,6 +302,27 @@ export default {
 .new-article-btn {
 	width: 100%;
 	justify-content: center;
+}
+
+/* ── Pages/Videos filter group captions ──────────────────────────────── */
+.filter-caption-row {
+	display: flex;
+	align-items: center;
+	padding: 4px 12px;
+	min-height: 34px;
+	list-style: none;
+}
+
+.filter-caption-row:not(:first-child) {
+	margin-top: 8px;
+}
+
+.filter-caption-label {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--color-text-maxcontrast);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
 }
 
 /* ── Tags caption ─────────────────────────────────────────────────── */
