@@ -2235,7 +2235,7 @@ class ContentExtractorService {
 		// Erlaubte Tags – deckt den vom Reader gerenderten Inhalt ab (Fließtext,
 		// Listen, Tabellen, Zitate, Bilder/Figuren, semantische Container).
 		static $allowedTags = [
-			'p', 'br', 'hr', 'span', 'div', 'section', 'article', 'header', 'footer', 'aside',
+			'p', 'br', 'hr', 'span', 'div', 'section', 'article', 'header', 'footer', 'aside', 'main',
 			'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
 			'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'del', 'ins', 'mark', 'small', 'sub', 'sup',
 			'a', 'blockquote', 'q', 'cite', 'code', 'pre', 'kbd', 'samp', 'var', 'abbr', 'time',
