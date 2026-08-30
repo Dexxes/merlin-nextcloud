@@ -11,6 +11,9 @@
     <remove id="element-id" />           – Entfernt Elemente mit genau dieser id
     <remove class="teilstring" />        – Entfernt Elemente, deren class diesen Teilstring enthält
     <remove xpath="//div[@data-ad]" />   – Entfernt alle Elemente, die dem XPath entsprechen
+    <infobox id="element-id" />          – Markiert Element als Infokasten (CSS-Klasse merlin-infobox)
+    <infobox class="teilstring" />       – Markiert passende Elemente als Infokasten
+    <infobox xpath="//div[@class='...']"/> – Markiert per XPath als Infokasten
 
   Metadaten-Felder (in <metadata>):
     <title    xpath="..." />   – Seitentitel
@@ -22,7 +25,7 @@
 <domain name="nd-aktuell.de">
 
   <pre-filter>
-    <remove class="Infobox Expand Default" />
+    <infobox class="Infobox" />
     <remove class="Infoline" />
     <remove class="Artikel-Spende" />
     <remove xpath="//h1[1]" />
