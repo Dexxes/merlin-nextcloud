@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Merlin Content-Filter: blog.mozilla.org
+
+  Verfügbare Sektionen:
+    <pre-filter>   – Regeln, die auf das rohe HTML VOR dem Readability-Durchlauf angewendet werden
+    <post-filter>  – Regeln, die auf den von Readability extrahierten HTML-Content angewendet werden
+    <metadata>     – XPath-Regeln zur domain-spezifischen Metadaten-Extraktion (überschreibt Readability)
+
+  Regeltypen (in pre-filter und post-filter):
+    <remove id="element-id" />           – Entfernt Elemente mit genau dieser id
+    <remove class="teilstring" />        – Entfernt Elemente, deren class diesen Teilstring enthält
+    <remove xpath="//div[@data-ad]" />   – Entfernt alle Elemente, die dem XPath entsprechen
+
+  Metadaten-Felder (in <metadata>):
+    <title    xpath="..." />   – Seitentitel
+    <author   xpath="..." />   – Autorenname
+    <excerpt  xpath="..." />   – Teaser / Zusammenfassung
+    <image    xpath="..." />   – Bild-URL (bei @content-Attributen: xpath="//meta[...]/@content")
+    <published xpath="..." />  – Veröffentlichungsdatum (ISO 8601 oder deutsches Format)
+
+  Hinweis: WordPress-Blog (Yoast SEO). Der <title>/og:title-Tag trägt einen
+  abweichenden SEO-Titel, der von der sichtbaren H1-Überschrift abweicht –
+  daher <title> per XPath auf die H1 gesetzt. Veröffentlichungsdatum kommt
+  aus dem Yoast-JSON-LD-Graph (kein <meta property="article:published_time">
+  auf der Seite vorhanden).
+-->
+<domain name="blog.mozilla.org">
+
+  <pre-filter>
+    <remove class="ft-c-single-post__header" />
+    <remove class="ft-c-post-share" />
+    <remove class="ft-c-post-nav" />
+    <remove id="related-articles" />
+  </pre-filter>
+
+  <post-filter>
+    <!-- Hier post-Readability-Remove-Regeln eintragen -->
+  </post-filter>
+
+  <metadata>
+    <title     xpath="//h1[@class='ft-c-single-post__title']" />
+    <author    xpath="//a[@rel='author']" />
+    <excerpt   xpath="//meta[@property='og:description']/@content" />
+    <image     xpath="//meta[@property='og:image']/@content" />
+    <published json="$.@graph[0].datePublished" />
+  </metadata>
+
+</domain>
