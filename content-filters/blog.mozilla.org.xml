@@ -30,6 +30,8 @@
   <pre-filter>
     <remove class="ft-c-single-post__header" />
     <remove class="ft-c-post-share" />
+    <remove class="ft-c-search" />
+    <remove class="skip-link screen-reader-text" />
     <remove class="ft-c-post-nav" />
     <remove id="related-articles" />
   </pre-filter>
