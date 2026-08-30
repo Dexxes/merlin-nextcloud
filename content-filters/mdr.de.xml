@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Merlin Content-Filter: stadt-bremerhaven.de
+  Merlin Content-Filter: mdr.de
 
   Verfügbare Sektionen:
     <pre-filter>   – Regeln, die auf das rohe HTML VOR dem Readability-Durchlauf angewendet werden
@@ -18,14 +18,22 @@
     <excerpt  xpath="..." />   – Teaser / Zusammenfassung
     <image    xpath="..." />   – Bild-URL (bei @content-Attributen: xpath="//meta[...]/@content")
     <published xpath="..." />  – Veröffentlichungsdatum (ISO 8601 oder deutsches Format)
+
+  Hinweis: mdr.de wurde seit dem letzten Filter-Update redesignt – die alten
+  Klassen (conDetailHeader, cssBoxTeaserStandard, jumpLabelList) existieren
+  nicht mehr und wurden durch die aktuellen ersetzt. Der Vorspann-Absatz
+  (p.preface) im Artikelkopf ist echter, einmaliger Lauftext (kein Duplikat)
+  und bleibt bewusst erhalten – nur Rubrik-Pill, H1 und Datumszeile im Kopf
+  duplizieren die separat extrahierten Metadaten und werden entfernt.
 -->
 <domain name="mdr.de">
 
   <pre-filter>
-    <remove xpath="//div[@class='con conDetailHeader ']" />
-    <remove xpath="//div[@class='con cssBoxTeaserStandard conInline']" />
-    <remove class="jumpLabelList" />
-    
+    <remove xpath="//header[contains(@class,'articlehead')]/h1" />
+    <remove class="topline" />
+    <remove class="lastchanged" />
+    <remove class="quicklinks" />
+    <remove class="textauthor" />
   </pre-filter>
 
   <post-filter>
@@ -33,13 +41,9 @@
   </post-filter>
 
   <metadata>
-    <!-- Beispiele:
-    <title    xpath="//h1[@class='article-title']" />
-    <author   xpath="//span[@class='author-name']" />
-    <excerpt  xpath="//p[@class='article-intro']" />
-    <image    xpath="//meta[@property='og:image']/@content" />
-    <published xpath="//time[@itemprop='datePublished']/@datetime" />
-    -->
+    <author    xpath="//meta[@name='author']/@content" />
+    <excerpt   xpath="//meta[@property='og:description']/@content" />
+    <image     xpath="//meta[@property='og:image']/@content" />
   </metadata>
 
 </domain>
