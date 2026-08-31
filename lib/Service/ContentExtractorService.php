@@ -1916,7 +1916,7 @@ class ContentExtractorService {
 			if ($value !== '')
 			{
 				if (count($value) > 1)
-					$value = implode('', $value);
+					$value = implode(', ', $value);
 				else
 					$value = $value[0];
 

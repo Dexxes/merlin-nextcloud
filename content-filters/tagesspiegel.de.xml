@@ -81,11 +81,10 @@
          OG_FALLBACK_XPATHS) findet daher nichts und Autorennamen fehlten
          komplett. Die Bylines stecken stattdessen in strukturiertem Markup:
            <ul><li property="author" typeof="Person"><a property="url name">Name</a></li>...</ul>
-         Mehrere Autoren werden hier per CSS (::before-Content) mit Komma
-         getrennt dargestellt, nicht im HTML-Text – daher matcht die xpath
-         das umschließende <ul> als einzelnen Knoten, dessen textContent die
-         Namen nur durch ein einzelnes Leerzeichen getrennt liefert. -->
-    <author xpath="//ul[li[@property='author']]" />
+         Bei mehreren Autoren matcht die xpath alle <a>-Knoten einzeln; die
+         Metadaten-Engine joint mehrere XPath-Treffer automatisch mit ", "
+         (siehe extractDomainMetadata()). -->
+    <author xpath="//li[@property='author']/a" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
     <author   xpath="//span[@class='author-name']" />
