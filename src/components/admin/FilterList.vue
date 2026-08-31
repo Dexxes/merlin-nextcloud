@@ -13,7 +13,7 @@
 					:class="{ 'filter-list__item--active': filter.domain === selected }"
 					:disabled="busy"
 					@click="$emit('select', filter.domain)">
-					<span class="filter-list__domain">{{ filter.domain }}</span>
+					<span class="filter-list__domain">{{ displayDomain(filter.domain) }}</span>
 					<span class="filter-list__badges">
 						<span v-if="filter.hasBundle" class="filter-list__badge" :title="t('merlin', 'Shipped with the app')">
 							{{ t('merlin', 'built-in') }}
@@ -45,7 +45,7 @@
 						id="merlin-new-domain"
 						v-model="newDomain"
 						type="text"
-						placeholder="beispiel.de">
+						placeholder="beispiel.de oder *.beispiel.de">
 					<button type="submit" :disabled="!newDomain.trim()">
 						<Plus :size="18" />
 					</button>
@@ -100,8 +100,22 @@ export default {
 
 	methods: {
 		submitNew() {
-			this.$emit('create', this.newDomain)
+			this.$emit('create', this.toBackendDomain(this.newDomain))
 			this.newDomain = ''
+		},
+
+		// "*." ist im Dateisystem kein zulässiges Dateinamenszeichen (Bundle-Filter
+		// liegen als <domain>.xml) – die API erwartet die Wildcard-Domain deshalb
+		// als "_.<basis>" (z. B. "_.beehive.com" für "*.beehive.com"). Diese beiden
+		// Methoden übersetzen an der einzigen Stelle, an der Nutzer den Domainnamen
+		// eingeben bzw. angezeigt bekommen.
+		toBackendDomain(input) {
+			const trimmed = String(input || '').trim().toLowerCase()
+			return trimmed.startsWith('*.') ? '_.' + trimmed.slice(2) : trimmed
+		},
+
+		displayDomain(domain) {
+			return domain.startsWith('_.') ? '*.' + domain.slice(2) : domain
 		},
 
 		onFile(event) {
