@@ -76,28 +76,28 @@ return [
         ['name' => 'contentFilter#index',   'url' => '/api/admin/content-filters', 'verb' => 'GET'],
         ['name' => 'contentFilter#import',  'url' => '/api/admin/content-filters/import', 'verb' => 'POST'],
         ['name' => 'contentFilter#show',    'url' => '/api/admin/content-filters/{domain}', 'verb' => 'GET',
-            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+            'requirements' => ['domain' => '[a-z0-9._\-]+']],
         ['name' => 'contentFilter#update',  'url' => '/api/admin/content-filters/{domain}', 'verb' => 'PUT',
-            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+            'requirements' => ['domain' => '[a-z0-9._\-]+']],
         ['name' => 'contentFilter#destroy', 'url' => '/api/admin/content-filters/{domain}', 'verb' => 'DELETE',
-            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+            'requirements' => ['domain' => '[a-z0-9._\-]+']],
         ['name' => 'contentFilter#test',    'url' => '/api/admin/content-filters/{domain}/test', 'verb' => 'POST',
-            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+            'requirements' => ['domain' => '[a-z0-9._\-]+']],
         ['name' => 'contentFilter#export',  'url' => '/api/admin/content-filters/{domain}/export', 'verb' => 'GET',
-            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+            'requirements' => ['domain' => '[a-z0-9._\-]+']],
 
         // Persönliche Content-Filter-Overrides (jeder eingeloggte Nutzer; eigener
         // Routen-Präfix statt /api/admin/... zu teilen, damit die Berechtigungsgrenze
         // nicht verwischt – siehe UserContentFilterController-Docblock).
         ['name' => 'userContentFilter#index',   'url' => '/api/user/content-filters', 'verb' => 'GET'],
         ['name' => 'userContentFilter#show',    'url' => '/api/user/content-filters/{domain}', 'verb' => 'GET',
-            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+            'requirements' => ['domain' => '[a-z0-9._\-]+']],
         ['name' => 'userContentFilter#update',  'url' => '/api/user/content-filters/{domain}', 'verb' => 'PUT',
-            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+            'requirements' => ['domain' => '[a-z0-9._\-]+']],
         ['name' => 'userContentFilter#destroy', 'url' => '/api/user/content-filters/{domain}', 'verb' => 'DELETE',
-            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+            'requirements' => ['domain' => '[a-z0-9._\-]+']],
         ['name' => 'userContentFilter#test',    'url' => '/api/user/content-filters/{domain}/test', 'verb' => 'POST',
-            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+            'requirements' => ['domain' => '[a-z0-9._\-]+']],
 
         // Paywall-Abo-Zugangsdaten (jeder eingeloggte Nutzer, eigene private Ebene).
         ['name' => 'siteCredential#index',   'url' => '/api/user/site-credentials', 'verb' => 'GET'],
