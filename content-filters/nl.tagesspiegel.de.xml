@@ -9,17 +9,6 @@
   <div class="mobile-section">-Blöcken, jeweils in <tr><td> einer äußeren
   Tabelle (die Outlook-spezifische Verdopplung dieser Struktur steckt in
   MSO-Conditional-Comments und wird von DOMDocument ohnehin ignoriert).
-
-  Werbeblöcke bestehen aus genau zwei aufeinanderfolgenden mobile-section-
-  Blöcken: zuerst ein reines Label ("Anzeige" in grauer Schrift, kein
-  eigenes class/id-Attribut), danach der eigentliche Anzeigen-Inhalt
-  (Bild+Text via MailChimp-Klassen "mcnCaptionRight…", ein einfaches Bild
-  oder – bei extern eingebuchten Anzeigen – ein komplettes, per
-  copy-paste eingebettetes zweites HTML-Dokument). Die Inhaltsstruktur
-  variiert also von Anzeige zu Anzeige; stabil ist nur, dass IMMER auf
-  das Anzeige-Label der Anzeigen-Container als direktes Folge-Geschwister
-  folgt. Deshalb wird hier nicht der Anzeigeninhalt selbst gematcht,
-  sondern die Position relativ zum Label.
 -->
 <domain name="nl.tagesspiegel.de">
 
@@ -34,4 +23,10 @@
 
   </pre-filter>
 
+
+
+  <metadata>
+    <image xpath="//div[@class='checkpoint-hero-desktop']/img/@src" />
+    <excerpt xpath="//html/body/div[2]/div[2]/table/tbody/tr/td/div[5]/table/tbody/tr/td/div/table/tbody/tr/td/div/h2" />
+  </metadata>
 </domain>
