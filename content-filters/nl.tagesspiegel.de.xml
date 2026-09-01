@@ -27,6 +27,7 @@
 
   <metadata>
     <image xpath="//div[@class='checkpoint-hero-desktop']/img/@src" />
+    <excerpt xpath="//td[@class='ticker-mobile']/div/h2"/>
     <excerpt xpath="//html/body/div[2]/div[2]/table/tbody/tr/td/div[5]/table/tbody/tr/td/div/table/tbody/tr/td/div/h2" />
   </metadata>
 </domain>
