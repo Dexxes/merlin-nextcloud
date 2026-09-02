@@ -72,7 +72,7 @@
     <remove xpath="//div[@element-type='embed']" />
     <remove xpath="//div[@element-type='embedWrapper']" />
     <remove class="tspBFgd" /> <!-- externer Inhalt -->
-    
+    <infobox xpath="//aside[@data-qa-hook='story-infobox']" />
   </pre-filter>
 
   <images>
