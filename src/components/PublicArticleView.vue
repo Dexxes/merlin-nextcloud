@@ -315,6 +315,16 @@ export default {
 	height: auto;
 }
 
+/* Self-hosted <video> (GIF-Ersatz mancher Blogs, siehe sanitizeHtml()) bringt
+   keine sinnvolle Default-Breite mit – ohne diese Regel rendert es in seiner
+   nativen Pixelbreite und sprengt die Artikelspalte. */
+.pav-body :deep(video) {
+	max-width: 100%;
+	height: auto;
+	display: block;
+	margin: 2em auto;
+}
+
 /* Video-Embeds (YouTube/Vimeo/Twitch/TikTok/Facebook/Arte), siehe
    isAllowedVideoEmbedSrc() im Backend. */
 .pav-body :deep(iframe) {
