@@ -1276,6 +1276,18 @@ article {
 	border-radius: 4px;
 }
 
+/* Self-hosted <video> (GIF-Ersatz mancher Blogs, siehe sanitizeHtml()) bringt
+   im Gegensatz zu iframe-Embeds keine sinnvolle Default-Breite mit – ohne
+   diese Regel rendert es in seiner nativen Pixelbreite und sprengt die
+   Artikelspalte. */
+.article-body :deep(video) {
+	max-width: 100%;
+	height: auto;
+	display: block;
+	margin: 2em auto;
+	border-radius: 4px;
+}
+
 /* Video-Embeds (YouTube/Vimeo/Twitch/TikTok/Facebook/Arte), siehe
    isAllowedVideoEmbedSrc() im Backend. 16:9 als bester Kompromiss über alle
    Hosts hinweg – einzelne Embeds bringen zwar eigene width/height mit, die
