@@ -71,6 +71,8 @@
     <remove class="tspCIv" />
     <remove xpath="//div[@element-type='embed']" />
     <remove xpath="//div[@element-type='embedWrapper']" />
+    <remove class="tspBFgd" /> <!-- externer Inhalt -->
+    
   </pre-filter>
 
   <images>
