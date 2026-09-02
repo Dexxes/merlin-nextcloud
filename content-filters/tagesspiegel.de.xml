@@ -69,7 +69,14 @@
   <pre-filter>
     <remove class="tspACfv" />
     <remove class="tspCIv" />
+    <remove xpath="//div[@element-type='embed']" />
+    <remove xpath="//div[@element-type='embedWrapper']" />
   </pre-filter>
+
+  <images>
+    <caption container-xpath="//figure" caption-xpath=".//p | .//figcaption" />
+  </images>
+
 
   <post-filter>
     <!-- Hier post-Readability-Remove-Regeln eintragen -->
@@ -85,11 +92,12 @@
          Metadaten-Engine joint mehrere XPath-Treffer automatisch mit ", "
          (siehe extractDomainMetadata()). -->
     <author xpath="//li[@property='author']/a" />
+    <image    xpath="//meta[@property='og:image']/@content" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
     <author   xpath="//span[@class='author-name']" />
     <excerpt  xpath="//p[@class='article-intro']" />
-    <image    xpath="//meta[@property='og:image']/@content" />
+    
     <published xpath="//time[@itemprop='datePublished']/@datetime" />
     -->
   </metadata>
