@@ -1670,6 +1670,19 @@ class ContentExtractorService {
 			$trace?->record('pre-filter', $rule, $matches);
 		}
 
+		// Tags, die Readability::_clean() in _prepArticle() bedingungslos aus dem
+		// Artikel entfernt – unabhängig von Klasse oder Score (siehe
+		// Readability.php: $this->_clean($article, 'aside') etc.). Ein Infokasten
+		// steckt auf vielen Seiten genau in so einem <aside>; die Klasse
+		// merlin-infobox allein würde ihn also NICHT vor dem Verwerfen retten,
+		// wie es bei den unlikelyCandidates-Regex (siehe okMaybeItsACandidate an
+		// anderer Stelle) der Fall ist. Solche Elemente werden daher zusätzlich
+		// auf einen unbedenklichen Tag (<div>) umgetagged, bevor Readability
+		// läuft. CSS für merlin-infobox greift rein über die Klasse, nicht über
+		// den Tag-Namen (siehe ArticleReader.vue), das Umtaggen ist also optisch
+		// folgenlos.
+		$unsafeTags = ['aside', 'footer'];
+
 		foreach ($toMark as $node) {
 			if (!($node instanceof \DOMElement)) {
 				continue;
@@ -1678,6 +1691,17 @@ class ContentExtractorService {
 			$classes  = preg_split('/\s+/', trim($existing), -1, PREG_SPLIT_NO_EMPTY);
 			if (!in_array('merlin-infobox', $classes, true)) {
 				$node->setAttribute('class', trim($existing . ' merlin-infobox'));
+			}
+
+			if (in_array(strtolower($node->nodeName), $unsafeTags, true) && $node->parentNode !== null) {
+				$replacement = $dom->createElement('div');
+				foreach (iterator_to_array($node->attributes) as $attr) {
+					$replacement->setAttribute($attr->nodeName, $attr->nodeValue);
+				}
+				while ($node->firstChild !== null) {
+					$replacement->appendChild($node->firstChild);
+				}
+				$node->parentNode->replaceChild($replacement, $node);
 			}
 		}
 
