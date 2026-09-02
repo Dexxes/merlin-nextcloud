@@ -443,24 +443,27 @@ class ContentExtractorService {
 
 		// ── Step 12: Hero-Image in Content einfügen ───────────────────────────
 		// Readability entfernt Hero-Bilder aus <figure>-Containern, wenn sie vor
-		// dem Fließtext stehen. Falls der extrahierte Content kein <img> enthält
-		// (geprüft anhand der ersten 1000 Zeichen), aber imageUrl bekannt ist,
-		// wird das Bild als merlin-hero-image an den Anfang prepended.
+		// dem Fließtext stehen. Falls der extrahierte Content NICHT bereits mit
+		// einem Bild beginnt, aber imageUrl bekannt ist, wird das Bild als
+		// merlin-hero-image an den Anfang prepended.
 		// Eine vorhandene <figcaption> aus dem Quell-HTML wird mitübernommen.
 		// Das Bild darf so nur einmal erscheinen – stripDuplicateMetadata läuft danach.
-		$start = mb_substr(trim($content), 0, 2000);
-		if ($normalizedImageUrl !== null && !preg_match('/<img\b/i', $start)) {
+		//
+		// Geprüft wird nur, ob der Content mit einem Bild BEGINNT (nicht: ob
+		// irgendwo in den ersten N Zeichen eines vorkommt) – sonst verhindert ein
+		// früh im Fließtext sitzendes Bild (z. B. innerhalb der ersten zwei, drei
+		// Absätze) fälschlich das Voranstellen des eigentlichen Hero-Bilds, obwohl
+		// Readability den Hero selbst nie behalten hat.
+		$start = ltrim($content);
+		if ($normalizedImageUrl !== null && !preg_match('/^<(img|figure)\b/i', $start)) {
 			$escapedUrl  = htmlspecialchars($normalizedImageUrl, ENT_QUOTES, 'UTF-8');
 			$figcaption  = '';
 			// Caption aus dem HTML-Scan übernehmen (nur wenn kein og:image die imageUrl
 			// geliefert hat – dann stammt $heroImageData von derselben figure).
-			//if (!empty($heroImageData['caption']) && ($heroImageData['src'] ?? null) === $normalizedImageUrl) {
-			$escapedCaption = "";
-			if (!empty($heroImageData['caption']))
+			if (!empty($heroImageData['caption'])) {
 				$escapedCaption = htmlspecialchars($heroImageData['caption'], ENT_QUOTES, 'UTF-8');
-				
 				$figcaption     = '<figcaption>' . $escapedCaption . '</figcaption>';
-			//}
+			}
 			$content = '<figure class="merlin-hero-image"><img src="' . $escapedUrl . '" alt="">' . $figcaption . '</figure>' . $content;
 		}
 
