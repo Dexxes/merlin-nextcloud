@@ -72,6 +72,10 @@ class PageController extends Controller {
 		// Allow loading images from any external domain (articles contain images from various sources)
 		$policy = new ContentSecurityPolicy();
 		$policy->addAllowedImageDomain('*');
+		// Same for self-hosted <video> (e.g. blog GIF replacements, siehe
+		// sanitizeHtml()) – Nextclouds Basis-CSP setzt media-src sonst auf
+		// 'self' und blockiert jedes <video src> von der Artikel-Quelldomain.
+		$policy->addAllowedMediaDomain('*');
 		$response->setContentSecurityPolicy($policy);
 
 		return $response;
