@@ -347,6 +347,91 @@ export default {
 	margin: 2em auto;
 }
 
+/* Mastodon-Post-Karte (siehe MastodonPostResolverService/
+   buildMastodonThreadHtml()): kein Drittanbieter-Widget wie Instagram/X/
+   Bluesky (föderiert, kein zentraler Embed-Host), sondern eigenes,
+   statisches Markup - braucht deshalb echtes Styling. */
+.pav-body :deep(.merlin-mastodon-post) {
+	display: block;
+	border: 1px solid var(--color-border, #ccc);
+	border-radius: 8px;
+	padding: 1em 1.2em;
+	margin: 1.2em 0;
+	color: inherit;
+	font-style: normal;
+}
+
+.pav-body :deep(.merlin-mastodon-post + .merlin-mastodon-post) {
+	margin-top: 0.5em;
+}
+
+.pav-body :deep(.merlin-mastodon-post__header) {
+	display: flex;
+	align-items: center;
+	gap: 0.6em;
+	text-decoration: none;
+	color: inherit;
+	margin-bottom: 0.6em;
+}
+
+.pav-body :deep(.merlin-mastodon-post__avatar) {
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	object-fit: cover;
+	flex-shrink: 0;
+	margin: 0;
+}
+
+.pav-body :deep(.merlin-mastodon-post__author) {
+	display: flex;
+	flex-direction: column;
+	line-height: 1.3;
+	min-width: 0;
+}
+
+.pav-body :deep(.merlin-mastodon-post__name) {
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.pav-body :deep(.merlin-mastodon-post__handle) {
+	color: var(--color-text-lighter, #888);
+	font-size: 0.9em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.pav-body :deep(.merlin-mastodon-post__content p) {
+	margin: 0.5em 0;
+}
+
+.pav-body :deep(.merlin-mastodon-post__content p:first-child) {
+	margin-top: 0;
+}
+
+.pav-body :deep(.merlin-mastodon-post__content p:last-child) {
+	margin-bottom: 0;
+}
+
+.pav-body :deep(.merlin-mastodon-post__media) {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+	gap: 0.5em;
+	margin-top: 0.6em;
+}
+
+.pav-body :deep(.merlin-mastodon-post__media-item) {
+	width: 100%;
+	height: 160px;
+	object-fit: cover;
+	border-radius: 4px;
+	margin: 0;
+}
+
 .pav-body :deep(p) {
 	margin: 1.4em 0;
 }
