@@ -13,7 +13,7 @@ use OCP\Security\CSP\AddContentSecurityPolicyEvent;
  * Allow the Merlin service worker to be registered, and permit the iframe/
  * script embeds ContentExtractorService::sanitizeHtml() lets through the
  * reader content: video-platform iframes (isAllowedVideoEmbedSrc()) and the
- * Instagram/X widget-loader scripts (isAllowedWidgetScriptSrc()).
+ * Instagram/X/TikTok widget-loader scripts (isAllowedWidgetScriptSrc()).
  *
  * Nextcloud's default CSP has no worker-src directive, so browsers
  * fall back to script-src (which requires a per-request nonce) and
@@ -24,10 +24,10 @@ use OCP\Security\CSP\AddContentSecurityPolicyEvent;
  * default-src, which does not include these hosts – the sanitizer would let
  * the markup through but the browser would still refuse to load it. Host
  * list must stay in sync with isAllowedVideoEmbedSrc()/
- * isAllowedWidgetScriptSrc(). The Instagram/X hosts appear in BOTH
+ * isAllowedWidgetScriptSrc(). The Instagram/X/TikTok hosts appear in BOTH
  * frame-src and script-src: their widget script itself injects its own
- * iframe (instagram.com/platform.twitter.com) once it runs, so both
- * directives are needed for the embed to actually render.
+ * iframe (instagram.com/platform.twitter.com/tiktok.com) once it runs, so
+ * both directives are needed for the embed to actually render.
  *
  * connect-src: hls.js (native ARD/ZDF/Arte-Player, siehe
  * VideoStreamResolverService) lädt HLS-Manifest/-Segmente per fetch/XHR statt
@@ -91,6 +91,7 @@ class AddContentSecurityPolicyListener implements IEventListener {
 		$policy->addAllowedScriptDomain('https://www.instagram.com');
 		$policy->addAllowedScriptDomain('https://platform.twitter.com');
 		$policy->addAllowedScriptDomain('https://embed.bsky.app');
+		$policy->addAllowedScriptDomain('https://www.tiktok.com');
 
 		$policy->addAllowedConnectDomain('https://*.ard-mcdn.de');
 		$policy->addAllowedConnectDomain('https://*.akamaized.net');

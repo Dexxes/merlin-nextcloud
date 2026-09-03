@@ -1308,7 +1308,8 @@ article {
    deshalb hier zurückgesetzt. */
 .article-body :deep(blockquote.instagram-media),
 .article-body :deep(blockquote.twitter-tweet),
-.article-body :deep(blockquote.bluesky-embed) {
+.article-body :deep(blockquote.bluesky-embed),
+.article-body :deep(blockquote.tiktok-embed) {
 	border-left: none;
 	padding-left: 0;
 	font-style: normal;
@@ -1326,7 +1327,7 @@ article {
 }
 
 /* Mastodon-Post-Karte (siehe MastodonPostResolverService/
-   buildMastodonThreadHtml()): anders als Instagram/X/Bluesky kein
+   buildMastodonThreadHtml()): anders als Instagram/X/Bluesky/TikTok kein
    Drittanbieter-Widget (föderiert, kein zentraler Embed-Host), sondern
    eigenes, statisches Markup - braucht deshalb echtes Styling statt nur
    eines Platzhalter-Resets. */

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Merlin Content-Filter: instagram.com
+  Kategorie: InstagramPost - überspringt Readability komplett (instagram.com
+  liefert als Single-Page-App praktisch keinen Server-Side-HTML-Content).
+  Wie bei x.com: keine öffentliche API, mit der sich ein Post oder gar eine
+  Kommentar-/Reply-Kette auflösen ließe. Stattdessen ein einzelnes offizielles
+  Post-Embed (www.instagram.com/embed.js, holt den Inhalt selbst client-seitig
+  über Instagrams eigenes oEmbed) - siehe ContentExtractorService,
+  InstagramPost-Zweig. Dieselbe Widget-Infrastruktur (Allowlist/CSP) wurde
+  schon für Instagram-Embeds INNERHALB fremder Artikel genutzt, bevor es
+  diesen eigenen Kategorie-Zweig für direkt eingereichte instagram.com-URLs
+  gab.
+
+  Die <metadata>-Regel unten greift nur als Fallback, falls die URL keine
+  Post-/Reel-/TV-Permalink-Form hat (Profil, Explore, Startseite): Instagram
+  rendert og:title serverseitig für Link-Previews, auch ohne dass der Rest
+  der Seite lädt. Bewusst kein <excerpt> und kein <image>: Posts bekommen
+  weder Excerpt noch Vorschau-/Hero-Bild - statt eines Fotos zeigt der Reader
+  das Instagram-Icon (siehe ContentExtractorService::platformIconUrl()).
+-->
+<domain name="instagram.com">
+
+  <category>InstagramPost</category>
+
+  <pre-filter />
+  <post-filter />
+
+  <metadata>
+    <title    xpath="//meta[@property='og:title']/@content" />
+  </metadata>
+
+</domain>
