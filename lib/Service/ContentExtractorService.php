@@ -528,18 +528,23 @@ class ContentExtractorService {
 			// INNERHALB fremder Artikel). Deshalb auch kein Self-Thread-Walk wie
 			// bei Bluesky/Mastodon, nur der einzelne verlinkte Post. Vorschaubild
 			// ist das Instagram-Icon statt eines Avatars/Fotos, siehe X-Zweig oben.
+			//
+			// Titel bewusst immer der feste String statt eines og:title-Scrapes:
+			// Instagrams Permalink-URL enthält (anders als bei X/TikTok) keinen
+			// Handle, es gibt keine kostenlose API für den echten Autorennamen -
+			// ein gescraptes og:title wäre bestenfalls eine rohe, unformatierte
+			// Caption statt eines sauberen "Post von {Ersteller}"-Titels wie bei
+			// den anderen Plattformen.
+			$title  = 'Instagram-Post';
+			$author = null;
 			$instagramPermalink = $this->parseInstagramPermalink($url);
 			if ($instagramPermalink !== null) {
 				$content = $this->buildInstagramPostHtml($instagramPermalink);
-				$author  = null;
-				$title   = $domainMeta['title'] ?? 'Instagram-Post';
 			} else {
 				// Keine Post-/Reel-/TV-URL (Profil/Explore/Startseite) - einfacher
 				// Link-Fallback statt eines falsch dargestellten Embeds.
 				$escapedInstagramUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
 				$content = '<a href="' . $escapedInstagramUrl . '" class="merlin-instagram-fallback-link">Zum Instagram-Post</a>';
-				$author  = null;
-				$title   = $domainMeta['title'] ?? 'Instagram-Post';
 			}
 			$imageUrl    = $this->platformIconUrl('instagram');
 			$publishedAt = null;
