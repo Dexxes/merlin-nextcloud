@@ -12,6 +12,7 @@ use fivefilters\Readability\ParseException;
 use fivefilters\Readability\Readability;
 use OCA\Merlin\Service\Http\SsrfSafeResolver;
 use OCA\Merlin\Service\Login\PaywallLoginRequiredException;
+use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
 
 class ContentExtractorService {
@@ -93,6 +94,8 @@ class ContentExtractorService {
 		ContentFilterRepository $contentFilters,
 		private SiteCredentialService $siteCredentials,
 		private BlueskyThreadResolverService $blueskyThreadResolver,
+		private MastodonPostResolverService $mastodonPostResolver,
+		private IURLGenerator $urlGenerator,
 	) {
 		$this->logger         = $logger;
 		$this->contentFilters = $contentFilters;
@@ -284,11 +287,28 @@ class ContentExtractorService {
 		if(isset($domainMeta) && key_exists("excerpt", $domainMeta) && strlen($domainMeta['excerpt']) > 300)
 			$domainMeta['excerpt'] = substr($domainMeta['excerpt'],0,300) . "...";
 
+		// ── Step 2b: Mastodon-Erkennung (domain-unabhängig) ───────────────────
+		// Mastodon ist föderiert - anders als bsky.app/x.com gibt es keine feste
+		// Domain, für die ein content-filters/{domain}.xml eine Kategorie
+		// deklarieren könnte. Erkennung deshalb rein über die URL-Form
+		// "/@user/12345…" (looksLikeMastodonPostUrl()), NUR wenn keine andere
+		// Domain-Config bereits eine eigene Kategorie zugewiesen hat (sonst
+		// hätte z. B. ein regulärer Blog mit zufällig passendem Pfad Vorrang
+		// vor seinem eigenen Content-Filter). $mastodonThreadPosts wird unten
+		// im Thread-Zweig wiederverwendet statt den API-Call zu wiederholen.
+		$mastodonThreadPosts = null;
+		if ($domainMeta['category'] === null && $this->mastodonPostResolver->looksLikeMastodonPostUrl($url)) {
+			$mastodonThreadPosts = $this->mastodonPostResolver->resolveSelfThread($url);
+			if ($mastodonThreadPosts !== null) {
+				$domainMeta['category'] = 'Mastodon';
+			}
+		}
+
 		// ── Step 3: Image caption normalisation ─────────────────────────────
 		// Rewrap domain-specific image+caption structures into standard
 		// <figure><img><figcaption> HTML so Readability preserves them.
 		// Must run before Readability; affects all images in the article body.
-		if($domainMeta['category'] != "Video" && $domainMeta['category'] != "Thread")
+		if($domainMeta['category'] != "Video" && $domainMeta['category'] != "Thread" && $domainMeta['category'] != "XPost" && $domainMeta['category'] != "Mastodon")
 			$rawHtml = $this->normalizeImageCaptions($rawHtml, $domain, $trace);
 
 		// ── Step 4: Pre-filter ────────────────────────────────────────────────
@@ -337,7 +357,7 @@ class ContentExtractorService {
 		$siteName = $this->extractSiteName($rawHtml, $url);
 		$siteName = html_entity_decode($siteName ?? '', ENT_QUOTES, 'UTF-8');
 
-		if($domainMeta['category'] != "Video" && $domainMeta['category'] != "Thread")
+		if($domainMeta['category'] != "Video" && $domainMeta['category'] != "Thread" && $domainMeta['category'] != "XPost" && $domainMeta['category'] != "Mastodon")
 		{
 			// ── Step 7: Quote normalisation + Readability ──────────────────────────
 			// Normalise quote structures before Readability:
@@ -429,15 +449,17 @@ class ContentExtractorService {
 		elseif ($domainMeta['category'] === "Thread") {
 			// Self-Thread-Zweig (bsky.app, siehe BlueskyThreadResolverService):
 			// Readability wird übersprungen (bsky.app liefert als SPA praktisch
-			// keinen Server-Side-Content). Titel/Bild zunächst aus dem
-			// og:title/og:image-Fallback der bsky.app.xml (domainMeta, aus
-			// Step 2 oben) vorbelegen - das greift, wenn die API-Auflösung
-			// unten fehlschlägt. Kein Excerpt: bsky.app.xml definiert dafür
-			// bewusst keine <metadata>-Regel, der Post-Text steht ja schon
-			// vollständig im Embed selbst.
+			// keinen Server-Side-Content). Titel zunächst aus dem og:title-
+			// Fallback der bsky.app.xml (domainMeta, aus Step 2 oben)
+			// vorbelegen - das greift, wenn die API-Auflösung unten
+			// fehlschlägt. Kein Excerpt: der Post-Text steht schon
+			// vollständig im Embed selbst. Statt eines Avatars/Fotos dient
+			// das Bluesky-Icon (platformIconUrl()) als Vorschaubild - kein
+			// Hero-Bild im Content selbst, siehe Step 12 unten
+			// (hideHeroImage-Ausnahme für Thread/XPost/Mastodon).
 			$title       = $domainMeta['title'] ?? '';
 			$author      = null;
-			$imageUrl    = $domainMeta['image'] ?? null;
+			$imageUrl    = $this->platformIconUrl('bluesky');
 			$publishedAt = null;
 
 			$threadPosts = $this->blueskyThreadResolver->resolveSelfThread($url);
@@ -448,33 +470,74 @@ class ContentExtractorService {
 				$author = $firstPost['authorDisplayName'] ?: ($firstPost['authorHandle'] ?: null);
 				$title  = $author !== null ? ('Post von ' . $author) : $title;
 
-				$threadImage = null;
-				foreach ($threadPosts as $threadPost) {
-					if ($threadPost['imageUrl'] !== null) {
-						$threadImage = $threadPost['imageUrl'];
-						break;
-					}
-				}
-				$imageUrl = $threadImage ?? ($firstPost['authorAvatar'] ?? $imageUrl);
-
 				$publishedAt = $firstPost['createdAt'] !== '' ? $this->parseDateString($firstPost['createdAt']) : null;
 
-				// Diese Werte gelten für den ganzen Self-Thread (ältester Post) -
-				// nicht von Step 9 unten mit og:title/og:image der einzelnen
-				// VERLINKTEN Post-Seite überschreiben lassen, die bei einem
-				// mehrteiligen Thread nicht zum Autor des Threads passen muss.
+				// Gilt für den ganzen Self-Thread (ältester Post) - nicht von
+				// Step 9 unten mit dem og:title der einzelnen VERLINKTEN
+				// Post-Seite überschreiben lassen, die bei einem mehrteiligen
+				// Thread nicht zum Autor des Threads passen muss.
 				$domainMeta['title'] = $title;
-				$domainMeta['image'] = $imageUrl;
 			} else {
 				// API-Auflösung fehlgeschlagen (gelöschter Post, Rate-Limit,
 				// Netzwerkfehler) - einfacher Link-Fallback statt leerem Artikel.
-				// Titel/Bild bleiben der og:-Fallback von oben.
+				// Titel bleibt der og:title-Fallback von oben.
 				$escapedBlueskyUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
 				$content = '<a href="' . $escapedBlueskyUrl . '" class="merlin-bluesky-fallback-link">Zum Bluesky-Post</a>';
 				if ($title === '') {
 					$title = 'Bluesky-Post';
 				}
 			}
+			$domainMeta['image'] = $imageUrl;
+		}
+		elseif ($domainMeta['category'] === "XPost") {
+			// Einzelpost-Embed (x.com/twitter.com, siehe content-filters/x.com.xml
+			// bzw. twitter.com.xml): kein API-Aufruf nötig/möglich - X hat keine
+			// kostenlose öffentliche API mehr, mit der sich eine Reply-Kette
+			// auflösen ließe. platform.twitter.com/widgets.js holt den
+			// Tweet-Inhalt clientseitig selbst über Twitters eigenes oEmbed -
+			// die Widget-Infrastruktur (Allowlist/CSP) existierte hier schon
+			// vor der Bluesky-Arbeit. Deshalb auch kein Self-Thread-Walk wie
+			// bei Bluesky/Mastodon, nur der einzelne verlinkte Post. Vorschaubild
+			// ist das X-Icon statt eines Avatars/Fotos, siehe Thread-Zweig oben.
+			$xHandle = $this->parseXStatusHandle($url);
+			if ($xHandle !== null) {
+				$content = $this->buildXPostHtml($url);
+				$author  = '@' . $xHandle;
+				$title   = 'Post von ' . $author;
+			} else {
+				// Keine Status-URL (Profil/Suche/Startseite) - einfacher
+				// Link-Fallback statt eines falsch dargestellten Embeds.
+				$escapedXUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+				$content = '<a href="' . $escapedXUrl . '" class="merlin-x-fallback-link">Zum X-Post</a>';
+				$author  = null;
+				$title   = $domainMeta['title'] ?? 'X-Post';
+			}
+			$imageUrl    = $this->platformIconUrl('x');
+			$publishedAt = null;
+			$domainMeta['title'] = $title;
+			$domainMeta['image'] = $imageUrl;
+		}
+		elseif ($domainMeta['category'] === "Mastodon") {
+			// Self-Thread-Zweig für föderierte Mastodon-Posts (siehe
+			// MastodonPostResolverService, domain-unabhängig oben in Step 2b
+			// erkannt) - $mastodonThreadPosts wurde dort schon aufgelöst,
+			// kein zweiter API-Call nötig. Anders als bsky.app/x.com gibt es
+			// keinen zentralen Embed-Host für alle Instanzen, deshalb eigene,
+			// native HTML-Karte statt eines Drittanbieter-Widgets (siehe
+			// buildMastodonThreadHtml()). Vorschaubild ist das Mastodon-Icon
+			// statt eines Avatars/Medien-Anhangs - Avatare innerhalb der
+			// Post-Karte selbst bleiben aber (Teil der Post-Darstellung).
+			$content   = $this->buildMastodonThreadHtml($mastodonThreadPosts);
+			$firstPost = $mastodonThreadPosts[0];
+
+			$author = $firstPost['authorDisplayName'] ?: ($firstPost['authorHandle'] !== '' ? '@' . $firstPost['authorHandle'] : null);
+			$title  = $author !== null ? ('Post von ' . $author) : 'Mastodon-Post';
+
+			$imageUrl    = $this->platformIconUrl('mastodon');
+			$publishedAt = $firstPost['createdAt'] !== '' ? $this->parseDateString($firstPost['createdAt']) : null;
+
+			$domainMeta['title'] = $title;
+			$domainMeta['image'] = $imageUrl;
 		}
 		else {
 			// $url in ein Attribut eingebettet → escapen, damit ein URL mit ' oder
@@ -521,8 +584,15 @@ class ContentExtractorService {
 		// früh im Fließtext sitzendes Bild (z. B. innerhalb der ersten zwei, drei
 		// Absätze) fälschlich das Voranstellen des eigentlichen Hero-Bilds, obwohl
 		// Readability den Hero selbst nie behalten hat.
+		// Bluesky/X/Mastodon: $imageUrl ist hier das feste Plattform-Icon
+		// (Vorschaubild in der Artikelliste, siehe platformIconUrl()), soll
+		// aber ausdrücklich NICHT zusätzlich als Hero-Bild im Content
+		// erscheinen - der Post/Thread/die Karte steht selbst schon ganz
+		// oben im Content.
+		$suppressHeroImage = in_array($domainMeta['category'], ['Thread', 'XPost', 'Mastodon'], true);
+
 		$start = ltrim($content);
-		if ($normalizedImageUrl !== null && !preg_match('/^<(img|figure)\b/i', $start)) {
+		if ($normalizedImageUrl !== null && !$suppressHeroImage && !preg_match('/^<(img|figure)\b/i', $start)) {
 			$escapedUrl  = htmlspecialchars($normalizedImageUrl, ENT_QUOTES, 'UTF-8');
 			$figcaption  = '';
 			// Caption aus dem HTML-Scan übernehmen (nur wenn kein og:image die imageUrl
@@ -585,6 +655,111 @@ class ContentExtractorService {
 		$blocks[] = '<script async src="https://embed.bsky.app/static/embed.js" charset="utf-8"></script>';
 
 		return implode("\n", $blocks);
+	}
+
+	/**
+	 * Handle aus einer x.com/twitter.com-Status-URL ("/handle/status/12345…"),
+	 * oder null wenn die URL keine Tweet-Permalink-Form hat (Profil, Suche,
+	 * Startseite, …). "/i/status/…" (Xs handle-loser Permalink-Kurzlink, z. B.
+	 * über "Copy link") liefert bewusst null zurück statt "i" als Handle -
+	 * "i" ist ein Platzhalter, kein Konto.
+	 */
+	private function parseXStatusHandle(string $url): ?string {
+		$path = parse_url($url, PHP_URL_PATH);
+		if (!is_string($path) || !preg_match('#^/([A-Za-z0-9_]{1,15})/status/\d+#', $path, $m)) {
+			return null;
+		}
+		return strcasecmp($m[1], 'i') === 0 ? null : $m[1];
+	}
+
+	/**
+	 * Blueskys Gegenstück, nur für X: ein offizielles Tweet-Embed-<blockquote>
+	 * (leerer <a href> genügt - platform.twitter.com/widgets.js holt sich den
+	 * Tweet-Inhalt selbst über Twitters eigenes oEmbed) + der Loader.
+	 */
+	private function buildXPostHtml(string $url): string {
+		$escapedUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+		return '<blockquote class="twitter-tweet"><a href="' . $escapedUrl . '"></a></blockquote>' . "\n"
+			. '<script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>';
+	}
+
+	/**
+	 * Baut den Artikel-Content für einen Mastodon-Self-Thread als eigene,
+	 * native HTML-Karte je Post (kein Drittanbieter-Widget - Mastodon-
+	 * Instanzen sind föderiert, es gibt keinen zentralen, allowlistbaren
+	 * Embed-Host wie embed.bsky.app/platform.twitter.com). contentHtml kommt
+	 * von der Mastodon-API und ist bereits einfaches HTML (Absätze, Mention-/
+	 * Hashtag-Links, ggf. Custom-Emoji-<img>s) - läuft wie jeder andere
+	 * extrahierte Content anschließend durch applyPostFilters()/cleanHtml()/
+	 * sanitizeHtml(), wird also nicht blind vertraut.
+	 *
+	 * @param list<array{id: string, url: string, contentHtml: string,
+	 *   authorDisplayName: ?string, authorHandle: string, authorAvatar: ?string,
+	 *   createdAt: string, imageUrls: list<string>}> $posts
+	 */
+	private function buildMastodonThreadHtml(array $posts): string {
+		$blocks = [];
+		foreach ($posts as $post) {
+			$displayName   = $post['authorDisplayName'] ?: $post['authorHandle'];
+			$escapedName   = htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8');
+			$escapedHandle = htmlspecialchars($post['authorHandle'], ENT_QUOTES, 'UTF-8');
+			$escapedUrl    = htmlspecialchars($post['url'], ENT_QUOTES, 'UTF-8');
+
+			$avatarHtml = '';
+			if ($post['authorAvatar'] !== null) {
+				$escapedAvatar = htmlspecialchars($post['authorAvatar'], ENT_QUOTES, 'UTF-8');
+				$avatarHtml = '<img class="merlin-mastodon-post__avatar" src="' . $escapedAvatar . '" alt="">';
+			}
+
+			$mediaHtml = '';
+			foreach ($post['imageUrls'] as $mediaUrl) {
+				$escapedMedia = htmlspecialchars($mediaUrl, ENT_QUOTES, 'UTF-8');
+				$mediaHtml .= '<img class="merlin-mastodon-post__media-item" src="' . $escapedMedia . '" alt="">';
+			}
+			if ($mediaHtml !== '') {
+				$mediaHtml = '<div class="merlin-mastodon-post__media">' . $mediaHtml . '</div>';
+			}
+
+			$blocks[] = '<div class="merlin-mastodon-post">'
+				. '<a class="merlin-mastodon-post__header" href="' . $escapedUrl . '">'
+				. $avatarHtml
+				. '<span class="merlin-mastodon-post__author">'
+				. '<span class="merlin-mastodon-post__name">' . $escapedName . '</span>'
+				. '<span class="merlin-mastodon-post__handle">@' . $escapedHandle . '</span>'
+				. '</span>'
+				. '</a>'
+				. '<div class="merlin-mastodon-post__content">' . $post['contentHtml'] . '</div>'
+				. $mediaHtml
+				. '</div>';
+		}
+
+		return implode("\n", $blocks);
+	}
+
+	/**
+	 * URL des statischen Plattform-Icons (16:9-PNG, transparenter
+	 * Hintergrund, unter img/{platform}-preview.png), das für Bluesky-/X-/
+	 * Mastodon-Artikel statt eines Avatars/Post-Fotos als Vorschaubild
+	 * dient (siehe Thread-/XPost-/Mastodon-Zweige oben).
+	 *
+	 * getAbsoluteURL() ist hier Pflicht, nicht Kür: imagePath() allein
+	 * liefert einen host-relativen Pfad (z. B. "/index.php/apps/merlin/
+	 * img/…") - im Web-Reader per v-html/<img> unproblematisch (der
+	 * Browser löst ihn gegen die aktuelle Origin auf), aber iOS/Android
+	 * laden $imageUrl über einen eigenständigen Netzwerk-Request
+	 * (URLSession/Coil), der eine vollständige URL mit Schema+Host
+	 * braucht - ein relativer Pfad schlägt dort still fehl und die Cards
+	 * zeigen nur den lokalen Platzhalter. Anders als beim no-img.png-
+	 * Fallback in ArticleController::resolveImageUrl() (dort geliefert,
+	 * wenn $imageUrl bereits leer ist, wird das clientseitig gar nicht
+	 * erst über die Bild-Pipeline geladen) ist dieser Wert hier ein
+	 * "echtes" imageUrl, das denselben Weg wie ein von einer Drittseite
+	 * gescraptes og:image-Bild nimmt - und die kommen immer schon absolut.
+	 */
+	private function platformIconUrl(string $platform): string {
+		return $this->urlGenerator->getAbsoluteURL(
+			$this->urlGenerator->imagePath('merlin', $platform . '-preview.png')
+		);
 	}
 
 	// ──────────────────────────────────────────────────────────────────────────
