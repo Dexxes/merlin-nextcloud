@@ -1,13 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<domain name="newsletter.berlin.de">
+<domain name="beck-aktuell.de">
 
 <pre-filter>
-    <remove class="image main-image" />
+    <remove class="ArticleHeader-content" />
+    <remove class="ArticleHeader-image" />
+    <remove class="Tags Tags-listArticle" />
+    <remove class="TeaserHeadliner TeaserHeadliner--newsletter" />
 </pre-filter>
 
 <metadata>
-    <image xpath="//div[contains(@class, 'main-image')]/*/img/@src" />
     <!-- Beispiele:
+    <image xpath="//div[contains(@class, 'main-image')]/*/img/@src" />
     <title    xpath="//h1[@class='article-title']" />
     <author   xpath="//span[@class='author-name']" />
     <excerpt  xpath="//p[@class='article-intro']" />
