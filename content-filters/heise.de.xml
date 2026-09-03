@@ -27,8 +27,14 @@
     <remove xpath="//div[@data-component='RecommendationBox']" />
     <remove xpath="//a-opt-in" />
     <remove xpath="//div[@class='ad ad--inread']" />
-    
   </pre-filter>
+
+  <images>
+    <caption
+        container-xpath="//figure"
+        caption-xpath=".//figcaption"
+    />
+  </images>
 
   <post-filter>
     <!-- Hier post-Readability-Remove-Regeln eintragen -->
