@@ -25,6 +25,14 @@
 
   <pre-filter>
     <remove xpath="//div[contains(@class, 'article-head__data')]"/>
+    <!-- Teaser Bild über dem Artikeltext (picture.ts_picture.ts_picture_teaser_top,
+         CSS-Klasse siehe darunter): eigener Crop/eigene Auflösung, die sich
+         von der per og:image ermittelten imageUrl unterscheidet. Step 12 in
+         ContentExtractorService::extract() erkennt es deshalb nicht als
+         bereits vorhandenes Hero-Bild und stellt zusätzlich ein zweites
+         voran. Entfernen, bevor Readability den Content sieht, damit nur
+         noch das eine, per og:image eingefügte Hero-Bild übrig bleibt. -->
+    <remove class="ts-picture--teaser-top"/>
     <infobox xpath="//div[div[contains(@class, 'infobox')]]"/>
   </pre-filter>
 
