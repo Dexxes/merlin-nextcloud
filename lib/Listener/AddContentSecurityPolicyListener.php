@@ -86,9 +86,11 @@ class AddContentSecurityPolicyListener implements IEventListener {
 		$policy->addAllowedFrameDomain('https://www.arte.tv');
 		$policy->addAllowedFrameDomain('https://www.instagram.com');
 		$policy->addAllowedFrameDomain('https://platform.twitter.com');
+		$policy->addAllowedFrameDomain('https://embed.bsky.app');
 
 		$policy->addAllowedScriptDomain('https://www.instagram.com');
 		$policy->addAllowedScriptDomain('https://platform.twitter.com');
+		$policy->addAllowedScriptDomain('https://embed.bsky.app');
 
 		$policy->addAllowedConnectDomain('https://*.ard-mcdn.de');
 		$policy->addAllowedConnectDomain('https://*.akamaized.net');

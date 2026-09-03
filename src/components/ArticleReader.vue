@@ -1301,13 +1301,14 @@ article {
 	margin: 2em auto;
 }
 
-/* Instagram-/X-Embeds (siehe isAllowedWidgetScriptSrc()) rendern sich nach
-   dem Laden des Widget-Skripts selbst komplett neu und bringen ihr eigenes
-   Kartendesign mit – die generische Zitat-Optik für <blockquote> unten würde
-   nur bis zum Laden sichtbar sein und dann falsch wirken, deshalb hier
-   zurückgesetzt. */
+/* Instagram-/X-/Bluesky-Embeds (siehe isAllowedWidgetScriptSrc()) rendern sich
+   nach dem Laden des Widget-Skripts selbst komplett neu und bringen ihr
+   eigenes Kartendesign mit – die generische Zitat-Optik für <blockquote>
+   unten würde nur bis zum Laden sichtbar sein und dann falsch wirken,
+   deshalb hier zurückgesetzt. */
 .article-body :deep(blockquote.instagram-media),
-.article-body :deep(blockquote.twitter-tweet) {
+.article-body :deep(blockquote.twitter-tweet),
+.article-body :deep(blockquote.bluesky-embed) {
 	border-left: none;
 	padding-left: 0;
 	font-style: normal;
@@ -1315,6 +1316,13 @@ article {
 	max-width: 100%;
 	overflow: hidden;
 	margin: 2em auto;
+}
+
+/* Mehrere aufeinanderfolgende Bluesky-Embeds (Self-Thread, siehe
+   BlueskyThreadResolverService) sollen sichtbar zusammengehören statt wie
+   unabhängige Zitate mit vollem Absatzabstand zu wirken. */
+.article-body :deep(blockquote.bluesky-embed + blockquote.bluesky-embed) {
+	margin-top: 0.5em;
 }
 
 .article-body :deep(.img-placeholder) {
