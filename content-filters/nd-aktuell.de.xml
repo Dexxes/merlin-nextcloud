@@ -30,6 +30,8 @@
     <remove class="Artikel-Spende" />
     <remove xpath="//h1[1]" />
     <remove xpath="//h2[1]" />
+    <remove class="Deck" />
+    <remove xpath="//div[@class='Content']/div/figure" />
   </pre-filter>
 
   <post-filter>

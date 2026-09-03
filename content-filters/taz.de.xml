@@ -35,15 +35,24 @@
     <remove xpath="//p[contains(@class,'typo-r-subline-longread-b')]" />
     <remove xpath="//h1" />
     <remove id="Kommentarbereich" />
+    <remove xpath="//div[contains(@class,'webelement-content-container-content')]" />
+    <remove xpath="//div[contains(@class,'webelement-content-container-inner')]" />
+    <remove xpath="//div[contains(@class, 'webelement-pos-0')]/figure" />
+    
   </pre-filter>
 
 <!-- ── Zitate ─────────────────────────────────────────────────────────── -->
   <quotes>
-
     <!-- Beispiel: BEM-Komponenten-Quote (z. B. Spiegel, Zeit) -->
     <quote container-xpath="//div[contains(@class,'typo-r-quote')]" />
-
   </quotes>
+
+  <images>
+    <caption
+      container-xpath="//figure"
+      caption-xpath=".//figcaption/@content"
+    />
+  </images>
 
   <post-filter>
     <!-- Hier post-Readability-Remove-Regeln eintragen -->
