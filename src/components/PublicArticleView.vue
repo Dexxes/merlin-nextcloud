@@ -432,20 +432,6 @@ export default {
 	margin: 0;
 }
 
-/* Plattform-Icon statt Vorschau-/Hero-Bild für Bluesky-/X-/Mastodon-Artikel
-   (siehe ContentExtractorService::buildPlatformIconHtml()). */
-.pav-body :deep(.merlin-platform-icon) {
-	display: flex;
-	justify-content: center;
-	margin: 0.5em 0 1.2em;
-}
-
-.pav-body :deep(.merlin-platform-icon svg) {
-	width: 36px;
-	height: 36px;
-	fill: var(--color-text-lighter, #888);
-}
-
 .pav-body :deep(p) {
 	margin: 1.4em 0;
 }
