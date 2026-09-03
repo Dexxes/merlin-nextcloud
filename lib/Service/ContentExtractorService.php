@@ -652,6 +652,12 @@ class ContentExtractorService {
 		// früh im Fließtext sitzendes Bild (z. B. innerhalb der ersten zwei, drei
 		// Absätze) fälschlich das Voranstellen des eigentlichen Hero-Bilds, obwohl
 		// Readability den Hero selbst nie behalten hat.
+		// "Beginnt mit einem Bild" schließt auch den Fall ein, dass Readability
+		// das Hero-Bild verpackt in <p>/<a>/<div>/<span> behalten hat (z. B. das
+		// bei WordPress übliche <p><a href="…"><img src="…"></a></p>) – siehe
+		// contentStartsWithMatchingImage(). Ohne diese Erkennung würde dasselbe
+		// Bild doppelt erscheinen: einmal original im Content, einmal als
+		// künstlich vorangestelltes zweites merlin-hero-image.
 		// Bluesky/X/Mastodon: $imageUrl ist hier das feste Plattform-Icon
 		// (Vorschaubild in der Artikelliste, siehe platformIconUrl()), soll
 		// aber ausdrücklich NICHT zusätzlich als Hero-Bild im Content
@@ -660,7 +666,9 @@ class ContentExtractorService {
 		$suppressHeroImage = in_array($domainMeta['category'], ['Thread', 'XPost', 'Mastodon', 'InstagramPost', 'TikTokPost'], true);
 
 		$start = ltrim($content);
-		if ($normalizedImageUrl !== null && !$suppressHeroImage && !preg_match('/^<(img|figure)\b/i', $start)) {
+		$startsWithHeroImage = preg_match('/^<(img|figure)\b/i', $start) === 1
+			|| $this->contentStartsWithMatchingImage($start, $normalizedImageUrl, $url);
+		if ($normalizedImageUrl !== null && !$suppressHeroImage && !$startsWithHeroImage) {
 			$escapedUrl  = htmlspecialchars($normalizedImageUrl, ENT_QUOTES, 'UTF-8');
 			$figcaption  = '';
 			// Caption aus dem HTML-Scan übernehmen (nur wenn kein og:image die imageUrl
@@ -986,6 +994,83 @@ class ContentExtractorService {
 		);
 
 		return $this->shortenerPatterns;
+	}
+
+	/**
+	 * Prüft, ob der Content bereits mit dem Hero-Bild beginnt, auch wenn es
+	 * (z. B. bei WordPress-Quellen üblich) in <p>/<a>/<div>/<span> verpackt ist
+	 * statt als nacktes <img> oder <figure> - z. B. <p><a href="…"><img
+	 * src="…"></a></p>. In dem Fall würde Step 12 sonst ein zweites,
+	 * redundantes Hero-Bild voranstellen (siehe Kommentar über Step 12).
+	 *
+	 * Entpackt wird immer nur das JEWEILS ERSTE Kind-Element eines Wrappers
+	 * (kein weiterer nicht-leerer Text davor) - absichtlich NICHT "genau ein
+	 * Kind insgesamt", denn Readability (fivefilters\Readability) wrapt den
+	 * kompletten extrahierten Content typischerweise in einen äußeren
+	 * <div id="readability-page-1" class="page">…</div> (id/class an dieser
+	 * Stelle bereits von cleanHtml() entfernt), der neben dem Hero-Bild auch
+	 * ALLE folgenden Absätze als Geschwister-Elemente enthält. Eine
+	 * "nur-einzelnes-Kind"-Prüfung würde diesen ganz normalen Wrapper-Fall
+	 * fälschlich als "kein Bild-Start" werten. Der Bild-Abgleich per exakter
+	 * (normalisierter) src-URL verhindert weiterhin False-Positives durch ein
+	 * früh im Fließtext sitzendes, andersartiges Bild.
+	 */
+	private function contentStartsWithMatchingImage(string $html, ?string $normalizedImageUrl, string $baseUrl): bool {
+		if ($normalizedImageUrl === null) {
+			return false;
+		}
+
+		$doc = new \DOMDocument();
+		libxml_use_internal_errors(true);
+		$doc->loadHTML('<?xml encoding="UTF-8"><body>' . $html . '</body>', LIBXML_NOERROR | LIBXML_NOWARNING);
+		libxml_clear_errors();
+
+		$body = $doc->getElementsByTagName('body')->item(0);
+		if ($body === null) {
+			return false;
+		}
+
+		$node = $this->firstNonWhitespaceElementChild($body);
+
+		$depth = 0;
+		while ($node !== null && $depth < 6) {
+			$tag = strtolower($node->nodeName);
+
+			if ($tag === 'img') {
+				$src = $node->getAttribute('src');
+				if ($src === '') {
+					return false;
+				}
+				return $this->normalizeUrl($src, $baseUrl) === $normalizedImageUrl;
+			}
+
+			if (!in_array($tag, ['p', 'div', 'span', 'a'], true)) {
+				return false;
+			}
+
+			$node = $this->firstNonWhitespaceElementChild($node);
+			$depth++;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Liefert das erste Kind-Element eines Knotens, sofern davor nur
+	 * Leerraum-Textknoten stehen (kein sonstiger Text). Steht vor dem ersten
+	 * Element ein nicht-leerer Textknoten, oder hat der Knoten gar kein
+	 * Element-Kind, wird null zurückgegeben.
+	 */
+	private function firstNonWhitespaceElementChild(\DOMNode $parent): ?\DOMElement {
+		foreach ($parent->childNodes as $child) {
+			if ($child instanceof \DOMElement) {
+				return $child;
+			}
+			if ($child instanceof \DOMText && trim($child->textContent) !== '') {
+				return null;
+			}
+		}
+		return null;
 	}
 
 	/**
