@@ -95,6 +95,7 @@ class ContentExtractorService {
 		private SiteCredentialService $siteCredentials,
 		private BlueskyThreadResolverService $blueskyThreadResolver,
 		private MastodonPostResolverService $mastodonPostResolver,
+		private TikTokPostResolverService $tiktokPostResolver,
 		private IURLGenerator $urlGenerator,
 	) {
 		$this->logger         = $logger;
@@ -308,7 +309,7 @@ class ContentExtractorService {
 		// Rewrap domain-specific image+caption structures into standard
 		// <figure><img><figcaption> HTML so Readability preserves them.
 		// Must run before Readability; affects all images in the article body.
-		if($domainMeta['category'] != "Video" && $domainMeta['category'] != "Thread" && $domainMeta['category'] != "XPost" && $domainMeta['category'] != "Mastodon")
+		if($domainMeta['category'] != "Video" && $domainMeta['category'] != "Thread" && $domainMeta['category'] != "XPost" && $domainMeta['category'] != "Mastodon" && $domainMeta['category'] != "InstagramPost" && $domainMeta['category'] != "TikTokPost")
 			$rawHtml = $this->normalizeImageCaptions($rawHtml, $domain, $trace);
 
 		// ── Step 4: Pre-filter ────────────────────────────────────────────────
@@ -357,7 +358,7 @@ class ContentExtractorService {
 		$siteName = $this->extractSiteName($rawHtml, $url);
 		$siteName = html_entity_decode($siteName ?? '', ENT_QUOTES, 'UTF-8');
 
-		if($domainMeta['category'] != "Video" && $domainMeta['category'] != "Thread" && $domainMeta['category'] != "XPost" && $domainMeta['category'] != "Mastodon")
+		if($domainMeta['category'] != "Video" && $domainMeta['category'] != "Thread" && $domainMeta['category'] != "XPost" && $domainMeta['category'] != "Mastodon" && $domainMeta['category'] != "InstagramPost" && $domainMeta['category'] != "TikTokPost")
 		{
 			// ── Step 7: Quote normalisation + Readability ──────────────────────────
 			// Normalise quote structures before Readability:
@@ -517,6 +518,73 @@ class ContentExtractorService {
 			$domainMeta['title'] = $title;
 			$domainMeta['image'] = $imageUrl;
 		}
+		elseif ($domainMeta['category'] === "InstagramPost") {
+			// Einzelpost-Embed (instagram.com, siehe content-filters/instagram.com.xml):
+			// wie bei X kein API-Aufruf nötig/möglich - Instagram hat keine
+			// kostenlose öffentliche API, mit der sich der Post-Inhalt auflösen
+			// ließe. www.instagram.com/embed.js holt den Post-Inhalt clientseitig
+			// selbst über Instagrams eigenes oEmbed - Allowlist/CSP dafür
+			// existierten schon vor diesem Kategorie-Zweig (Instagram-Embeds
+			// INNERHALB fremder Artikel). Deshalb auch kein Self-Thread-Walk wie
+			// bei Bluesky/Mastodon, nur der einzelne verlinkte Post. Vorschaubild
+			// ist das Instagram-Icon statt eines Avatars/Fotos, siehe X-Zweig oben.
+			//
+			// Titel bewusst immer der feste String statt eines og:title-Scrapes:
+			// Instagrams Permalink-URL enthält (anders als bei X/TikTok) keinen
+			// Handle, es gibt keine kostenlose API für den echten Autorennamen -
+			// ein gescraptes og:title wäre bestenfalls eine rohe, unformatierte
+			// Caption statt eines sauberen "Post von {Ersteller}"-Titels wie bei
+			// den anderen Plattformen.
+			$title  = 'Instagram-Post';
+			$author = null;
+			$instagramPermalink = $this->parseInstagramPermalink($url);
+			if ($instagramPermalink !== null) {
+				$content = $this->buildInstagramPostHtml($instagramPermalink);
+			} else {
+				// Keine Post-/Reel-/TV-URL (Profil/Explore/Startseite) - einfacher
+				// Link-Fallback statt eines falsch dargestellten Embeds.
+				$escapedInstagramUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+				$content = '<a href="' . $escapedInstagramUrl . '" class="merlin-instagram-fallback-link">Zum Instagram-Post</a>';
+			}
+			$imageUrl    = $this->platformIconUrl('instagram');
+			$publishedAt = null;
+			$domainMeta['title'] = $title;
+			$domainMeta['image'] = $imageUrl;
+		}
+		elseif ($domainMeta['category'] === "TikTokPost") {
+			// Einzelpost-Embed (tiktok.com, siehe content-filters/tiktok.com.xml
+			// bzw. TikTokPostResolverService): anders als bei X/Instagram (rein
+			// clientseitiges Widget aus einem selbst gebauten, leeren
+			// <blockquote>) liest TikToks embed.js die Video-ID beim Rendern
+			// AUSSCHLIESSLICH aus dem data-video-id-Attribut - ein minimal
+			// selbst gebautes Markup führte in der Praxis zu einem fehlerhaften
+			// Embed ("/embed/v2/null"). Deshalb hier ein echter Server-Aufruf
+			// gegen TikToks öffentliche, unauthentifizierte oEmbed-API, die das
+			// komplette, von TikTok selbst generierte Embed-Markup liefert
+			// (siehe TikTokPostResolverService). Vorschaubild ist trotzdem das
+			// TikTok-Icon statt eines Video-Thumbnails, siehe X-Zweig oben.
+			$tiktokVideoId  = $this->parseTikTokVideoId($url);
+			$tiktokResolved = $tiktokVideoId !== null ? $this->tiktokPostResolver->resolve($url) : null;
+			if ($tiktokResolved !== null) {
+				$content = $tiktokResolved['html'];
+				$author  = $tiktokResolved['authorName']
+					?? ($tiktokResolved['authorUniqueId'] !== null ? '@' . $tiktokResolved['authorUniqueId'] : null);
+				$title   = $author !== null ? ('Post von ' . $author) : ($domainMeta['title'] ?? 'TikTok-Post');
+			} else {
+				// Keine Video-URL (Profil/Discover/Startseite) oder
+				// oEmbed-Auflösung fehlgeschlagen (gelöschtes/privates Video,
+				// Rate-Limit, Netzwerkfehler) - einfacher Link-Fallback statt
+				// eines fehlerhaften Embeds.
+				$escapedTikTokUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+				$content = '<a href="' . $escapedTikTokUrl . '" class="merlin-tiktok-fallback-link">Zum TikTok-Post</a>';
+				$author  = null;
+				$title   = $domainMeta['title'] ?? 'TikTok-Post';
+			}
+			$imageUrl    = $this->platformIconUrl('tiktok');
+			$publishedAt = null;
+			$domainMeta['title'] = $title;
+			$domainMeta['image'] = $imageUrl;
+		}
 		elseif ($domainMeta['category'] === "Mastodon") {
 			// Self-Thread-Zweig für föderierte Mastodon-Posts (siehe
 			// MastodonPostResolverService, domain-unabhängig oben in Step 2b
@@ -589,7 +657,7 @@ class ContentExtractorService {
 		// aber ausdrücklich NICHT zusätzlich als Hero-Bild im Content
 		// erscheinen - der Post/Thread/die Karte steht selbst schon ganz
 		// oben im Content.
-		$suppressHeroImage = in_array($domainMeta['category'], ['Thread', 'XPost', 'Mastodon'], true);
+		$suppressHeroImage = in_array($domainMeta['category'], ['Thread', 'XPost', 'Mastodon', 'InstagramPost', 'TikTokPost'], true);
 
 		$start = ltrim($content);
 		if ($normalizedImageUrl !== null && !$suppressHeroImage && !preg_match('/^<(img|figure)\b/i', $start)) {
@@ -681,6 +749,54 @@ class ContentExtractorService {
 		$escapedUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
 		return '<blockquote class="twitter-tweet"><a href="' . $escapedUrl . '"></a></blockquote>' . "\n"
 			. '<script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>';
+	}
+
+	/**
+	 * Kanonischer Permalink ("https://www.instagram.com/{p|reel|tv}/{shortcode}/")
+	 * aus einer instagram.com-URL, oder null wenn die URL keine Post-/Reel-/
+	 * TV-Permalink-Form hat (Profil, Explore, Startseite, …). Baut den
+	 * Permalink bewusst neu aus Typ+Shortcode statt die Original-URL
+	 * wiederzuverwenden, damit Tracking-Query-Parameter (z. B.
+	 * "?igsh=…"/"?utm_source=…") nicht ungefiltert ins data-instgrm-permalink-
+	 * Attribut wandern.
+	 */
+	private function parseInstagramPermalink(string $url): ?string {
+		$path = parse_url($url, PHP_URL_PATH);
+		if (!is_string($path) || !preg_match('#^/(p|reel|tv)/([A-Za-z0-9_-]+)#', $path, $m)) {
+			return null;
+		}
+		return 'https://www.instagram.com/' . $m[1] . '/' . $m[2] . '/';
+	}
+
+	/**
+	 * X'/Blueskys Gegenstück, nur für Instagram: ein offizielles Post-Embed-
+	 * <blockquote data-instgrm-permalink="…"> (leer genügt - www.instagram.com/
+	 * embed.js holt sich den Post-Inhalt selbst über Instagrams eigenes
+	 * oEmbed) + der Loader. Dieselbe Markup-Form (Klasse "instagram-media",
+	 * data-instgrm-permalink/-version) wird schon für Instagram-Embeds
+	 * INNERHALB fremder Artikel durchgelassen, siehe
+	 * isAllowedInstagramPermalink()/sanitizeHtml().
+	 */
+	private function buildInstagramPostHtml(string $permalinkUrl): string {
+		$escapedUrl = htmlspecialchars($permalinkUrl, ENT_QUOTES, 'UTF-8');
+		return '<blockquote class="instagram-media" data-instgrm-permalink="' . $escapedUrl . '" data-instgrm-version="14"></blockquote>' . "\n"
+			. '<script async src="https://www.instagram.com/embed.js" charset="utf-8"></script>';
+	}
+
+	/**
+	 * Numerische Video-ID aus einer tiktok.com-Video-URL
+	 * ("/@handle/video/1234567890…"), oder null wenn die URL keine
+	 * Video-Permalink-Form hat (Profil, Discover, Startseite, …). Dient dem
+	 * TikTokPost-Zweig als billiges Vorab-Filter, bevor überhaupt ein
+	 * oEmbed-Aufruf (TikTokPostResolverService) versucht wird - die ID selbst
+	 * wird nicht weiterverwendet, TikToks oEmbed-API bekommt die volle URL.
+	 */
+	private function parseTikTokVideoId(string $url): ?string {
+		$path = parse_url($url, PHP_URL_PATH);
+		if (!is_string($path) || !preg_match('#/video/(\d+)#', $path, $m)) {
+			return null;
+		}
+		return $m[1];
 	}
 
 	/**
@@ -1727,7 +1843,7 @@ class ContentExtractorService {
 		// <script>- und <style>-Tags (inkl. Inhalt) per RegEx entfernen, bevor der DOM-Parser
 		// den String verarbeitet. So werden auch komplexe JS-Inhalte mit <, >, & oder --
 		// zuverlässig entfernt, ohne dass sie den DOM-Baum beschädigen können. Ausnahme wie
-		// bei cleanHtml(): die offiziellen Widget-Loader von Instagram/X/Bluesky (siehe
+		// bei cleanHtml(): die offiziellen Widget-Loader von Instagram/X/Bluesky/TikTok (siehe
 		// isAllowedWidgetScriptSrc()) überleben auch diesen - zeitlich früheren - Schritt,
 		// sonst würde er dasselbe Script wieder entfernen, das cleanHtml()/sanitizeHtml()
 		// weiter unten bewusst durchlassen (applyPostFilters() läuft VOR cleanHtml()).
@@ -2432,7 +2548,7 @@ class ContentExtractorService {
 	 */
 	private function cleanHtml(string $html): string {
 		// Remove script tags - AUSSER den offiziellen Widget-Loadern von
-		// Instagram/X/Bluesky (siehe isAllowedWidgetScriptSrc()): ohne diese
+		// Instagram/X/Bluesky/TikTok (siehe isAllowedWidgetScriptSrc()): ohne diese
 		// Ausnahme würde dieser regelbasierte, noch VOR sanitizeHtml() laufende
 		// Schritt genau das Script wieder entfernen, das sanitizeHtml() später
 		// bewusst durchlässt - die dortige Allowlist liefe leer. Kein Skript-Body
@@ -2500,7 +2616,7 @@ class ContentExtractorService {
 		$html = preg_replace_callback(
 			'/(<[^>]+\bclass=["\'])([^"\']*?)(["\'])/i',
 			static function (array $m): string {
-				static $allowedWidgetClasses = ['instagram-media', 'twitter-tweet', 'bluesky-embed'];
+				static $allowedWidgetClasses = ['instagram-media', 'twitter-tweet', 'bluesky-embed', 'tiktok-embed'];
 				$classes = preg_split('/\s+/', trim($m[2]), -1, PREG_SPLIT_NO_EMPTY);
 				$kept = array_values(array_filter(
 					$classes,
@@ -2612,14 +2728,17 @@ class ContentExtractorService {
 			// data-bluesky-uri: Blueskys offizielles Embed-Markup (siehe
 			// isAllowedBlueskyUri()) - analog für den Self-Thread-Zweig
 			// (BlueskyThreadResolverService/ContentExtractorService, category=Thread).
-			'blockquote' => ['data-instgrm-permalink', 'data-instgrm-version', 'data-bluesky-uri'],
+			// cite/data-video-id: TikToks offizielles Embed-Markup, siehe
+			// isAllowedTiktokEmbedCite() und die data-video-id-Prüfung in
+			// sanitizeAttributes() - analog für den TikTokPost-Zweig.
+			'blockquote' => ['data-instgrm-permalink', 'data-instgrm-version', 'data-bluesky-uri', 'cite', 'data-video-id'],
 			// iframe steht bewusst NICHT auf $allowedTags (generisches iframe-Embed
 			// ist ein XSS-Vektor) – erlaubt sind nur Video-Embeds von vertrauens-
 			// würdigen Hosts, siehe isAllowedVideoEmbedSrc(). Deren Attribute laufen
 			// trotzdem durch dieselbe Allowlist-Logik, deshalb der Eintrag hier.
 			'iframe'     => ['src', 'width', 'height', 'frameborder', 'allow', 'allowfullscreen', 'referrerpolicy'],
 			// script steht ebenfalls bewusst NICHT auf $allowedTags – erlaubt sind
-			// nur die beiden offiziellen Widget-Loader von Instagram/X, siehe
+			// nur die offiziellen Widget-Loader von Instagram/X/Bluesky/TikTok, siehe
 			// isAllowedWidgetScriptSrc(). Kein "onload" o. Ä. auf der Liste: das
 			// Element darf ausschließlich diese drei harmlosen Lade-Attribute tragen.
 			'script'     => ['src', 'async', 'charset'],
@@ -2709,7 +2828,7 @@ class ContentExtractorService {
 			}
 
 			// <script> ist ebenso grundsätzlich verboten – Ausnahme: exakt die
-			// beiden offiziellen Widget-Loader von Instagram/X (siehe
+			// offiziellen Widget-Loader von Instagram/X/Bluesky/TikTok (siehe
 			// isAllowedWidgetScriptSrc()), die deren jeweiliges
 			// <blockquote data-instgrm-permalink="…">/<blockquote class="twitter-tweet">
 			// erst zu einem Player/Post rendern. Anders als beim iframe-Sandbox
@@ -3009,6 +3128,29 @@ class ContentExtractorService {
 					continue;
 				}
 			}
+
+			// TikToks Embed-Markup trägt die Video-URL im "cite"-Attribut statt
+			// href/src – muss trotzdem auf tiktok.com zeigen, sonst könnte das
+			// Widget-Skript (siehe isAllowedWidgetScriptSrc()) beliebige fremde
+			// Inhalte nachladen/darstellen.
+			if ($tag === 'blockquote' && $lname === 'cite') {
+				$value = trim($el->getAttribute($name));
+				if (!$this->isAllowedTiktokEmbedCite($value)) {
+					$el->removeAttribute($name);
+					continue;
+				}
+			}
+
+			// "data-video-id" muss eine reine Zahlenfolge sein (TikToks Video-IDs
+			// sind numerisch) - ohne diese Prüfung könnte hier beliebiger Text
+			// stehen, den das Widget-Skript unvalidiert weiterverwendet.
+			if ($tag === 'blockquote' && $lname === 'data-video-id') {
+				$value = trim($el->getAttribute($name));
+				if (!preg_match('/^\d+$/', $value)) {
+					$el->removeAttribute($name);
+					continue;
+				}
+			}
 		}
 
 		// Bei Links, die in einem neuen Tab geöffnet werden, rel härten
@@ -3118,10 +3260,10 @@ class ContentExtractorService {
 
 	/**
 	 * true, wenn $src exakt einer der offiziellen Widget-Loader von
-	 * Instagram/X/Bluesky ist. Bewusst als exakter String-Match (nicht nur Host/Pfad-
-	 * Präfix wie bei isAllowedVideoEmbedSrc()): anders als ein sandboxed
-	 * iframe läuft dieses Skript MIT vollem DOM-Zugriff auf der Reader-Seite,
-	 * daher hier die engstmögliche Fassung.
+	 * Instagram/X/Bluesky/TikTok ist. Bewusst als exakter String-Match (nicht
+	 * nur Host/Pfad-Präfix wie bei isAllowedVideoEmbedSrc()): anders als ein
+	 * sandboxed iframe läuft dieses Skript MIT vollem DOM-Zugriff auf der
+	 * Reader-Seite, daher hier die engstmögliche Fassung.
 	 */
 	private function isAllowedWidgetScriptSrc(string $src): bool {
 		$src = trim($src);
@@ -3129,7 +3271,7 @@ class ContentExtractorService {
 			return false;
 		}
 
-		// Instagram/X/Bluesky liefern ihren offiziellen Embed-Code oft
+		// Instagram/X/Bluesky/TikTok liefern ihren offiziellen Embed-Code oft
 		// protokollrelativ ("//www.instagram.com/embed.js") aus – vor dem
 		// exakten Match auf https normalisieren.
 		if (str_starts_with($src, '//')) {
@@ -3140,6 +3282,7 @@ class ContentExtractorService {
 			'https://www.instagram.com/embed.js',
 			'https://platform.twitter.com/widgets.js',
 			'https://embed.bsky.app/static/embed.js',
+			'https://www.tiktok.com/embed.js',
 		];
 
 		return in_array($src, $allowedScriptSrcs, true);
@@ -3179,6 +3322,27 @@ class ContentExtractorService {
 	 */
 	private function isAllowedBlueskyUri(string $uri): bool {
 		return preg_match('#^at://did:[a-z0-9]+:[A-Za-z0-9._:%-]+/app\.bsky\.feed\.post/[A-Za-z0-9._~-]+$#', $uri) === 1;
+	}
+
+	/**
+	 * true, wenn $url eine https-URL auf (www.)tiktok.com ist. Für das
+	 * cite-Attribut von TikToks Embed-<blockquote>, siehe sanitizeAttributes().
+	 */
+	private function isAllowedTiktokEmbedCite(string $url): bool {
+		if ($url === '') {
+			return false;
+		}
+
+		$parts = parse_url($url);
+		if ($parts === false || !isset($parts['scheme'], $parts['host'])) {
+			return false;
+		}
+
+		if (strtolower($parts['scheme']) !== 'https') {
+			return false;
+		}
+
+		return in_array(strtolower($parts['host']), ['www.tiktok.com', 'tiktok.com'], true);
 	}
 
 	/**

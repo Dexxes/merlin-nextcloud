@@ -336,12 +336,13 @@ export default {
 	margin: 2em auto;
 }
 
-/* Instagram-/X-/Bluesky-Embeds (siehe isAllowedWidgetScriptSrc()) rendern sich
-   nach dem Laden des Widget-Skripts selbst neu und bringen ihr eigenes
-   Kartendesign mit. */
+/* Instagram-/X-/Bluesky-/TikTok-Embeds (siehe isAllowedWidgetScriptSrc())
+   rendern sich nach dem Laden des Widget-Skripts selbst neu und bringen ihr
+   eigenes Kartendesign mit. */
 .pav-body :deep(blockquote.instagram-media),
 .pav-body :deep(blockquote.twitter-tweet),
-.pav-body :deep(blockquote.bluesky-embed) {
+.pav-body :deep(blockquote.bluesky-embed),
+.pav-body :deep(blockquote.tiktok-embed) {
 	max-width: 100%;
 	overflow: hidden;
 	margin: 2em auto;
@@ -349,7 +350,7 @@ export default {
 
 /* Mastodon-Post-Karte (siehe MastodonPostResolverService/
    buildMastodonThreadHtml()): kein Drittanbieter-Widget wie Instagram/X/
-   Bluesky (föderiert, kein zentraler Embed-Host), sondern eigenes,
+   Bluesky/TikTok (föderiert, kein zentraler Embed-Host), sondern eigenes,
    statisches Markup - braucht deshalb echtes Styling. */
 .pav-body :deep(.merlin-mastodon-post) {
 	display: block;
