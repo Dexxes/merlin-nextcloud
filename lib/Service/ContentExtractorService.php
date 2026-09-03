@@ -95,6 +95,7 @@ class ContentExtractorService {
 		private SiteCredentialService $siteCredentials,
 		private BlueskyThreadResolverService $blueskyThreadResolver,
 		private MastodonPostResolverService $mastodonPostResolver,
+		private TikTokPostResolverService $tiktokPostResolver,
 		private IURLGenerator $urlGenerator,
 	) {
 		$this->logger         = $logger;
@@ -546,22 +547,29 @@ class ContentExtractorService {
 			$domainMeta['image'] = $imageUrl;
 		}
 		elseif ($domainMeta['category'] === "TikTokPost") {
-			// Einzelpost-Embed (tiktok.com, siehe content-filters/tiktok.com.xml):
-			// wie bei X/Instagram kein API-Aufruf nötig/möglich. www.tiktok.com/
-			// embed.js holt den Video-Inhalt clientseitig selbst über TikToks
-			// eigenes oEmbed. www.tiktok.com steht als Frame-Host schon vorher in
-			// isAllowedVideoEmbedSrc()/CSP (dort für TikTok-Player-iframes
-			// INNERHALB fremder Artikel) - hier der eigene Kategorie-Zweig für
-			// direkt eingereichte tiktok.com-URLs. Vorschaubild ist das
+			// Einzelpost-Embed (tiktok.com, siehe content-filters/tiktok.com.xml
+			// bzw. TikTokPostResolverService): anders als bei X/Instagram (rein
+			// clientseitiges Widget aus einem selbst gebauten, leeren
+			// <blockquote>) liest TikToks embed.js die Video-ID beim Rendern
+			// AUSSCHLIESSLICH aus dem data-video-id-Attribut - ein minimal
+			// selbst gebautes Markup führte in der Praxis zu einem fehlerhaften
+			// Embed ("/embed/v2/null"). Deshalb hier ein echter Server-Aufruf
+			// gegen TikToks öffentliche, unauthentifizierte oEmbed-API, die das
+			// komplette, von TikTok selbst generierte Embed-Markup liefert
+			// (siehe TikTokPostResolverService). Vorschaubild ist trotzdem das
 			// TikTok-Icon statt eines Video-Thumbnails, siehe X-Zweig oben.
-			$tiktokVideoId = $this->parseTikTokVideoId($url);
-			if ($tiktokVideoId !== null) {
-				$content = $this->buildTikTokPostHtml($url, $tiktokVideoId);
-				$author  = null;
-				$title   = $domainMeta['title'] ?? 'TikTok-Post';
+			$tiktokVideoId  = $this->parseTikTokVideoId($url);
+			$tiktokResolved = $tiktokVideoId !== null ? $this->tiktokPostResolver->resolve($url) : null;
+			if ($tiktokResolved !== null) {
+				$content = $tiktokResolved['html'];
+				$author  = $tiktokResolved['authorName']
+					?? ($tiktokResolved['authorUniqueId'] !== null ? '@' . $tiktokResolved['authorUniqueId'] : null);
+				$title   = $author !== null ? ('Post von ' . $author) : ($domainMeta['title'] ?? 'TikTok-Post');
 			} else {
-				// Keine Video-URL (Profil/Discover/Startseite) - einfacher
-				// Link-Fallback statt eines falsch dargestellten Embeds.
+				// Keine Video-URL (Profil/Discover/Startseite) oder
+				// oEmbed-Auflösung fehlgeschlagen (gelöschtes/privates Video,
+				// Rate-Limit, Netzwerkfehler) - einfacher Link-Fallback statt
+				// eines fehlerhaften Embeds.
 				$escapedTikTokUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
 				$content = '<a href="' . $escapedTikTokUrl . '" class="merlin-tiktok-fallback-link">Zum TikTok-Post</a>';
 				$author  = null;
@@ -773,7 +781,10 @@ class ContentExtractorService {
 	/**
 	 * Numerische Video-ID aus einer tiktok.com-Video-URL
 	 * ("/@handle/video/1234567890…"), oder null wenn die URL keine
-	 * Video-Permalink-Form hat (Profil, Discover, Startseite, …).
+	 * Video-Permalink-Form hat (Profil, Discover, Startseite, …). Dient dem
+	 * TikTokPost-Zweig als billiges Vorab-Filter, bevor überhaupt ein
+	 * oEmbed-Aufruf (TikTokPostResolverService) versucht wird - die ID selbst
+	 * wird nicht weiterverwendet, TikToks oEmbed-API bekommt die volle URL.
 	 */
 	private function parseTikTokVideoId(string $url): ?string {
 		$path = parse_url($url, PHP_URL_PATH);
@@ -781,19 +792,6 @@ class ContentExtractorService {
 			return null;
 		}
 		return $m[1];
-	}
-
-	/**
-	 * X'/Instagrams Gegenstück, nur für TikTok: ein offizielles Video-Embed-
-	 * <blockquote class="tiktok-embed" cite="…" data-video-id="…"> (leere
-	 * <section> genügt - www.tiktok.com/embed.js holt sich den Video-Inhalt
-	 * selbst über TikToks eigenes oEmbed) + der Loader.
-	 */
-	private function buildTikTokPostHtml(string $url, string $videoId): string {
-		$escapedUrl     = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
-		$escapedVideoId = htmlspecialchars($videoId, ENT_QUOTES, 'UTF-8');
-		return '<blockquote class="tiktok-embed" cite="' . $escapedUrl . '" data-video-id="' . $escapedVideoId . '"><section></section></blockquote>' . "\n"
-			. '<script async src="https://www.tiktok.com/embed.js" charset="utf-8"></script>';
 	}
 
 	/**
