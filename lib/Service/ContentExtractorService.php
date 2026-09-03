@@ -1003,12 +1003,17 @@ class ContentExtractorService {
 	 * src="…"></a></p>. In dem Fall würde Step 12 sonst ein zweites,
 	 * redundantes Hero-Bild voranstellen (siehe Kommentar über Step 12).
 	 *
-	 * Bewusst streng: Es wird nur der erste Element-Knoten Schritt für
-	 * Schritt entpackt, solange er außer einem einzigen Element-Kind keinen
-	 * weiteren (nicht-leeren) Inhalt hat. Sobald ein Wrapper zusätzlichen
-	 * Text oder mehrere Kind-Elemente enthält, gilt der Content NICHT als
-	 * bild-startend - genau wie beim Regex-Fall soll ein früh im Fließtext
-	 * sitzendes Bild das Voranstellen des echten Hero-Bilds nicht verhindern.
+	 * Entpackt wird immer nur das JEWEILS ERSTE Kind-Element eines Wrappers
+	 * (kein weiterer nicht-leerer Text davor) - absichtlich NICHT "genau ein
+	 * Kind insgesamt", denn Readability (fivefilters\Readability) wrapt den
+	 * kompletten extrahierten Content typischerweise in einen äußeren
+	 * <div id="readability-page-1" class="page">…</div> (id/class an dieser
+	 * Stelle bereits von cleanHtml() entfernt), der neben dem Hero-Bild auch
+	 * ALLE folgenden Absätze als Geschwister-Elemente enthält. Eine
+	 * "nur-einzelnes-Kind"-Prüfung würde diesen ganz normalen Wrapper-Fall
+	 * fälschlich als "kein Bild-Start" werten. Der Bild-Abgleich per exakter
+	 * (normalisierter) src-URL verhindert weiterhin False-Positives durch ein
+	 * früh im Fließtext sitzendes, andersartiges Bild.
 	 */
 	private function contentStartsWithMatchingImage(string $html, ?string $normalizedImageUrl, string $baseUrl): bool {
 		if ($normalizedImageUrl === null) {
@@ -1025,19 +1030,10 @@ class ContentExtractorService {
 			return false;
 		}
 
-		$node = null;
-		foreach ($body->childNodes as $child) {
-			if ($child instanceof \DOMElement) {
-				$node = $child;
-				break;
-			}
-			if ($child instanceof \DOMText && trim($child->textContent) !== '') {
-				return false;
-			}
-		}
+		$node = $this->firstNonWhitespaceElementChild($body);
 
 		$depth = 0;
-		while ($node !== null && $depth < 4) {
+		while ($node !== null && $depth < 6) {
 			$tag = strtolower($node->nodeName);
 
 			if ($tag === 'img') {
@@ -1052,23 +1048,29 @@ class ContentExtractorService {
 				return false;
 			}
 
-			$childElement = null;
-			foreach ($node->childNodes as $child) {
-				if ($child instanceof \DOMElement) {
-					if ($childElement !== null) {
-						return false;
-					}
-					$childElement = $child;
-				} elseif ($child instanceof \DOMText && trim($child->textContent) !== '') {
-					return false;
-				}
-			}
-
-			$node = $childElement;
+			$node = $this->firstNonWhitespaceElementChild($node);
 			$depth++;
 		}
 
 		return false;
+	}
+
+	/**
+	 * Liefert das erste Kind-Element eines Knotens, sofern davor nur
+	 * Leerraum-Textknoten stehen (kein sonstiger Text). Steht vor dem ersten
+	 * Element ein nicht-leerer Textknoten, oder hat der Knoten gar kein
+	 * Element-Kind, wird null zurückgegeben.
+	 */
+	private function firstNonWhitespaceElementChild(\DOMNode $parent): ?\DOMElement {
+		foreach ($parent->childNodes as $child) {
+			if ($child instanceof \DOMElement) {
+				return $child;
+			}
+			if ($child instanceof \DOMText && trim($child->textContent) !== '') {
+				return null;
+			}
+		}
+		return null;
 	}
 
 	/**
