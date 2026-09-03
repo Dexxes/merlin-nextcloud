@@ -1415,6 +1415,21 @@ article {
 	border-color: rgba(255, 255, 255, 0.15);
 }
 
+/* Plattform-Icon statt Vorschau-/Hero-Bild für Bluesky-/X-/Mastodon-Artikel
+   (siehe ContentExtractorService::buildPlatformIconHtml()) - steht am
+   Anfang des Contents, vor dem eigentlichen Embed/der Post-Karte. */
+.article-body :deep(.merlin-platform-icon) {
+	display: flex;
+	justify-content: center;
+	margin: 0.5em 0 1.2em;
+}
+
+.article-body :deep(.merlin-platform-icon svg) {
+	width: 36px;
+	height: 36px;
+	fill: var(--color-text-lighter, #888);
+}
+
 .article-body :deep(.img-placeholder) {
 	display: flex;
 	flex-direction: column;
