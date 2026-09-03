@@ -652,6 +652,12 @@ class ContentExtractorService {
 		// früh im Fließtext sitzendes Bild (z. B. innerhalb der ersten zwei, drei
 		// Absätze) fälschlich das Voranstellen des eigentlichen Hero-Bilds, obwohl
 		// Readability den Hero selbst nie behalten hat.
+		// "Beginnt mit einem Bild" schließt auch den Fall ein, dass Readability
+		// das Hero-Bild verpackt in <p>/<a>/<div>/<span> behalten hat (z. B. das
+		// bei WordPress übliche <p><a href="…"><img src="…"></a></p>) – siehe
+		// contentStartsWithMatchingImage(). Ohne diese Erkennung würde dasselbe
+		// Bild doppelt erscheinen: einmal original im Content, einmal als
+		// künstlich vorangestelltes zweites merlin-hero-image.
 		// Bluesky/X/Mastodon: $imageUrl ist hier das feste Plattform-Icon
 		// (Vorschaubild in der Artikelliste, siehe platformIconUrl()), soll
 		// aber ausdrücklich NICHT zusätzlich als Hero-Bild im Content
@@ -660,7 +666,9 @@ class ContentExtractorService {
 		$suppressHeroImage = in_array($domainMeta['category'], ['Thread', 'XPost', 'Mastodon', 'InstagramPost', 'TikTokPost'], true);
 
 		$start = ltrim($content);
-		if ($normalizedImageUrl !== null && !$suppressHeroImage && !preg_match('/^<(img|figure)\b/i', $start)) {
+		$startsWithHeroImage = preg_match('/^<(img|figure)\b/i', $start) === 1
+			|| $this->contentStartsWithMatchingImage($start, $normalizedImageUrl, $url);
+		if ($normalizedImageUrl !== null && !$suppressHeroImage && !$startsWithHeroImage) {
 			$escapedUrl  = htmlspecialchars($normalizedImageUrl, ENT_QUOTES, 'UTF-8');
 			$figcaption  = '';
 			// Caption aus dem HTML-Scan übernehmen (nur wenn kein og:image die imageUrl
@@ -986,6 +994,81 @@ class ContentExtractorService {
 		);
 
 		return $this->shortenerPatterns;
+	}
+
+	/**
+	 * Prüft, ob der Content bereits mit dem Hero-Bild beginnt, auch wenn es
+	 * (z. B. bei WordPress-Quellen üblich) in <p>/<a>/<div>/<span> verpackt ist
+	 * statt als nacktes <img> oder <figure> - z. B. <p><a href="…"><img
+	 * src="…"></a></p>. In dem Fall würde Step 12 sonst ein zweites,
+	 * redundantes Hero-Bild voranstellen (siehe Kommentar über Step 12).
+	 *
+	 * Bewusst streng: Es wird nur der erste Element-Knoten Schritt für
+	 * Schritt entpackt, solange er außer einem einzigen Element-Kind keinen
+	 * weiteren (nicht-leeren) Inhalt hat. Sobald ein Wrapper zusätzlichen
+	 * Text oder mehrere Kind-Elemente enthält, gilt der Content NICHT als
+	 * bild-startend - genau wie beim Regex-Fall soll ein früh im Fließtext
+	 * sitzendes Bild das Voranstellen des echten Hero-Bilds nicht verhindern.
+	 */
+	private function contentStartsWithMatchingImage(string $html, ?string $normalizedImageUrl, string $baseUrl): bool {
+		if ($normalizedImageUrl === null) {
+			return false;
+		}
+
+		$doc = new \DOMDocument();
+		libxml_use_internal_errors(true);
+		$doc->loadHTML('<?xml encoding="UTF-8"><body>' . $html . '</body>', LIBXML_NOERROR | LIBXML_NOWARNING);
+		libxml_clear_errors();
+
+		$body = $doc->getElementsByTagName('body')->item(0);
+		if ($body === null) {
+			return false;
+		}
+
+		$node = null;
+		foreach ($body->childNodes as $child) {
+			if ($child instanceof \DOMElement) {
+				$node = $child;
+				break;
+			}
+			if ($child instanceof \DOMText && trim($child->textContent) !== '') {
+				return false;
+			}
+		}
+
+		$depth = 0;
+		while ($node !== null && $depth < 4) {
+			$tag = strtolower($node->nodeName);
+
+			if ($tag === 'img') {
+				$src = $node->getAttribute('src');
+				if ($src === '') {
+					return false;
+				}
+				return $this->normalizeUrl($src, $baseUrl) === $normalizedImageUrl;
+			}
+
+			if (!in_array($tag, ['p', 'div', 'span', 'a'], true)) {
+				return false;
+			}
+
+			$childElement = null;
+			foreach ($node->childNodes as $child) {
+				if ($child instanceof \DOMElement) {
+					if ($childElement !== null) {
+						return false;
+					}
+					$childElement = $child;
+				} elseif ($child instanceof \DOMText && trim($child->textContent) !== '') {
+					return false;
+				}
+			}
+
+			$node = $childElement;
+			$depth++;
+		}
+
+		return false;
 	}
 
 	/**
