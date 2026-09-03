@@ -336,11 +336,12 @@ export default {
 	margin: 2em auto;
 }
 
-/* Instagram-/X-Embeds (siehe isAllowedWidgetScriptSrc()) rendern sich nach
-   dem Laden des Widget-Skripts selbst neu und bringen ihr eigenes
+/* Instagram-/X-/Bluesky-Embeds (siehe isAllowedWidgetScriptSrc()) rendern sich
+   nach dem Laden des Widget-Skripts selbst neu und bringen ihr eigenes
    Kartendesign mit. */
 .pav-body :deep(blockquote.instagram-media),
-.pav-body :deep(blockquote.twitter-tweet) {
+.pav-body :deep(blockquote.twitter-tweet),
+.pav-body :deep(blockquote.bluesky-embed) {
 	max-width: 100%;
 	overflow: hidden;
 	margin: 2em auto;
