@@ -94,7 +94,8 @@
          Metadaten-Engine joint mehrere XPath-Treffer automatisch mit ", "
          (siehe extractDomainMetadata()). -->
     <author xpath="//li[@property='author']/a" />
-    <image    xpath="//meta[@property='og:image']/@content" />
+    <author xpath="//a[@data-gtm-class='article-author-link']" />
+    <image xpath="//meta[@property='og:image']/@content" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
     <author   xpath="//span[@class='author-name']" />
