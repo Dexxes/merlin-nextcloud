@@ -24,6 +24,7 @@
   <pre-filter>
     <remove xpath="//*[@data-type='tag-links']" />
     <remove xpath="//*[@data-type='author']" />
+    <remove xpath="//article/h2[1]" />
   </pre-filter>
 
   <post-filter>
