@@ -740,12 +740,26 @@ class ContentExtractorService {
 	 * URL des statischen Plattform-Icons (16:9-PNG, transparenter
 	 * Hintergrund, unter img/{platform}-preview.png), das für Bluesky-/X-/
 	 * Mastodon-Artikel statt eines Avatars/Post-Fotos als Vorschaubild
-	 * dient (siehe Thread-/XPost-/Mastodon-Zweige oben). imagePath() statt
-	 * einer absoluten URL - gleiches Muster wie ArticleController::
-	 * resolveImageUrl() für das no-img.png-Platzhalterbild.
+	 * dient (siehe Thread-/XPost-/Mastodon-Zweige oben).
+	 *
+	 * getAbsoluteURL() ist hier Pflicht, nicht Kür: imagePath() allein
+	 * liefert einen host-relativen Pfad (z. B. "/index.php/apps/merlin/
+	 * img/…") - im Web-Reader per v-html/<img> unproblematisch (der
+	 * Browser löst ihn gegen die aktuelle Origin auf), aber iOS/Android
+	 * laden $imageUrl über einen eigenständigen Netzwerk-Request
+	 * (URLSession/Coil), der eine vollständige URL mit Schema+Host
+	 * braucht - ein relativer Pfad schlägt dort still fehl und die Cards
+	 * zeigen nur den lokalen Platzhalter. Anders als beim no-img.png-
+	 * Fallback in ArticleController::resolveImageUrl() (dort geliefert,
+	 * wenn $imageUrl bereits leer ist, wird das clientseitig gar nicht
+	 * erst über die Bild-Pipeline geladen) ist dieser Wert hier ein
+	 * "echtes" imageUrl, das denselben Weg wie ein von einer Drittseite
+	 * gescraptes og:image-Bild nimmt - und die kommen immer schon absolut.
 	 */
 	private function platformIconUrl(string $platform): string {
-		return $this->urlGenerator->imagePath('merlin', $platform . '-preview.png');
+		return $this->urlGenerator->getAbsoluteURL(
+			$this->urlGenerator->imagePath('merlin', $platform . '-preview.png')
+		);
 	}
 
 	// ──────────────────────────────────────────────────────────────────────────
