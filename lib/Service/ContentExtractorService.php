@@ -653,8 +653,9 @@ class ContentExtractorService {
 		// Absätze) fälschlich das Voranstellen des eigentlichen Hero-Bilds, obwohl
 		// Readability den Hero selbst nie behalten hat.
 		// "Beginnt mit einem Bild" schließt auch den Fall ein, dass Readability
-		// das Hero-Bild verpackt in <p>/<a>/<div>/<span> behalten hat (z. B. das
-		// bei WordPress übliche <p><a href="…"><img src="…"></a></p>) – siehe
+		// das Hero-Bild verpackt in <p>/<a>/<div>/<span>/<figure> behalten hat
+		// (z. B. das bei WordPress übliche <p><a href="…"><img src="…"></a></p>
+		// oder ein Gutenberg-Bildblock <figure><img src="…"></figure>) – siehe
 		// contentStartsWithMatchingImage(). Ohne diese Erkennung würde dasselbe
 		// Bild doppelt erscheinen: einmal original im Content, einmal als
 		// künstlich vorangestelltes zweites merlin-hero-image.
@@ -998,10 +999,12 @@ class ContentExtractorService {
 
 	/**
 	 * Prüft, ob der Content bereits mit dem Hero-Bild beginnt, auch wenn es
-	 * (z. B. bei WordPress-Quellen üblich) in <p>/<a>/<div>/<span> verpackt ist
-	 * statt als nacktes <img> oder <figure> - z. B. <p><a href="…"><img
-	 * src="…"></a></p>. In dem Fall würde Step 12 sonst ein zweites,
-	 * redundantes Hero-Bild voranstellen (siehe Kommentar über Step 12).
+	 * (z. B. bei WordPress-Quellen üblich) in <p>/<a>/<div>/<span>/<figure>
+	 * verpackt ist statt als nacktes <img> oder <figure> an Position 0 - z. B.
+	 * <p><a href="…"><img src="…"></a></p> oder ein Gutenberg-Bildblock
+	 * <div><figure class="wp-block-image"><img src="…"></figure></div>. In
+	 * dem Fall würde Step 12 sonst ein zweites, redundantes Hero-Bild
+	 * voranstellen (siehe Kommentar über Step 12).
 	 *
 	 * Entpackt wird immer nur das JEWEILS ERSTE Kind-Element eines Wrappers
 	 * (kein weiterer nicht-leerer Text davor) - absichtlich NICHT "genau ein
@@ -1011,9 +1014,13 @@ class ContentExtractorService {
 	 * Stelle bereits von cleanHtml() entfernt), der neben dem Hero-Bild auch
 	 * ALLE folgenden Absätze als Geschwister-Elemente enthält. Eine
 	 * "nur-einzelnes-Kind"-Prüfung würde diesen ganz normalen Wrapper-Fall
-	 * fälschlich als "kein Bild-Start" werten. Der Bild-Abgleich per exakter
-	 * (normalisierter) src-URL verhindert weiterhin False-Positives durch ein
-	 * früh im Fließtext sitzendes, andersartiges Bild.
+	 * fälschlich als "kein Bild-Start" werten.
+	 *
+	 * Der Bild-Abgleich läuft über imagesMatchForDedup() statt über exakte
+	 * String-Gleichheit - siehe dort für die Begründung (WordPress-
+	 * Größenvarianten/CDN-Resize-Parameter). Ein früh im Fließtext sitzendes,
+	 * andersartiges Bild hat so gut wie nie denselben Basis-Dateinamen wie
+	 * das Hero-Bild und verhindert das Voranstellen damit weiterhin nicht.
 	 */
 	private function contentStartsWithMatchingImage(string $html, ?string $normalizedImageUrl, string $baseUrl): bool {
 		if ($normalizedImageUrl === null) {
@@ -1021,9 +1028,10 @@ class ContentExtractorService {
 		}
 
 		$doc = new \DOMDocument();
-		libxml_use_internal_errors(true);
+		$prevLibxmlErrors = libxml_use_internal_errors(true);
 		$doc->loadHTML('<?xml encoding="UTF-8"><body>' . $html . '</body>', LIBXML_NOERROR | LIBXML_NOWARNING);
 		libxml_clear_errors();
+		libxml_use_internal_errors($prevLibxmlErrors);
 
 		$body = $doc->getElementsByTagName('body')->item(0);
 		if ($body === null) {
@@ -1041,10 +1049,10 @@ class ContentExtractorService {
 				if ($src === '') {
 					return false;
 				}
-				return $this->normalizeUrl($src, $baseUrl) === $normalizedImageUrl;
+				return $this->imagesMatchForDedup($this->normalizeUrl($src, $baseUrl), $normalizedImageUrl);
 			}
 
-			if (!in_array($tag, ['p', 'div', 'span', 'a'], true)) {
+			if (!in_array($tag, ['p', 'div', 'span', 'a', 'figure'], true)) {
 				return false;
 			}
 
@@ -1060,17 +1068,57 @@ class ContentExtractorService {
 	 * Leerraum-Textknoten stehen (kein sonstiger Text). Steht vor dem ersten
 	 * Element ein nicht-leerer Textknoten, oder hat der Knoten gar kein
 	 * Element-Kind, wird null zurückgegeben.
+	 *
+	 * Geschützte Leerzeichen (&nbsp;, U+00A0) zählen dabei als Leerraum:
+	 * WYSIWYG-Editoren fügen sie häufig als Abstandshalter direkt vor einem
+	 * Bild ein, PHPs trim() entfernt sie aber nicht (kein ASCII-Whitespace) -
+	 * ohne diese Normalisierung würde ein solches &nbsp; hier fälschlich als
+	 * "echter" Text gewertet und contentStartsWithMatchingImage() bräche die
+	 * Entpackung an dieser Stelle vorzeitig ab.
 	 */
 	private function firstNonWhitespaceElementChild(\DOMNode $parent): ?\DOMElement {
 		foreach ($parent->childNodes as $child) {
 			if ($child instanceof \DOMElement) {
 				return $child;
 			}
-			if ($child instanceof \DOMText && trim($child->textContent) !== '') {
+			if ($child instanceof \DOMText && trim(str_replace("\u{00A0}", ' ', $child->textContent)) !== '') {
 				return null;
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * Vergleicht zwei bereits normalisierte Bild-URLs auf "wahrscheinlich
+	 * dasselbe Bild" statt auf exakte Gleichheit.
+	 *
+	 * Ein exakter String-Vergleich schlägt in der Praxis ausgerechnet für die
+	 * Bilder fehl, die contentStartsWithMatchingImage() erkennen soll:
+	 * WordPress erzeugt für jedes in den Content eingefügte Bild automatisch
+	 * mehrere Größenvarianten und hängt dafür "-{Breite}x{Höhe}" vor die
+	 * Dateiendung an (z. B. "foto-1024x576.jpg"), während og:image (die
+	 * Quelle von $normalizedImageUrl) meist auf die Originaldatei ohne dieses
+	 * Suffix zeigt ("foto.jpg"). Bilder-CDNs/Resize-Proxies (Jetpack Photon,
+	 * Cloudinary, einfache "?w=…"-Parameter) hängen die Zielgröße stattdessen
+	 * oft als Query-String an dieselbe Basis-URL an. Beides wurde vor diesem
+	 * Fix ignoriert, wodurch das Voranstellen in genau diesen - sehr
+	 * verbreiteten - Fällen weiterhin dupliziert hat.
+	 *
+	 * Das WordPress-Suffix-Muster ("-<Ziffern>x<Ziffern>" direkt vor der
+	 * Dateiendung) ist spezifisch genug, um nicht versehentlich auf einen
+	 * unverwandten Dateinamen zu matchen.
+	 */
+	private function imagesMatchForDedup(string $contentImageUrl, string $normalizedImageUrl): bool {
+		if ($contentImageUrl === $normalizedImageUrl) {
+			return true;
+		}
+
+		$stripVariantMarkers = static function (string $url): string {
+			$url = explode('?', $url, 2)[0];
+			return preg_replace('/-\d+x\d+(?=\.\w+$)/i', '', $url) ?? $url;
+		};
+
+		return $stripVariantMarkers($contentImageUrl) === $stripVariantMarkers($normalizedImageUrl);
 	}
 
 	/**
