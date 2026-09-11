@@ -1002,8 +1002,10 @@ class ContentExtractorService {
 	 * (z. B. bei WordPress-Quellen üblich) in <p>/<a>/<div>/<span>/<figure>
 	 * verpackt ist statt als nacktes <img> oder <figure> an Position 0 - z. B.
 	 * <p><a href="…"><img src="…"></a></p> oder ein Gutenberg-Bildblock
-	 * <div><figure class="wp-block-image"><img src="…"></figure></div>. In
-	 * dem Fall würde Step 12 sonst ein zweites, redundantes Hero-Bild
+	 * <div><figure class="wp-block-image"><img src="…"></figure></div>. Auch
+	 * ein <picture>-Wrapper (responsive Bilder mit <source>-Geschwistern vor
+	 * dem eigentlichen <img>, z. B. bei ARD/rbb-Quellen üblich) wird entpackt.
+	 * In dem Fall würde Step 12 sonst ein zweites, redundantes Hero-Bild
 	 * voranstellen (siehe Kommentar über Step 12).
 	 *
 	 * Entpackt wird immer nur das JEWEILS ERSTE Kind-Element eines Wrappers
@@ -1017,10 +1019,10 @@ class ContentExtractorService {
 	 * fälschlich als "kein Bild-Start" werten.
 	 *
 	 * Der Bild-Abgleich läuft über imagesMatchForDedup() statt über exakte
-	 * String-Gleichheit - siehe dort für die Begründung (WordPress-
+	 * String-Gleichheit - siehe dort für die Begründung (Bildserver-
 	 * Größenvarianten/CDN-Resize-Parameter). Ein früh im Fließtext sitzendes,
-	 * andersartiges Bild hat so gut wie nie denselben Basis-Dateinamen wie
-	 * das Hero-Bild und verhindert das Voranstellen damit weiterhin nicht.
+	 * andersartiges Bild hat so gut wie nie denselben Basis-Pfad wie das
+	 * Hero-Bild und verhindert das Voranstellen damit weiterhin nicht.
 	 */
 	private function contentStartsWithMatchingImage(string $html, ?string $normalizedImageUrl, string $baseUrl): bool {
 		if ($normalizedImageUrl === null) {
@@ -1052,6 +1054,15 @@ class ContentExtractorService {
 				return $this->imagesMatchForDedup($this->normalizeUrl($src, $baseUrl), $normalizedImageUrl);
 			}
 
+			// <picture>s einziges relevantes Kind ist das abschließende <img> -
+			// die vorangehenden <source>-Geschwister tragen kein src, sondern
+			// srcset, und sind deshalb kein Fall für firstNonWhitespaceElementChild().
+			if ($tag === 'picture') {
+				$node = $this->firstImageInPicture($node);
+				$depth++;
+				continue;
+			}
+
 			if (!in_array($tag, ['p', 'div', 'span', 'a', 'figure'], true)) {
 				return false;
 			}
@@ -1061,6 +1072,27 @@ class ContentExtractorService {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Liefert das <img> innerhalb eines <picture>-Elements.
+	 *
+	 * Sucht bewusst per getElementsByTagName() über ALLE Nachfahren statt nur
+	 * die direkten Kinder zu prüfen: <source> ist ein Void-Element (kein
+	 * schließendes Tag), aber libxml2s HTML-Parser (getestet mit 2.9.14)
+	 * behandelt ein <source> ohne explizites "/>" NICHT als Void-Element,
+	 * sondern verschachtelt jedes folgende Geschwister-Element als sein Kind -
+	 * <picture><source>…<source>…<img></picture> wird dadurch zu
+	 * <picture><source>…<source>…<img></source></source></picture>. Ein
+	 * simpler Kind-für-Kind-Scan (wie firstNonWhitespaceElementChild) würde
+	 * das <img> deshalb nie finden. Per Spezifikation kann ein <picture> ohnehin
+	 * nur <source>-Elemente und genau ein <img> enthalten - anders als bei den
+	 * generischen p/div/span/a/figure-Wrappern ist "irgendwo als Nachfahre"
+	 * hier also gleichbedeutend mit "das gesuchte Bild".
+	 */
+	private function firstImageInPicture(\DOMElement $picture): ?\DOMElement {
+		$img = $picture->getElementsByTagName('img')->item(0);
+		return $img instanceof \DOMElement ? $img : null;
 	}
 
 	/**
@@ -1093,20 +1125,28 @@ class ContentExtractorService {
 	 * dasselbe Bild" statt auf exakte Gleichheit.
 	 *
 	 * Ein exakter String-Vergleich schlägt in der Praxis ausgerechnet für die
-	 * Bilder fehl, die contentStartsWithMatchingImage() erkennen soll:
-	 * WordPress erzeugt für jedes in den Content eingefügte Bild automatisch
-	 * mehrere Größenvarianten und hängt dafür "-{Breite}x{Höhe}" vor die
-	 * Dateiendung an (z. B. "foto-1024x576.jpg"), während og:image (die
-	 * Quelle von $normalizedImageUrl) meist auf die Originaldatei ohne dieses
-	 * Suffix zeigt ("foto.jpg"). Bilder-CDNs/Resize-Proxies (Jetpack Photon,
-	 * Cloudinary, einfache "?w=…"-Parameter) hängen die Zielgröße stattdessen
-	 * oft als Query-String an dieselbe Basis-URL an. Beides wurde vor diesem
-	 * Fix ignoriert, wodurch das Voranstellen in genau diesen - sehr
-	 * verbreiteten - Fällen weiterhin dupliziert hat.
+	 * Bilder fehl, die contentStartsWithMatchingImage() erkennen soll - die
+	 * src im Content und die per og:image ermittelte imageUrl sind zwar
+	 * dasselbe Foto, aber fast nie exakt dieselbe URL:
 	 *
-	 * Das WordPress-Suffix-Muster ("-<Ziffern>x<Ziffern>" direkt vor der
-	 * Dateiendung) ist spezifisch genug, um nicht versehentlich auf einen
-	 * unverwandten Dateinamen zu matchen.
+	 *   - WordPress erzeugt für jedes in den Content eingefügte Bild
+	 *     automatisch mehrere Größenvarianten und hängt dafür
+	 *     "-{Breite}x{Höhe}" vor die Dateiendung an (z. B. "foto-1024x576.jpg"),
+	 *     während og:image meist auf die Originaldatei ohne dieses Suffix
+	 *     zeigt ("foto.jpg").
+	 *   - Bilder-CDNs/Resize-Proxies (Jetpack Photon, Cloudinary, einfache
+	 *     "?w=…"-Parameter) hängen die Zielgröße stattdessen als Query-String
+	 *     an dieselbe Basis-URL an.
+	 *   - AEM-basierte Bildserver (z. B. bei ARD/rbb: rbb-online.de) hängen
+	 *     ein oder mehrere "key=wert"-Pfadsegmente ans Ende des Bildpfads an,
+	 *     z. B. ".../foto.jpg.jpg/size=1280x720.jpg" (og:image) vs.
+	 *     ".../foto.jpg.jpg/quality=160/size=1376x774.jpg" (dieselbe Aufnahme
+	 *     im Artikeltext, andere Auflösung/Qualitätsstufe).
+	 *
+	 * Alle drei Varianten wurden vor diesem Fix ignoriert, wodurch das
+	 * Voranstellen in genau diesen - sehr verbreiteten - Fällen weiterhin
+	 * dupliziert hat. Die Suffix-/Pfadsegment-Muster sind spezifisch genug,
+	 * um nicht versehentlich auf einen unverwandten Bildpfad zu matchen.
 	 */
 	private function imagesMatchForDedup(string $contentImageUrl, string $normalizedImageUrl): bool {
 		if ($contentImageUrl === $normalizedImageUrl) {
@@ -1115,7 +1155,16 @@ class ContentExtractorService {
 
 		$stripVariantMarkers = static function (string $url): string {
 			$url = explode('?', $url, 2)[0];
-			return preg_replace('/-\d+x\d+(?=\.\w+$)/i', '', $url) ?? $url;
+			$url = preg_replace('/-\d+x\d+(?=\.\w+$)/i', '', $url) ?? $url;
+
+			// AEM-Bildserver-Renditions: ein oder mehrere trailing "key=wert"-
+			// Pfadsegmente (z. B. "size=1280x720.jpg", "quality=160")
+			// entfernen, bis das stabile Basis-Asset übrig bleibt.
+			$parts = explode('/', $url);
+			while (count($parts) > 1 && preg_match('/^[a-z]+=[\w.,%-]+$/i', end($parts)) === 1) {
+				array_pop($parts);
+			}
+			return implode('/', $parts);
 		};
 
 		return $stripVariantMarkers($contentImageUrl) === $stripVariantMarkers($normalizedImageUrl);

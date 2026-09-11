@@ -129,6 +129,32 @@ $check(
 );
 
 $check(
+	'<picture>-Wrapper mit mehreren <source>-Geschwistern vor <img> (responsive Bilder)',
+	'<div><picture><source srcset="foto.webp" type="image/webp"><source srcset="foto.avif" type="image/avif"><img src="https://example.com/wp-content/uploads/2024/foto.jpg"></picture></div>',
+	'https://example.com/wp-content/uploads/2024/foto.jpg',
+	true
+);
+
+$check(
+	'<picture> mit NICHT selbst-schließenden <source>-Tags (libxml2 2.9.14 verschachtelt diese ineinander statt sie als Void-Element zu behandeln, siehe firstImageInPicture())',
+	'<figure><picture>
+ <source srcset="a.webp" type="image/webp" width="960" height="540" media="(max-width:768px)">
+ <source srcset="b.jpg" type="image/jpeg" width="960" height="540" media="(max-width:768px)">
+ <source srcset="c.webp" type="image/webp" width="1536" height="864" media="(max-width:860px)">
+ <img src="https://example.com/wp-content/uploads/2024/foto.jpg" width="1376" height="774">
+</picture></figure>',
+	'https://example.com/wp-content/uploads/2024/foto.jpg',
+	true
+);
+
+$check(
+	'AEM-Bildserver-Renditions (ARD/rbb-Stil): "/size=WxH.jpg" bzw. "/quality=N/size=WxH.jpg"-Pfadsegmente statt WordPress-Suffix oder Query-String',
+	'<figure><picture><source srcset="x"><img src="https://example.com/content/dam/foto.jpg.jpg/quality=160/size=1376x774.jpg"></picture></figure>',
+	'https://example.com/content/dam/foto.jpg.jpg/size=1280x720.jpg',
+	true
+);
+
+$check(
 	'Protokoll-relative src ("//…") vs. https-imageUrl',
 	'<p><a href="x"><img src="//example.com/wp-content/uploads/2024/foto.jpg"></a></p>',
 	'https://example.com/wp-content/uploads/2024/foto.jpg',
@@ -147,6 +173,20 @@ $check(
 $check(
 	'Größenvariante eines ANDEREN Bildes (unterschiedlicher Basis-Dateiname)',
 	'<p><a href="x"><img src="https://example.com/wp-content/uploads/2024/anderes-foto-1024x576.jpg"></a></p>',
+	'https://example.com/wp-content/uploads/2024/foto.jpg',
+	false
+);
+
+$check(
+	'AEM-Bildserver-Rendition eines ANDEREN Bildes (unterschiedlicher Basis-Pfad vor "/size=…")',
+	'<p><a href="x"><img src="https://example.com/content/dam/anderes-foto.jpg.jpg/quality=160/size=1376x774.jpg"></a></p>',
+	'https://example.com/content/dam/foto.jpg.jpg/size=1280x720.jpg',
+	false
+);
+
+$check(
+	'<picture> mit einem tatsächlich ANDEREN Bild (Fallback-<img> zeigt auf anderen Dateinamen)',
+	'<figure><picture><source srcset="x"><img src="https://example.com/wp-content/uploads/2024/anderes-foto.jpg"></picture></figure>',
 	'https://example.com/wp-content/uploads/2024/foto.jpg',
 	false
 );
