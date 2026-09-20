@@ -23,6 +23,9 @@
 
   <pre-filter>
     <remove   xpath="//header" />
+    <remove   xpath="//div[contains(@class, 'b-btn-player-duration')]" />
+    <remove   xpath="//div[contains(@class, 'section-article-head-area-actions')]" />
+    
   </pre-filter>
 
   <post-filter>
