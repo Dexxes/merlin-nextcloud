@@ -3,28 +3,29 @@
 declare(strict_types=1);
 
 /**
- * Testharness für die Hero-Bild-Deduplizierung in Step 12 von
- * ContentExtractorService::processHtml() (contentStartsWithMatchingImage(),
- * firstNonWhitespaceElementChild(), imagesMatchForDedup()).
+ * Testharness für die Hero-Bild-Behandlung in Step 12 von
+ * ContentExtractorService::processHtml(): stripLeadingImages(),
+ * scanForLeadingImages(), resolveLeadingImage(), isSkippableLeadIn(),
+ * firstNonWhitespaceElementChild(), firstImageInPicture(), imagesMatchForDedup().
  *
  * Aufruf (auf dem Server, im App-Verzeichnis):
  *   php tools/test-hero-image-dedup.php
  *
- * Hintergrund: #27 hat contentStartsWithMatchingImage() eingeführt, damit ein
- * in <p>/<a>/<div>/<span> verpacktes Hero-Bild (z. B. WordPress-typisch
- * <p><a href="…"><img src="…"></a></p>) nicht zusätzlich zum Voranstellen
- * eines zweiten, identischen merlin-hero-image führt. Der Bild-Abgleich lief
- * dabei per exaktem String-Vergleich der (normalisierten) src-URL gegen die
- * per og:image ermittelte imageUrl. In der Praxis unterscheiden sich beide
- * URLs bei WordPress-Quellen aber sehr häufig NUR durch die von WordPress
- * automatisch angehängte Größenvariante (z. B. "foto-1024x576.jpg" im
- * Content vs. "foto.jpg" als og:image) oder durch CDN-Resize-Parameter in der
- * Query-String - der exakte Vergleich griff dadurch gerade in dem
- * WordPress-Fall, für den die Methode gebaut wurde, unzuverlässig, und ein
- * <figure>-Wrapper (z. B. Gutenberg-Bildblock) wurde gar nicht erst entpackt.
- * Dieses Script deckt beide Lücken ab und prüft zugleich, dass die
- * bestehenden Sicherheitseigenschaften (kein falsches Unterdrücken bei einem
- * echten, andersartigen Bild) erhalten bleiben.
+ * Hintergrund: #27/#28 hatten contentStartsWithMatchingImage() eingeführt und
+ * nachgebessert (WordPress-Größenvarianten, <picture>-Wrapper, AEM-Renditions),
+ * damit ein bereits im Content vorhandenes, zum Hero-Bild passendes Bild nicht
+ * ein zweites Mal vorangestellt wird. Das Grundproblem blieb: jede neue,
+ * bisher unbekannte CDN-/Resize-URL-Form unterläuft den Ähnlichkeitsabgleich
+ * erneut, und ein Bild hinter einer kurzen Autorenzeile wurde nie erkannt, da
+ * nur der buchstäblich erste Content-Knoten geprüft wurde.
+ *
+ * stripLeadingImages() ersetzt diese Erkennen-und-ggf.-verzichten-Heuristik
+ * durch bedingungsloses Entfernen aller Leitbilder bis zum ersten
+ * substantiellen Absatz - das Hero-Bild wird in Step 12 danach IMMER separat
+ * eingefügt. imagesMatchForDedup() entscheidet nur noch, welche der dabei
+ * gesammelten Captions zum Hero-Bild passt; ein Fehltreffer kostet dadurch
+ * höchstens eine fehlende statt einer falschen oder sichtbar doppelten
+ * Bild-Anzeige.
  *
  * Der Service wird ohne Konstruktor instanziiert (newInstanceWithoutConstructor):
  * die geprüften Methoden nutzen weder Logger noch Repository, ein
@@ -39,10 +40,12 @@ use OCA\Merlin\Service\ContentExtractorService;
 require_once __DIR__ . '/../lib/Service/ContentExtractorService.php';
 
 $service = (new ReflectionClass(ContentExtractorService::class))->newInstanceWithoutConstructor();
-$method  = new ReflectionMethod(ContentExtractorService::class, 'contentStartsWithMatchingImage');
-$method->setAccessible(true);
-$normalizeUrl = new ReflectionMethod(ContentExtractorService::class, 'normalizeUrl');
-$normalizeUrl->setAccessible(true);
+
+$stripLeadingImages = new ReflectionMethod(ContentExtractorService::class, 'stripLeadingImages');
+$stripLeadingImages->setAccessible(true);
+
+$imagesMatchForDedup = new ReflectionMethod(ContentExtractorService::class, 'imagesMatchForDedup');
+$imagesMatchForDedup->setAccessible(true);
 
 $passed   = 0;
 $failures = [];
@@ -50,14 +53,64 @@ $failures = [];
 $baseUrl = 'https://example.com/blog/some-article/';
 
 /**
- * @param string $html       Content, wie es nach cleanHtml() an Step 12 ankommt (ohne führenden Leerraum).
- * @param string $imageUrl   Roh-imageUrl, wie sie z. B. aus og:image stammt (wird wie in processHtml() normalisiert).
+ * Prüft stripLeadingImages(): $expectedRemovedCount Bilder sollen aus $html
+ * entfernt werden. Optional: Teilstring, der im verbleibenden Content stehen
+ * bleiben bzw. fehlen muss, sowie src/Caption des ERSTEN entfernten Bildes.
+ * $expectedFirstCaption=false bedeutet "nicht geprüft" (Caption selbst ist
+ * ?string, daher kein string/null-Wert als Sentinel verwendbar).
  */
-$check = function (string $label, string $html, string $imageUrl, bool $expected) use (
-	$service, $method, $normalizeUrl, $baseUrl, &$passed, &$failures
+$checkStrip = function (
+	string $label,
+	string $html,
+	int $expectedRemovedCount,
+	?string $expectedRestContains = null,
+	?string $expectedRestNotContains = null,
+	?string $expectedFirstSrc = null,
+	string|false|null $expectedFirstCaption = false
+) use ($service, $stripLeadingImages, $baseUrl, &$passed, &$failures): void {
+	$result      = $stripLeadingImages->invoke($service, $html, $baseUrl);
+	$actualCount = count($result['images']);
+
+	$ok = $actualCount === $expectedRemovedCount;
+	if ($ok && $expectedRestContains !== null) {
+		$ok = str_contains($result['content'], $expectedRestContains);
+	}
+	if ($ok && $expectedRestNotContains !== null) {
+		$ok = !str_contains($result['content'], $expectedRestNotContains);
+	}
+	if ($ok && $expectedFirstSrc !== null) {
+		$ok = ($result['images'][0]['src'] ?? null) === $expectedFirstSrc;
+	}
+	if ($ok && $expectedFirstCaption !== false) {
+		$ok = ($result['images'][0]['caption'] ?? null) === $expectedFirstCaption;
+	}
+
+	if ($ok) {
+		$passed++;
+		echo "  \033[32m✓\033[0m " . $label . "\n";
+		return;
+	}
+	$failures[] = $label;
+	echo "  \033[31m✗ " . $label . "\033[0m\n";
+	echo '      erwartet: removedCount=' . $expectedRemovedCount
+		. ($expectedRestContains !== null ? ', restContains=' . var_export($expectedRestContains, true) : '')
+		. ($expectedRestNotContains !== null ? ', restNotContains=' . var_export($expectedRestNotContains, true) : '')
+		. ($expectedFirstSrc !== null ? ', firstSrc=' . var_export($expectedFirstSrc, true) : '')
+		. ($expectedFirstCaption !== false ? ', firstCaption=' . var_export($expectedFirstCaption, true) : '')
+		. "\n";
+	echo '      erhalten: ' . json_encode($result['images'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+	echo '      verbleibender Content: ' . $result['content'] . "\n";
+};
+
+/**
+ * Prüft imagesMatchForDedup() direkt mit zwei bereits normalisierten URLs -
+ * genau die Fälle, die jetzt über die Caption-Zuordnung in Step 12 statt über
+ * die (frühere) Entfernungs-Entscheidung laufen.
+ */
+$checkMatch = function (string $label, string $urlA, string $urlB, bool $expected) use (
+	$service, $imagesMatchForDedup, &$passed, &$failures
 ): void {
-	$normalizedImageUrl = $normalizeUrl->invoke($service, $imageUrl, $baseUrl);
-	$actual = $method->invoke($service, ltrim($html), $normalizedImageUrl, $baseUrl);
+	$actual = $imagesMatchForDedup->invoke($service, $urlA, $urlB);
 
 	if ($actual === $expected) {
 		$passed++;
@@ -70,144 +123,229 @@ $check = function (string $label, string $html, string $imageUrl, bool $expected
 	echo '      erhalten: ' . var_export($actual, true) . "\n";
 };
 
-echo "\n\033[1mErkannte Wrapper-Fälle (kein zweites Hero-Bild voranstellen)\033[0m\n";
+echo "\n\033[1mstripLeadingImages(): erkannte Wrapper-Formen (Bild wird entfernt)\033[0m\n";
 
-$check(
-	'Einfacher WordPress-Wrapper <p><a><img>, exakt gleiche URL',
-	'<p><a href="https://example.com/x"><img src="https://example.com/wp-content/uploads/2024/foto.jpg"></a></p><p>Text.</p>',
-	'https://example.com/wp-content/uploads/2024/foto.jpg',
-	true
-);
-
-$check(
-	'Readability-Wrapper-Div mit vielen Geschwister-Absätzen (Regression #27-Nachbesserung)',
-	'<div><p><a href="x"><img src="https://example.com/wp-content/uploads/2024/foto.jpg"></a></p><p>Absatz 2</p><p>Absatz 3</p></div>',
-	'https://example.com/wp-content/uploads/2024/foto.jpg',
-	true
-);
-
-$check(
-	'WordPress-Größenvariante im Content ("-1024x576") vs. Originaldatei als og:image',
-	'<p><a href="x"><img src="https://example.com/wp-content/uploads/2024/foto-1024x576.jpg"></a></p><p>Text.</p>',
-	'https://example.com/wp-content/uploads/2024/foto.jpg',
-	true
-);
-
-$check(
-	'Umgekehrt: og:image trägt die Größenvariante, Content die Originaldatei',
+$checkStrip(
+	'Einfacher WordPress-Wrapper <p><a><img>',
 	'<p><a href="x"><img src="https://example.com/wp-content/uploads/2024/foto.jpg"></a></p><p>Text.</p>',
-	'https://example.com/wp-content/uploads/2024/foto-780x439.jpg',
-	true
+	1,
+	'<p>Text.</p>',
+	'<img'
 );
 
-$check(
-	'CDN-Resize-Query-String (Jetpack-Photon-Stil) unterscheidet sich nur per "?"',
-	'<p><a href="x"><img src="https://example.com/wp-content/uploads/2024/foto.jpg?resize=780%2C439&ssl=1"></a></p>',
-	'https://example.com/wp-content/uploads/2024/foto.jpg',
-	true
+$checkStrip(
+	'Readability-Wrapper-Div mit mehreren Geschwister-Absätzen bleibt bis auf das Bild erhalten',
+	'<div><p><a href="x"><img src="https://example.com/wp-content/uploads/2024/foto.jpg"></a></p><p>Absatz 2</p><p>Absatz 3</p></div>',
+	1,
+	'<p>Absatz 2</p><p>Absatz 3</p>',
+	'<img'
 );
 
-$check(
+$checkStrip(
 	'Gutenberg-Bildblock <figure> verschachtelt in Readability-Wrapper-Div',
 	'<div><figure><img src="https://example.com/wp-content/uploads/2024/foto.jpg"></figure><p>Text.</p></div>',
-	'https://example.com/wp-content/uploads/2024/foto.jpg',
-	true
+	1,
+	'<p>Text.</p>',
+	'<img'
 );
 
-$check(
-	'Altes WP-[caption]-Shortcode-Div: <a><img> plus Geschwister-<p class=wp-caption-text>',
+$checkStrip(
+	'Altes WP-[caption]-Shortcode-Div: <a><img> plus Geschwister-<p>',
 	'<div><a href="x"><img src="https://example.com/wp-content/uploads/2024/foto.jpg"></a><p>Bildunterschrift</p></div><p>Text.</p>',
-	'https://example.com/wp-content/uploads/2024/foto.jpg',
-	true
+	1
 );
 
-$check(
+$checkStrip(
 	'Geschütztes Leerzeichen (&nbsp;) vor dem verpackten Bild',
 	"<div>\u{00A0}<p><a href=\"x\"><img src=\"https://example.com/wp-content/uploads/2024/foto.jpg\"></a></p></div>",
-	'https://example.com/wp-content/uploads/2024/foto.jpg',
-	true
+	1
 );
 
-$check(
+$checkStrip(
 	'<picture>-Wrapper mit mehreren <source>-Geschwistern vor <img> (responsive Bilder)',
 	'<div><picture><source srcset="foto.webp" type="image/webp"><source srcset="foto.avif" type="image/avif"><img src="https://example.com/wp-content/uploads/2024/foto.jpg"></picture></div>',
-	'https://example.com/wp-content/uploads/2024/foto.jpg',
-	true
+	1
 );
 
-$check(
-	'<picture> mit NICHT selbst-schließenden <source>-Tags (libxml2 2.9.14 verschachtelt diese ineinander statt sie als Void-Element zu behandeln, siehe firstImageInPicture())',
+$checkStrip(
+	'<picture> mit NICHT selbst-schließenden <source>-Tags (libxml2-Verschachtelung, siehe firstImageInPicture())',
 	'<figure><picture>
  <source srcset="a.webp" type="image/webp" width="960" height="540" media="(max-width:768px)">
  <source srcset="b.jpg" type="image/jpeg" width="960" height="540" media="(max-width:768px)">
- <source srcset="c.webp" type="image/webp" width="1536" height="864" media="(max-width:860px)">
  <img src="https://example.com/wp-content/uploads/2024/foto.jpg" width="1376" height="774">
 </picture></figure>',
-	'https://example.com/wp-content/uploads/2024/foto.jpg',
-	true
+	1
 );
 
-$check(
-	'AEM-Bildserver-Renditions (ARD/rbb-Stil): "/size=WxH.jpg" bzw. "/quality=N/size=WxH.jpg"-Pfadsegmente statt WordPress-Suffix oder Query-String',
-	'<figure><picture><source srcset="x"><img src="https://example.com/content/dam/foto.jpg.jpg/quality=160/size=1376x774.jpg"></picture></figure>',
-	'https://example.com/content/dam/foto.jpg.jpg/size=1280x720.jpg',
-	true
+$checkStrip(
+	'Protokoll-relative src wird beim Einsammeln absolut gemacht',
+	'<p><a href="x"><img src="//example.com/wp-content/uploads/2024/foto.jpg"></a></p><p>Text.</p>',
+	1,
+	null,
+	null,
+	'https://example.com/wp-content/uploads/2024/foto.jpg'
 );
 
-$check(
-	'Protokoll-relative src ("//…") vs. https-imageUrl',
-	'<p><a href="x"><img src="//example.com/wp-content/uploads/2024/foto.jpg"></a></p>',
-	'https://example.com/wp-content/uploads/2024/foto.jpg',
-	true
+$checkStrip(
+	'Figcaption wird zusammen mit dem Bild eingesammelt',
+	'<figure><img src="https://example.com/foto.jpg"><figcaption>Ein schönes Foto</figcaption></figure><p>Text.</p>',
+	1,
+	null,
+	null,
+	null,
+	'Ein schönes Foto'
 );
 
-echo "\n\033[1mWeiterhin korrekt NICHT erkannt (Hero-Bild muss vorangestellt werden)\033[0m\n";
+echo "\n\033[1mByline/Überschrift vor dem Bild wird übersprungen, nicht entfernt\033[0m\n";
 
-$check(
-	'Früh im Fließtext sitzendes, andersartiges Bild (komplett anderer Dateiname)',
-	'<p><a href="x"><img src="https://example.com/wp-content/uploads/2024/anderes-foto.jpg"></a></p>',
-	'https://example.com/wp-content/uploads/2024/foto.jpg',
-	false
+$checkStrip(
+	'Kurze Autorenzeile vor dem Bild blockiert die Suche nicht',
+	'<p>Von Max Mustermann</p><figure><img src="https://example.com/foto.jpg"></figure><p>' . str_repeat('Echter Fließtext. ', 6) . '</p>',
+	1,
+	'Von Max Mustermann',
+	'<img'
 );
 
-$check(
-	'Größenvariante eines ANDEREN Bildes (unterschiedlicher Basis-Dateiname)',
-	'<p><a href="x"><img src="https://example.com/wp-content/uploads/2024/anderes-foto-1024x576.jpg"></a></p>',
-	'https://example.com/wp-content/uploads/2024/foto.jpg',
-	false
+$checkStrip(
+	'Zwischenüberschrift vor dem Bild blockiert die Suche nicht, unabhängig von der Länge',
+	'<h2>Eine ziemlich lange Zwischenüberschrift, länger als achtzig Zeichen sein könnte</h2><figure><img src="https://example.com/foto.jpg"></figure><p>' . str_repeat('Echter Fließtext. ', 6) . '</p>',
+	1,
+	'<h2>Eine ziemlich lange Zwischenüberschrift'
 );
 
-$check(
-	'AEM-Bildserver-Rendition eines ANDEREN Bildes (unterschiedlicher Basis-Pfad vor "/size=…")',
-	'<p><a href="x"><img src="https://example.com/content/dam/anderes-foto.jpg.jpg/quality=160/size=1376x774.jpg"></a></p>',
-	'https://example.com/content/dam/foto.jpg.jpg/size=1280x720.jpg',
-	false
+$checkStrip(
+	'Mehrere Leitbilder vor dem ersten Absatz werden alle entfernt',
+	'<figure><img src="https://example.com/a.jpg"></figure><figure><img src="https://example.com/b.jpg"></figure><p>' . str_repeat('Echter Fließtext. ', 6) . '</p>',
+	2
 );
 
-$check(
-	'<picture> mit einem tatsächlich ANDEREN Bild (Fallback-<img> zeigt auf anderen Dateinamen)',
-	'<figure><picture><source srcset="x"><img src="https://example.com/wp-content/uploads/2024/anderes-foto.jpg"></picture></figure>',
-	'https://example.com/wp-content/uploads/2024/foto.jpg',
-	false
+echo "\n\033[1mSubstanzieller Absatz vor dem Bild beendet die Suche (Bild bleibt im Content)\033[0m\n";
+
+$checkStrip(
+	'Ausreichend langer erster Absatz verhindert das Entfernen eines späteren Bildes',
+	'<p>' . str_repeat('Echter Fließtext. ', 6) . '</p><figure><img src="https://example.com/foto.jpg"></figure>',
+	0,
+	'<img'
 );
 
-$check(
-	'Text vor dem Bild innerhalb desselben Wrapper-Elements',
+$checkStrip(
+	'Text vor dem Bild innerhalb desselben Wrapper-Elements wird nicht entfernt',
 	'<p>Ein Foto: <img src="https://example.com/wp-content/uploads/2024/foto.jpg"></p>',
+	0
+);
+
+$checkStrip(
+	'Nicht unterstützter Wrapper-Tag (z. B. <aside>) wird nicht entpackt',
+	'<aside><img src="https://example.com/wp-content/uploads/2024/foto.jpg"></aside><p>Text.</p>',
+	0
+);
+
+$checkStrip(
+	'<section> mit einem <img> als einzigem Kind wird transparent durchstiegen',
+	'<section><img src="https://example.com/wp-content/uploads/2024/foto.jpg"></section><p>Text.</p>',
+	1,
+	'<p>Text.</p>',
+	'<img'
+);
+
+$checkStrip(
+	'<article> mit langer Bildunterschrift blockiert die Suche nicht (rbb24.de-Regression)',
+	'<div><article><figure><img src="https://example.com/foto.jpg"><figcaption>' . str_repeat('Lange Bildunterschrift. ', 5) . '</figcaption></figure></article></div>'
+		. '<div><p>' . str_repeat('Echter Fließtext. ', 6) . '</p></div>',
+	1,
+	null,
+	null,
+	null,
+	trim(str_repeat('Lange Bildunterschrift. ', 5))
+);
+
+$checkStrip(
+	'Leerer src wird nicht als Bild gewertet',
+	'<p><a href="x"><img src=""></a></p><p>Text.</p>',
+	0
+);
+
+$checkStrip(
+	'Kein Bild vorhanden - nichts zu entfernen',
+	'<p>' . str_repeat('Echter Fließtext. ', 6) . '</p>',
+	0
+);
+
+$checkStrip(
+	'Mehr als MAX_LEAD_IN_NODES kurze Absätze in Folge brechen die Suche sicher ab',
+	str_repeat('<p>Kurz.</p>', 25) . '<figure><img src="https://example.com/foto.jpg"></figure>',
+	0
+);
+
+$checkStrip(
+	'Leere <ul> (z. B. Themen-Labels) vor dem Bild blockiert die Suche nicht, unabhängig vom Tag (deutschlandfunkkultur.de-Regression)',
+	'<ul></ul><figure><img src="https://example.com/foto.jpg"></figure><p>' . str_repeat('Echter Fließtext. ', 6) . '</p>',
+	1,
+	null,
+	null,
+	null,
+	null
+);
+
+$checkStrip(
+	'Kurze Social-Share-Liste (<ul> mit wenig Text) vor dem Bild blockiert die Suche nicht',
+	'<ul><li>Teilen</li></ul><figure><img src="https://example.com/foto.jpg"></figure><p>' . str_repeat('Echter Fließtext. ', 6) . '</p>',
+	1
+);
+
+$checkStrip(
+	'Echte Liste mit substantiellem Inhalt vor dem Bild beendet die Suche weiterhin',
+	'<ul><li>' . str_repeat('Ein ausführlicher Listeneintrag mit echtem Inhalt. ', 3) . '</li></ul><figure><img src="https://example.com/foto.jpg"></figure>',
+	0
+);
+
+echo "\n\033[1mimagesMatchForDedup(): URL-Ähnlichkeit für die Caption-Zuordnung in Step 12\033[0m\n";
+
+$checkMatch(
+	'WordPress-Größenvariante im Content ("-1024x576") vs. Originaldatei als og:image',
+	'https://example.com/wp-content/uploads/2024/foto-1024x576.jpg',
+	'https://example.com/wp-content/uploads/2024/foto.jpg',
+	true
+);
+
+$checkMatch(
+	'CDN-Resize-Query-String (Jetpack-Photon-Stil) unterscheidet sich nur per "?"',
+	'https://example.com/wp-content/uploads/2024/foto.jpg?resize=780%2C439&ssl=1',
+	'https://example.com/wp-content/uploads/2024/foto.jpg',
+	true
+);
+
+$checkMatch(
+	'AEM-Bildserver-Renditions (ARD/rbb-Stil): unterschiedliche quality=/size=-Segmente, gleiches Basis-Bild',
+	'https://example.com/content/dam/foto.jpg.jpg/quality=160/size=1376x774.jpg',
+	'https://example.com/content/dam/foto.jpg.jpg/size=1280x720.jpg',
+	true
+);
+
+$checkMatch(
+	'Domain-Alias derselben Redaktion (rbb24.de vs. altes rbb-online.de), identischer Pfad → Pfad-Fallback greift',
+	'https://www.rbb24.de/content/dam/rbb/rbb/rbb24/2026/2026_09/dpa-account/foto.jpg.jpg/quality=160/size=1376x774.jpg',
+	'https://www.rbb-online.de/content/dam/rbb/rbb/rbb24/2026/2026_09/dpa-account/foto.jpg.jpg/size=1280x720.jpg',
+	true
+);
+
+$checkMatch(
+	'Komplett anderes Bild (unterschiedlicher Basis-Dateiname) matcht nicht',
+	'https://example.com/wp-content/uploads/2024/anderes-foto.jpg',
 	'https://example.com/wp-content/uploads/2024/foto.jpg',
 	false
 );
 
-$check(
-	'Nicht unterstützter Wrapper-Tag (z. B. <section>) bricht die Entpackung sicher ab',
-	'<section><img src="https://example.com/wp-content/uploads/2024/foto.jpg"></section>',
-	'https://example.com/wp-content/uploads/2024/foto.jpg',
+$checkMatch(
+	'Unterschiedlicher Host UND unterschiedlicher Pfad matcht nicht (Pfad-Fallback ist kein Freifahrtschein)',
+	'https://cdn-a.example.com/wp-content/uploads/2024/foto.jpg',
+	'https://cdn-b.example.com/assets/2024/anderes-foto.jpg',
 	false
 );
 
-$check(
-	'Leerer src am Ende der Wrapper-Kette',
-	'<p><a href="x"><img src=""></a></p>',
+$checkMatch(
+	'Größenvariante eines ANDEREN Bildes matcht nicht',
+	'https://example.com/wp-content/uploads/2024/anderes-foto-1024x576.jpg',
 	'https://example.com/wp-content/uploads/2024/foto.jpg',
 	false
 );

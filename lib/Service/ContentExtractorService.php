@@ -71,6 +71,26 @@ class ContentExtractorService {
 		'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'caption',
 	];
 
+	/**
+	 * Obergrenze für sichtbaren Text in einem Absatz/einer Überschrift vor dem
+	 * Hero-Bild, damit er noch als Byline/Datumszeile gilt und übersprungen
+	 * wird (siehe stripLeadingImages()). Länger als das ist echter Fließtext
+	 * und beendet die Suche nach weiteren Leitbildern.
+	 */
+	private const LEAD_IN_TEXT_MAX_LENGTH = 80;
+
+	/**
+	 * Obergrenze für die Anzahl an Geschwisterknoten, die stripLeadingImages()
+	 * am Content-Anfang inspiziert, bevor abgebrochen wird - Schutz gegen
+	 * pathologische Fälle (z. B. viele kurze Absätze in Folge). Seit
+	 * isSkippableLeadIn() jeden kurzen Knoten unabhängig vom Tag überspringt
+	 * (nicht mehr nur p/div), zehren reale Seiten mit viel kurzem UI-Rahmen
+	 * vor dem Hero-Bild (leere Label-Liste, Social-Share-Icons, Meta-Zeilen, …)
+	 * das Budget spürbar an - 20 statt der ursprünglichen 8 gibt genug
+	 * Spielraum, ohne die Schutzfunktion aufzugeben.
+	 */
+	private const MAX_LEAD_IN_NODES = 20;
+
 	private ContentFilterRepository $contentFilters;
 
 	/**
@@ -639,26 +659,16 @@ class ContentExtractorService {
 
 		$normalizedImageUrl = $imageUrl ? $this->normalizeUrl($imageUrl, $url) : null;
 
-		// ── Step 12: Hero-Image in Content einfügen ───────────────────────────
-		// Readability entfernt Hero-Bilder aus <figure>-Containern, wenn sie vor
-		// dem Fließtext stehen. Falls der extrahierte Content NICHT bereits mit
-		// einem Bild beginnt, aber imageUrl bekannt ist, wird das Bild als
-		// merlin-hero-image an den Anfang prepended.
-		// Eine vorhandene <figcaption> aus dem Quell-HTML wird mitübernommen.
-		// Das Bild darf so nur einmal erscheinen – stripDuplicateMetadata läuft danach.
-		//
-		// Geprüft wird nur, ob der Content mit einem Bild BEGINNT (nicht: ob
-		// irgendwo in den ersten N Zeichen eines vorkommt) – sonst verhindert ein
-		// früh im Fließtext sitzendes Bild (z. B. innerhalb der ersten zwei, drei
-		// Absätze) fälschlich das Voranstellen des eigentlichen Hero-Bilds, obwohl
-		// Readability den Hero selbst nie behalten hat.
-		// "Beginnt mit einem Bild" schließt auch den Fall ein, dass Readability
-		// das Hero-Bild verpackt in <p>/<a>/<div>/<span>/<figure> behalten hat
-		// (z. B. das bei WordPress übliche <p><a href="…"><img src="…"></a></p>
-		// oder ein Gutenberg-Bildblock <figure><img src="…"></figure>) – siehe
-		// contentStartsWithMatchingImage(). Ohne diese Erkennung würde dasselbe
-		// Bild doppelt erscheinen: einmal original im Content, einmal als
-		// künstlich vorangestelltes zweites merlin-hero-image.
+		// ── Step 12: Hero-Image in Content einfügen ────────────────────────────────────────
+		// Alle Bilder/Figures am Content-Anfang werden bis zum ersten
+		// substantiellen Absatz bedingungslos entfernt (stripLeadingImages()) -
+		// unabhängig davon, ob eines davon zufällig zur ermittelten imageUrl
+		// passt. Das Hero-Bild wird danach immer als eigenes
+		// merlin-hero-image-Figure vorangestellt. Dadurch hängt die
+		// Duplikat-Vermeidung nicht mehr an einem URL-Ähnlichkeitsabgleich (der
+		// für jede neue CDN-/Resize-URL-Form erneut nachgepflegt werden müsste,
+		// siehe imagesMatchForDedup()) - der Abgleich entscheidet nur noch
+		// darüber, welche der entfernten Captions zum Hero-Bild passt.
 		// Bluesky/X/Mastodon: $imageUrl ist hier das feste Plattform-Icon
 		// (Vorschaubild in der Artikelliste, siehe platformIconUrl()), soll
 		// aber ausdrücklich NICHT zusätzlich als Hero-Bild im Content
@@ -666,18 +676,29 @@ class ContentExtractorService {
 		// oben im Content.
 		$suppressHeroImage = in_array($domainMeta['category'], ['Thread', 'XPost', 'Mastodon', 'InstagramPost', 'TikTokPost'], true);
 
-		$start = ltrim($content);
-		$startsWithHeroImage = preg_match('/^<(img|figure)\b/i', $start) === 1
-			|| $this->contentStartsWithMatchingImage($start, $normalizedImageUrl, $url);
-		if ($normalizedImageUrl !== null && !$suppressHeroImage && !$startsWithHeroImage) {
-			$escapedUrl  = htmlspecialchars($normalizedImageUrl, ENT_QUOTES, 'UTF-8');
-			$figcaption  = '';
-			// Caption aus dem HTML-Scan übernehmen (nur wenn kein og:image die imageUrl
-			// geliefert hat – dann stammt $heroImageData von derselben figure).
-			if (!empty($heroImageData['caption'])) {
-				$escapedCaption = htmlspecialchars($heroImageData['caption'], ENT_QUOTES, 'UTF-8');
-				$figcaption     = '<figcaption>' . $escapedCaption . '</figcaption>';
+		if ($normalizedImageUrl !== null && !$suppressHeroImage) {
+			['content' => $content, 'images' => $leadImages] = $this->stripLeadingImages($content, $url);
+
+			$heroCaption = null;
+			foreach ($leadImages as $leadImage) {
+				if ($leadImage['caption'] !== null && $this->imagesMatchForDedup($leadImage['src'], $normalizedImageUrl)) {
+					$heroCaption = $leadImage['caption'];
+					break;
+				}
 			}
+			// Fallback auf den Rohscan (heroImageData) - aber nur, wenn dessen Bild
+			// tatsächlich zur gewählten imageUrl passt. Vorher wurde die Caption hier
+			// unconditional übernommen, obwohl heroImageData bei einer per og:image
+			// ermittelten imageUrl von einer ganz anderen Figure stammen kann.
+			if ($heroCaption === null && !empty($heroImageData['caption']) && !empty($heroImageData['src'])
+				&& $this->imagesMatchForDedup($this->normalizeUrl($heroImageData['src'], $url), $normalizedImageUrl)) {
+				$heroCaption = $heroImageData['caption'];
+			}
+
+			$escapedUrl = htmlspecialchars($normalizedImageUrl, ENT_QUOTES, 'UTF-8');
+			$figcaption = $heroCaption !== null
+				? '<figcaption>' . htmlspecialchars($heroCaption, ENT_QUOTES, 'UTF-8') . '</figcaption>'
+				: '';
 			$content = '<figure class="merlin-hero-image"><img src="' . $escapedUrl . '" alt="">' . $figcaption . '</figure>' . $content;
 		}
 
@@ -998,80 +1019,219 @@ class ContentExtractorService {
 	}
 
 	/**
-	 * Prüft, ob der Content bereits mit dem Hero-Bild beginnt, auch wenn es
-	 * (z. B. bei WordPress-Quellen üblich) in <p>/<a>/<div>/<span>/<figure>
-	 * verpackt ist statt als nacktes <img> oder <figure> an Position 0 - z. B.
-	 * <p><a href="…"><img src="…"></a></p> oder ein Gutenberg-Bildblock
-	 * <div><figure class="wp-block-image"><img src="…"></figure></div>. Auch
-	 * ein <picture>-Wrapper (responsive Bilder mit <source>-Geschwistern vor
-	 * dem eigentlichen <img>, z. B. bei ARD/rbb-Quellen üblich) wird entpackt.
-	 * In dem Fall würde Step 12 sonst ein zweites, redundantes Hero-Bild
-	 * voranstellen (siehe Kommentar über Step 12).
+	 * Entfernt alle Bilder/Figures am Content-Anfang bis zum ersten
+	 * substantiellen Absatz und liefert sie (Quelle + Caption) zurück, damit
+	 * Step 12 daraus die passende Caption fürs Hero-Bild übernehmen kann.
 	 *
-	 * Entpackt wird immer nur das JEWEILS ERSTE Kind-Element eines Wrappers
-	 * (kein weiterer nicht-leerer Text davor) - absichtlich NICHT "genau ein
-	 * Kind insgesamt", denn Readability (fivefilters\Readability) wrapt den
-	 * kompletten extrahierten Content typischerweise in einen äußeren
-	 * <div id="readability-page-1" class="page">…</div> (id/class an dieser
-	 * Stelle bereits von cleanHtml() entfernt), der neben dem Hero-Bild auch
-	 * ALLE folgenden Absätze als Geschwister-Elemente enthält. Eine
-	 * "nur-einzelnes-Kind"-Prüfung würde diesen ganz normalen Wrapper-Fall
-	 * fälschlich als "kein Bild-Start" werten.
+	 * Ersetzt die frühere contentStartsWithMatchingImage()-Heuristik ("nur
+	 * einfügen, wenn noch kein passendes Bild da ist"): statt zu erraten, ob
+	 * ein vorhandenes Bild zum Hero-Bild passt, werden alle Leitbilder
+	 * bedingungslos entfernt - das Hero-Bild wird danach immer separat
+	 * eingefügt (siehe Step 12). Ein Ähnlichkeits-Fehltreffer kostet dadurch
+	 * höchstens eine fehlende Caption statt eines sichtbar doppelten Bilds.
 	 *
-	 * Der Bild-Abgleich läuft über imagesMatchForDedup() statt über exakte
-	 * String-Gleichheit - siehe dort für die Begründung (Bildserver-
-	 * Größenvarianten/CDN-Resize-Parameter). Ein früh im Fließtext sitzendes,
-	 * andersartiges Bild hat so gut wie nie denselben Basis-Pfad wie das
-	 * Hero-Bild und verhindert das Voranstellen damit weiterhin nicht.
+	 * Die eigentliche Suche läuft in scanForLeadingImages().
+	 *
+	 * @return array{content: string, images: list<array{src: string, caption: ?string}>}
 	 */
-	private function contentStartsWithMatchingImage(string $html, ?string $normalizedImageUrl, string $baseUrl): bool {
-		if ($normalizedImageUrl === null) {
-			return false;
-		}
-
-		$doc = new \DOMDocument();
+	private function stripLeadingImages(string $content, string $baseUrl): array {
 		$prevLibxmlErrors = libxml_use_internal_errors(true);
-		$doc->loadHTML('<?xml encoding="UTF-8"><body>' . $html . '</body>', LIBXML_NOERROR | LIBXML_NOWARNING);
+		$dom = new \DOMDocument();
+		$dom->loadHTML('<?xml encoding="UTF-8"><body>' . $content . '</body>', LIBXML_NOERROR | LIBXML_NOWARNING);
 		libxml_clear_errors();
 		libxml_use_internal_errors($prevLibxmlErrors);
 
-		$body = $doc->getElementsByTagName('body')->item(0);
+		$body = $dom->getElementsByTagName('body')->item(0);
 		if ($body === null) {
+			return ['content' => $content, 'images' => []];
+		}
+
+		$images    = [];
+		$inspected = 0;
+		$this->scanForLeadingImages($body, $baseUrl, $images, $inspected);
+
+		$out = '';
+		foreach ($body->childNodes as $child) {
+			$out .= $dom->saveHTML($child);
+		}
+
+		return ['content' => $out, 'images' => $images];
+	}
+
+	/**
+	 * Durchsucht die Kinder von $parent der Reihe nach nach Leitbildern,
+	 * entfernt sie direkt aus dem DOM und sammelt sie (Quelle + Caption) in
+	 * $images. $inspected zählt dabei über alle Rekursionsebenen hinweg
+	 * jeden geprüften Nicht-Wrapper-Knoten mit und bricht spätestens bei
+	 * MAX_LEAD_IN_NODES ab (Schutz vor pathologischen Fällen, z. B. viele
+	 * kurze Absätze in Folge).
+	 *
+	 * Reine Struktur-Wrapper (<div>/<section>/<article>) werden dabei IMMER
+	 * transparent durchstiegen - unabhängig von ihrer Kinderzahl -, statt sie
+	 * wie jeden anderen Knoten über resolveLeadingImage()/isSkippableLeadIn()
+	 * zu bewerten. Zwei reale Fälle brauchen das:
+	 *   - Readabilitys äußerer Wrapper-Div (typischerweise
+	 *     <div id="readability-page-1">…</div>, Attribute bereits von
+	 *     cleanHtml() entfernt) enthält das Hero-Bild UND alle folgenden
+	 *     Absätze als Geschwister-Kinder. Ohne Transparenz würde
+	 *     resolveLeadingImage() zwar über diesen Wrapper hinweg bis zum Bild
+	 *     entpacken (sein Einzel-Pfad-Algorithmus ignoriert spätere
+	 *     Geschwister), aber ihn beim Entfernen als GANZES löschen und damit
+	 *     den kompletten nachfolgenden Artikeltext mitreißen.
+	 *   - Ein <article> mit Titel-/Meta-Block UND Hero-Figure als
+	 *     Geschwister-Kinder (z. B. rbb24.de: <article><figure>…) landet bei
+	 *     resolveLeadingImage() sonst in dessen internem Wrapper-Chain gar
+	 *     nicht erst (nur p/div/span/a/figure/picture erlaubt), fällt auf
+	 *     isSkippableLeadIn() zurück und wird dort fälschlich als "zu langer
+	 *     echter Absatz" gewertet, sobald z. B. allein die Bildunterschrift
+	 *     über der Schwelle liegt - die Suche bricht dann VOR dem Bild ab.
+	 * Deshalb muss dieser Check vor resolveLeadingImage()/isSkippableLeadIn()
+	 * laufen, nicht danach.
+	 *
+	 * @return bool false = ein substantieller Knoten wurde erreicht, die
+	 *         Suche muss auf dieser Ebene (und damit insgesamt) abbrechen.
+	 *         true = $parent ist erschöpft oder das Node-Limit erreicht, der
+	 *         Aufrufer darf mit seinem nächsten Geschwister weitermachen.
+	 */
+	private function scanForLeadingImages(\DOMNode $parent, string $baseUrl, array &$images, int &$inspected): bool {
+		$node = $parent->firstChild;
+
+		while ($node !== null && $inspected < self::MAX_LEAD_IN_NODES) {
+			$next = $node->nextSibling;
+
+			if ($node instanceof \DOMText) {
+				if (trim(str_replace("\u{00A0}", ' ', $node->textContent)) !== '') {
+					return false;
+				}
+				$node = $next;
+				continue;
+			}
+
+			if (!$node instanceof \DOMElement) {
+				$node = $next;
+				continue;
+			}
+
+			if (in_array(strtolower($node->nodeName), ['div', 'section', 'article'], true)) {
+				if (!$this->scanForLeadingImages($node, $baseUrl, $images, $inspected)) {
+					return false;
+				}
+				$node = $next;
+				continue;
+			}
+
+			$image = $this->resolveLeadingImage($node, $baseUrl);
+			if ($image !== null) {
+				$inspected++;
+				$images[] = $image;
+				$parent->removeChild($node);
+				$node = $next;
+				continue;
+			}
+
+			$inspected++;
+			if ($this->isSkippableLeadIn($node)) {
+				$node = $next;
+				continue;
+			}
+
 			return false;
 		}
 
-		$node = $this->firstNonWhitespaceElementChild($body);
+		return true;
+	}
 
-		$depth = 0;
-		while ($node !== null && $depth < 6) {
-			$tag = strtolower($node->nodeName);
+	/**
+	 * Löst einen Top-Level-Knoten zu einem einzelnen führenden Bild auf, sofern
+	 * er - direkt oder in <p>/<a>/<div>/<span>/<figure>/<picture> verpackt -
+	 * nichts als dieses eine <img> enthält. Gleiche Entpack-Logik wie zuvor in
+	 * contentStartsWithMatchingImage(), nur ohne den URL-Abgleich: hier soll
+	 * jedes Leitbild erkannt werden, nicht nur eines, das zur imageUrl passt.
+	 *
+	 * @return array{src: string, caption: ?string}|null
+	 */
+	private function resolveLeadingImage(\DOMElement $node, string $baseUrl): ?array {
+		$current = $node;
+		$depth   = 0;
+
+		while ($current !== null && $depth < 6) {
+			$tag = strtolower($current->nodeName);
 
 			if ($tag === 'img') {
-				$src = $node->getAttribute('src');
+				$src = $current->getAttribute('src');
 				if ($src === '') {
-					return false;
+					return null;
 				}
-				return $this->imagesMatchForDedup($this->normalizeUrl($src, $baseUrl), $normalizedImageUrl);
+				return [
+					'src'     => $this->normalizeUrl($src, $baseUrl),
+					'caption' => $this->findFigcaption($node),
+				];
 			}
 
-			// <picture>s einziges relevantes Kind ist das abschließende <img> -
-			// die vorangehenden <source>-Geschwister tragen kein src, sondern
-			// srcset, und sind deshalb kein Fall für firstNonWhitespaceElementChild().
 			if ($tag === 'picture') {
-				$node = $this->firstImageInPicture($node);
+				$current = $this->firstImageInPicture($current);
 				$depth++;
 				continue;
 			}
 
 			if (!in_array($tag, ['p', 'div', 'span', 'a', 'figure'], true)) {
-				return false;
+				return null;
 			}
 
-			$node = $this->firstNonWhitespaceElementChild($node);
+			$current = $this->firstNonWhitespaceElementChild($current);
 			$depth++;
 		}
 
-		return false;
+		return null;
+	}
+
+	/**
+	 * Sucht innerhalb eines (potenziellen) Leitbild-Knotens nach einer
+	 * <figcaption> - entweder weil der Knoten selbst eine <figure> ist, oder
+	 * eine als Nachfahre enthält (z. B. <div><figure>...</figure></div>).
+	 */
+	private function findFigcaption(\DOMElement $node): ?string {
+		$figure = strtolower($node->nodeName) === 'figure' ? $node : $node->getElementsByTagName('figure')->item(0);
+		if (!$figure instanceof \DOMElement) {
+			return null;
+		}
+
+		$caption = $figure->getElementsByTagName('figcaption')->item(0);
+		if ($caption === null) {
+			return null;
+		}
+
+		$text = trim($caption->textContent);
+		return $text !== '' ? $text : null;
+	}
+
+	/**
+	 * Erkennt Knoten, die vor dem Hero-Bild stehen dürfen, ohne die Suche in
+	 * stripLeadingImages() zu beenden - Überschriften immer, alles andere
+	 * (z. B. Bylines wie "Von Max Mustermann", Datumszeilen, aber auch eine
+	 * leere <ul> für Themen-Labels oder eine Social-Share-Icon-Liste) bis zu
+	 * LEAD_IN_TEXT_MAX_LENGTH sichtbaren Zeichen, UNABHÄNGIG vom Tag.
+	 *
+	 * Früher nur für <p>/<div> geprüft - ein Tag außerhalb dieser Liste
+	 * (z. B. eine leere <ul> für Themen-Labels vor dem Hero-Bild, wie bei
+	 * deutschlandfunkkultur.de) beendete die Suche dadurch fälschlich sofort,
+	 * selbst wenn der Knoten gar keinen sichtbaren Text enthielt. Die
+	 * Tag-Einschränkung war nie das eigentliche Kriterium - entscheidend ist
+	 * einzig, wie viel sichtbarer Text im Knoten steckt.
+	 *
+	 * Ein Knoten mit substantiellem Text (längere Absätze, echte Listen mit
+	 * Inhalt, Blockquotes, Tabellen, …) beendet die Suche weiterhin, weil sein
+	 * Text dann automatisch über der Schwelle liegt.
+	 */
+	private function isSkippableLeadIn(\DOMElement $node): bool {
+		$tag = strtolower($node->nodeName);
+
+		if (preg_match('/^h[1-6]$/', $tag) === 1) {
+			return true;
+		}
+
+		$text = trim(preg_replace('/\s+/u', ' ', $node->textContent) ?? '');
+		return mb_strlen($text) <= self::LEAD_IN_TEXT_MAX_LENGTH;
 	}
 
 	/**
@@ -1147,6 +1307,18 @@ class ContentExtractorService {
 	 * Voranstellen in genau diesen - sehr verbreiteten - Fällen weiterhin
 	 * dupliziert hat. Die Suffix-/Pfadsegment-Muster sind spezifisch genug,
 	 * um nicht versehentlich auf einen unverwandten Bildpfad zu matchen.
+	 *
+	 * Vierter Fall, nur als Fallback (Pfad ohne Host): manche Redaktionen
+	 * liefern die per Readability/og:image ermittelte imageUrl und das im
+	 * Content/Rohscan gefundene Bild von unterschiedlichen, aber
+	 * äquivalenten Hostnamen derselben Organisation aus - z. B. rbb24.de
+	 * (aktuelle Domain) vs. rbb-online.de (älteres Alias, liefert weiterhin
+	 * identische Bild-Assets unter identischem Pfad aus). Der volle
+	 * Host+Pfad-Vergleich oben schlägt dann trotz identischen Bilds fehl.
+	 * Da diese Methode nur noch die Caption-Zuordnung in Step 12 steuert
+	 * (nicht mehr die Entfernungs-Entscheidung, siehe stripLeadingImages()),
+	 * kostet ein Fehltreffer hier bestenfalls eine falsche statt eine
+	 * fehlende Caption - deshalb genügt der Pfad allein als Fallback.
 	 */
 	private function imagesMatchForDedup(string $contentImageUrl, string $normalizedImageUrl): bool {
 		if ($contentImageUrl === $normalizedImageUrl) {
@@ -1167,7 +1339,15 @@ class ContentExtractorService {
 			return implode('/', $parts);
 		};
 
-		return $stripVariantMarkers($contentImageUrl) === $stripVariantMarkers($normalizedImageUrl);
+		$strippedContentUrl = $stripVariantMarkers($contentImageUrl);
+		$strippedImageUrl   = $stripVariantMarkers($normalizedImageUrl);
+		if ($strippedContentUrl === $strippedImageUrl) {
+			return true;
+		}
+
+		$contentPath = parse_url($strippedContentUrl, PHP_URL_PATH);
+		return $contentPath !== null && $contentPath !== ''
+			&& $contentPath === parse_url($strippedImageUrl, PHP_URL_PATH);
 	}
 
 	/**
