@@ -30,13 +30,10 @@
   </post-filter>
 
   <images>
-
-    
     <caption
       container-xpath="//div[contains(@class,'main-image-area-inner')]"
       caption-xpath=".//figcaption[contains(@class,'b-image-credits')]"
     />
-
   </images>
 
 
