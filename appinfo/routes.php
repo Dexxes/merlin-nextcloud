@@ -16,6 +16,7 @@ return [
         ['name' => 'article#toggleFavorite', 'url' => '/api/articles/{id}/favorite', 'verb' => 'PUT'],
         ['name' => 'article#toggleArchive', 'url' => '/api/articles/{id}/archive', 'verb' => 'PUT'],
         ['name' => 'article#updateProgress', 'url' => '/api/articles/{id}/progress', 'verb' => 'PUT'],
+        ['name' => 'article#retryExtraction', 'url' => '/api/articles/{id}/retry-extraction', 'verb' => 'POST'],
         ['name' => 'article#search', 'url' => '/api/articles/search', 'verb' => 'GET'],
 
         // SSE: push article-ready events when processing finishes
@@ -23,6 +24,9 @@ return [
 
         // TTS route (kombinierter Proxy-Endpunkt: Synthese + Streaming in einem Request)
         ['name' => 'tts#synthesize', 'url' => '/api/articles/{id}/tts', 'verb' => 'GET'],
+
+        // Native ARD/ZDF/Arte-Stream-Auflösung (siehe VideoStreamResolverService-Docblock)
+        ['name' => 'videoStream#resolve', 'url' => '/api/articles/{id}/video-stream', 'verb' => 'GET'],
 
         // YouTube-Embed-Proxy (siehe YoutubeEmbedController-Docblock): gibt dem
         // iOS/iPad-Reader eine echte https-Origin für YouTube-iframes, damit
@@ -62,6 +66,9 @@ return [
         ['name' => 'settings#get', 'url' => '/api/settings', 'verb' => 'GET'],
         ['name' => 'settings#update', 'url' => '/api/settings', 'verb' => 'PUT'],
 
+        // Speicherverbrauch (für iOS-Einstellungen: DB-Speicher pro Nutzer)
+        ['name' => 'storage#get', 'url' => '/api/storage', 'verb' => 'GET'],
+
         // Content-Filter-Verwaltung (nur Admins; ContentFilterController trägt
         // bewusst kein NoAdminRequired/NoCSRFRequired). Die {domain}-Requirement
         // engt den Platzhalter auf zulässige Domainzeichen ein: unpassende Werte
@@ -69,28 +76,28 @@ return [
         ['name' => 'contentFilter#index',   'url' => '/api/admin/content-filters', 'verb' => 'GET'],
         ['name' => 'contentFilter#import',  'url' => '/api/admin/content-filters/import', 'verb' => 'POST'],
         ['name' => 'contentFilter#show',    'url' => '/api/admin/content-filters/{domain}', 'verb' => 'GET',
-            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+            'requirements' => ['domain' => '[a-z0-9._\-]+']],
         ['name' => 'contentFilter#update',  'url' => '/api/admin/content-filters/{domain}', 'verb' => 'PUT',
-            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+            'requirements' => ['domain' => '[a-z0-9._\-]+']],
         ['name' => 'contentFilter#destroy', 'url' => '/api/admin/content-filters/{domain}', 'verb' => 'DELETE',
-            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+            'requirements' => ['domain' => '[a-z0-9._\-]+']],
         ['name' => 'contentFilter#test',    'url' => '/api/admin/content-filters/{domain}/test', 'verb' => 'POST',
-            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+            'requirements' => ['domain' => '[a-z0-9._\-]+']],
         ['name' => 'contentFilter#export',  'url' => '/api/admin/content-filters/{domain}/export', 'verb' => 'GET',
-            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+            'requirements' => ['domain' => '[a-z0-9._\-]+']],
 
         // Persönliche Content-Filter-Overrides (jeder eingeloggte Nutzer; eigener
         // Routen-Präfix statt /api/admin/... zu teilen, damit die Berechtigungsgrenze
         // nicht verwischt – siehe UserContentFilterController-Docblock).
         ['name' => 'userContentFilter#index',   'url' => '/api/user/content-filters', 'verb' => 'GET'],
         ['name' => 'userContentFilter#show',    'url' => '/api/user/content-filters/{domain}', 'verb' => 'GET',
-            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+            'requirements' => ['domain' => '[a-z0-9._\-]+']],
         ['name' => 'userContentFilter#update',  'url' => '/api/user/content-filters/{domain}', 'verb' => 'PUT',
-            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+            'requirements' => ['domain' => '[a-z0-9._\-]+']],
         ['name' => 'userContentFilter#destroy', 'url' => '/api/user/content-filters/{domain}', 'verb' => 'DELETE',
-            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+            'requirements' => ['domain' => '[a-z0-9._\-]+']],
         ['name' => 'userContentFilter#test',    'url' => '/api/user/content-filters/{domain}/test', 'verb' => 'POST',
-            'requirements' => ['domain' => '[a-z0-9.\-]+']],
+            'requirements' => ['domain' => '[a-z0-9._\-]+']],
 
         // Paywall-Abo-Zugangsdaten (jeder eingeloggte Nutzer, eigene private Ebene).
         ['name' => 'siteCredential#index',   'url' => '/api/user/site-credentials', 'verb' => 'GET'],

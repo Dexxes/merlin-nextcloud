@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Merlin Content-Filter: nl.tagesspiegel.de
+
+  Web-Ansicht der Tagesspiegel-Newsletter (z. B. "Checkpoint"), aufgerufen
+  über den "Vollversion im Browser öffnen"-Link. Anders als die
+  Artikelseiten unter tagesspiegel.de/www.tagesspiegel.de ist das kein
+  Artikel-Layout, sondern eine MJML-generierte E-Mail: eine Abfolge von
+  <div class="mobile-section">-Blöcken, jeweils in <tr><td> einer äußeren
+  Tabelle (die Outlook-spezifische Verdopplung dieser Struktur steckt in
+  MSO-Conditional-Comments und wird von DOMDocument ohnehin ignoriert).
+-->
+<domain name="nl.tagesspiegel.de">
+
+  <pre-filter>
+
+    <!-- Das graue "Anzeige"-Label selbst. -->
+    <remove xpath="//div[contains(@class,'mobile-section') and .//div[normalize-space(text())='Anzeige']]" />
+
+    <!-- Der direkt darauffolgende mobile-section-Block: der eigentliche
+         Anzeigeninhalt, unabhängig von dessen interner Struktur. -->
+    <remove xpath="//div[contains(@class,'mobile-section') and .//div[normalize-space(text())='Anzeige']]/following-sibling::div[contains(@class,'mobile-section')][1]" />
+
+  </pre-filter>
+
+
+
+  <metadata>
+    <image xpath="//div[@class='checkpoint-hero-desktop']/img/@src" />
+    <excerpt xpath="//td[@class='ticker-mobile']/div/h2"/>
+    <excerpt xpath="//html/body/div[2]/div[2]/table/tbody/tr/td/div[5]/table/tbody/tr/td/div/table/tbody/tr/td/div/h2" />
+  </metadata>
+</domain>

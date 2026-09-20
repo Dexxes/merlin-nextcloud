@@ -1,0 +1,15 @@
+
+<?xml version="1.0" encoding="UTF-8"?>
+<domain name="newsletter.berlin.de">
+<metadata>
+    <image xpath="//div[contains(@class, 'main-image')]/*/img/@src" />
+    <!-- Beispiele:
+    <title    xpath="//h1[@class='article-title']" />
+    <author   xpath="//span[@class='author-name']" />
+    <excerpt  xpath="//p[@class='article-intro']" />
+    <image    xpath="//meta[@property='og:image']/@content" />
+    <published xpath="//time[@itemprop='datePublished']/@datetime" />
+    -->
+  </metadata>
+
+</domain>

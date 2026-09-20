@@ -50,31 +50,82 @@ if (typeof document !== 'undefined' && !document.getElementById('merlin-hl-style
 }
 
 // ─── XPath helpers ───────────────────────────────────────────────────────────
+//
+// XPaths are generated on iOS/Android against the *raw* article-content HTML,
+// injected as a flat run of top-level nodes directly under a bare container
+// (no extra wrapper elements). merlin-nextcloud's authenticated reader
+// (ArticleReader.vue) instead splits that same content into two separate
+// `v-html` wrapper <div>s (hero image / rest) so a <VideoPlayer> can be
+// inserted between them — an extra level of nesting, plus a sibling element
+// that doesn't exist in the original content at all. Resolving a
+// cross-platform XPath directly against that live DOM would look for e.g.
+// `p[3]` among `.article-body`'s direct children (two wrapper <div>s) and
+// never find it.
+//
+// To keep XPaths resolvable across platforms without duplicating the content
+// HTML, elements marked `data-hl-flatten` are transparent for indexing
+// purposes — their children are promoted to their parent's child list — and
+// elements marked `data-hl-exclude` (e.g. the video player) are omitted
+// entirely, as if they weren't in the tree. Markup with neither attribute
+// behaves exactly as before (plain childNodes/parentNode traversal).
+
+const FLATTEN_ATTR = 'data-hl-flatten'
+const EXCLUDE_ATTR = 'data-hl-exclude'
+
+function isFlatten(el) {
+	return el.nodeType === Node.ELEMENT_NODE && el.hasAttribute(FLATTEN_ATTR)
+}
+
+function isExcluded(el) {
+	return el.nodeType === Node.ELEMENT_NODE && el.hasAttribute(EXCLUDE_ATTR)
+}
+
+/** `node`'s children as they'd appear in the reference (cross-platform) content:
+ * excluded subtrees dropped, flatten wrappers replaced by their own effective
+ * children (recursively), everything else unchanged. */
+function effectiveChildren(node) {
+	const result = []
+	for (const child of node.childNodes) {
+		if (isExcluded(child)) continue
+		if (isFlatten(child)) result.push(...effectiveChildren(child))
+		else result.push(child)
+	}
+	return result
+}
+
+/** Nearest ancestor whose effective-children list `node` itself appears in —
+ * i.e. skips past any chain of flatten wrappers directly enclosing `node`. */
+function effectiveParent(node) {
+	let parent = node.parentNode
+	while (parent && isFlatten(parent)) parent = parent.parentNode
+	return parent
+}
 
 function getXPathForNode(node, root) {
 	if (node === root) return '.'
 	const parts = []
 	let current = node
 	while (current && current !== root) {
+		const parent = effectiveParent(current)
+		if (!parent) return null
+		const siblings = effectiveChildren(parent)
 		if (current.nodeType === Node.TEXT_NODE) {
 			let index = 0
-			let sib = current.previousSibling
-			while (sib) {
+			for (const sib of siblings) {
+				if (sib === current) break
 				if (sib.nodeType === Node.TEXT_NODE) index++
-				sib = sib.previousSibling
 			}
 			parts.unshift(`text()[${index + 1}]`)
 		} else {
 			const tag = current.nodeName.toLowerCase()
-			let index = 1
-			let sib = current.previousElementSibling
-			while (sib) {
-				if (sib.nodeName.toLowerCase() === tag) index++
-				sib = sib.previousElementSibling
+			let index = 0
+			for (const sib of siblings) {
+				if (sib === current) break
+				if (sib.nodeType === Node.ELEMENT_NODE && sib.nodeName.toLowerCase() === tag) index++
 			}
-			parts.unshift(`${tag}[${index}]`)
+			parts.unshift(`${tag}[${index + 1}]`)
 		}
-		current = current.parentNode
+		current = parent
 	}
 	if (!current) return null
 	return parts.join('/')
@@ -86,12 +137,13 @@ function resolveXPath(xpath, root) {
 	let node = root
 	for (const part of parts) {
 		if (!node) return null
+		const children = effectiveChildren(node)
 		const textMatch = part.match(/^text\(\)\[(\d+)\]$/)
 		if (textMatch) {
 			const targetIdx = parseInt(textMatch[1], 10) - 1
 			let count = 0
 			let found = null
-			for (const child of node.childNodes) {
+			for (const child of children) {
 				if (child.nodeType === Node.TEXT_NODE) {
 					if (count === targetIdx) { found = child; break }
 					count++
@@ -105,8 +157,8 @@ function resolveXPath(xpath, root) {
 			const idx = parseInt(elemMatch[2], 10) - 1
 			let count = 0
 			let found = null
-			for (const child of node.children) {
-				if (child.nodeName.toLowerCase() === tag) {
+			for (const child of children) {
+				if (child.nodeType === Node.ELEMENT_NODE && child.nodeName.toLowerCase() === tag) {
 					if (count === idx) { found = child; break }
 					count++
 				}

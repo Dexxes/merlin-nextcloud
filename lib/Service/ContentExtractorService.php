@@ -12,6 +12,7 @@ use fivefilters\Readability\ParseException;
 use fivefilters\Readability\Readability;
 use OCA\Merlin\Service\Http\SsrfSafeResolver;
 use OCA\Merlin\Service\Login\PaywallLoginRequiredException;
+use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
 
 class ContentExtractorService {
@@ -92,6 +93,10 @@ class ContentExtractorService {
 		LoggerInterface $logger,
 		ContentFilterRepository $contentFilters,
 		private SiteCredentialService $siteCredentials,
+		private BlueskyThreadResolverService $blueskyThreadResolver,
+		private MastodonPostResolverService $mastodonPostResolver,
+		private TikTokPostResolverService $tiktokPostResolver,
+		private IURLGenerator $urlGenerator,
 	) {
 		$this->logger         = $logger;
 		$this->contentFilters = $contentFilters;
@@ -283,30 +288,59 @@ class ContentExtractorService {
 		if(isset($domainMeta) && key_exists("excerpt", $domainMeta) && strlen($domainMeta['excerpt']) > 300)
 			$domainMeta['excerpt'] = substr($domainMeta['excerpt'],0,300) . "...";
 
+		// ── Step 2b: Mastodon-Erkennung (domain-unabhängig) ───────────────────
+		// Mastodon ist föderiert - anders als bsky.app/x.com gibt es keine feste
+		// Domain, für die ein content-filters/{domain}.xml eine Kategorie
+		// deklarieren könnte. Erkennung deshalb rein über die URL-Form
+		// "/@user/12345…" (looksLikeMastodonPostUrl()), NUR wenn keine andere
+		// Domain-Config bereits eine eigene Kategorie zugewiesen hat (sonst
+		// hätte z. B. ein regulärer Blog mit zufällig passendem Pfad Vorrang
+		// vor seinem eigenen Content-Filter). $mastodonThreadPosts wird unten
+		// im Thread-Zweig wiederverwendet statt den API-Call zu wiederholen.
+		$mastodonThreadPosts = null;
+		if ($domainMeta['category'] === null && $this->mastodonPostResolver->looksLikeMastodonPostUrl($url)) {
+			$mastodonThreadPosts = $this->mastodonPostResolver->resolveSelfThread($url);
+			if ($mastodonThreadPosts !== null) {
+				$domainMeta['category'] = 'Mastodon';
+			}
+		}
+
 		// ── Step 3: Image caption normalisation ─────────────────────────────
 		// Rewrap domain-specific image+caption structures into standard
 		// <figure><img><figcaption> HTML so Readability preserves them.
 		// Must run before Readability; affects all images in the article body.
-		if($domainMeta['category'] != "Video")
+		if($domainMeta['category'] != "Video" && $domainMeta['category'] != "Thread" && $domainMeta['category'] != "XPost" && $domainMeta['category'] != "Mastodon" && $domainMeta['category'] != "InstagramPost" && $domainMeta['category'] != "TikTokPost")
 			$rawHtml = $this->normalizeImageCaptions($rawHtml, $domain, $trace);
 
 		// ── Step 4: Pre-filter ────────────────────────────────────────────────
 		// Apply per-domain <pre-filter> remove rules BEFORE Readability sees
 		// the HTML, so filtered elements are never considered as article content.
 		$rawHtml = $this->applyPreFilters($rawHtml, $domain, $trace);
-		$rawHtml = html_entity_decode($rawHtml, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+		// ENT_NOQUOTES statt ENT_QUOTES: saveHTML() re-encodiert Attributwerte
+		// korrekt (z. B. &quot;/&#34; für ein eingebettetes literales Anführungs-
+		// zeichen). ENT_QUOTES decodierte diese Quote-Entities aber wieder in
+		// literale " / ' zurück — auf dem rohen String, ohne erneute DOM-
+		// Serialisierung. Bei Attributen, die selbst JSON/JS mit Anführungs-
+		// zeichen tragen (z. B. Alpine.js' x-data="{…&#34;key&#34;…}", verbreitet
+		// u. a. bei spiegel.de), riss das die Attributgrenze mittendrin auf: der
+		// Rest des Attributwerts (oft ein ganzer Script-Block) rutschte als
+		// kaputtes Markup/Textinhalt in den Baum und konnte von Readability als
+		// Artikeltext ausgewählt werden. ENT_NOQUOTES decodiert weiterhin named/
+		// numeric Entities in sichtbarem Text (Umlaute, &amp; …), lässt aber
+		// Quote-Entities unangetastet, sodass Attributwerte gültig bleiben.
+		$rawHtml = html_entity_decode($rawHtml, ENT_NOQUOTES | ENT_HTML5, 'UTF-8');
 
 		// ── Step 5: Infobox markers ──────────────────────────────────────────
 		// Add 'merlin-infobox' CSS class to elements declared as <infobox> in
 		// the domain config. Must run BEFORE Readability so the class survives.
 		$rawHtml = $this->applyInfoboxMarkers($rawHtml, $domain, $trace);
-		$rawHtml = html_entity_decode($rawHtml, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+		$rawHtml = html_entity_decode($rawHtml, ENT_NOQUOTES | ENT_HTML5, 'UTF-8');
 
 		// ── Step 6: Custom class markers ────────────────────────────────────
 		// Add arbitrary CSS classes to elements declared as <saveElements> in
 		// the domain config. Must run BEFORE Readability so the classes survive.
 		$rawHtml = $this->applyClassMarkers($rawHtml, $domain, $trace);
-		$rawHtml = html_entity_decode($rawHtml, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+		$rawHtml = html_entity_decode($rawHtml, ENT_NOQUOTES | ENT_HTML5, 'UTF-8');
 
 		// Nur von Step 5 (domainMeta-Override) oder dem Video-Zweig unten gesetzt,
 		// wenn kein og:description/domain-Excerpt vorhanden ist — explizit auf
@@ -324,7 +358,7 @@ class ContentExtractorService {
 		$siteName = $this->extractSiteName($rawHtml, $url);
 		$siteName = html_entity_decode($siteName ?? '', ENT_QUOTES, 'UTF-8');
 
-		if($domainMeta['category'] != "Video")
+		if($domainMeta['category'] != "Video" && $domainMeta['category'] != "Thread" && $domainMeta['category'] != "XPost" && $domainMeta['category'] != "Mastodon" && $domainMeta['category'] != "InstagramPost" && $domainMeta['category'] != "TikTokPost")
 		{
 			// ── Step 7: Quote normalisation + Readability ──────────────────────────
 			// Normalise quote structures before Readability:
@@ -335,9 +369,25 @@ class ContentExtractorService {
 			// so all Merlin marker classes survive post-processing.
 			$html = $this->normalizeQuotes($rawHtml, $domain, $trace);
 
+			// fivefilters/readability.php löst "./bild.jpg"-relative Bild-URLs im
+			// Artikeltext über PHP_URL_PATH + dirname() auf (Readability.php,
+			// getPathInfo()). Endet der Artikel-Pfad auf "/" — Standard bei
+			// Ghost-CMS-Blogs wie blog.joinmastodon.org (".../post-slug/") —,
+			// entfernt dirname() fälschlich das letzte Pfadsegment, sodass alle
+			// Absatzbilder auf eine falsche, 404ende URL aufgelöst werden (das
+			// meist root-relative og:image bleibt davon unbetroffen). Ein
+			// synthetisches Pfadsegment vor der Übergabe an Readability umgeht den
+			// Bug, ohne die Bibliothek zu patchen; Query/Fragment sind für die
+			// Pfadauflösung dort irrelevant und werden bewusst weggelassen.
+			$readabilityUrl = $url;
+			$urlPath = parse_url($url, PHP_URL_PATH) ?? '';
+			if ($urlPath !== '' && substr($urlPath, -1) === '/') {
+				$readabilityUrl = parse_url($url, PHP_URL_SCHEME) . '://' . parse_url($url, PHP_URL_HOST) . rtrim($urlPath, '/') . '/index.html';
+			}
+
 			$readabilityConfig = new Configuration([
 				'fixRelativeURLs' => true,
-				'originalURL' => $url,
+				'originalURL' => $readabilityUrl,
 				'summonCthulhu' => true, // Remove unlikely candidates
 				// Keep class attributes so that Merlin-specific marker classes (e.g.
 				// merlin-infobox, merlin-quote) added before parsing survive intact.
@@ -368,7 +418,19 @@ class ContentExtractorService {
 			$title = html_entity_decode($title, ENT_QUOTES, 'UTF-8');
 
 			$content = $readability->getContent() ?: '';
-			$content = html_entity_decode($content, ENT_QUOTES, 'UTF-8');
+			// ENT_NOQUOTES statt ENT_QUOTES: $content ist weiterhin HTML-Markup
+			// (Readability liefert einen HTML-Fragment-String, keinen reinen Text),
+			// das anschließend durch applyPostFilters()/sanitizeHtml() erneut per
+			// DOM geparst wird. ENT_QUOTES decodierte &quot;/&#34; in Attributen
+			// (z. B. <blockquote data-instgrm-permalink="…&#34;…">, oder Reste
+			// von Widget-Markup, das Readability unverändert übernommen hat)
+			// zurück in literale Anführungszeichen und riss damit dieselbe
+			// Attributgrenze auf wie bei den Pre-Readability-Decode-Aufrufen oben
+			// (siehe dortiger Kommentar) — mit demselben Resultat: der Rest des
+			// Attributwerts rutschte als kaputtes Markup/Text in den extrahierten
+			// Content. ENT_NOQUOTES decodiert weiterhin named/numeric Entities in
+			// sichtbarem Text, lässt Quote-Entities aber unangetastet.
+			$content = html_entity_decode($content, ENT_NOQUOTES, 'UTF-8');
 
 			//$excerpt = $readability->getExcerpt();
 			//$excerpt = html_entity_decode($excerpt, ENT_QUOTES, 'UTF-8');
@@ -385,12 +447,177 @@ class ContentExtractorService {
 				?: ($heroImageData['src'] ?? null);
 			$publishedAt = $this->extractPublishedDate($html, $content);
 		}
+		elseif ($domainMeta['category'] === "Thread") {
+			// Self-Thread-Zweig (bsky.app, siehe BlueskyThreadResolverService):
+			// Readability wird übersprungen (bsky.app liefert als SPA praktisch
+			// keinen Server-Side-Content). Titel zunächst aus dem og:title-
+			// Fallback der bsky.app.xml (domainMeta, aus Step 2 oben)
+			// vorbelegen - das greift, wenn die API-Auflösung unten
+			// fehlschlägt. Kein Excerpt: der Post-Text steht schon
+			// vollständig im Embed selbst. Statt eines Avatars/Fotos dient
+			// das Bluesky-Icon (platformIconUrl()) als Vorschaubild - kein
+			// Hero-Bild im Content selbst, siehe Step 12 unten
+			// (hideHeroImage-Ausnahme für Thread/XPost/Mastodon).
+			$title       = $domainMeta['title'] ?? '';
+			$author      = null;
+			$imageUrl    = $this->platformIconUrl('bluesky');
+			$publishedAt = null;
+
+			$threadPosts = $this->blueskyThreadResolver->resolveSelfThread($url);
+			if ($threadPosts !== null && $threadPosts !== []) {
+				$content   = $this->buildBlueskyThreadHtml($threadPosts);
+				$firstPost = $threadPosts[0];
+
+				$author = $firstPost['authorDisplayName'] ?: ($firstPost['authorHandle'] ?: null);
+				$title  = $author !== null ? ('Post von ' . $author) : $title;
+
+				$publishedAt = $firstPost['createdAt'] !== '' ? $this->parseDateString($firstPost['createdAt']) : null;
+
+				// Gilt für den ganzen Self-Thread (ältester Post) - nicht von
+				// Step 9 unten mit dem og:title der einzelnen VERLINKTEN
+				// Post-Seite überschreiben lassen, die bei einem mehrteiligen
+				// Thread nicht zum Autor des Threads passen muss.
+				$domainMeta['title'] = $title;
+			} else {
+				// API-Auflösung fehlgeschlagen (gelöschter Post, Rate-Limit,
+				// Netzwerkfehler) - einfacher Link-Fallback statt leerem Artikel.
+				// Titel bleibt der og:title-Fallback von oben.
+				$escapedBlueskyUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+				$content = '<a href="' . $escapedBlueskyUrl . '" class="merlin-bluesky-fallback-link">Zum Bluesky-Post</a>';
+				if ($title === '') {
+					$title = 'Bluesky-Post';
+				}
+			}
+			$domainMeta['image'] = $imageUrl;
+		}
+		elseif ($domainMeta['category'] === "XPost") {
+			// Einzelpost-Embed (x.com/twitter.com, siehe content-filters/x.com.xml
+			// bzw. twitter.com.xml): kein API-Aufruf nötig/möglich - X hat keine
+			// kostenlose öffentliche API mehr, mit der sich eine Reply-Kette
+			// auflösen ließe. platform.twitter.com/widgets.js holt den
+			// Tweet-Inhalt clientseitig selbst über Twitters eigenes oEmbed -
+			// die Widget-Infrastruktur (Allowlist/CSP) existierte hier schon
+			// vor der Bluesky-Arbeit. Deshalb auch kein Self-Thread-Walk wie
+			// bei Bluesky/Mastodon, nur der einzelne verlinkte Post. Vorschaubild
+			// ist das X-Icon statt eines Avatars/Fotos, siehe Thread-Zweig oben.
+			$xHandle = $this->parseXStatusHandle($url);
+			if ($xHandle !== null) {
+				$content = $this->buildXPostHtml($url);
+				$author  = '@' . $xHandle;
+				$title   = 'Post von ' . $author;
+			} else {
+				// Keine Status-URL (Profil/Suche/Startseite) - einfacher
+				// Link-Fallback statt eines falsch dargestellten Embeds.
+				$escapedXUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+				$content = '<a href="' . $escapedXUrl . '" class="merlin-x-fallback-link">Zum X-Post</a>';
+				$author  = null;
+				$title   = $domainMeta['title'] ?? 'X-Post';
+			}
+			$imageUrl    = $this->platformIconUrl('x');
+			$publishedAt = null;
+			$domainMeta['title'] = $title;
+			$domainMeta['image'] = $imageUrl;
+		}
+		elseif ($domainMeta['category'] === "InstagramPost") {
+			// Einzelpost-Embed (instagram.com, siehe content-filters/instagram.com.xml):
+			// wie bei X kein API-Aufruf nötig/möglich - Instagram hat keine
+			// kostenlose öffentliche API, mit der sich der Post-Inhalt auflösen
+			// ließe. www.instagram.com/embed.js holt den Post-Inhalt clientseitig
+			// selbst über Instagrams eigenes oEmbed - Allowlist/CSP dafür
+			// existierten schon vor diesem Kategorie-Zweig (Instagram-Embeds
+			// INNERHALB fremder Artikel). Deshalb auch kein Self-Thread-Walk wie
+			// bei Bluesky/Mastodon, nur der einzelne verlinkte Post. Vorschaubild
+			// ist das Instagram-Icon statt eines Avatars/Fotos, siehe X-Zweig oben.
+			//
+			// Titel bewusst immer der feste String statt eines og:title-Scrapes:
+			// Instagrams Permalink-URL enthält (anders als bei X/TikTok) keinen
+			// Handle, es gibt keine kostenlose API für den echten Autorennamen -
+			// ein gescraptes og:title wäre bestenfalls eine rohe, unformatierte
+			// Caption statt eines sauberen "Post von {Ersteller}"-Titels wie bei
+			// den anderen Plattformen.
+			$title  = 'Instagram-Post';
+			$author = null;
+			$instagramPermalink = $this->parseInstagramPermalink($url);
+			if ($instagramPermalink !== null) {
+				$content = $this->buildInstagramPostHtml($instagramPermalink);
+			} else {
+				// Keine Post-/Reel-/TV-URL (Profil/Explore/Startseite) - einfacher
+				// Link-Fallback statt eines falsch dargestellten Embeds.
+				$escapedInstagramUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+				$content = '<a href="' . $escapedInstagramUrl . '" class="merlin-instagram-fallback-link">Zum Instagram-Post</a>';
+			}
+			$imageUrl    = $this->platformIconUrl('instagram');
+			$publishedAt = null;
+			$domainMeta['title'] = $title;
+			$domainMeta['image'] = $imageUrl;
+		}
+		elseif ($domainMeta['category'] === "TikTokPost") {
+			// Einzelpost-Embed (tiktok.com, siehe content-filters/tiktok.com.xml
+			// bzw. TikTokPostResolverService): anders als bei X/Instagram (rein
+			// clientseitiges Widget aus einem selbst gebauten, leeren
+			// <blockquote>) liest TikToks embed.js die Video-ID beim Rendern
+			// AUSSCHLIESSLICH aus dem data-video-id-Attribut - ein minimal
+			// selbst gebautes Markup führte in der Praxis zu einem fehlerhaften
+			// Embed ("/embed/v2/null"). Deshalb hier ein echter Server-Aufruf
+			// gegen TikToks öffentliche, unauthentifizierte oEmbed-API, die das
+			// komplette, von TikTok selbst generierte Embed-Markup liefert
+			// (siehe TikTokPostResolverService). Vorschaubild ist trotzdem das
+			// TikTok-Icon statt eines Video-Thumbnails, siehe X-Zweig oben.
+			$tiktokVideoId  = $this->parseTikTokVideoId($url);
+			$tiktokResolved = $tiktokVideoId !== null ? $this->tiktokPostResolver->resolve($url) : null;
+			if ($tiktokResolved !== null) {
+				$content = $tiktokResolved['html'];
+				$author  = $tiktokResolved['authorName']
+					?? ($tiktokResolved['authorUniqueId'] !== null ? '@' . $tiktokResolved['authorUniqueId'] : null);
+				$title   = $author !== null ? ('Post von ' . $author) : ($domainMeta['title'] ?? 'TikTok-Post');
+			} else {
+				// Keine Video-URL (Profil/Discover/Startseite) oder
+				// oEmbed-Auflösung fehlgeschlagen (gelöschtes/privates Video,
+				// Rate-Limit, Netzwerkfehler) - einfacher Link-Fallback statt
+				// eines fehlerhaften Embeds.
+				$escapedTikTokUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+				$content = '<a href="' . $escapedTikTokUrl . '" class="merlin-tiktok-fallback-link">Zum TikTok-Post</a>';
+				$author  = null;
+				$title   = $domainMeta['title'] ?? 'TikTok-Post';
+			}
+			$imageUrl    = $this->platformIconUrl('tiktok');
+			$publishedAt = null;
+			$domainMeta['title'] = $title;
+			$domainMeta['image'] = $imageUrl;
+		}
+		elseif ($domainMeta['category'] === "Mastodon") {
+			// Self-Thread-Zweig für föderierte Mastodon-Posts (siehe
+			// MastodonPostResolverService, domain-unabhängig oben in Step 2b
+			// erkannt) - $mastodonThreadPosts wurde dort schon aufgelöst,
+			// kein zweiter API-Call nötig. Anders als bsky.app/x.com gibt es
+			// keinen zentralen Embed-Host für alle Instanzen, deshalb eigene,
+			// native HTML-Karte statt eines Drittanbieter-Widgets (siehe
+			// buildMastodonThreadHtml()). Vorschaubild ist das Mastodon-Icon
+			// statt eines Avatars/Medien-Anhangs - Avatare innerhalb der
+			// Post-Karte selbst bleiben aber (Teil der Post-Darstellung).
+			$content   = $this->buildMastodonThreadHtml($mastodonThreadPosts);
+			$firstPost = $mastodonThreadPosts[0];
+
+			$author = $firstPost['authorDisplayName'] ?: ($firstPost['authorHandle'] !== '' ? '@' . $firstPost['authorHandle'] : null);
+			$title  = $author !== null ? ('Post von ' . $author) : 'Mastodon-Post';
+
+			$imageUrl    = $this->platformIconUrl('mastodon');
+			$publishedAt = $firstPost['createdAt'] !== '' ? $this->parseDateString($firstPost['createdAt']) : null;
+
+			$domainMeta['title'] = $title;
+			$domainMeta['image'] = $imageUrl;
+		}
 		else {
 			// $url in ein Attribut eingebettet → escapen, damit ein URL mit ' oder
 			// " nicht aus dem href ausbricht. Der finale sanitizeHtml()-Durchlauf
 			// filtert zusätzlich ein evtl. javascript:-Schema heraus.
 			$escapedVideoUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
-			$content = '<a href="' . $escapedVideoUrl . '">Zum Video</a>';
+			// Eigene Marker-Klasse (wie merlin-hero-image/merlin-infobox), damit der
+			// Reader diesen Fallback-Link ausblenden kann, sobald
+			// VideoStreamResolverService::resolve() für dieselbe URL einen
+			// abspielbaren Stream gefunden hat - sonst stünde er redundant neben
+			// dem nativen Player.
+			$content = '<a href="' . $escapedVideoUrl . '" class="merlin-video-fallback-link">Zum Video</a>';
 		}
 
 		// ── Step 9: Apply domain metadata overrides ───────────────────────────
@@ -414,24 +641,43 @@ class ContentExtractorService {
 
 		// ── Step 12: Hero-Image in Content einfügen ───────────────────────────
 		// Readability entfernt Hero-Bilder aus <figure>-Containern, wenn sie vor
-		// dem Fließtext stehen. Falls der extrahierte Content kein <img> enthält
-		// (geprüft anhand der ersten 1000 Zeichen), aber imageUrl bekannt ist,
-		// wird das Bild als merlin-hero-image an den Anfang prepended.
+		// dem Fließtext stehen. Falls der extrahierte Content NICHT bereits mit
+		// einem Bild beginnt, aber imageUrl bekannt ist, wird das Bild als
+		// merlin-hero-image an den Anfang prepended.
 		// Eine vorhandene <figcaption> aus dem Quell-HTML wird mitübernommen.
 		// Das Bild darf so nur einmal erscheinen – stripDuplicateMetadata läuft danach.
-		$start = mb_substr(trim($content), 0, 2000);
-		if ($normalizedImageUrl !== null && !preg_match('/<img\b/i', $start)) {
+		//
+		// Geprüft wird nur, ob der Content mit einem Bild BEGINNT (nicht: ob
+		// irgendwo in den ersten N Zeichen eines vorkommt) – sonst verhindert ein
+		// früh im Fließtext sitzendes Bild (z. B. innerhalb der ersten zwei, drei
+		// Absätze) fälschlich das Voranstellen des eigentlichen Hero-Bilds, obwohl
+		// Readability den Hero selbst nie behalten hat.
+		// "Beginnt mit einem Bild" schließt auch den Fall ein, dass Readability
+		// das Hero-Bild verpackt in <p>/<a>/<div>/<span>/<figure> behalten hat
+		// (z. B. das bei WordPress übliche <p><a href="…"><img src="…"></a></p>
+		// oder ein Gutenberg-Bildblock <figure><img src="…"></figure>) – siehe
+		// contentStartsWithMatchingImage(). Ohne diese Erkennung würde dasselbe
+		// Bild doppelt erscheinen: einmal original im Content, einmal als
+		// künstlich vorangestelltes zweites merlin-hero-image.
+		// Bluesky/X/Mastodon: $imageUrl ist hier das feste Plattform-Icon
+		// (Vorschaubild in der Artikelliste, siehe platformIconUrl()), soll
+		// aber ausdrücklich NICHT zusätzlich als Hero-Bild im Content
+		// erscheinen - der Post/Thread/die Karte steht selbst schon ganz
+		// oben im Content.
+		$suppressHeroImage = in_array($domainMeta['category'], ['Thread', 'XPost', 'Mastodon', 'InstagramPost', 'TikTokPost'], true);
+
+		$start = ltrim($content);
+		$startsWithHeroImage = preg_match('/^<(img|figure)\b/i', $start) === 1
+			|| $this->contentStartsWithMatchingImage($start, $normalizedImageUrl, $url);
+		if ($normalizedImageUrl !== null && !$suppressHeroImage && !$startsWithHeroImage) {
 			$escapedUrl  = htmlspecialchars($normalizedImageUrl, ENT_QUOTES, 'UTF-8');
 			$figcaption  = '';
 			// Caption aus dem HTML-Scan übernehmen (nur wenn kein og:image die imageUrl
 			// geliefert hat – dann stammt $heroImageData von derselben figure).
-			//if (!empty($heroImageData['caption']) && ($heroImageData['src'] ?? null) === $normalizedImageUrl) {
-			$escapedCaption = "";
-			if (!empty($heroImageData['caption']))
+			if (!empty($heroImageData['caption'])) {
 				$escapedCaption = htmlspecialchars($heroImageData['caption'], ENT_QUOTES, 'UTF-8');
-				
 				$figcaption     = '<figcaption>' . $escapedCaption . '</figcaption>';
-			//}
+			}
 			$content = '<figure class="merlin-hero-image"><img src="' . $escapedUrl . '" alt="">' . $figcaption . '</figure>' . $content;
 		}
 
@@ -459,6 +705,186 @@ class ContentExtractorService {
 			'publishedAt' => $publishedAt,
 			'category'    => $domainMeta['category'],
 		];
+	}
+
+	/**
+	 * Baut den Artikel-Content für einen Bluesky-Self-Thread: ein
+	 * Blueskys-offizielles Embed-<blockquote data-bluesky-uri="…"> je Post
+	 * (in chronologischer Reihenfolge), gefolgt vom offiziellen Loader-Script.
+	 * embed.bsky.app ersetzt jedes [data-bluesky-uri]-Element client-seitig
+	 * durch ein <iframe> mit dem echten, live gerenderten Post - der
+	 * Blockquote-Inhalt hier ist nur der No-JS-Fallback-Text.
+	 *
+	 * @param list<array{uri: string, cid: string, text: string, authorDid: string,
+	 *   authorHandle: string, authorDisplayName: ?string, authorAvatar: ?string,
+	 *   createdAt: string, imageUrl: ?string}> $posts
+	 */
+	private function buildBlueskyThreadHtml(array $posts): string {
+		$blocks = [];
+		foreach ($posts as $post) {
+			$escapedUri  = htmlspecialchars($post['uri'], ENT_QUOTES, 'UTF-8');
+			$escapedText = nl2br(htmlspecialchars($post['text'], ENT_QUOTES, 'UTF-8'));
+
+			$blocks[] = '<blockquote class="bluesky-embed" data-bluesky-uri="' . $escapedUri . '">'
+				. '<p>' . $escapedText . '</p>'
+				. '</blockquote>';
+		}
+		$blocks[] = '<script async src="https://embed.bsky.app/static/embed.js" charset="utf-8"></script>';
+
+		return implode("\n", $blocks);
+	}
+
+	/**
+	 * Handle aus einer x.com/twitter.com-Status-URL ("/handle/status/12345…"),
+	 * oder null wenn die URL keine Tweet-Permalink-Form hat (Profil, Suche,
+	 * Startseite, …). "/i/status/…" (Xs handle-loser Permalink-Kurzlink, z. B.
+	 * über "Copy link") liefert bewusst null zurück statt "i" als Handle -
+	 * "i" ist ein Platzhalter, kein Konto.
+	 */
+	private function parseXStatusHandle(string $url): ?string {
+		$path = parse_url($url, PHP_URL_PATH);
+		if (!is_string($path) || !preg_match('#^/([A-Za-z0-9_]{1,15})/status/\d+#', $path, $m)) {
+			return null;
+		}
+		return strcasecmp($m[1], 'i') === 0 ? null : $m[1];
+	}
+
+	/**
+	 * Blueskys Gegenstück, nur für X: ein offizielles Tweet-Embed-<blockquote>
+	 * (leerer <a href> genügt - platform.twitter.com/widgets.js holt sich den
+	 * Tweet-Inhalt selbst über Twitters eigenes oEmbed) + der Loader.
+	 */
+	private function buildXPostHtml(string $url): string {
+		$escapedUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+		return '<blockquote class="twitter-tweet"><a href="' . $escapedUrl . '"></a></blockquote>' . "\n"
+			. '<script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>';
+	}
+
+	/**
+	 * Kanonischer Permalink ("https://www.instagram.com/{p|reel|tv}/{shortcode}/")
+	 * aus einer instagram.com-URL, oder null wenn die URL keine Post-/Reel-/
+	 * TV-Permalink-Form hat (Profil, Explore, Startseite, …). Baut den
+	 * Permalink bewusst neu aus Typ+Shortcode statt die Original-URL
+	 * wiederzuverwenden, damit Tracking-Query-Parameter (z. B.
+	 * "?igsh=…"/"?utm_source=…") nicht ungefiltert ins data-instgrm-permalink-
+	 * Attribut wandern.
+	 */
+	private function parseInstagramPermalink(string $url): ?string {
+		$path = parse_url($url, PHP_URL_PATH);
+		if (!is_string($path) || !preg_match('#^/(p|reel|tv)/([A-Za-z0-9_-]+)#', $path, $m)) {
+			return null;
+		}
+		return 'https://www.instagram.com/' . $m[1] . '/' . $m[2] . '/';
+	}
+
+	/**
+	 * X'/Blueskys Gegenstück, nur für Instagram: ein offizielles Post-Embed-
+	 * <blockquote data-instgrm-permalink="…"> (leer genügt - www.instagram.com/
+	 * embed.js holt sich den Post-Inhalt selbst über Instagrams eigenes
+	 * oEmbed) + der Loader. Dieselbe Markup-Form (Klasse "instagram-media",
+	 * data-instgrm-permalink/-version) wird schon für Instagram-Embeds
+	 * INNERHALB fremder Artikel durchgelassen, siehe
+	 * isAllowedInstagramPermalink()/sanitizeHtml().
+	 */
+	private function buildInstagramPostHtml(string $permalinkUrl): string {
+		$escapedUrl = htmlspecialchars($permalinkUrl, ENT_QUOTES, 'UTF-8');
+		return '<blockquote class="instagram-media" data-instgrm-permalink="' . $escapedUrl . '" data-instgrm-version="14"></blockquote>' . "\n"
+			. '<script async src="https://www.instagram.com/embed.js" charset="utf-8"></script>';
+	}
+
+	/**
+	 * Numerische Video-ID aus einer tiktok.com-Video-URL
+	 * ("/@handle/video/1234567890…"), oder null wenn die URL keine
+	 * Video-Permalink-Form hat (Profil, Discover, Startseite, …). Dient dem
+	 * TikTokPost-Zweig als billiges Vorab-Filter, bevor überhaupt ein
+	 * oEmbed-Aufruf (TikTokPostResolverService) versucht wird - die ID selbst
+	 * wird nicht weiterverwendet, TikToks oEmbed-API bekommt die volle URL.
+	 */
+	private function parseTikTokVideoId(string $url): ?string {
+		$path = parse_url($url, PHP_URL_PATH);
+		if (!is_string($path) || !preg_match('#/video/(\d+)#', $path, $m)) {
+			return null;
+		}
+		return $m[1];
+	}
+
+	/**
+	 * Baut den Artikel-Content für einen Mastodon-Self-Thread als eigene,
+	 * native HTML-Karte je Post (kein Drittanbieter-Widget - Mastodon-
+	 * Instanzen sind föderiert, es gibt keinen zentralen, allowlistbaren
+	 * Embed-Host wie embed.bsky.app/platform.twitter.com). contentHtml kommt
+	 * von der Mastodon-API und ist bereits einfaches HTML (Absätze, Mention-/
+	 * Hashtag-Links, ggf. Custom-Emoji-<img>s) - läuft wie jeder andere
+	 * extrahierte Content anschließend durch applyPostFilters()/cleanHtml()/
+	 * sanitizeHtml(), wird also nicht blind vertraut.
+	 *
+	 * @param list<array{id: string, url: string, contentHtml: string,
+	 *   authorDisplayName: ?string, authorHandle: string, authorAvatar: ?string,
+	 *   createdAt: string, imageUrls: list<string>}> $posts
+	 */
+	private function buildMastodonThreadHtml(array $posts): string {
+		$blocks = [];
+		foreach ($posts as $post) {
+			$displayName   = $post['authorDisplayName'] ?: $post['authorHandle'];
+			$escapedName   = htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8');
+			$escapedHandle = htmlspecialchars($post['authorHandle'], ENT_QUOTES, 'UTF-8');
+			$escapedUrl    = htmlspecialchars($post['url'], ENT_QUOTES, 'UTF-8');
+
+			$avatarHtml = '';
+			if ($post['authorAvatar'] !== null) {
+				$escapedAvatar = htmlspecialchars($post['authorAvatar'], ENT_QUOTES, 'UTF-8');
+				$avatarHtml = '<img class="merlin-mastodon-post__avatar" src="' . $escapedAvatar . '" alt="">';
+			}
+
+			$mediaHtml = '';
+			foreach ($post['imageUrls'] as $mediaUrl) {
+				$escapedMedia = htmlspecialchars($mediaUrl, ENT_QUOTES, 'UTF-8');
+				$mediaHtml .= '<img class="merlin-mastodon-post__media-item" src="' . $escapedMedia . '" alt="">';
+			}
+			if ($mediaHtml !== '') {
+				$mediaHtml = '<div class="merlin-mastodon-post__media">' . $mediaHtml . '</div>';
+			}
+
+			$blocks[] = '<div class="merlin-mastodon-post">'
+				. '<a class="merlin-mastodon-post__header" href="' . $escapedUrl . '">'
+				. $avatarHtml
+				. '<span class="merlin-mastodon-post__author">'
+				. '<span class="merlin-mastodon-post__name">' . $escapedName . '</span>'
+				. '<span class="merlin-mastodon-post__handle">@' . $escapedHandle . '</span>'
+				. '</span>'
+				. '</a>'
+				. '<div class="merlin-mastodon-post__content">' . $post['contentHtml'] . '</div>'
+				. $mediaHtml
+				. '</div>';
+		}
+
+		return implode("\n", $blocks);
+	}
+
+	/**
+	 * URL des statischen Plattform-Icons (16:9-PNG, transparenter
+	 * Hintergrund, unter img/{platform}-preview.png), das für Bluesky-/X-/
+	 * Mastodon-Artikel statt eines Avatars/Post-Fotos als Vorschaubild
+	 * dient (siehe Thread-/XPost-/Mastodon-Zweige oben).
+	 *
+	 * getAbsoluteURL() ist hier Pflicht, nicht Kür: imagePath() allein
+	 * liefert einen host-relativen Pfad (z. B. "/index.php/apps/merlin/
+	 * img/…") - im Web-Reader per v-html/<img> unproblematisch (der
+	 * Browser löst ihn gegen die aktuelle Origin auf), aber iOS/Android
+	 * laden $imageUrl über einen eigenständigen Netzwerk-Request
+	 * (URLSession/Coil), der eine vollständige URL mit Schema+Host
+	 * braucht - ein relativer Pfad schlägt dort still fehl und die Cards
+	 * zeigen nur den lokalen Platzhalter. Anders als beim no-img.png-
+	 * Fallback in ArticleController::resolveImageUrl() (dort geliefert,
+	 * wenn $imageUrl bereits leer ist, wird das clientseitig gar nicht
+	 * erst über die Bild-Pipeline geladen) ist dieser Wert hier ein
+	 * "echtes" imageUrl, das denselben Weg wie ein von einer Drittseite
+	 * gescraptes og:image-Bild nimmt - und die kommen immer schon absolut.
+	 */
+	private function platformIconUrl(string $platform): string {
+		return $this->urlGenerator->getAbsoluteURL(
+			$this->urlGenerator->imagePath('merlin', $platform . '-preview.png')
+		);
 	}
 
 	// ──────────────────────────────────────────────────────────────────────────
@@ -569,6 +995,179 @@ class ContentExtractorService {
 		);
 
 		return $this->shortenerPatterns;
+	}
+
+	/**
+	 * Prüft, ob der Content bereits mit dem Hero-Bild beginnt, auch wenn es
+	 * (z. B. bei WordPress-Quellen üblich) in <p>/<a>/<div>/<span>/<figure>
+	 * verpackt ist statt als nacktes <img> oder <figure> an Position 0 - z. B.
+	 * <p><a href="…"><img src="…"></a></p> oder ein Gutenberg-Bildblock
+	 * <div><figure class="wp-block-image"><img src="…"></figure></div>. Auch
+	 * ein <picture>-Wrapper (responsive Bilder mit <source>-Geschwistern vor
+	 * dem eigentlichen <img>, z. B. bei ARD/rbb-Quellen üblich) wird entpackt.
+	 * In dem Fall würde Step 12 sonst ein zweites, redundantes Hero-Bild
+	 * voranstellen (siehe Kommentar über Step 12).
+	 *
+	 * Entpackt wird immer nur das JEWEILS ERSTE Kind-Element eines Wrappers
+	 * (kein weiterer nicht-leerer Text davor) - absichtlich NICHT "genau ein
+	 * Kind insgesamt", denn Readability (fivefilters\Readability) wrapt den
+	 * kompletten extrahierten Content typischerweise in einen äußeren
+	 * <div id="readability-page-1" class="page">…</div> (id/class an dieser
+	 * Stelle bereits von cleanHtml() entfernt), der neben dem Hero-Bild auch
+	 * ALLE folgenden Absätze als Geschwister-Elemente enthält. Eine
+	 * "nur-einzelnes-Kind"-Prüfung würde diesen ganz normalen Wrapper-Fall
+	 * fälschlich als "kein Bild-Start" werten.
+	 *
+	 * Der Bild-Abgleich läuft über imagesMatchForDedup() statt über exakte
+	 * String-Gleichheit - siehe dort für die Begründung (Bildserver-
+	 * Größenvarianten/CDN-Resize-Parameter). Ein früh im Fließtext sitzendes,
+	 * andersartiges Bild hat so gut wie nie denselben Basis-Pfad wie das
+	 * Hero-Bild und verhindert das Voranstellen damit weiterhin nicht.
+	 */
+	private function contentStartsWithMatchingImage(string $html, ?string $normalizedImageUrl, string $baseUrl): bool {
+		if ($normalizedImageUrl === null) {
+			return false;
+		}
+
+		$doc = new \DOMDocument();
+		$prevLibxmlErrors = libxml_use_internal_errors(true);
+		$doc->loadHTML('<?xml encoding="UTF-8"><body>' . $html . '</body>', LIBXML_NOERROR | LIBXML_NOWARNING);
+		libxml_clear_errors();
+		libxml_use_internal_errors($prevLibxmlErrors);
+
+		$body = $doc->getElementsByTagName('body')->item(0);
+		if ($body === null) {
+			return false;
+		}
+
+		$node = $this->firstNonWhitespaceElementChild($body);
+
+		$depth = 0;
+		while ($node !== null && $depth < 6) {
+			$tag = strtolower($node->nodeName);
+
+			if ($tag === 'img') {
+				$src = $node->getAttribute('src');
+				if ($src === '') {
+					return false;
+				}
+				return $this->imagesMatchForDedup($this->normalizeUrl($src, $baseUrl), $normalizedImageUrl);
+			}
+
+			// <picture>s einziges relevantes Kind ist das abschließende <img> -
+			// die vorangehenden <source>-Geschwister tragen kein src, sondern
+			// srcset, und sind deshalb kein Fall für firstNonWhitespaceElementChild().
+			if ($tag === 'picture') {
+				$node = $this->firstImageInPicture($node);
+				$depth++;
+				continue;
+			}
+
+			if (!in_array($tag, ['p', 'div', 'span', 'a', 'figure'], true)) {
+				return false;
+			}
+
+			$node = $this->firstNonWhitespaceElementChild($node);
+			$depth++;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Liefert das <img> innerhalb eines <picture>-Elements.
+	 *
+	 * Sucht bewusst per getElementsByTagName() über ALLE Nachfahren statt nur
+	 * die direkten Kinder zu prüfen: <source> ist ein Void-Element (kein
+	 * schließendes Tag), aber libxml2s HTML-Parser (getestet mit 2.9.14)
+	 * behandelt ein <source> ohne explizites "/>" NICHT als Void-Element,
+	 * sondern verschachtelt jedes folgende Geschwister-Element als sein Kind -
+	 * <picture><source>…<source>…<img></picture> wird dadurch zu
+	 * <picture><source>…<source>…<img></source></source></picture>. Ein
+	 * simpler Kind-für-Kind-Scan (wie firstNonWhitespaceElementChild) würde
+	 * das <img> deshalb nie finden. Per Spezifikation kann ein <picture> ohnehin
+	 * nur <source>-Elemente und genau ein <img> enthalten - anders als bei den
+	 * generischen p/div/span/a/figure-Wrappern ist "irgendwo als Nachfahre"
+	 * hier also gleichbedeutend mit "das gesuchte Bild".
+	 */
+	private function firstImageInPicture(\DOMElement $picture): ?\DOMElement {
+		$img = $picture->getElementsByTagName('img')->item(0);
+		return $img instanceof \DOMElement ? $img : null;
+	}
+
+	/**
+	 * Liefert das erste Kind-Element eines Knotens, sofern davor nur
+	 * Leerraum-Textknoten stehen (kein sonstiger Text). Steht vor dem ersten
+	 * Element ein nicht-leerer Textknoten, oder hat der Knoten gar kein
+	 * Element-Kind, wird null zurückgegeben.
+	 *
+	 * Geschützte Leerzeichen (&nbsp;, U+00A0) zählen dabei als Leerraum:
+	 * WYSIWYG-Editoren fügen sie häufig als Abstandshalter direkt vor einem
+	 * Bild ein, PHPs trim() entfernt sie aber nicht (kein ASCII-Whitespace) -
+	 * ohne diese Normalisierung würde ein solches &nbsp; hier fälschlich als
+	 * "echter" Text gewertet und contentStartsWithMatchingImage() bräche die
+	 * Entpackung an dieser Stelle vorzeitig ab.
+	 */
+	private function firstNonWhitespaceElementChild(\DOMNode $parent): ?\DOMElement {
+		foreach ($parent->childNodes as $child) {
+			if ($child instanceof \DOMElement) {
+				return $child;
+			}
+			if ($child instanceof \DOMText && trim(str_replace("\u{00A0}", ' ', $child->textContent)) !== '') {
+				return null;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Vergleicht zwei bereits normalisierte Bild-URLs auf "wahrscheinlich
+	 * dasselbe Bild" statt auf exakte Gleichheit.
+	 *
+	 * Ein exakter String-Vergleich schlägt in der Praxis ausgerechnet für die
+	 * Bilder fehl, die contentStartsWithMatchingImage() erkennen soll - die
+	 * src im Content und die per og:image ermittelte imageUrl sind zwar
+	 * dasselbe Foto, aber fast nie exakt dieselbe URL:
+	 *
+	 *   - WordPress erzeugt für jedes in den Content eingefügte Bild
+	 *     automatisch mehrere Größenvarianten und hängt dafür
+	 *     "-{Breite}x{Höhe}" vor die Dateiendung an (z. B. "foto-1024x576.jpg"),
+	 *     während og:image meist auf die Originaldatei ohne dieses Suffix
+	 *     zeigt ("foto.jpg").
+	 *   - Bilder-CDNs/Resize-Proxies (Jetpack Photon, Cloudinary, einfache
+	 *     "?w=…"-Parameter) hängen die Zielgröße stattdessen als Query-String
+	 *     an dieselbe Basis-URL an.
+	 *   - AEM-basierte Bildserver (z. B. bei ARD/rbb: rbb-online.de) hängen
+	 *     ein oder mehrere "key=wert"-Pfadsegmente ans Ende des Bildpfads an,
+	 *     z. B. ".../foto.jpg.jpg/size=1280x720.jpg" (og:image) vs.
+	 *     ".../foto.jpg.jpg/quality=160/size=1376x774.jpg" (dieselbe Aufnahme
+	 *     im Artikeltext, andere Auflösung/Qualitätsstufe).
+	 *
+	 * Alle drei Varianten wurden vor diesem Fix ignoriert, wodurch das
+	 * Voranstellen in genau diesen - sehr verbreiteten - Fällen weiterhin
+	 * dupliziert hat. Die Suffix-/Pfadsegment-Muster sind spezifisch genug,
+	 * um nicht versehentlich auf einen unverwandten Bildpfad zu matchen.
+	 */
+	private function imagesMatchForDedup(string $contentImageUrl, string $normalizedImageUrl): bool {
+		if ($contentImageUrl === $normalizedImageUrl) {
+			return true;
+		}
+
+		$stripVariantMarkers = static function (string $url): string {
+			$url = explode('?', $url, 2)[0];
+			$url = preg_replace('/-\d+x\d+(?=\.\w+$)/i', '', $url) ?? $url;
+
+			// AEM-Bildserver-Renditions: ein oder mehrere trailing "key=wert"-
+			// Pfadsegmente (z. B. "size=1280x720.jpg", "quality=160")
+			// entfernen, bis das stabile Basis-Asset übrig bleibt.
+			$parts = explode('/', $url);
+			while (count($parts) > 1 && preg_match('/^[a-z]+=[\w.,%-]+$/i', end($parts)) === 1) {
+				array_pop($parts);
+			}
+			return implode('/', $parts);
+		};
+
+		return $stripVariantMarkers($contentImageUrl) === $stripVariantMarkers($normalizedImageUrl);
 	}
 
 	/**
@@ -1425,8 +2024,25 @@ class ContentExtractorService {
 
 		// <script>- und <style>-Tags (inkl. Inhalt) per RegEx entfernen, bevor der DOM-Parser
 		// den String verarbeitet. So werden auch komplexe JS-Inhalte mit <, >, & oder --
-		// zuverlässig entfernt, ohne dass sie den DOM-Baum beschädigen können.
-		$html = preg_replace('/<script\b[^>]*>.*?<\/script>/si', '', $html) ?? $html;
+		// zuverlässig entfernt, ohne dass sie den DOM-Baum beschädigen können. Ausnahme wie
+		// bei cleanHtml(): die offiziellen Widget-Loader von Instagram/X/Bluesky/TikTok (siehe
+		// isAllowedWidgetScriptSrc()) überleben auch diesen - zeitlich früheren - Schritt,
+		// sonst würde er dasselbe Script wieder entfernen, das cleanHtml()/sanitizeHtml()
+		// weiter unten bewusst durchlassen (applyPostFilters() läuft VOR cleanHtml()).
+		$html = preg_replace_callback(
+			'/<script\b([^>]*)>(.*?)<\/script>/si',
+			function (array $m): string {
+				if (trim($m[2]) !== '') {
+					return '';
+				}
+				if (!preg_match('/\bsrc\s*=\s*(["\'])(.*?)\1/is', $m[1], $srcMatch)) {
+					return '';
+				}
+				$src = html_entity_decode($srcMatch[2], ENT_QUOTES, 'UTF-8');
+				return $this->isAllowedWidgetScriptSrc($src) ? $m[0] : '';
+			},
+			$html
+		) ?? $html;
 		$html = preg_replace('/<style\b[^>]*>.*?<\/style>/si',  '', $html) ?? $html;
 
 		$prev = libxml_use_internal_errors(true);
@@ -1638,6 +2254,19 @@ class ContentExtractorService {
 			$trace?->record('pre-filter', $rule, $matches);
 		}
 
+		// Tags, die Readability::_clean() in _prepArticle() bedingungslos aus dem
+		// Artikel entfernt – unabhängig von Klasse oder Score (siehe
+		// Readability.php: $this->_clean($article, 'aside') etc.). Ein Infokasten
+		// steckt auf vielen Seiten genau in so einem <aside>; die Klasse
+		// merlin-infobox allein würde ihn also NICHT vor dem Verwerfen retten,
+		// wie es bei den unlikelyCandidates-Regex (siehe okMaybeItsACandidate an
+		// anderer Stelle) der Fall ist. Solche Elemente werden daher zusätzlich
+		// auf einen unbedenklichen Tag (<div>) umgetagged, bevor Readability
+		// läuft. CSS für merlin-infobox greift rein über die Klasse, nicht über
+		// den Tag-Namen (siehe ArticleReader.vue), das Umtaggen ist also optisch
+		// folgenlos.
+		$unsafeTags = ['aside', 'footer'];
+
 		foreach ($toMark as $node) {
 			if (!($node instanceof \DOMElement)) {
 				continue;
@@ -1646,6 +2275,17 @@ class ContentExtractorService {
 			$classes  = preg_split('/\s+/', trim($existing), -1, PREG_SPLIT_NO_EMPTY);
 			if (!in_array('merlin-infobox', $classes, true)) {
 				$node->setAttribute('class', trim($existing . ' merlin-infobox'));
+			}
+
+			if (in_array(strtolower($node->nodeName), $unsafeTags, true) && $node->parentNode !== null) {
+				$replacement = $dom->createElement('div');
+				foreach (iterator_to_array($node->attributes) as $attr) {
+					$replacement->setAttribute($attr->nodeName, $attr->nodeValue);
+				}
+				while ($node->firstChild !== null) {
+					$replacement->appendChild($node->firstChild);
+				}
+				$node->parentNode->replaceChild($replacement, $node);
 			}
 		}
 
@@ -1887,7 +2527,7 @@ class ContentExtractorService {
 			if ($value !== '')
 			{
 				if (count($value) > 1)
-					$value = implode('', $value);
+					$value = implode(', ', $value);
 				else
 					$value = $value[0];
 
@@ -2089,8 +2729,27 @@ class ContentExtractorService {
 	 * Clean HTML content
 	 */
 	private function cleanHtml(string $html): string {
-		// Remove script and style tags
-		$html = preg_replace('/<script\b[^>]*>(.*?)<\/script>/is', '', $html);
+		// Remove script tags - AUSSER den offiziellen Widget-Loadern von
+		// Instagram/X/Bluesky/TikTok (siehe isAllowedWidgetScriptSrc()): ohne diese
+		// Ausnahme würde dieser regelbasierte, noch VOR sanitizeHtml() laufende
+		// Schritt genau das Script wieder entfernen, das sanitizeHtml() später
+		// bewusst durchlässt - die dortige Allowlist liefe leer. Kein Skript-Body
+		// erlaubt (nur reine src-Loader), damit sich kein Inline-JS über einen
+		// sonst passenden src-Wert einschleusen kann.
+		$html = preg_replace_callback(
+			'/<script\b[^>]*>(.*?)<\/script>/is',
+			function (array $m): string {
+				if (trim($m[1]) !== '') {
+					return '';
+				}
+				if (!preg_match('/\bsrc\s*=\s*(["\'])(.*?)\1/is', $m[0], $srcMatch)) {
+					return '';
+				}
+				$src = html_entity_decode($srcMatch[2], ENT_QUOTES, 'UTF-8');
+				return $this->isAllowedWidgetScriptSrc($src) ? $m[0] : '';
+			},
+			$html
+		) ?? $html;
 		$html = preg_replace('/<style\b[^>]*>(.*?)<\/style>/is', '', $html);
 
 		// Remove linked CSS stylesheets
@@ -2117,7 +2776,11 @@ class ContentExtractorService {
 		) ?? $html;
 
 		// Strip every class token except Merlin's own merlin-* marker classes
-		// (merlin-infobox, merlin-quote, merlin-hero-image, …).
+		// (merlin-infobox, merlin-quote, merlin-hero-image, …) plus the fixed
+		// set of official embed-widget marker classes (instagram-media,
+		// twitter-tweet, bluesky-embed) that isAllowedWidgetScriptSrc()'s
+		// loaders key off of - same reasoning as the script-tag exception
+		// above, this must stay in sync with sanitizeHtml()'s allowlist.
 		//
 		// keepClasses=true on the Readability config (see processHtml()) is needed
 		// so those marker classes survive parsing — but it also lets every class
@@ -2135,10 +2798,11 @@ class ContentExtractorService {
 		$html = preg_replace_callback(
 			'/(<[^>]+\bclass=["\'])([^"\']*?)(["\'])/i',
 			static function (array $m): string {
+				static $allowedWidgetClasses = ['instagram-media', 'twitter-tweet', 'bluesky-embed', 'tiktok-embed'];
 				$classes = preg_split('/\s+/', trim($m[2]), -1, PREG_SPLIT_NO_EMPTY);
 				$kept = array_values(array_filter(
 					$classes,
-					static fn(string $c): bool => str_starts_with($c, 'merlin-')
+					static fn(string $c): bool => str_starts_with($c, 'merlin-') || in_array($c, $allowedWidgetClasses, true)
 				));
 				if ($kept === []) {
 					// Drop the entire class attribute
@@ -2206,12 +2870,12 @@ class ContentExtractorService {
 		// Erlaubte Tags – deckt den vom Reader gerenderten Inhalt ab (Fließtext,
 		// Listen, Tabellen, Zitate, Bilder/Figuren, semantische Container).
 		static $allowedTags = [
-			'p', 'br', 'hr', 'span', 'div', 'section', 'article', 'header', 'footer', 'aside',
+			'p', 'br', 'hr', 'span', 'div', 'section', 'article', 'header', 'footer', 'aside', 'main',
 			'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
 			'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'del', 'ins', 'mark', 'small', 'sub', 'sup',
 			'a', 'blockquote', 'q', 'cite', 'code', 'pre', 'kbd', 'samp', 'var', 'abbr', 'time',
 			'ul', 'ol', 'li', 'dl', 'dt', 'dd',
-			'img', 'figure', 'figcaption', 'picture', 'source',
+			'img', 'figure', 'figcaption', 'picture', 'source', 'video',
 			'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'caption', 'colgroup', 'col',
 		];
 
@@ -2229,16 +2893,37 @@ class ContentExtractorService {
 			'a'          => ['href', 'target', 'rel'],
 			'img'        => ['src', 'alt', 'width', 'height'],
 			'source'     => ['src', 'type', 'media'],
+			// Moderne "GIF"-Ersätze (z. B. Ghost/Hugo-Blogs): stumme, per Attribut
+			// autoplayende/loopende <video>-Elemente, die self-hosted vom
+			// Quell-Server ausgeliefert werden (kein Embed eines Dritt-Players
+			// wie bei iframe) – daher ohne isAllowedVideoEmbedSrc()-Prüfung direkt
+			// auf $allowedTags, nur die Attribute laufen durch die Allowlist.
+			'video'      => ['src', 'poster', 'width', 'height', 'autoplay', 'loop', 'muted', 'playsinline', 'controls'],
 			'time'       => ['datetime'],
 			'td'         => ['colspan', 'rowspan'],
 			'th'         => ['colspan', 'rowspan', 'scope'],
 			'col'        => ['span'],
 			'colgroup'   => ['span'],
+			// data-instgrm-permalink/-version: Instagrams offizielles Embed-Markup
+			// (siehe isAllowedInstagramPermalink()). Ohne diese Attribute rendert
+			// embed.js nur einen leeren Platzhalter statt des Posts.
+			// data-bluesky-uri: Blueskys offizielles Embed-Markup (siehe
+			// isAllowedBlueskyUri()) - analog für den Self-Thread-Zweig
+			// (BlueskyThreadResolverService/ContentExtractorService, category=Thread).
+			// cite/data-video-id: TikToks offizielles Embed-Markup, siehe
+			// isAllowedTiktokEmbedCite() und die data-video-id-Prüfung in
+			// sanitizeAttributes() - analog für den TikTokPost-Zweig.
+			'blockquote' => ['data-instgrm-permalink', 'data-instgrm-version', 'data-bluesky-uri', 'cite', 'data-video-id'],
 			// iframe steht bewusst NICHT auf $allowedTags (generisches iframe-Embed
-			// ist ein XSS-Vektor) – erlaubt sind nur YouTube-Embeds, siehe
-			// isAllowedYoutubeEmbedSrc(). Deren Attribute laufen trotzdem durch
-			// dieselbe Allowlist-Logik, deshalb der Eintrag hier.
+			// ist ein XSS-Vektor) – erlaubt sind nur Video-Embeds von vertrauens-
+			// würdigen Hosts, siehe isAllowedVideoEmbedSrc(). Deren Attribute laufen
+			// trotzdem durch dieselbe Allowlist-Logik, deshalb der Eintrag hier.
 			'iframe'     => ['src', 'width', 'height', 'frameborder', 'allow', 'allowfullscreen', 'referrerpolicy'],
+			// script steht ebenfalls bewusst NICHT auf $allowedTags – erlaubt sind
+			// nur die offiziellen Widget-Loader von Instagram/X/Bluesky/TikTok, siehe
+			// isAllowedWidgetScriptSrc(). Kein "onload" o. Ä. auf der Liste: das
+			// Element darf ausschließlich diese drei harmlosen Lade-Attribute tragen.
+			'script'     => ['src', 'async', 'charset'],
 		];
 
 		$prev = libxml_use_internal_errors(true);
@@ -2300,21 +2985,23 @@ class ContentExtractorService {
 			}
 
 			// <iframe> ist grundsätzlich ein XSS-Vektor und steht deshalb nicht auf
-			// $allowedTags – Ausnahme: YouTube-Embeds (taz.de, Blogs, … betten die
-			// häufig ein). Nur bei einer Quelle aus isAllowedYoutubeEmbedSrc() bleibt
-			// das Element erhalten, alles andere fällt auf den generischen
-			// Denylist-Zweig unten durch und wird entfernt.
+			// $allowedTags – Ausnahme: Video-Embeds von vertrauenswürdigen Hosts
+			// (taz.de, Blogs, … betten YouTube/Vimeo/Twitch/… häufig ein). Nur bei
+			// einer Quelle aus isAllowedVideoEmbedSrc() bleibt das Element erhalten,
+			// alles andere fällt auf den generischen Denylist-Zweig unten durch und
+			// wird entfernt.
 			if ($tag === 'iframe') {
-				if ($this->isAllowedYoutubeEmbedSrc($el->getAttribute('src'))) {
+				if ($this->isAllowedVideoEmbedSrc($el->getAttribute('src'))) {
 					$this->sanitizeAttributes($el, $tag, $allowedAttrs);
 					// Erzwungen statt nur erlaubt: Nextclouds eigener
 					// Referrer-Policy-Header steht standardmäßig auf
 					// "no-referrer" (Security-Default via .htaccess/nginx).
-					// Ohne einen Referrer verweigert YouTubes Player den Embed
-					// ("Error 153"). Das per-Element-Attribut überschreibt die
-					// Seiten-Policy für genau diesen iframe-Request – auf die
-					// Quellseite (die es i. d. R. nicht mitliefert) ist hier
-					// kein Verlass, also selbst setzen statt nur durchlassen.
+					// Ohne einen Referrer verweigern manche Player den Embed
+					// (z. B. YouTube mit "Error 153"). Das per-Element-Attribut
+					// überschreibt die Seiten-Policy für genau diesen iframe-
+					// Request – auf die Quellseite (die es i. d. R. nicht
+					// mitliefert) ist hier kein Verlass, also selbst setzen statt
+					// nur durchlassen.
 					$el->setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
 				} else {
 					$el->parentNode->removeChild($el);
@@ -2322,7 +3009,24 @@ class ContentExtractorService {
 				continue;
 			}
 
-			// Nicht erlaubtes Tag: <script>/<style>/<object>/<form>/… komplett
+			// <script> ist ebenso grundsätzlich verboten – Ausnahme: exakt die
+			// offiziellen Widget-Loader von Instagram/X/Bluesky/TikTok (siehe
+			// isAllowedWidgetScriptSrc()), die deren jeweiliges
+			// <blockquote data-instgrm-permalink="…">/<blockquote class="twitter-tweet">
+			// erst zu einem Player/Post rendern. Anders als beim iframe-Sandbox
+			// läuft dieses Skript MIT vollem DOM-Zugriff auf der Reader-Seite,
+			// daher zusätzlich zum exakten Src-Match: keine Kindknoten erlaubt
+			// (kein Einschleusen von Inline-JS über denselben Tag).
+			if ($tag === 'script') {
+				if ($this->isAllowedWidgetScriptSrc($el->getAttribute('src')) && !$el->hasChildNodes()) {
+					$this->sanitizeAttributes($el, $tag, $allowedAttrs);
+				} else {
+					$el->parentNode->removeChild($el);
+				}
+				continue;
+			}
+
+			// Nicht erlaubtes Tag: <style>/<object>/<form>/… komplett
 			// samt Inhalt entfernen; bei rein strukturellen Unknowns bliebe zwar Text
 			// erhalten – da wir aber fail-closed sein wollen und die Allowlist den
 			// gesamten Reader-Content abdeckt, entfernen wir das ganze Element.
@@ -2583,6 +3287,52 @@ class ContentExtractorService {
 					continue;
 				}
 			}
+
+			// Instagrams Embed-Markup trägt die Post-URL in einem data-Attribut statt
+			// href/src – muss trotzdem auf instagram.com zeigen, sonst könnte das
+			// Widget-Skript (siehe isAllowedWidgetScriptSrc()) beliebige fremde Inhalte
+			// nachladen/darstellen.
+			if ($tag === 'blockquote' && $lname === 'data-instgrm-permalink') {
+				$value = trim($el->getAttribute($name));
+				if (!$this->isAllowedInstagramPermalink($value)) {
+					$el->removeAttribute($name);
+					continue;
+				}
+			}
+
+			// Blueskys Embed-Markup trägt die Post-Identität als at://-URI in
+			// einem data-Attribut statt href/src – muss syntaktisch eine
+			// gültige app.bsky.feed.post-URI sein, siehe isAllowedBlueskyUri().
+			if ($tag === 'blockquote' && $lname === 'data-bluesky-uri') {
+				$value = trim($el->getAttribute($name));
+				if (!$this->isAllowedBlueskyUri($value)) {
+					$el->removeAttribute($name);
+					continue;
+				}
+			}
+
+			// TikToks Embed-Markup trägt die Video-URL im "cite"-Attribut statt
+			// href/src – muss trotzdem auf tiktok.com zeigen, sonst könnte das
+			// Widget-Skript (siehe isAllowedWidgetScriptSrc()) beliebige fremde
+			// Inhalte nachladen/darstellen.
+			if ($tag === 'blockquote' && $lname === 'cite') {
+				$value = trim($el->getAttribute($name));
+				if (!$this->isAllowedTiktokEmbedCite($value)) {
+					$el->removeAttribute($name);
+					continue;
+				}
+			}
+
+			// "data-video-id" muss eine reine Zahlenfolge sein (TikToks Video-IDs
+			// sind numerisch) - ohne diese Prüfung könnte hier beliebiger Text
+			// stehen, den das Widget-Skript unvalidiert weiterverwendet.
+			if ($tag === 'blockquote' && $lname === 'data-video-id') {
+				$value = trim($el->getAttribute($name));
+				if (!preg_match('/^\d+$/', $value)) {
+					$el->removeAttribute($name);
+					continue;
+				}
+			}
 		}
 
 		// Bei Links, die in einem neuen Tab geöffnet werden, rel härten
@@ -2593,23 +3343,31 @@ class ContentExtractorService {
 	}
 
 	/**
-	 * true, wenn $src ein YouTube-Embed ist (https, Host exakt youtube.com/
-	 * www.youtube.com/www.youtube-nocookie.com, Pfad /embed/…). Das ist die
-	 * einzige Ausnahme von der iframe-Denylist in sanitizeHtml() – bewusst eng
-	 * gefasst (kein Wildcard-Host, kein Schema-Downgrade), weil ein erlaubtes
-	 * iframe sonst zum offenen SSRF-/Clickjacking-Vektor würde. Passend dazu
-	 * muss AddContentSecurityPolicyListener frame-src auf dieselben Hosts
-	 * begrenzen, sonst rendert der Browser das Embed trotz durchgelassenem
-	 * Markup nicht.
+	 * true, wenn $src ein Video-Embed eines der fest hinterlegten, vertrauens-
+	 * würdigen Hosts ist (https, exakter Host-Match, erforderliches Pfad-
+	 * Präfix). Das ist die einzige Ausnahme von der iframe-Denylist in
+	 * sanitizeHtml() – bewusst eng gefasst (kein Wildcard-Host, kein Schema-
+	 * Downgrade), weil ein erlaubtes iframe sonst zum offenen SSRF-/
+	 * Clickjacking-Vektor würde. Passend dazu muss
+	 * AddContentSecurityPolicyListener frame-src auf dieselben Hosts begrenzen,
+	 * sonst rendert der Browser das Embed trotz durchgelassenem Markup nicht.
+	 *
+	 * ARD Mediathek/ZDF sind bewusst NICHT gelistet: ARD bietet keinen
+	 * dokumentierten Embed-Mechanismus, ZDFs tatsächlicher iframe-Host ist
+	 * unverifiziert – siehe Plan/Commit-Historie. Erst nach manueller
+	 * Verifikation eines echten Embed-Codes hier ergänzen, nicht raten.
 	 */
-	private function isAllowedYoutubeEmbedSrc(string $src): bool {
+	private function isAllowedVideoEmbedSrc(string $src): bool {
 		$src = trim($src);
 		if ($src === '') {
 			return false;
 		}
 
 		$parts = parse_url($src);
-		if ($parts === false || !isset($parts['scheme'], $parts['host'], $parts['path'])) {
+		// 'path' bewusst NICHT in isset() – parse_url() liefert keinen path-Key,
+		// wenn die URL keinen (z. B. "https://player.twitch.tv?channel=…"), das
+		// ist trotzdem eine gültige, im Zweifel erlaubte URL (siehe Twitch unten).
+		if ($parts === false || !isset($parts['scheme'], $parts['host'])) {
 			return false;
 		}
 
@@ -2617,17 +3375,156 @@ class ContentExtractorService {
 			return false;
 		}
 
-		static $allowedHosts = [
-			'www.youtube.com',
-			'youtube.com',
-			'www.youtube-nocookie.com',
-			'youtube-nocookie.com',
+		$host = strtolower($parts['host']);
+		$path = $parts['path'] ?? '';
+
+		// Host => erforderliches Pfad-Präfix, null = kein Präfix nötig (Twitch
+		// unterscheidet Kanal/VOD/Clip rein über Query-Parameter).
+		static $allowedHostPrefixes = [
+			'www.youtube.com'          => '/embed/',
+			'youtube.com'              => '/embed/',
+			'www.youtube-nocookie.com' => '/embed/',
+			'youtube-nocookie.com'     => '/embed/',
+			'player.vimeo.com'         => '/video/',
+			'player.twitch.tv'         => null,
+			'www.tiktok.com'           => '/player/v1/',
+			'www.facebook.com'         => '/plugins/video.php',
+			'www.arte.tv'              => '/player/v5/index.php',
 		];
-		if (!in_array(strtolower($parts['host']), $allowedHosts, true)) {
+
+		if (!array_key_exists($host, $allowedHostPrefixes)) {
 			return false;
 		}
 
-		return str_starts_with($parts['path'], '/embed/');
+		$requiredPrefix = $allowedHostPrefixes[$host];
+		if ($requiredPrefix !== null && !str_starts_with($path, $requiredPrefix)) {
+			return false;
+		}
+
+		// Facebooks und Artes Player nehmen ihrerseits eine fremde URL als
+		// Query-Parameter entgegen (href/json_url) und laden von dort nach –
+		// ohne diese Prüfung wäre der jeweilige Player ein offenes
+		// Redirect-/SSRF-artiges Gadget auf beliebige Ziel-URLs.
+		parse_str($parts['query'] ?? '', $query);
+		if ($host === 'www.facebook.com'
+			&& !$this->hasAllowedQueryUrlHost((string) ($query['href'] ?? ''), ['facebook.com', 'www.facebook.com'])) {
+			return false;
+		}
+		if ($host === 'www.arte.tv'
+			&& !$this->hasAllowedQueryUrlHost((string) ($query['json_url'] ?? ''), ['api.arte.tv'])) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * true, wenn $url eine https-URL ist, deren Host in $allowedHosts steht.
+	 * Absichert Player, die selbst eine fremde URL als Query-Parameter
+	 * entgegennehmen (siehe isAllowedVideoEmbedSrc() für Facebook/Arte).
+	 */
+	private function hasAllowedQueryUrlHost(string $url, array $allowedHosts): bool {
+		if ($url === '') {
+			return false;
+		}
+
+		$parts = parse_url($url);
+		if ($parts === false || !isset($parts['scheme'], $parts['host'])) {
+			return false;
+		}
+
+		if (strtolower($parts['scheme']) !== 'https') {
+			return false;
+		}
+
+		return in_array(strtolower($parts['host']), $allowedHosts, true);
+	}
+
+	/**
+	 * true, wenn $src exakt einer der offiziellen Widget-Loader von
+	 * Instagram/X/Bluesky/TikTok ist. Bewusst als exakter String-Match (nicht
+	 * nur Host/Pfad-Präfix wie bei isAllowedVideoEmbedSrc()): anders als ein
+	 * sandboxed iframe läuft dieses Skript MIT vollem DOM-Zugriff auf der
+	 * Reader-Seite, daher hier die engstmögliche Fassung.
+	 */
+	private function isAllowedWidgetScriptSrc(string $src): bool {
+		$src = trim($src);
+		if ($src === '') {
+			return false;
+		}
+
+		// Instagram/X/Bluesky/TikTok liefern ihren offiziellen Embed-Code oft
+		// protokollrelativ ("//www.instagram.com/embed.js") aus – vor dem
+		// exakten Match auf https normalisieren.
+		if (str_starts_with($src, '//')) {
+			$src = 'https:' . $src;
+		}
+
+		static $allowedScriptSrcs = [
+			'https://www.instagram.com/embed.js',
+			'https://platform.twitter.com/widgets.js',
+			'https://embed.bsky.app/static/embed.js',
+			'https://www.tiktok.com/embed.js',
+		];
+
+		return in_array($src, $allowedScriptSrcs, true);
+	}
+
+	/**
+	 * true, wenn $url eine https-URL auf (www.)instagram.com ist. Für das
+	 * data-instgrm-permalink-Attribut von Instagrams Embed-<blockquote>, siehe
+	 * sanitizeAttributes().
+	 */
+	private function isAllowedInstagramPermalink(string $url): bool {
+		if ($url === '') {
+			return false;
+		}
+
+		$parts = parse_url($url);
+		if ($parts === false || !isset($parts['scheme'], $parts['host'])) {
+			return false;
+		}
+
+		if (strtolower($parts['scheme']) !== 'https') {
+			return false;
+		}
+
+		return in_array(strtolower($parts['host']), ['www.instagram.com', 'instagram.com'], true);
+	}
+
+	/**
+	 * true, wenn $uri eine syntaktisch gültige at://-URI eines
+	 * app.bsky.feed.post-Records ist. Für das data-bluesky-uri-Attribut von
+	 * Blueskys Embed-<blockquote>, siehe sanitizeAttributes() - dort ist der
+	 * eigentliche Vertrauensanker aber ohnehin, dass diese URIs ausschließlich
+	 * von uns selbst erzeugt werden (BlueskyThreadResolverService, aus einer
+	 * API-Antwort desselben public.api.bsky.app-Hosts), nicht aus Fremd-HTML.
+	 * Diese Prüfung ist Defense-in-Depth gegen ein verändertes/fehlerhaftes
+	 * Content-Filter-Custom (Admin-/User-Ebene), keine Vertrauensentscheidung.
+	 */
+	private function isAllowedBlueskyUri(string $uri): bool {
+		return preg_match('#^at://did:[a-z0-9]+:[A-Za-z0-9._:%-]+/app\.bsky\.feed\.post/[A-Za-z0-9._~-]+$#', $uri) === 1;
+	}
+
+	/**
+	 * true, wenn $url eine https-URL auf (www.)tiktok.com ist. Für das
+	 * cite-Attribut von TikToks Embed-<blockquote>, siehe sanitizeAttributes().
+	 */
+	private function isAllowedTiktokEmbedCite(string $url): bool {
+		if ($url === '') {
+			return false;
+		}
+
+		$parts = parse_url($url);
+		if ($parts === false || !isset($parts['scheme'], $parts['host'])) {
+			return false;
+		}
+
+		if (strtolower($parts['scheme']) !== 'https') {
+			return false;
+		}
+
+		return in_array(strtolower($parts['host']), ['www.tiktok.com', 'tiktok.com'], true);
 	}
 
 	/**

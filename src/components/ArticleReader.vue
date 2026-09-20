@@ -294,8 +294,33 @@
 					</div>
 				</header>
 
-				<!-- eslint-disable-next-line vue/no-v-html -->
-				<div class="article-body" v-html="processedContent" />
+				<div class="article-body" :class="{ 'has-native-video': videoPlayable }">
+					<!-- Bei abspielbarem Video dient das Hero-Bild als Poster im
+						Player (siehe :poster-url unten) statt zusätzlich separat
+						darüber angezeigt zu werden.
+
+						data-hl-flatten: der Hero/Rest-Split (siehe heroAndRestContent) und der
+						dazwischen eingefügte VideoPlayer sind rein präsentationell - sie
+						existieren nicht im rohen article-content-HTML, gegen das Highlight-XPaths
+						auf anderen Plattformen berechnet werden. highlight-engine.js sieht durch
+						data-hl-flatten-Wrapper hindurch (ihre Kinder zählen als direkte Kinder von
+						.article-body) und überspringt data-hl-exclude-Teilbäume komplett, sodass
+						der XPath eines Highlights weiterhin so auflöst, als hätte dieser Split nie
+						stattgefunden. -->
+					<!-- eslint-disable-next-line vue/no-v-html -->
+					<div v-if="heroAndRestContent.heroHtml && !videoPlayable" data-hl-flatten v-html="heroAndRestContent.heroHtml" />
+
+					<VideoPlayer
+						v-if="article.url"
+						data-hl-exclude
+						:article-id="article.id"
+						:article-url="article.url"
+						:poster-url="heroAndRestContent.heroImageUrl"
+						@playable-change="videoPlayable = $event" />
+
+					<!-- eslint-disable-next-line vue/no-v-html -->
+					<div data-hl-flatten v-html="heroAndRestContent.restHtml" />
+				</div>
 
 				<!-- Article footer -->
 				<footer class="article-footer">
@@ -343,6 +368,7 @@ import * as articlesAPI from '../api/articles'
 import * as highlightsAPI from '../api/highlights'
 import { HighlightEngine } from '../highlight-engine'
 import ShareLinkDialog from './ShareLinkDialog.vue'
+import VideoPlayer from './VideoPlayer.vue'
 
 const TAG_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899']
 
@@ -380,6 +406,7 @@ export default {
 		ShareVariant,
 		LinkVariant,
 		ShareLinkDialog,
+		VideoPlayer,
 		ContentCopy,
 		Email,
 		Butterfly,
@@ -418,6 +445,10 @@ export default {
 			shareMenuStyle: {},
 			shareLinkDialogOpen: false,
 			hasNativeShare: typeof navigator !== 'undefined' && !!navigator.share,
+			// true, sobald VideoPlayer erfolgreich einen nativen Stream lädt -
+			// blendet dann den redundanten "Zum Video"-Fallback-Link aus (siehe
+			// .merlin-video-fallback-link weiter unten).
+			videoPlayable: false,
 			isMobile: false,
 			showBottomBar: true,
 			_lastScrollTop: 0,
@@ -532,6 +563,30 @@ export default {
 		processedContent() {
 			return this.article.content || ''
 		},
+
+		// Trennt eine führende <figure class="merlin-hero-image"> (siehe
+		// ContentExtractorService Step 12) vom restlichen Content ab, damit der
+		// VideoPlayer zwischen Hero-Bild und Rest platziert werden kann statt
+		// immer ganz oben. Nur ein Split, wenn die Figure wirklich das erste
+		// Element ist - sonst bleibt alles wie zuvor in restHtml.
+		heroAndRestContent() {
+			const html = this.processedContent
+			if (!html) return { heroHtml: '', heroImageUrl: '', restHtml: html }
+
+			const doc = new DOMParser().parseFromString(html, 'text/html')
+			const hero = doc.body.firstElementChild
+			if (!hero || hero.tagName !== 'FIGURE' || !hero.classList.contains('merlin-hero-image')) {
+				return { heroHtml: '', heroImageUrl: '', restHtml: html }
+			}
+
+			const heroHtml = hero.outerHTML
+			// Dient bei einem abspielbaren Video als Poster-Bild statt separat
+			// über der Figure angezeigt zu werden (siehe VideoPlayer-Bindung
+			// unten) - deshalb schon hier mit heraustrennen.
+			const heroImageUrl = hero.querySelector('img')?.src ?? ''
+			hero.remove()
+			return { heroHtml, heroImageUrl, restHtml: doc.body.innerHTML }
+		},
 	},
 
 	watch: {
@@ -545,6 +600,7 @@ export default {
 				this._restoreScrollPosition()
 				this._initHighlights()
 				this._addImageErrorHandlers()
+				this._executeEmbedScripts()
 			})
 		},
 	},
@@ -578,6 +634,7 @@ export default {
 			this._restoreScrollPosition()
 			this._initHighlights()
 			this._addImageErrorHandlers()
+			this._executeEmbedScripts()
 			if (this.$refs.readerContent) {
 				this._onScroll = this._handleScroll.bind(this)
 				this.$refs.readerContent.addEventListener('scroll', this._onScroll, { passive: true })
@@ -889,6 +946,28 @@ export default {
 			this._lastScrollTop = newOffset
 		},
 
+		// ── Embed-Widget-Skripte (Instagram/X) ──────────────────────────────
+
+		// v-html setzt den Inhalt über .innerHTML – <script>-Tags, die dabei ins
+		// DOM gelangen, werden vom Browser NIE ausgeführt (Standardverhalten,
+		// nicht Vue-spezifisch). Der Sanitizer lässt aber genau zwei <script>-Tags
+		// durch (isAllowedWidgetScriptSrc() im Backend: Instagrams embed.js,
+		// X' widgets.js) – ohne diesen Schritt blieben deren <blockquote>s für
+		// immer als reiner Link/Zitat-Fallback stehen, statt zum Post/Reel zu
+		// werden. Jedes gefundene <script> wird deshalb durch eine neu erzeugte
+		// Kopie ersetzt; nur DAS bringt den Browser dazu, es auszuführen.
+		_executeEmbedScripts() {
+			const bodyEl = this.$el?.querySelector('.article-body')
+			if (!bodyEl) return
+			bodyEl.querySelectorAll('script').forEach(oldScript => {
+				const newScript = document.createElement('script')
+				for (const attr of oldScript.attributes) {
+					newScript.setAttribute(attr.name, attr.value)
+				}
+				oldScript.replaceWith(newScript)
+			})
+		},
+
 		// ── Image error placeholders ────────────────────────────────────────
 
 		_addImageErrorHandlers() {
@@ -1178,6 +1257,13 @@ article {
 	line-height: inherit;
 }
 
+/* Der "Zum Video"-Fallback-Link (siehe ContentExtractorService, Video-Zweig)
+   wird redundant, sobald VideoPlayer erfolgreich einen nativen Stream
+   gefunden hat - videoPlayable steuert diese Klasse. */
+.article-body.has-native-video :deep(.merlin-video-fallback-link) {
+	display: none;
+}
+
 .article-body :deep(p) {
 	margin: 1.5em 0;
 }
@@ -1188,6 +1274,146 @@ article {
 	display: block;
 	margin: 2em auto;
 	border-radius: 4px;
+}
+
+/* Self-hosted <video> (GIF-Ersatz mancher Blogs, siehe sanitizeHtml()) bringt
+   im Gegensatz zu iframe-Embeds keine sinnvolle Default-Breite mit – ohne
+   diese Regel rendert es in seiner nativen Pixelbreite und sprengt die
+   Artikelspalte. */
+.article-body :deep(video) {
+	max-width: 100%;
+	height: auto;
+	display: block;
+	margin: 2em auto;
+	border-radius: 4px;
+}
+
+/* Video-Embeds (YouTube/Vimeo/Twitch/TikTok/Facebook/Arte), siehe
+   isAllowedVideoEmbedSrc() im Backend. 16:9 als bester Kompromiss über alle
+   Hosts hinweg – einzelne Embeds bringen zwar eigene width/height mit, die
+   überschreiben sich per Inline-Attribut aber nicht gegen dieses CSS. */
+.article-body :deep(iframe) {
+	display: block;
+	width: 100%;
+	max-width: 100%;
+	aspect-ratio: 16 / 9;
+	border: 0;
+	margin: 2em auto;
+}
+
+/* Instagram-/X-/Bluesky-Embeds (siehe isAllowedWidgetScriptSrc()) rendern sich
+   nach dem Laden des Widget-Skripts selbst komplett neu und bringen ihr
+   eigenes Kartendesign mit – die generische Zitat-Optik für <blockquote>
+   unten würde nur bis zum Laden sichtbar sein und dann falsch wirken,
+   deshalb hier zurückgesetzt. */
+.article-body :deep(blockquote.instagram-media),
+.article-body :deep(blockquote.twitter-tweet),
+.article-body :deep(blockquote.bluesky-embed),
+.article-body :deep(blockquote.tiktok-embed) {
+	border-left: none;
+	padding-left: 0;
+	font-style: normal;
+	color: inherit;
+	max-width: 100%;
+	overflow: hidden;
+	margin: 2em auto;
+}
+
+/* Mehrere aufeinanderfolgende Bluesky-Embeds (Self-Thread, siehe
+   BlueskyThreadResolverService) sollen sichtbar zusammengehören statt wie
+   unabhängige Zitate mit vollem Absatzabstand zu wirken. */
+.article-body :deep(blockquote.bluesky-embed + blockquote.bluesky-embed) {
+	margin-top: 0.5em;
+}
+
+/* Mastodon-Post-Karte (siehe MastodonPostResolverService/
+   buildMastodonThreadHtml()): anders als Instagram/X/Bluesky/TikTok kein
+   Drittanbieter-Widget (föderiert, kein zentraler Embed-Host), sondern
+   eigenes, statisches Markup - braucht deshalb echtes Styling statt nur
+   eines Platzhalter-Resets. */
+.article-body :deep(.merlin-mastodon-post) {
+	display: block;
+	border: 1px solid var(--color-border, #e0e0e0);
+	border-radius: var(--border-radius-large, 8px);
+	padding: 1em 1.2em;
+	margin: 1.2em 0;
+	color: inherit;
+	font-style: normal;
+}
+
+.article-body :deep(.merlin-mastodon-post + .merlin-mastodon-post) {
+	margin-top: 0.5em;
+}
+
+.article-body :deep(.merlin-mastodon-post__header) {
+	display: flex;
+	align-items: center;
+	gap: 0.6em;
+	text-decoration: none;
+	color: inherit;
+	margin-bottom: 0.6em;
+}
+
+.article-body :deep(.merlin-mastodon-post__avatar) {
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	object-fit: cover;
+	flex-shrink: 0;
+	margin: 0;
+}
+
+.article-body :deep(.merlin-mastodon-post__author) {
+	display: flex;
+	flex-direction: column;
+	line-height: 1.3;
+	min-width: 0;
+}
+
+.article-body :deep(.merlin-mastodon-post__name) {
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.article-body :deep(.merlin-mastodon-post__handle) {
+	color: var(--color-text-lighter, #888);
+	font-size: 0.9em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.article-body :deep(.merlin-mastodon-post__content p) {
+	margin: 0.5em 0;
+}
+
+.article-body :deep(.merlin-mastodon-post__content p:first-child) {
+	margin-top: 0;
+}
+
+.article-body :deep(.merlin-mastodon-post__content p:last-child) {
+	margin-bottom: 0;
+}
+
+.article-body :deep(.merlin-mastodon-post__media) {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+	gap: 0.5em;
+	margin-top: 0.6em;
+}
+
+.article-body :deep(.merlin-mastodon-post__media-item) {
+	width: 100%;
+	height: 160px;
+	object-fit: cover;
+	border-radius: calc(var(--border-radius-large, 8px) / 2);
+	margin: 0;
+}
+
+.dark-mode .article-body :deep(.merlin-mastodon-post) {
+	border-color: rgba(255, 255, 255, 0.15);
 }
 
 .article-body :deep(.img-placeholder) {

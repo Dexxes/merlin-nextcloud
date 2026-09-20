@@ -26,7 +26,7 @@
 			:description="emptyDescription">
 			<template #icon>
 				<Magnify v-if="searchQuery.trim()" :size="64" />
-				<PlayCircleOutline v-else-if="filterCategory === 'video'" :size="64" />
+				<PlayCircleOutline v-else-if="filterCategory && filterCategory.startsWith('videos-')" :size="64" />
 				<BookOpen v-else :size="64" />
 			</template>
 		</NcEmptyContent>
@@ -99,7 +99,7 @@ export default {
 			if (this.searchQuery.trim()) {
 				return t('merlin', 'No results for "{query}"', { query: this.searchQuery.trim() })
 			}
-			if (this.filterCategory === 'video') {
+			if (this.filterCategory && this.filterCategory.startsWith('videos-')) {
 				return t('merlin', 'No videos yet')
 			}
 			return t('merlin', 'No articles yet')
@@ -108,7 +108,7 @@ export default {
 			if (this.searchQuery.trim()) {
 				return t('merlin', 'Try a different search term')
 			}
-			if (this.filterCategory === 'video') {
+			if (this.filterCategory && this.filterCategory.startsWith('videos-')) {
 				return t('merlin', 'Save video links to watch them here')
 			}
 			return t('merlin', 'Add your first article to get started')

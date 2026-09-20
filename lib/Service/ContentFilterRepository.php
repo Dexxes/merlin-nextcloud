@@ -122,6 +122,12 @@ class ContentFilterRepository {
 	 * sind Verzeichniswechsel ('/', '\', '..'), Null-Bytes und absolute Pfade
 	 * strukturell ausgeschlossen, nicht nur herausgefiltert (relevant für
 	 * readBundle(), das den Wert weiterhin an einen Dateipfad anhängt).
+	 *
+	 * Ein optionales führendes "_." markiert eine Wildcard-Domain (Ersatz für
+	 * "*.", das im Dateisystem nicht als Dateiname zulässig ist): "_.beehive.com"
+	 * deckt jede Subdomain von beehive.com ab, siehe lookupCandidates(). Die
+	 * bare Domain dahinter muss weiterhin die volle Whitelist erfüllen, also
+	 * mindestens zwei Labels haben – "_.com" ist damit ungültig.
 	 */
 	public function isValidDomain(string $domain): bool {
 		if ($domain === '' || strlen($domain) > 253) {
@@ -130,9 +136,10 @@ class ContentFilterRepository {
 		if ($domain !== strtolower($domain)) {
 			return false;
 		}
+		$base = str_starts_with($domain, '_.') ? substr($domain, 2) : $domain;
 		return preg_match(
 			'/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/',
-			$domain
+			$base
 		) === 1;
 	}
 
@@ -148,6 +155,49 @@ class ContentFilterRepository {
 	public function normalizeUrlDomain(string $url): string {
 		$host = strtolower(parse_url($url, PHP_URL_HOST) ?? '');
 		return (string) preg_replace('/^www\./i', '', $host);
+	}
+
+	/**
+	 * Ob $urlDomain vom Filter-Schlüssel $filterDomain abgedeckt wird: entweder
+	 * exakt gleich, oder $filterDomain ist eine Wildcard ("_.<basis>") und
+	 * $urlDomain ist eine echte Subdomain von <basis>. Die nackte Basis selbst
+	 * zählt bewusst NICHT als abgedeckt (wie bei TLS-Wildcard-Zertifikaten:
+	 * "*.beehive.com" trifft nicht auf "beehive.com" zu) – wer das will, legt
+	 * dafür zusätzlich einen eigenen Filter für "beehive.com" an.
+	 *
+	 * Für die admin/personal Testlauf-Ansicht: dort muss die eingegebene
+	 * Test-URL zu genau dem Filter gehören, den der Nutzer gerade bearbeitet.
+	 */
+	public function domainMatchesFilterKey(string $urlDomain, string $filterDomain): bool {
+		if ($urlDomain === $filterDomain) {
+			return true;
+		}
+		if (!str_starts_with($filterDomain, '_.')) {
+			return false;
+		}
+		return str_ends_with($urlDomain, '.' . substr($filterDomain, 2));
+	}
+
+	/**
+	 * Kandidaten-Schlüssel für die Filtersuche zu $domain, von der
+	 * spezifischsten zur allgemeinsten Wildcard-Ebene: zuerst die exakte
+	 * Domain, danach für jede Elterndomain deren Wildcard-Eintrag
+	 * ("_.<eltern-domain>"). Deckt Anbieter ab, die Kunden eigene Subdomains
+	 * bereitstellen (z. B. "*.beehive.com", Datei "_.beehive.com.xml", für
+	 * kunde1.beehive.com, kunde2.beehive.com, ...).
+	 *
+	 * Bricht vor der nackten TLD ab (kein "_.com" als Kandidat) – isValidDomain()
+	 * würde eine so kurze Wildcard-Domain ohnehin ablehnen.
+	 *
+	 * @return list<string>
+	 */
+	private function lookupCandidates(string $domain): array {
+		$candidates = [$domain];
+		$labels     = explode('.', $domain);
+		for ($i = 1; $i < count($labels) - 1; $i++) {
+			$candidates[] = '_.' . implode('.', array_slice($labels, $i));
+		}
+		return $candidates;
 	}
 
 	/**
@@ -340,6 +390,11 @@ class ContentFilterRepository {
 	 *
 	 * Rückgabewert ist ein SimpleXMLElement, damit alle bestehenden Konsumenten
 	 * in ContentExtractorService unverändert weiterarbeiten.
+	 *
+	 * Findet sich für $domain keine Konfiguration unter dem exakten Namen,
+	 * wird pro Ebene zusätzlich nach einem passenden Wildcard-Eintrag der
+	 * Elterndomain gesucht (siehe lookupCandidates()) – so deckt z. B.
+	 * "_.beehive.com" jede Subdomain von beehive.com ab.
 	 */
 	public function getMerged(string $domain, ?string $userId = null): ?\SimpleXMLElement {
 		if ($domain === '' || !$this->isValidDomain($domain)) {
@@ -351,14 +406,33 @@ class ContentFilterRepository {
 			return $this->mergedCache[$cacheKey];
 		}
 
-		$bundle      = $this->readBundle($domain);
-		$adminCustom = $this->readAdminCustom($domain);
-		$userCustom  = $userId !== null ? $this->readUserCustom($domain, $userId) : null;
+		$candidates  = $this->lookupCandidates($domain);
+		$bundle      = $this->firstNonNull($candidates, fn (string $c) => $this->readBundle($c));
+		$adminCustom = $this->firstNonNull($candidates, fn (string $c) => $this->readAdminCustom($c));
+		$userCustom  = $userId !== null
+			? $this->firstNonNull($candidates, fn (string $c) => $this->readUserCustom($c, $userId))
+			: null;
 
 		$withAdminXml = $this->mergeBundleAndAdmin($bundle, $adminCustom, $domain);
 		$final        = $this->mergeWithUser($withAdminXml, $userCustom, $domain);
 
 		return $this->mergedCache[$cacheKey] = $final;
+	}
+
+	/**
+	 * Erstes nicht-null Ergebnis von $read über $candidates, in Reihenfolge.
+	 *
+	 * @param list<string> $candidates
+	 * @param callable(string): ?string $read
+	 */
+	private function firstNonNull(array $candidates, callable $read): ?string {
+		foreach ($candidates as $candidate) {
+			$value = $read($candidate);
+			if ($value !== null) {
+				return $value;
+			}
+		}
+		return null;
 	}
 
 	/**

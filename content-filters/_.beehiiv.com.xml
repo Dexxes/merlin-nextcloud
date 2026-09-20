@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<domain name="*.beehiv.com">
+  
+  <pre-filter>
+    <remove class="_1gqvddm0"/>
+  </pre-filter>
+  
+</domain>

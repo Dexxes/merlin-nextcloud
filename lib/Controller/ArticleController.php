@@ -101,7 +101,8 @@ class ArticleController extends Controller {
 		?bool $isFavorite = null,
 		?bool $isArchived = null,
 		?int $tagId = null,
-		?string $category = null
+		?string $category = null,
+		?string $contentType = null
 	): DataResponse {
 		$filters = array_filter([
 			'is_read'    => $isRead,
@@ -110,6 +111,16 @@ class ArticleController extends Controller {
 			'tag_id'     => $tagId,
 			'category'   => $category,
 		], fn($value) => $value !== null);
+
+		// contentType=page/video: Seiten/Videos-Aufteilung auf oberster Ebene,
+		// orthogonal zu isRead/isFavorite/isArchived. "video" ist gleichbedeutend
+		// mit category=Video; "page" ist alles andere (category ungleich Video).
+		if ($contentType === 'video') {
+			$filters['category'] = 'Video';
+		} elseif ($contentType === 'page') {
+			unset($filters['category']);
+			$filters['not_category'] = 'Video';
+		}
 
 		// Clear articles stuck in processing state from crashed/previous sessions.
 		$this->articleMapper->clearStuckProcessing($this->userId);
@@ -208,76 +219,7 @@ class ArticleController extends Controller {
 			}
 
 			// 2. Schedule content extraction to run after the HTTP response is sent.
-			$articleId    = $savedArticle->getId();
-			$extractor    = $this->contentExtractor;
-			$mapper       = $this->articleMapper;
-			$userId       = $this->userId;
-
-			register_shutdown_function(static function () use ($articleId, $url, $extractor, $mapper, $userId): void {
-				// Release the HTTP connection so the client is unblocked immediately.
-				if (function_exists('fastcgi_finish_request')) {
-					fastcgi_finish_request();
-				}
-
-				// Release the PHP session file lock immediately.
-				// Without this, the SSE /api/events request from the same browser
-				// blocks on session_start() for the entire duration of extraction.
-				if (session_status() === PHP_SESSION_ACTIVE) {
-					session_write_close();
-				}
-
-				// Give the extraction a generous timeout without affecting the
-				// already-sent web request.
-				set_time_limit(120);
-
-				try {
-					$extracted = $extractor->extract($url, null, $userId);
-
-					$article = $mapper->find($articleId, $userId);
-
-					$article->setUrl($extracted['url'] ?? $url);
-					$article->setTitle($extracted['title']);
-					$article->setContent($extracted['content']);
-					$article->setExcerpt($extracted['excerpt']);
-					$article->setAuthor($extracted['author']);
-					$article->setSiteName($extracted['siteName']);
-					$article->setImageUrl($extracted['imageUrl']);
-					$article->setReadingTime($extracted['readingTime']);
-					if (!empty($extracted['publishedAt'])) {
-						$article->setPublishedAt($extracted['publishedAt']);
-					}
-					if (!empty($extracted['category'])) {
-						$article->setCategory($extracted['category']);
-					}
-					$article->setUpdatedAt(new \DateTime());
-					$article->setIsProcessing(0);
-					$mapper->update($article);
-				} catch (PaywallLoginRequiredException $e) {
-					// Erstes Speichern eines Paywall-Artikels ohne (gültige)
-					// Zugangsdaten: kein genereller Fehlschlag, sondern ein
-					// Zustand, auf den der Client mit einem Login-Dialog
-					// reagieren soll (Polling auf requiresLoginDomain, siehe
-					// Article::jsonSerialize() und PLATFORMS.md).
-					try {
-						$blocked = $mapper->find($articleId, $userId);
-						$blocked->setIsProcessing(0);
-						$blocked->setRequiresLoginDomain($e->domain);
-						$blocked->setRequiresLoginPage($e->loginPage);
-						$mapper->update($blocked);
-					} catch (\Throwable $e2) {
-						// Ignore – nothing more we can do.
-					}
-				} catch (\Throwable $e) {
-					// Extraction failed – clear the processing flag so the spinner stops.
-					try {
-						$failed = $mapper->find($articleId, $userId);
-						$failed->setIsProcessing(0);
-						$mapper->update($failed);
-					} catch (\Throwable $e2) {
-						// Ignore – nothing more we can do.
-					}
-				}
-			});
+			$this->scheduleExtraction($savedArticle->getId(), $url, $this->userId);
 
 			// 3. Return 202 Accepted immediately.
 			$articleData             = $savedArticle->jsonSerialize();
@@ -287,6 +229,123 @@ class ArticleController extends Controller {
 		} catch (\Throwable $e) {
 			$this->logger->error('Merlin: article creation failed', ['exception' => $e]);
 			return new DataResponse(['error' => 'Bad request'], Http::STATUS_BAD_REQUEST);
+		}
+	}
+
+	/**
+	 * Runs content extraction for $articleId after the HTTP response is
+	 * sent, via register_shutdown_function(). Shared by create() (first
+	 * attempt) and retryExtraction() (manual retry after a failed first
+	 * attempt, e.g. due to a transient network error while fetching the
+	 * source URL).
+	 */
+	private function scheduleExtraction(int $articleId, string $url, string $userId): void {
+		$extractor = $this->contentExtractor;
+		$mapper    = $this->articleMapper;
+
+		register_shutdown_function(static function () use ($articleId, $url, $extractor, $mapper, $userId): void {
+			// Release the HTTP connection so the client is unblocked immediately.
+			if (function_exists('fastcgi_finish_request')) {
+				fastcgi_finish_request();
+			}
+
+			// Release the PHP session file lock immediately.
+			// Without this, the SSE /api/events request from the same browser
+			// blocks on session_start() for the entire duration of extraction.
+			if (session_status() === PHP_SESSION_ACTIVE) {
+				session_write_close();
+			}
+
+			// Give the extraction a generous timeout without affecting the
+			// already-sent web request.
+			set_time_limit(120);
+
+			try {
+				$extracted = $extractor->extract($url, null, $userId);
+
+				$article = $mapper->find($articleId, $userId);
+
+				$article->setUrl($extracted['url'] ?? $url);
+				$article->setTitle($extracted['title']);
+				$article->setContent($extracted['content']);
+				$article->setExcerpt($extracted['excerpt']);
+				$article->setAuthor($extracted['author']);
+				$article->setSiteName($extracted['siteName']);
+				$article->setImageUrl($extracted['imageUrl']);
+				$article->setReadingTime($extracted['readingTime']);
+				if (!empty($extracted['publishedAt'])) {
+					$article->setPublishedAt($extracted['publishedAt']);
+				}
+				if (!empty($extracted['category'])) {
+					$article->setCategory($extracted['category']);
+				}
+				$article->setUpdatedAt(new \DateTime());
+				$article->setIsProcessing(0);
+				$mapper->update($article);
+			} catch (PaywallLoginRequiredException $e) {
+				// Erstes Speichern eines Paywall-Artikels ohne (gültige)
+				// Zugangsdaten: kein genereller Fehlschlag, sondern ein
+				// Zustand, auf den der Client mit einem Login-Dialog
+				// reagieren soll (Polling auf requiresLoginDomain, siehe
+				// Article::jsonSerialize() und PLATFORMS.md).
+				try {
+					$blocked = $mapper->find($articleId, $userId);
+					$blocked->setIsProcessing(0);
+					$blocked->setRequiresLoginDomain($e->domain);
+					$blocked->setRequiresLoginPage($e->loginPage);
+					$mapper->update($blocked);
+				} catch (\Throwable $e2) {
+					// Ignore – nothing more we can do.
+				}
+			} catch (\Throwable $e) {
+				// Extraction failed – clear the processing flag so the spinner stops.
+				try {
+					$failed = $mapper->find($articleId, $userId);
+					$failed->setIsProcessing(0);
+					$mapper->update($failed);
+				} catch (\Throwable $e2) {
+					// Ignore – nothing more we can do.
+				}
+			}
+		});
+	}
+
+	/**
+	 * Re-triggers extraction for an article whose first attempt failed and
+	 * left it stuck with no content and isProcessing == false (no automatic
+	 * retry otherwise). Used by the "Try Again" button in the app's empty
+	 * reader state.
+	 *
+	 * @NoAdminRequired
+	 * @NoCSRFRequired
+	 */
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function retryExtraction(int $id): DataResponse {
+		try {
+			$article = $this->articleMapper->find($id, $this->userId);
+			if ($article->getIsProcessing()) {
+				// Already extracting – don't kick off a second run.
+				$tags = $this->tagMapper->findByArticleId($article->getId());
+				$articleData = $article->jsonSerialize();
+				$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl']);
+				$articleData['tags'] = array_map(fn($tag) => $tag->jsonSerialize(), $tags);
+				return new DataResponse($articleData);
+			}
+
+			$article->setIsProcessing(1);
+			$article->setUpdatedAt(new \DateTime());
+			$updatedArticle = $this->articleMapper->update($article);
+
+			$this->scheduleExtraction($updatedArticle->getId(), $updatedArticle->getUrl(), $this->userId);
+
+			$tags = $this->tagMapper->findByArticleId($updatedArticle->getId());
+			$articleData = $updatedArticle->jsonSerialize();
+			$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl']);
+			$articleData['tags'] = array_map(fn($tag) => $tag->jsonSerialize(), $tags);
+			return new DataResponse($articleData);
+		} catch (\Exception $e) {
+			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
 		}
 	}
 

@@ -69,18 +69,38 @@
   <pre-filter>
     <remove class="tspACfv" />
     <remove class="tspCIv" />
+    <remove xpath="//div[@element-type='embed']" />
+    <remove xpath="//div[@element-type='embedWrapper']" />
+    <remove class="tspBFgd" /> <!-- externer Inhalt -->
+    <infobox xpath="//aside[@data-qa-hook='story-infobox']" />
   </pre-filter>
+
+  <images>
+    <caption container-xpath="//figure" caption-xpath=".//p | .//figcaption" />
+  </images>
+
 
   <post-filter>
     <!-- Hier post-Readability-Remove-Regeln eintragen -->
   </post-filter>
 
   <metadata>
+    <!-- Tagesspiegel liefert weder <meta property="article:author"> noch
+         <meta name="author"> – der og:/article:-Fallback (siehe
+         OG_FALLBACK_XPATHS) findet daher nichts und Autorennamen fehlten
+         komplett. Die Bylines stecken stattdessen in strukturiertem Markup:
+           <ul><li property="author" typeof="Person"><a property="url name">Name</a></li>...</ul>
+         Bei mehreren Autoren matcht die xpath alle <a>-Knoten einzeln; die
+         Metadaten-Engine joint mehrere XPath-Treffer automatisch mit ", "
+         (siehe extractDomainMetadata()). -->
+    <author xpath="//li[@property='author']/a" />
+    <author xpath="//a[@data-gtm-class='article-author-link']" />
+    <image xpath="//meta[@property='og:image']/@content" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
     <author   xpath="//span[@class='author-name']" />
     <excerpt  xpath="//p[@class='article-intro']" />
-    <image    xpath="//meta[@property='og:image']/@content" />
+    
     <published xpath="//time[@itemprop='datePublished']/@datetime" />
     -->
   </metadata>

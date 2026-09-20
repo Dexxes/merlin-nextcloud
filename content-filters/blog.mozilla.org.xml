@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Merlin Content-Filter: nd-aktuell.de
+  Merlin Content-Filter: blog.mozilla.org
 
   Verfügbare Sektionen:
     <pre-filter>   – Regeln, die auf das rohe HTML VOR dem Readability-Durchlauf angewendet werden
@@ -11,9 +11,6 @@
     <remove id="element-id" />           – Entfernt Elemente mit genau dieser id
     <remove class="teilstring" />        – Entfernt Elemente, deren class diesen Teilstring enthält
     <remove xpath="//div[@data-ad]" />   – Entfernt alle Elemente, die dem XPath entsprechen
-    <infobox id="element-id" />          – Markiert Element als Infokasten (CSS-Klasse merlin-infobox)
-    <infobox class="teilstring" />       – Markiert passende Elemente als Infokasten
-    <infobox xpath="//div[@class='...']"/> – Markiert per XPath als Infokasten
 
   Metadaten-Felder (in <metadata>):
     <title    xpath="..." />   – Seitentitel
@@ -21,15 +18,22 @@
     <excerpt  xpath="..." />   – Teaser / Zusammenfassung
     <image    xpath="..." />   – Bild-URL (bei @content-Attributen: xpath="//meta[...]/@content")
     <published xpath="..." />  – Veröffentlichungsdatum (ISO 8601 oder deutsches Format)
+
+  Hinweis: WordPress-Blog (Yoast SEO). Der <title>/og:title-Tag trägt einen
+  abweichenden SEO-Titel, der von der sichtbaren H1-Überschrift abweicht –
+  daher <title> per XPath auf die H1 gesetzt. Veröffentlichungsdatum kommt
+  aus dem Yoast-JSON-LD-Graph (kein <meta property="article:published_time">
+  auf der Seite vorhanden).
 -->
-<domain name="nd-aktuell.de">
+<domain name="blog.mozilla.org">
 
   <pre-filter>
-    <infobox class="Infobox" />
-    <remove class="Infoline" />
-    <remove class="Artikel-Spende" />
-    <remove xpath="//h1[1]" />
-    <remove xpath="//h2[1]" />
+    <remove class="ft-c-single-post__header" />
+    <remove class="ft-c-post-share" />
+    <remove class="ft-c-search" />
+    <remove class="skip-link screen-reader-text" />
+    <remove class="ft-c-post-nav" />
+    <remove id="related-articles" />
   </pre-filter>
 
   <post-filter>
@@ -37,13 +41,11 @@
   </post-filter>
 
   <metadata>
-    <!-- Beispiele:
-    <title    xpath="//h1[@class='article-title']" />
-    <author   xpath="//span[@class='author-name']" />
-    <excerpt  xpath="//p[@class='article-intro']" />
-    <image    xpath="//meta[@property='og:image']/@content" />
-    <published xpath="//time[@itemprop='datePublished']/@datetime" />
-    -->
+    <title     xpath="//h1[@class='ft-c-single-post__title']" />
+    <author    xpath="//a[@rel='author']" />
+    <excerpt   xpath="//meta[@property='og:description']/@content" />
+    <image     xpath="//meta[@property='og:image']/@content" />
+    <published json="$.@graph[0].datePublished" />
   </metadata>
 
 </domain>

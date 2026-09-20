@@ -573,7 +573,7 @@ const DEFAULTS = {
 	fontFamily: 'default',
 	fontSize: 17,
 	lineHeight: 1.6,
-	defaultView: 'unread', // Vereinheitlicht mit PHP-Default in SettingsController.php
+	defaultView: 'pages-unread', // Vereinheitlicht mit PHP-Default in SettingsController.php
 	saveProgress: true,
 	progressEdge: 'left',
 	resumeOnOpen: true,
@@ -639,8 +639,8 @@ export default {
 				{ value: 'off',    label: t('merlin', 'Off') },
 			],
 			defaultViewOptions: [
-				{ value: 'unread',    label: t('merlin', 'Unread'),    icon: 'Inbox' },
-				{ value: 'favorites', label: t('merlin', 'Favorites'), icon: 'Star' },
+				{ value: 'pages-unread',    label: t('merlin', 'Unread'),    icon: 'Inbox' },
+				{ value: 'pages-favorites', label: t('merlin', 'Favorites'), icon: 'Star' },
 			],
 			// Feste Farbpalette analog zu PreferencesStore (iOS/Android); Reihenfolge
 			// orientiert sich am ursprünglichen Default '#FF3B30' (iOS-Rot) an erster Stelle.

@@ -274,7 +274,7 @@ class ContentFilterController extends Controller {
 		if ($urlDomain === '') {
 			return $this->error('Die URL enthält keinen Hostnamen.', Http::STATUS_BAD_REQUEST);
 		}
-		if ($urlDomain !== $domain) {
+		if (!$this->repository->domainMatchesFilterKey($urlDomain, $domain)) {
 			return $this->error(
 				sprintf('Die URL gehört zu "%s", getestet wird der Filter für "%s".', $urlDomain, $domain),
 				Http::STATUS_BAD_REQUEST

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Merlin Content-Filter: tagesspiegel.de
+  Merlin Content-Filter: nd-aktuell.de
 
   Verfügbare Sektionen:
     <pre-filter>   – Regeln, die auf das rohe HTML VOR dem Readability-Durchlauf angewendet werden
@@ -11,9 +11,7 @@
     <remove id="element-id" />           – Entfernt Elemente mit genau dieser id
     <remove class="teilstring" />        – Entfernt Elemente, deren class diesen Teilstring enthält
     <remove xpath="//div[@data-ad]" />   – Entfernt alle Elemente, die dem XPath entsprechen
-    <infobox id="element-id" />          – Markiert Element als Infokasten (CSS-Klasse merlin-infobox)
-    <infobox class="teilstring" />       – Markiert passende Elemente als Infokasten
-    <infobox xpath="//div[@class='...']"/> – Markiert per XPath als Infokasten
+
   Metadaten-Felder (in <metadata>):
     <title    xpath="..." />   – Seitentitel
     <author   xpath="..." />   – Autorenname
@@ -21,25 +19,30 @@
     <image    xpath="..." />   – Bild-URL (bei @content-Attributen: xpath="//meta[...]/@content")
     <published xpath="..." />  – Veröffentlichungsdatum (ISO 8601 oder deutsches Format)
 -->
-<domain name="tagesschau.de">
+<domain name="berlin.t-online.de">
 
   <pre-filter>
-    <remove xpath="//div[contains(@class, 'article-head__data')]"/>
-    <!-- Teaser Bild über dem Artikeltext (picture.ts_picture.ts_picture_teaser_top,
-         CSS-Klasse siehe darunter): eigener Crop/eigene Auflösung, die sich
-         von der per og:image ermittelten imageUrl unterscheidet. Step 12 in
-         ContentExtractorService::extract() erkennt es deshalb nicht als
-         bereits vorhandenes Hero-Bild und stellt zusätzlich ein zweites
-         voran. Entfernen, bevor Readability den Content sieht, damit nur
-         noch das eine, per og:image eingefügte Hero-Bild übrig bleibt. -->
-    <remove class="ts-picture--teaser-top"/>
-    <infobox xpath="//div[div[contains(@class, 'infobox')]]"/>
+    <remove   xpath="//*[@data-external-article-kicker]" />
+    <remove   xpath="//*[@data-external-article-headline]" />
+    <remove   xpath="//*[contains(@class, 'text-manatee')]" />
+    <remove   xpath="//*[@alt='Vergrößern des Bildes']" />
+    <remove   xpath="//section[@data-testid='ConsentLayer']" />
+    <remove   xpath="//hr" />
+    <remove   xpath="//details" />
+    <remove   xpath="//ul[@aria-label='Autorenbilder']" />
+    <remove   xpath="//span[@aria-label='Bezeichnung mit Videotitel']/../../.." />
+    
+    
+    
+    <infobox xpath="//div[div[@class='rounded-8 bg-whitelilac p-12 md:px-24 md:py-12']]"/>
   </pre-filter>
 
   <post-filter>
+    <!-- Hier post-Readability-Remove-Regeln eintragen -->
   </post-filter>
 
   <metadata>
+    <author   xpath="//span[@data-tb-author]" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
     <author   xpath="//span[@class='author-name']" />

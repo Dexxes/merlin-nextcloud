@@ -25,6 +25,9 @@ export async function getArticles(filters = {}) {
 	if (filters.category) {
 		params.append('category', filters.category)
 	}
+	if (filters.contentType) {
+		params.append('contentType', filters.contentType)
+	}
 
 	const url = generateUrl(`/apps/merlin/api/articles?${params.toString()}`)
 	const response = await axios.get(url)
@@ -33,6 +36,16 @@ export async function getArticles(filters = {}) {
 
 export async function getArticle(id) {
 	const url = generateUrl(`/apps/merlin/api/articles/${id}`)
+	const response = await axios.get(url)
+	return response.data
+}
+
+// Löst die aktuelle HLS-Stream-URL für ARD/ZDF/Arte-Artikel auf, siehe
+// VideoStreamResolverService-Docblock (Backend) für den Hintergrund.
+// Antwort ist immer { available: false } statt eines Fehlers, wenn sich
+// nichts abspielen lässt - kein try/catch nötig auf Aufruferseite.
+export async function resolveVideoStream(id) {
+	const url = generateUrl(`/apps/merlin/api/articles/${id}/video-stream`)
 	const response = await axios.get(url)
 	return response.data
 }

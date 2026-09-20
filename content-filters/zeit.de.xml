@@ -24,6 +24,7 @@
   <pre-filter>
     <remove xpath="//div[@class='audio-player js-audio-player']" />
     <remove xpath="//header[@class='article-header']" />
+    <remove xpath="//header" />
     <remove xpath="//p[@class='symbols']" />
   </pre-filter>
 

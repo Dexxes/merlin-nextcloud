@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Merlin Content-Filter: tiktok.com
+  Kategorie: TikTokPost - überspringt Readability komplett (tiktok.com
+  liefert als Single-Page-App praktisch keinen Server-Side-HTML-Content).
+  Anders als x.com/instagram.com hat TikTok eine freie, unauthentifizierte
+  oEmbed-API (www.tiktok.com/oembed) - TikTokPostResolverService ruft sie
+  serverseitig auf und übernimmt das komplette von TikTok zurückgelieferte
+  Embed-Markup (inkl. www.tiktok.com/embed.js-Loader) unverändert als
+  Content - siehe ContentExtractorService, TikTokPost-Zweig. Bewusst KEIN
+  rein clientseitig selbst gebautes Minimal-Markup (wie beim X-Zweig): TikToks
+  embed.js liest die Video-ID beim Rendern ausschließlich aus dem
+  data-video-id-Attribut, ein selbst gebautes Blockquote führte dabei in der
+  Praxis zu einem fehlerhaften Embed ("/embed/v2/null"). www.tiktok.com steht
+  als Frame-/Video-Embed-Host schon vorher in isAllowedVideoEmbedSrc()/
+  AddContentSecurityPolicyListener, dort aber für TikTok-Player-iframes
+  INNERHALB fremder Artikel - dieser Content-Filter ist der eigene
+  Kategorie-Zweig für direkt eingereichte tiktok.com-URLs.
+
+  Die <metadata>-Regel unten greift nur als Fallback, falls die URL keine
+  Video-Permalink-Form hat (Profil, Discover, Startseite): TikTok rendert
+  og:title serverseitig für Link-Previews, auch ohne dass der Rest der Seite
+  lädt. Bewusst kein <excerpt> und kein <image>: Posts bekommen weder Excerpt
+  noch Vorschau-/Hero-Bild - statt eines Fotos zeigt der Reader das
+  TikTok-Icon (siehe ContentExtractorService::platformIconUrl()).
+-->
+<domain name="tiktok.com">
+
+  <category>TikTokPost</category>
+
+  <pre-filter />
+  <post-filter />
+
+  <metadata>
+    <title    xpath="//meta[@property='og:title']/@content" />
+  </metadata>
+
+</domain>

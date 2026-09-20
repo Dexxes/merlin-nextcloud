@@ -9,7 +9,6 @@
 	         @add-article="showAddArticleDialog = true"
 	         @filter="setFilter"
 	         @filter-tag="filterByTag"
-	         @filter-category="filterByCategory"
 	         @delete-tag="handleDeleteTag"
 	         @open-settings="openSettings"
 		/>
@@ -70,7 +69,7 @@ export default {
 		return {
 			showAddArticleDialog: false,
 			addArticleUrl: '',
-			currentFilter: 'unread',
+			currentFilter: 'pages-unread',
 			// Tracks whether we pushed a history entry when opening the reader.
 			// Needed so manual close can pop it, preventing a dangling back-entry.
 			_readerHistoryPushed: false,
@@ -98,8 +97,18 @@ export default {
 		this.loadData().then(() => {
 			// defaultView aus den Settings auswerten: erst nach loadData() bekannt, da
 			// fetchSettings() asynchron ist. setFilter() ersetzt damit den hartcodierten
-			// 'unread'-Start-Zustand, falls der Nutzer eine andere Default-Ansicht gewählt hat.
-			const defaultView = this.settings && this.settings.defaultView
+			// 'pages-unread'-Start-Zustand, falls der Nutzer eine andere Default-Ansicht
+			// gewählt hat. Legacy-Werte aus der Zeit vor der Pages/Videos-Aufteilung
+			// ('unread', 'favorites', 'archived', 'video') werden auf ihr Pages/Videos-
+			// Äquivalent gemappt statt eine ungültige Ansicht zu setzen.
+			const legacyDefaultViewMap = {
+				unread: 'pages-unread',
+				favorites: 'pages-favorites',
+				archived: 'pages-archived',
+				video: 'videos-unread',
+			}
+			const rawDefaultView = this.settings && this.settings.defaultView
+			const defaultView = legacyDefaultViewMap[rawDefaultView] || rawDefaultView
 			if (defaultView && defaultView !== this.currentFilter) {
 				this.setFilter(defaultView)
 			}
@@ -136,12 +145,16 @@ export default {
 			])
 		},
 
+		// type ist eine der sechs Pages/Videos x Unread/Favorites/Archived-Ansichten,
+		// z.B. 'pages-unread' oder 'videos-favorites' - siehe Sidebar.vue.
 		setFilter(type) {
 			this.currentFilter = type
 			this.currentTagId = null
 			this.RESET_FILTER()
 			this.SET_VIEW('list')
-			switch (type) {
+			const [contentType, status] = type.split('-')
+			this.SET_FILTER({ key: 'contentType', value: contentType === 'videos' ? 'video' : 'page' })
+			switch (status) {
 			case 'unread':
 				this.SET_FILTER({ key: 'isRead', value: false })
 				break
@@ -162,16 +175,8 @@ export default {
 			this.RESET_FILTER()
 			this.SET_VIEW('list')
 			this.SET_FILTER({ key: 'tagId', value: tagId })
-			// Always show both archived and non-archived articles for tag filters
-			this.SET_FILTER({ key: 'isArchived', value: null })
-			this.fetchArticles()
-		},
-
-		filterByCategory(category) {
-			this.currentFilter = 'video'
-			this.RESET_FILTER()
-			this.SET_VIEW('list')
-			this.SET_FILTER({ key: 'category', value: category })
+			// Always show both archived and non-archived articles, and both
+			// pages and videos, for tag filters
 			this.SET_FILTER({ key: 'isArchived', value: null })
 			this.fetchArticles()
 		},
@@ -211,9 +216,9 @@ export default {
 			await this.deleteTag(tagId)
 			if (this.currentTagId === tagId) {
 				this.currentTagId = null
-				// 'all' view was removed — fall back to the app's default (Unread)
+				// 'all' view was removed — fall back to the app's default (Pages/Unread)
 				// instead of a filter that no longer exists in the sidebar.
-				this.setFilter('unread')
+				this.setFilter('pages-unread')
 			}
 		},
 

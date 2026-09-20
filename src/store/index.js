@@ -15,7 +15,10 @@ let _processingPollTimer = null
 export default createStore({
 	state: {
 		articles: [],
-		counts: { total: 0, unread: 0, favorites: 0, archived: 0, videos: 0 },
+		counts: {
+			pages: { total: 0, unread: 0, favorites: 0, archived: 0 },
+			videos: { total: 0, unread: 0, favorites: 0, archived: 0 },
+		},
 		tags: [],
 		settings: {},
 		currentArticle: null,
@@ -26,6 +29,7 @@ export default createStore({
 			isArchived: false,
 			tagId: null,
 			category: null,
+			contentType: 'page',
 			search: '',
 		},
 		view: 'list', // 'list' or 'reader'
@@ -78,6 +82,7 @@ export default createStore({
 				isArchived: false,
 				tagId: null,
 				category: null,
+				contentType: null,
 				search: '',
 			}
 		},
@@ -359,7 +364,9 @@ export default createStore({
 		async pollForUpdates({ state, commit }) {
 			try {
 				const counts = await articlesAPI.getCounts()
-				if (counts.total !== state.counts.total) {
+				const total = counts.pages.total + counts.videos.total
+				const previousTotal = state.counts.pages.total + state.counts.videos.total
+				if (total !== previousTotal) {
 					commit('SET_COUNTS', counts)
 					if (state.view === 'list') {
 						const articles = await articlesAPI.getArticles(state.filter)
