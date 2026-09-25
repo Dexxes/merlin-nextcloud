@@ -1365,7 +1365,13 @@ class ContentExtractorService {
 	private function normalizeUrl(string $imageUrl, string $baseUrl): string {
 		// Already absolute
 		if (preg_match('/^https?:\/\//i', $imageUrl)) {
-			return $imageUrl;
+			// Cleartext http:// wird auf https:// hochgestuft: Viele Seiten
+			// liefern im og:image ein http:// (og:image:secure_url wird von
+			// den Extraktions-Pfaden oben nicht ausgewertet), obwohl derselbe
+			// Host https anstandslos bedient. iOS App Transport Security
+			// blockiert unverschlüsselte Bild-Loads ("Blocked: Load failed"),
+			// deswegen wird hier konsequent auf https umgeschrieben.
+			return preg_replace('/^http:\/\//i', 'https://', $imageUrl);
 		}
 
 		$base = parse_url($baseUrl);
@@ -1750,6 +1756,18 @@ class ContentExtractorService {
 	 * Extract og:image or twitter:image from HTML meta tags
 	 */
 	private function extractOgImage(string $html): ?string {
+		// og:image:secure_url first: manche Seiten (z. B. berlin.de) liefern
+		// im og:image ein cleartext http://, obwohl og:image:secure_url mit
+		// https:// denselben Host bedient. Beide Attribut-Schreibweisen
+		// (property= laut OpenGraph-Spec, name= wie berlin.de es nutzt)
+		// abdecken. iOS ATS blockiert sonst den späteren Bild-Load.
+		if (preg_match('/<meta[^>]+(?:property|name)=["\']og:image:secure_url["\'][^>]+content=["\']([^"\']+)["\'][^>]*>/i', $html, $matches)) {
+			return trim($matches[1]);
+		}
+		if (preg_match('/<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\']og:image:secure_url["\'][^>]*>/i', $html, $matches)) {
+			return trim($matches[1]);
+		}
+
 		// Try og:image (most common)
 		if (preg_match('/<meta\s+(?:property=["\']og:image["\']\s+content|content=["\']([^"\']+)["\']\s+property=["\']og:image)["\']?\s*(?:content=["\']([^"\']+)["\'])?[^>]*>/i', $html, $matches)) {
 			// Handle both attribute orders: property first or content first
@@ -1757,13 +1775,13 @@ class ContentExtractorService {
 			if ($img) return trim($img);
 		}
 
-		// Simpler og:image pattern
-		if (preg_match('/<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\'][^>]*>/i', $html, $matches)) {
+		// Simpler og:image pattern (property= or name=)
+		if (preg_match('/<meta[^>]+(?:property|name)=["\']og:image["\'][^>]+content=["\']([^"\']+)["\'][^>]*>/i', $html, $matches)) {
 			return trim($matches[1]);
 		}
 
 		// Reverse attribute order
-		if (preg_match('/<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\'][^>]*>/i', $html, $matches)) {
+		if (preg_match('/<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\']og:image["\'][^>]*>/i', $html, $matches)) {
 			return trim($matches[1]);
 		}
 
@@ -2568,7 +2586,12 @@ class ContentExtractorService {
 	private const OG_FALLBACK_XPATHS = [
 		'title'     => "//meta[@property='og:title']/@content",
 		'excerpt'   => "//meta[@property='og:description']/@content | //meta[@name='twitter:description']/@content",
-		'image'     => "//meta[@property='og:image']/@content",
+		// property= und name= beide abdecken: nicht alle Seiten halten sich an
+		// die OpenGraph-Spec (property=) - berlin.de z. B. setzt og:image als
+		// name=. Ein eventuelles http:// in og:image wird zentral in
+		// normalizeUrl() auf https:// hochgestuft (iOS ATS blockiert
+		// unverschlüsselte Bild-Loads sonst mit "Blocked: Load failed").
+		'image'     => "//meta[@property='og:image']/@content | //meta[@name='og:image']/@content",
 		'author'    => "//meta[@property='article:author']/@content",
 		'published' => "//meta[@property='article:published_time']/@content",
 	];
