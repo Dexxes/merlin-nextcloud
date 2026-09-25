@@ -1329,6 +1329,15 @@ class ContentExtractorService {
 			$url = explode('?', $url, 2)[0];
 			$url = preg_replace('/-\d+x\d+(?=\.\w+$)/i', '', $url) ?? $url;
 
+			// Tagesspiegel-CDN "alternates"-Renditions: ein mittleres Pfadsegment
+			// wie "BASE_16_9_W1400" oder "BASE_21_9_W1000" kodiert Seitenverhältnis
+			// und Breite derselben Aufnahme, z. B.
+			// ".../alternates/BASE_16_9_W1400/<ts>/foto.jpeg" (og:image) vs.
+			// ".../alternates/BASE_21_9_W1000/<ts>/foto.jpeg" (Content-<figure>).
+			// Das Segment entfernen, damit beide Varianten auf denselben Basispfad
+			// normalisieren.
+			$url = preg_replace('#/[A-Z0-9]+_\d+_\d+_W\d+(?=/)#i', '', $url) ?? $url;
+
 			// AEM-Bildserver-Renditions: ein oder mehrere trailing "key=wert"-
 			// Pfadsegmente (z. B. "size=1280x720.jpg", "quality=160")
 			// entfernen, bis das stabile Basis-Asset übrig bleibt.
