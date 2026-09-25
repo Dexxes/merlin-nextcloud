@@ -2715,7 +2715,15 @@ class ContentExtractorService {
 
 			if ($value !== '')
 			{
-				if (count($value) > 1)
+				// Mehrere Treffer zu einem Feld zusammenzufassen ergibt nur bei
+				// textuellen Feldern Sinn (z. B. mehrere <author xpath="…">-Regeln
+				// für Co-Autoren). Bei "image"/"published" ist ein Feld mit mehreren
+				// Treffern dagegen fast immer eine harmlos doppelte Meta-Angabe
+				// derselben Quelle - manche Seiten (z. B. stadt-bremerhaven.de) geben
+				// z. B. og:image sowohl übers Theme als auch übers SEO-Plugin aus.
+				// implode() würde daraus eine ungültige "url1, url2"-Bild-URL bzw. ein
+				// unparsbares Datum bauen; hier gewinnt deshalb immer der erste Treffer.
+				if (count($value) > 1 && !in_array($field, ['image', 'published'], true))
 					$value = implode(', ', $value);
 				else
 					$value = $value[0];
