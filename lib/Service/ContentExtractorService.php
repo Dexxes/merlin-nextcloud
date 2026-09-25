@@ -3433,7 +3433,12 @@ class ContentExtractorService {
 		}
 
 		$best = null;
-		foreach (explode(',', $srcset) as $entry) {
+		// Split only on a comma followed by whitespace: that's an actual
+		// candidate boundary per the srcset grammar. A bare comma can appear
+		// inside a candidate's URL itself (e.g. Substack/Cloudinary/Imgix CDN
+		// transform-parameter lists like ".../w_1456,c_limit,f_webp,.../<url>"),
+		// and splitting on every comma shreds such a URL into fragments.
+		foreach (preg_split('/,\s+/', $srcset) as $entry) {
 			$parts = preg_split('/\s+/', trim($entry), -1, PREG_SPLIT_NO_EMPTY);
 			if ($parts === [] || $parts[0] === '') {
 				continue;
