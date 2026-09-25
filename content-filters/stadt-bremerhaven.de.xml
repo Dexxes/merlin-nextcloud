@@ -28,6 +28,7 @@
     <remove xpath="//*[@class='aawp']" />
     <remove xpath="//iframe" />
     <remove xpath="//p/img[1]" />
+    <remove class="cb-internal-link-card" />
   </pre-filter>
 
   <post-filter>
@@ -36,10 +37,10 @@
 
   <metadata>
     <author   xpath="//p[@class='bio-name']/a" />
+    <image    xpath="//meta[@property='og:image']/@content" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
     <excerpt  xpath="//p[@class='article-intro']" />
-    <image    xpath="//meta[@property='og:image']/@content" />
     <published xpath="//time[@itemprop='datePublished']/@datetime" />
     -->
   </metadata>
