@@ -84,6 +84,28 @@ in `ContentFilterSchema` – Validator, Serializer, Merger und die Vue-Builder l
 sich daraus ab. Das Herkunftsattribut (`data-merlin-origin`) kennt seit der
 Drei-Ebenen-Erweiterung drei Werte (`bundle`/`admin`/`user`) statt zwei.
 
+### Titel-Duplikat-Heuristik (`stripDuplicateMetadata()`)
+
+Nach Readability-Extraktion + domänenspezifischem Nachfilter läuft
+`ContentExtractorService::stripDuplicateMetadata()` (Zeile 3923) über den
+extrahierten Inhalt, um CMS-Bugs abzufangen, bei denen der Seitentitel
+zusätzlich als Überschrift im Artikeltext steht (z. B. taz.de).
+
+Pass 1 (Zeile 3944 ff.): Von den ersten 5 Überschriften (`h1`–`h4`) im Body
+wird die erste gelöscht, deren normalisierte Wörter zu ≥ 70 % im Artikeltitel
+vorkommen (`normalizeForComparison()`, Zeile 4006; Schwelle Zeile 3963), danach
+`break` (max. eine Entfernung). Pass 1b (Zeile 3973) macht dasselbe für einen
+führenden `<p>` statt `<h*>`.
+
+**Bekannte Fehlerquelle:** Bei FAQ-Artikeln, deren erste Zwischenüberschrift
+naturgemäß das Titel-Vokabular wiederholt (z. B. mdr.de,
+`faq-wahlen-prognose-hochrechnung-100.html`: Titel und erste Frage teilen sich
+"ARD", "ZDF", "18 Uhr", "wissen", "Wahl"), reißt der reine Wort-Overlap die
+70 %-Schwelle und die erste – inhaltlich echte – Zwischenüberschrift wird
+fälschlich als Titel-Dopplung entfernt. Fix noch offen: engere Ähnlichkeit
+(z. B. nahezu exakter Textvergleich statt Wort-Overlap) und/oder Beschränkung
+auf die tatsächlich erste Content-Node statt Scan der ersten 5 Überschriften.
+
 ### Paywall-Abo-Login (🔜 geplant)
 
 Damit `ContentExtractorService` auch Artikel hinter einer Abo-Paywall (z. B. Tagesspiegel Plus)
