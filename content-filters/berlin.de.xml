@@ -35,7 +35,12 @@
     </images>
 
   <metadata>
-    <image    xpath="//meta[@property='og:image']/@content" />
+    <!-- berlin.de setzt og:image als name="", nicht property="" (OpenGraph-Spec) -
+         die alte Regel unten matchte deswegen nie und fiel auf den generischen
+         og:-Fallback zurück. og:image liefert dort teils http:// statt https:// -
+         das wird zentral in normalizeUrl() (ContentExtractorService) auf https://
+         hochgestuft, iOS ATS blockiert unverschlüsselte Bild-Loads sonst. -->
+    <image    xpath="//meta[@name='og:image']/@content | //meta[@property='og:image']/@content" />
     <image xpath="//div[contains(@class, 'type-teaser')]/img/@src" />
 
     <!-- Beispiele:
