@@ -34,6 +34,7 @@
     <remove class="lastchanged" />
     <remove class="quicklinks" />
     <remove class="textauthor" />
+    <remove class="teaser" />
   </pre-filter>
 
   <post-filter>
@@ -42,7 +43,7 @@
 
   <metadata>
     <author    xpath="//meta[@name='author']/@content" />
-    <excerpt   xpath="//meta[@property='og:description']/@content" />
+    <excerpt   xpath="//meta[@property='twitter:description']/@content" />
     <image     xpath="//meta[@property='og:image']/@content" />
   </metadata>
 
