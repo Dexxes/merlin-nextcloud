@@ -104,6 +104,17 @@ export default {
 				{ key: 'excerpt', label: this.t('merlin', 'Teaser'), value: r.excerpt },
 				{ key: 'category', label: this.t('merlin', 'Category'), value: r.category },
 				{ key: 'imageUrl', label: this.t('merlin', 'Image'), value: r.imageUrl },
+				{
+					key: 'isPaywalled',
+					label: this.t('merlin', 'Paywall detected'),
+					// Immer ein truthy String (auch für "Nein"), sonst würde die
+					// generische "— empty —"-Darstellung eine erkannte
+					// Nicht-Paywall wie ein fehlendes Feld aussehen lassen.
+					value: r.isPaywalled ? this.t('merlin', 'Yes') : this.t('merlin', 'No'),
+				},
+				...(r.isPaywalled
+					? [{ key: 'paywallSubscribeUrl', label: this.t('merlin', 'Subscribe URL'), value: r.paywallSubscribeUrl }]
+					: []),
 			]
 		},
 	},

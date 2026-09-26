@@ -339,6 +339,13 @@ class ContentFilterController extends Controller {
 				'readingTime' => $article['readingTime'] ?? 0,
 				'publishedAt' => $published instanceof \DateTime ? $published->format(\DateTimeInterface::ATOM) : null,
 				'content'     => $article['content'] ?? '',
+				// isPaywalled/paywallSubscribeUrl fehlten hier ursprünglich, obwohl
+				// ContentExtractorService::extract() sie längst liefert - ohne sie
+				// war der Testlauf das einzige Werkzeug, mit dem ein Admin einen
+				// <paywall><marker> hätte debuggen können, zeigte aber gerade
+				// dessen Ergebnis nicht an.
+				'isPaywalled'         => (bool) ($article['isPaywalled'] ?? false),
+				'paywallSubscribeUrl' => $article['paywallSubscribeUrl'] ?? null,
 			],
 			'trace' => $trace->toArray(),
 			'summary' => [
