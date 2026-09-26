@@ -380,14 +380,25 @@ class ContentExtractorService {
 
 		if($domainMeta['category'] != "Video" && $domainMeta['category'] != "Thread" && $domainMeta['category'] != "XPost" && $domainMeta['category'] != "Mastodon" && $domainMeta['category'] != "InstagramPost" && $domainMeta['category'] != "TikTokPost")
 		{
-			// ── Step 7: Quote normalisation + Readability ──────────────────────────
+			// ── Step 7: hr-Schutz + Quote normalisation + Readability ───────────────
+			// fivefilters/readability.php's isElementWithoutContent() treats <hr>
+			// like <br>: an element whose only children are <hr>/<br> and that has
+			// no text of its own counts as "without content" and gets discarded
+			// during grabArticle()'s cleanup - which silently swallows a bare <hr>
+			// scene-break marker whenever the source wraps it in an otherwise empty
+			// <div>/<section>/<header> (a common pattern, e.g. WordPress themes'
+			// "<div class="separator"><hr/></div>"). protectHorizontalRules() must
+			// therefore run BEFORE Readability; restoreHorizontalRules() below
+			// converts the surviving placeholders back once Readability is done.
+			$readabilityInput = $this->protectHorizontalRules($rawHtml);
+
 			// Normalise quote structures before Readability:
 			//   1. Domain-specific <quotes> rules from the content-filter XML
 			//   2. Standard <blockquote> elements → merlin-quote class
 			//   3. <q> elements → merlin-quote-inline class
 			// keepClasses=true (below) ensures Readability does NOT strip class attributes,
 			// so all Merlin marker classes survive post-processing.
-			$html = $this->normalizeQuotes($rawHtml, $domain, $trace);
+			$html = $this->normalizeQuotes($readabilityInput, $domain, $trace);
 
 			// fivefilters/readability.php löst "./bild.jpg"-relative Bild-URLs im
 			// Artikeltext über PHP_URL_PATH + dirname() auf (Readability.php,
@@ -430,7 +441,7 @@ class ContentExtractorService {
 			catch (ParseException $e) {
 				$this->logger->warning('normalizeQuotes output rejected by Readability, retrying with raw HTML', ['url' => $url]);
 				$readability = new Readability($readabilityConfig);
-				$readability->parse($rawHtml);
+				$readability->parse($readabilityInput);
 			}
 
 			// ── Step 8: Collect Readability results ───────────────────────────────
@@ -451,6 +462,8 @@ class ContentExtractorService {
 			// Content. ENT_NOQUOTES decodiert weiterhin named/numeric Entities in
 			// sichtbarem Text, lässt Quote-Entities aber unangetastet.
 			$content = html_entity_decode($content, ENT_NOQUOTES, 'UTF-8');
+			// Placeholders from protectHorizontalRules() zurück in echte <hr> auflösen.
+			$content = $this->restoreHorizontalRules($content);
 
 			//$excerpt = $readability->getExcerpt();
 			//$excerpt = html_entity_decode($excerpt, ENT_QUOTES, 'UTF-8');
@@ -2021,6 +2034,109 @@ class ContentExtractorService {
 			}
 
 			return $dom->saveHTML() ?: $html;
+		} catch (\Throwable) {
+			return $html; // Never break extraction
+		}
+	}
+
+	/**
+	 * Replace every <hr> with a marker <div> before Readability parses the HTML.
+	 *
+	 * fivefilters/readability.php's isElementWithoutContent() (used by
+	 * grabArticle()'s cleanup pass) treats <hr> the same as <br>: a <div>/
+	 * <section>/<header>/<h1>-<h6> whose only element children are <hr>/<br>
+	 * and that has no text of its own counts as empty and gets removed -
+	 * along with the <hr> inside it. That silently drops scene-break markers
+	 * on sites that wrap a bare <hr> in an otherwise empty container (e.g.
+	 * WordPress' "<div class="separator"><hr/></div>").
+	 *
+	 * The placeholder carries "merlin-content-hr" (needs "content" to match
+	 * okMaybeItsACandidate() and survive Readability's unlikelyCandidates
+	 * pass, same reasoning as merlin-content-figure in normalizeImageCaptions())
+	 * plus a non-whitespace marker character so neither the placeholder itself
+	 * nor an ancestor that would otherwise contain no text is seen as empty.
+	 * restoreHorizontalRules() converts survivors back to <hr> after Readability.
+	 */
+	private function protectHorizontalRules(string $html): string {
+		if (trim($html) === '' || !str_contains(strtolower($html), '<hr')) {
+			return $html;
+		}
+		try {
+			$prev = libxml_use_internal_errors(true);
+			$dom  = new \DOMDocument('1.0', 'UTF-8');
+			$dom->loadHTML('<?xml encoding="utf-8" ?>' . $html, LIBXML_NOERROR | LIBXML_NOWARNING);
+			libxml_clear_errors();
+			libxml_use_internal_errors($prev);
+
+			$hrs = iterator_to_array($dom->getElementsByTagName('hr'));
+			if ($hrs === []) {
+				return $html;
+			}
+
+			foreach ($hrs as $hr) {
+				if (!$hr instanceof \DOMElement || $hr->parentNode === null) {
+					continue;
+				}
+				$placeholder = $dom->createElement('div');
+				$placeholder->setAttribute('class', 'merlin-content-hr');
+				// U+2063 INVISIBLE SEPARATOR: not stripped by jsTrim()/trim(), so it
+				// keeps textContent from being considered empty, but renders as
+				// nothing if it were ever to leak through (it never does -
+				// restoreHorizontalRules() replaces the whole element).
+				$placeholder->appendChild($dom->createTextNode("\u{2063}"));
+				$hr->parentNode->replaceChild($placeholder, $hr);
+			}
+
+			return $dom->saveHTML() ?: $html;
+		} catch (\Throwable) {
+			return $html; // Never break extraction
+		}
+	}
+
+	/**
+	 * Convert protectHorizontalRules()'s placeholder <div>s back into real
+	 * <hr> elements. Runs on the Readability-extracted content, before
+	 * cleanHtml()/sanitizeHtml() (both of which would otherwise happily keep
+	 * the placeholder as an inert <div class="merlin-content-hr">).
+	 */
+	private function restoreHorizontalRules(string $html): string {
+		if (trim($html) === '' || !str_contains($html, 'merlin-content-hr')) {
+			return $html;
+		}
+		try {
+			$prev = libxml_use_internal_errors(true);
+			$dom  = new \DOMDocument('1.0', 'UTF-8');
+			$dom->loadHTML(
+				'<?xml encoding="utf-8" ?><div data-merlin-hr-root="1">' . $html . '</div>',
+				LIBXML_NOERROR | LIBXML_NOWARNING
+			);
+			libxml_clear_errors();
+			libxml_use_internal_errors($prev);
+
+			$xpath = new \DOMXPath($dom);
+			$root  = $xpath->query('//div[@data-merlin-hr-root="1"]')->item(0);
+			if ($root === null) {
+				return $html;
+			}
+
+			$placeholders = $xpath->query(
+				"//*[contains(concat(' ', normalize-space(@class), ' '), ' merlin-content-hr ')]"
+			);
+			foreach (iterator_to_array($placeholders) as $placeholder) {
+				if (!$placeholder instanceof \DOMElement || $placeholder->parentNode === null) {
+					continue;
+				}
+				$placeholder->parentNode->replaceChild($dom->createElement('hr'), $placeholder);
+			}
+
+			$out = '';
+			foreach ($root->childNodes as $child) {
+				$serialized = $dom->saveHTML($child);
+				if ($serialized !== false) {
+					$out .= $serialized;
+				}
+			}
+			return $out !== '' ? $out : $html;
 		} catch (\Throwable) {
 			return $html; // Never break extraction
 		}
