@@ -3056,6 +3056,24 @@ class ContentExtractorService {
 			}
 		}
 
+		// ── Generic JSON-LD fallback (schema.org Article/@graph) ────────────────
+		// Greift domainübergreifend, ganz ohne Domain-Config: viele CMS (Drupal,
+		// WordPress/Yoast, …) betten Autor/Headline/Bild nur noch strukturiert per
+		// <script type="application/ld+json"> ein, oft verschachtelt in einem
+		// "@graph"-Array, statt (zusätzlich) klassische og:/article:-Meta-Tags zu
+		// setzen. Läuft NACH der obigen Schleife und füllt nur Felder, die weder
+		// eine Domain-Regel noch der og:/article:-Fallback treffen konnte - Domain-
+		// Configs und OG-Tags behalten also unverändert Vorrang.
+		$missingFields = array_diff(array_keys(self::OG_FALLBACK_XPATHS), array_keys($result));
+		if ($missingFields !== []) {
+			$genericLd = $this->extractGenericJsonLdMetadata($html);
+			foreach ($missingFields as $field) {
+				if (!empty($genericLd[$field])) {
+					$result[$field] = $genericLd[$field];
+				}
+			}
+		}
+
 		// ── Static category declaration ──────────────────────────────────────────
 		// <category>Video</category> in the domain config assigns a fixed category
 		// without needing to parse the HTML (no XPath required).
@@ -3240,6 +3258,191 @@ class ContentExtractorService {
 		}
 
 		return is_scalar($current) ? (string) $current : null;
+	}
+
+	/**
+	 * schema.org @type-Werte, die als "das ist der Artikel-Knoten" gelten -
+	 * verwendet vom domainübergreifenden JSON-LD-Fallback (siehe
+	 * extractGenericJsonLdMetadata()).
+	 */
+	private const JSONLD_ARTICLE_TYPES = [
+		'article', 'newsarticle', 'opinionnewsarticle', 'reportagenewsarticle',
+		'analysisnewsarticle', 'reviewnewsarticle', 'blogposting', 'techarticle',
+		'scholarlyarticle', 'socialmediaposting',
+	];
+
+	/**
+	 * Domainübergreifender Fallback: sucht in ALLEN
+	 * <script type="application/ld+json">-Blöcken der Seite nach einem
+	 * schema.org-Knoten vom Typ Article/NewsArticle/… (auch verschachtelt in
+	 * einem "@graph"-Array, wie es Drupal/Yoast/… erzeugen) und liest daraus
+	 * title/author/excerpt/image/published.
+	 *
+	 * Anders als die Domain-Configs (extractJsonSources()/resolveJsonPath())
+	 * braucht das kein XML-Setup pro Domain - viele Seiten liefern Autor/
+	 * Bild/Headline inzwischen NUR noch strukturiert per JSON-LD, ohne
+	 * (zusätzliche) og:/article:-Meta-Tags.
+	 *
+	 * @return array{title?: string, author?: string, excerpt?: string, image?: string, published?: string}
+	 */
+	private function extractGenericJsonLdMetadata(string $html): array {
+		if (!preg_match_all(
+			'/<script[^>]+type=["\']application\/ld\+json["\'][^>]*>(.*?)<\/script>/is',
+			$html,
+			$scriptMatches
+		)) {
+			return [];
+		}
+
+		foreach ($scriptMatches[1] as $rawJson) {
+			$decoded = json_decode(trim($rawJson), true);
+			if (!is_array($decoded)) {
+				continue;
+			}
+
+			foreach ($this->flattenJsonLdNodes($decoded) as $node) {
+				if (!$this->isJsonLdArticleNode($node)) {
+					continue;
+				}
+
+				$result = [];
+
+				$title = $this->jsonLdScalarValue($node['headline'] ?? null)
+					?? $this->jsonLdScalarValue($node['name'] ?? null);
+				if ($title !== null) {
+					$result['title'] = $title;
+				}
+
+				$excerpt = $this->jsonLdScalarValue($node['description'] ?? null)
+					?? $this->jsonLdScalarValue($node['alternativeHeadline'] ?? null);
+				if ($excerpt !== null) {
+					$result['excerpt'] = $excerpt;
+				}
+
+				$author = $this->jsonLdAuthorNames($node['author'] ?? null);
+				if ($author !== null) {
+					$result['author'] = $author;
+				}
+
+				$image = $this->jsonLdImageUrl($node['image'] ?? null);
+				if ($image !== null) {
+					$result['image'] = $image;
+				}
+
+				$published = $this->jsonLdScalarValue($node['datePublished'] ?? null)
+					?? $this->jsonLdScalarValue($node['dateModified'] ?? null);
+				if ($published !== null) {
+					$result['published'] = $published;
+				}
+
+				// Erster passende Knoten über alle Scripts hinweg gewinnt - bei
+				// mehreren Article-Knoten (z. B. Haupt- + verlinkte Teaser-Artikel
+				// im selben @graph) ist der erste i. d. R. der Hauptartikel.
+				if ($result !== []) {
+					return $result;
+				}
+			}
+		}
+
+		return [];
+	}
+
+	/**
+	 * Flacht eine dekodierte JSON-LD-Struktur zu einer flachen Liste von
+	 * Knoten (assoziative Arrays) ab: löst ein "@graph"-Array auf, akzeptiert
+	 * aber auch ein einzelnes Objekt oder ein reines Array von Objekten als
+	 * Top-Level-Struktur.
+	 *
+	 * @return list<array<string, mixed>>
+	 */
+	private function flattenJsonLdNodes(array $decoded): array {
+		if (isset($decoded['@graph']) && is_array($decoded['@graph'])) {
+			return array_values(array_filter($decoded['@graph'], 'is_array'));
+		}
+
+		// Reines Array von Knoten (kein "@graph"-Wrapper, kein einzelnes Objekt
+		// mit "@type") - z. B. `[{"@type": "..."}, {"@type": "..."}]`.
+		if (array_is_list($decoded) && !isset($decoded['@type'])) {
+			return array_values(array_filter($decoded, 'is_array'));
+		}
+
+		return [$decoded];
+	}
+
+	private function isJsonLdArticleNode(array $node): bool {
+		$type = $node['@type'] ?? null;
+		$types = is_array($type) ? $type : [$type];
+		foreach ($types as $t) {
+			if (is_string($t) && in_array(strtolower($t), self::JSONLD_ARTICLE_TYPES, true)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Normalisiert einen JSON-LD-Wert zu einem einzelnen String: reine
+	 * Skalare direkt, Objekte über ihr "name"-Feld (z. B. ein einzelnes
+	 * Person/Organization-Objekt). Arrays/leere Werte liefern null - dafür
+	 * gibt es die spezialisierten jsonLdAuthorNames()/jsonLdImageUrl().
+	 */
+	private function jsonLdScalarValue(mixed $value): ?string {
+		if (is_string($value) && trim($value) !== '') {
+			return trim($value);
+		}
+		if (is_array($value) && isset($value['name']) && is_string($value['name']) && trim($value['name']) !== '') {
+			return trim($value['name']);
+		}
+		return null;
+	}
+
+	/**
+	 * "author" kann laut schema.org ein String, ein einzelnes Person/
+	 * Organization-Objekt oder ein Array davon (Co-Autoren) sein. Mehrere
+	 * Namen werden wie bei den domainkonfigurierten <author xpath="…">-Regeln
+	 * mit ", " verbunden.
+	 */
+	private function jsonLdAuthorNames(mixed $author): ?string {
+		if ($author === null) {
+			return null;
+		}
+
+		$entries = (is_array($author) && array_is_list($author)) ? $author : [$author];
+		$names   = [];
+		foreach ($entries as $entry) {
+			$name = $this->jsonLdScalarValue($entry);
+			if ($name !== null) {
+				$names[] = $name;
+			}
+		}
+
+		return $names !== [] ? implode(', ', $names) : null;
+	}
+
+	/**
+	 * "image" kann ein String (URL), ein ImageObject ({"contentUrl"/"url": …})
+	 * oder ein Array davon sein - hier gewinnt immer der erste Treffer (siehe
+	 * Begründung bei "image"/"published" oben in extractDomainMetadata()).
+	 */
+	private function jsonLdImageUrl(mixed $image): ?string {
+		if ($image === null) {
+			return null;
+		}
+
+		$entries = (is_array($image) && array_is_list($image)) ? $image : [$image];
+		foreach ($entries as $entry) {
+			if (is_string($entry) && trim($entry) !== '') {
+				return trim($entry);
+			}
+			if (is_array($entry)) {
+				$url = $entry['contentUrl'] ?? $entry['url'] ?? null;
+				if (is_string($url) && trim($url) !== '') {
+					return trim($url);
+				}
+			}
+		}
+
+		return null;
 	}
 
 	// ──────────────────────────────────────────────────────────────────────────
