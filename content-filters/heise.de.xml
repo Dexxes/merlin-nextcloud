@@ -27,6 +27,7 @@
     <remove xpath="//div[@data-component='RecommendationBox']" />
     <remove xpath="//a-opt-in" />
     <remove xpath="//div[@class='ad ad--inread']" />
+    <remove xpath="//*[@data-component='NewsletterModule']" />
   </pre-filter>
 
   <images>
