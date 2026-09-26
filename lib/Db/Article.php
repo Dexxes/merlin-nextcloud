@@ -52,6 +52,10 @@ use OCP\AppFramework\Db\Entity;
  * @method void setRequiresLoginDomain(?string $requiresLoginDomain)
  * @method string|null getRequiresLoginPage()
  * @method void setRequiresLoginPage(?string $requiresLoginPage)
+ * @method bool getIsPaywalled()
+ * @method void setIsPaywalled(bool $isPaywalled)
+ * @method string|null getPaywallSubscribeUrl()
+ * @method void setPaywallSubscribeUrl(?string $paywallSubscribeUrl)
  */
 class Article extends Entity implements JsonSerializable {
 	protected $userId;
@@ -80,6 +84,14 @@ class Article extends Entity implements JsonSerializable {
 	// requiresLoginDomain === null ist der Normalfall (keine Paywall-Sperre).
 	protected $requiresLoginDomain;
 	protected $requiresLoginPage;
+	// Gesetzt, wenn der Extractor per <paywall><marker xpath="…"> (siehe
+	// ContentFilterSchema) einen Bezahlartikel erkannt hat, für dessen Domain
+	// KEINE <login>-Konfiguration existiert (sonst greift stattdessen
+	// requiresLoginDomain, siehe oben). Merlin kann den Artikel dann nicht
+	// automatisch freischalten - der Client zeigt einen Hinweis mit den
+	// Optionen "Abo abschliessen" (paywallSubscribeUrl) oder "Archivieren".
+	protected $isPaywalled;
+	protected $paywallSubscribeUrl;
 
 	public function __construct() {
 		$this->addType('userId', 'string');
@@ -109,6 +121,8 @@ class Article extends Entity implements JsonSerializable {
 		$this->addType('scrollUpdatedAt', 'integer');
 		$this->addType('requiresLoginDomain', 'string');
 		$this->addType('requiresLoginPage', 'string');
+		$this->addType('isPaywalled', 'integer');
+		$this->addType('paywallSubscribeUrl', 'string');
 	}
 
 	public function jsonSerialize(): array {
@@ -142,6 +156,12 @@ class Article extends Entity implements JsonSerializable {
 			// kein dedizierter Retry-Endpunkt).
 			'requiresLoginDomain' => $this->getRequiresLoginDomain(),
 			'requiresLoginPage'   => $this->getRequiresLoginPage(),
+			// false im Normalfall. true: Client soll einen Hinweis "Bezahlartikel"
+			// mit den Optionen "Abo abschliessen" (paywallSubscribeUrl, falls
+			// gesetzt) und "Archivieren" anzeigen - anders als bei
+			// requiresLoginDomain kann Merlin hier NICHT automatisch einloggen.
+			'isPaywalled'         => (bool) $this->getIsPaywalled(),
+			'paywallSubscribeUrl' => $this->getPaywallSubscribeUrl(),
 		];
 	}
 }

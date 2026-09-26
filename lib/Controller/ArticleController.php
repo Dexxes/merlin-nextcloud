@@ -279,6 +279,8 @@ class ArticleController extends Controller {
 				if (!empty($extracted['category'])) {
 					$article->setCategory($extracted['category']);
 				}
+				$article->setIsPaywalled((bool) ($extracted['isPaywalled'] ?? false));
+				$article->setPaywallSubscribeUrl($extracted['paywallSubscribeUrl'] ?? null);
 				$article->setUpdatedAt(new \DateTime());
 				$article->setIsProcessing(0);
 				$mapper->update($article);
