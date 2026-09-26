@@ -4,6 +4,17 @@ All notable changes to Merlin are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning based on
 [SemVer](https://semver.org/).
 
+## [1.0.7]
+
+### Added
+- Generic paywall detection via `<paywall><marker xpath>`/`<subscribe url>` in
+  the content-filter schema, for domains without `<login>` credential support:
+  `Article.isPaywalled`/`paywallSubscribeUrl`, content no longer persisted for
+  such articles, and both fields surfaced in the admin "Test run" panel.
+  Version bump is required for Nextcloud to serve the updated admin JS bundle
+  and pick up the new fields (assets/routes are cached and keyed by app
+  version, see 1.0.6 below).
+
 ## [1.0.6]
 
 ### Added
