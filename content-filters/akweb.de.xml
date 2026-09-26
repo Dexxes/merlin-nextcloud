@@ -30,6 +30,7 @@
   </post-filter>
 
   <metadata>
+    <author xpath="////header//a[contains(@href, 'https://www.akweb.de/autor-in/')]/text()"/>
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
     <author   xpath="//span[@class='author-name']" />
