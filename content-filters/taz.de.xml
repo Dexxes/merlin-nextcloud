@@ -37,12 +37,8 @@
     <remove id="Kommentarbereich" />
   </pre-filter>
 
-<!-- ── Zitate ─────────────────────────────────────────────────────────── -->
   <quotes>
-
-    <!-- Beispiel: BEM-Komponenten-Quote (z. B. Spiegel, Zeit) -->
     <quote container-xpath="//div[contains(@class,'typo-r-quote')]" />
-
   </quotes>
 
   <post-filter>
@@ -50,8 +46,8 @@
   </post-filter>
 
   <metadata>
-    <author   xpath="//span[@class='Autor']" />
-    <author   xpath="//span[contains(@class, 'typo-name-detail-bold')]" />
+    <!--<author   xpath="//span[@class='Autor']" />
+    <author   xpath="//span[contains(@class, 'typo-name-detail-bold')]" />-->
     <!-- Beispiele:
     <author   xpath="//span[@class='typo-name-detail-bold link ']" />
     <excerpt  xpath="//p[@class='article-intro']" />

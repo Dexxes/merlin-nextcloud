@@ -39,4 +39,9 @@
     -->
   </metadata>
 
+  <paywall>
+    <marker xpath='//section[@data-action="subscription-article-shown"]' />
+    <subscribe url="https://www.akweb.de/abo" />
+  </paywall>
+
 </domain>

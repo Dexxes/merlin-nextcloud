@@ -39,4 +39,9 @@
     -->
   </metadata>
 
+  <paywall>
+    <marker xpath='//div[@data-visibility="hard-paywall"]' />
+    <subscribe url="https://www.berliner-zeitung.de/checkout" />
+  </paywall>
+
 </domain>

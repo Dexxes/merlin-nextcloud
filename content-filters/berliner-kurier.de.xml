@@ -40,4 +40,11 @@
     -->
   </metadata>
 
+
+
+  <paywall>
+    <marker xpath='//div[@data-visibility="hard-paywall"]' />
+    <subscribe url="https://www.berliner-kurier.de/checkout" />
+  </paywall>
+
 </domain>
