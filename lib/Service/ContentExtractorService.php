@@ -3989,6 +3989,11 @@ class ContentExtractorService {
 		static $allowedScriptSrcs = [
 			'https://www.instagram.com/embed.js',
 			'https://platform.twitter.com/widgets.js',
+			// X liefert seinen Embed-Loader inzwischen auch (teils ausschließlich) unter
+			// der eigenen Domain aus, z. B. bei in Artikel eingebetteten Tweets auf
+			// spiegel.de - platform.twitter.com bleibt parallel gültig (Alt-Embeds,
+			// Merlins eigener buildXPostHtml()), deshalb beide statt Ersatz.
+			'https://platform.x.com/widgets.js',
 			'https://embed.bsky.app/static/embed.js',
 			'https://www.tiktok.com/embed.js',
 		];
