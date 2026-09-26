@@ -364,6 +364,20 @@ $checkMatch(
 	false
 );
 
+$checkMatch(
+	'taz.de-Bildserver: Lazy-Load-Platzhalter im Content ("/14/…webp") vs. og:image ("/1200/…jpeg"), gleiche Basis-ID',
+	'https://taz.de/picture/8594055/14/41632941.webp',
+	'https://taz.de/picture/8594055/1200/41632941.jpeg',
+	true
+);
+
+$checkMatch(
+	'taz.de-Bildserver-Rendition eines ANDEREN Artikelbilds (andere Basis-ID) matcht nicht',
+	'https://taz.de/picture/8594055/14/41632941.webp',
+	'https://taz.de/picture/8594055/1200/99999999.jpeg',
+	false
+);
+
 echo "\n" . str_repeat('─', 72) . "\n";
 if ($failures === []) {
 	echo "\033[32mAlle " . $passed . " Prüfungen bestanden.\033[0m\n";
