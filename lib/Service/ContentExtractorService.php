@@ -2442,6 +2442,88 @@ class ContentExtractorService {
 	}
 
 	/**
+	 * Entfernt alle <script>- und <style>-Elemente (inkl. Inhalt) aus einem HTML-String,
+	 * bevor der DOM-Parser ihn sieht.
+	 *
+	 * Ersetzt eine frühere regex-basierte Variante
+	 * (`preg_replace_callback('/<script\b([^>]*)>(.*?)<\/script>/si', ...)`), die bei sehr
+	 * großen einzelnen <script>-Blöcken (reale Seiten packen dort ganze Drittanbieter-
+	 * Bundles hinein, z. B. Outbrain-Bootstrap-Code mit >200 KB in einem einzigen Tag)
+	 * PCRE an sein `pcre.backtrack_limit` bringen konnte. `preg_replace_callback()` gibt
+	 * dann `null` zurück - und das dortige `?? $html` fing das lautlos ab, indem es das
+	 * KOMPLETTE, ungefilterte Original-HTML durchreichte: nicht nur der eine große Block,
+	 * sondern ALLE <script>-Tags im Dokument blieben stehen und ihr Inhalt (z. B. der
+	 * "Auch interessant"-Platzhaltertext aus so einem Bootstrap-Script) konnte von
+	 * Readability als Artikeltext aufgegriffen werden - ohne jede Fehlermeldung im Log.
+	 *
+	 * Diese Methode scannt stattdessen manuell per strpos()/stripos() von Tag zu Tag -
+	 * lineares Verhalten unabhängig von der Blockgröße, kein Backtracking, kein PCRE-Limit.
+	 * Ein Tag ohne schließendes Gegenstück (kaputtes HTML) wird geloggt und bis zum
+	 * Dokumentende entfernt, statt endlos zu suchen oder unverändert stehen zu bleiben.
+	 */
+	private function stripScriptAndStyleTags(string $html): string {
+		$out    = '';
+		$pos    = 0;
+		$length = strlen($html);
+
+		while ($pos < $length) {
+			// Nächstes <script oder <style suchen (case-insensitiv, mit Wortgrenze
+			// über den nachfolgenden Whitespace/'>' sichergestellt).
+			if (!preg_match('/<(script|style)\b/i', $html, $tagMatch, PREG_OFFSET_CAPTURE, $pos)) {
+				$out .= substr($html, $pos);
+				break;
+			}
+
+			// $tagMatch[0] ist der Gesamttreffer ("<script"/"<style") samt Offset des
+			// führenden '<' - $tagMatch[1] (die Capture-Gruppe) beginnt dagegen erst beim
+			// Tag-Namen selbst, ein Offset von dort würde das '<' im "davor"-Teil zurücklassen.
+			[, $tagStart]  = $tagMatch[0];
+			$tagName       = strtolower($tagMatch[1][0]);
+			$out          .= substr($html, $pos, $tagStart - $pos);
+
+			$openTagEnd = strpos($html, '>', $tagStart);
+			if ($openTagEnd === false) {
+				// Kaputtes Markup (Tag ohne '>') - Rest des Dokuments verwerfen, nicht
+				// endlos weitersuchen.
+				$this->logger->warning('stripScriptAndStyleTags: unclosed opening tag, truncating', ['tag' => $tagName]);
+				break;
+			}
+			$openTagAttrs = substr($html, $tagStart, $openTagEnd - $tagStart + 1);
+
+			$closeTag = '</' . $tagName;
+			$closeTagStart = stripos($html, $closeTag, $openTagEnd + 1);
+			if ($closeTagStart === false) {
+				$this->logger->warning('stripScriptAndStyleTags: unclosed tag, truncating rest of document', ['tag' => $tagName]);
+				$pos = $length;
+				break;
+			}
+			$content     = substr($html, $openTagEnd + 1, $closeTagStart - $openTagEnd - 1);
+			$closeTagEnd = strpos($html, '>', $closeTagStart);
+			$pos         = $closeTagEnd === false ? $length : $closeTagEnd + 1;
+
+			if ($tagName === 'style') {
+				continue; // <style> wird immer komplett entfernt.
+			}
+
+			// <script>: leer lassen, außer es ist einer der erlaubten Widget-Loader
+			// (Instagram/X/Bluesky/TikTok, siehe isAllowedWidgetScriptSrc()) - siehe
+			// Kommentar oben in applyRemoveRules().
+			if (trim($content) !== '') {
+				continue;
+			}
+			if (!preg_match('/\bsrc\s*=\s*(["\'])(.*?)\1/is', $openTagAttrs, $srcMatch)) {
+				continue;
+			}
+			$src = html_entity_decode($srcMatch[2], ENT_QUOTES, 'UTF-8');
+			if ($this->isAllowedWidgetScriptSrc($src)) {
+				$out .= $openTagAttrs . $content . substr($html, $closeTagStart, ($closeTagEnd === false ? $length : $closeTagEnd + 1) - $closeTagStart);
+			}
+		}
+
+		return $out;
+	}
+
+	/**
 	 * Apply a list of SimpleXMLElement <remove> nodes to an HTML string via DOM.
 	 * Shared helper used by applyPreFilters() and applyPostFilters().
 	 *
@@ -2462,28 +2544,14 @@ class ContentExtractorService {
 			return $html;
 		}
 
-		// <script>- und <style>-Tags (inkl. Inhalt) per RegEx entfernen, bevor der DOM-Parser
-		// den String verarbeitet. So werden auch komplexe JS-Inhalte mit <, >, & oder --
+		// <script>- und <style>-Tags (inkl. Inhalt) entfernen, bevor der DOM-Parser den
+		// String verarbeitet. So werden auch komplexe JS-Inhalte mit <, >, & oder --
 		// zuverlässig entfernt, ohne dass sie den DOM-Baum beschädigen können. Ausnahme wie
 		// bei cleanHtml(): die offiziellen Widget-Loader von Instagram/X/Bluesky/TikTok (siehe
 		// isAllowedWidgetScriptSrc()) überleben auch diesen - zeitlich früheren - Schritt,
 		// sonst würde er dasselbe Script wieder entfernen, das cleanHtml()/sanitizeHtml()
 		// weiter unten bewusst durchlassen (applyPostFilters() läuft VOR cleanHtml()).
-		$html = preg_replace_callback(
-			'/<script\b([^>]*)>(.*?)<\/script>/si',
-			function (array $m): string {
-				if (trim($m[2]) !== '') {
-					return '';
-				}
-				if (!preg_match('/\bsrc\s*=\s*(["\'])(.*?)\1/is', $m[1], $srcMatch)) {
-					return '';
-				}
-				$src = html_entity_decode($srcMatch[2], ENT_QUOTES, 'UTF-8');
-				return $this->isAllowedWidgetScriptSrc($src) ? $m[0] : '';
-			},
-			$html
-		) ?? $html;
-		$html = preg_replace('/<style\b[^>]*>.*?<\/style>/si',  '', $html) ?? $html;
+		$html = $this->stripScriptAndStyleTags($html);
 
 		$prev = libxml_use_internal_errors(true);
 		$dom = new \DOMDocument('1.0', 'UTF-8');
