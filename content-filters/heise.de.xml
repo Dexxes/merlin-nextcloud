@@ -28,6 +28,7 @@
     <remove xpath="//a-opt-in" />
     <remove xpath="//div[@class='ad ad--inread']" />
     <remove xpath="//*[@data-component='NewsletterModule']" />
+    <remove id="wtma_teaser_ho_vertrieb_inline_branding" />
   </pre-filter>
 
   <images>
