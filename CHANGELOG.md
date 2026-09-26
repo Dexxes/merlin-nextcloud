@@ -4,6 +4,15 @@ All notable changes to Merlin are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning based on
 [SemVer](https://semver.org/).
 
+## [1.0.8]
+
+### Fixed
+- `isPaywalled`/`paywallSubscribeUrl` were only added to the admin content-filter
+  test panel (1.0.7), not to the separate Personal-Settings test panel
+  (`UserContentFilterController::test()` / `PersonalFilterTestPanel.vue`) -
+  the two panels are backed by distinct controllers with their own field
+  whitelist, so fixing one silently left the other behind.
+
 ## [1.0.7]
 
 ### Added
