@@ -2095,6 +2095,34 @@ class ContentExtractorService {
 					$img = $imgNodes->item(0);
 					if (!$img instanceof \DOMElement) continue;
 
+					// Bildquelle bevorzugt aus src, sonst data-src (Lazy-Loading).
+					$imgSrc = trim($img->getAttribute('src'));
+					if ($imgSrc === '' || str_starts_with($imgSrc, 'data:')) {
+						$imgSrc = trim($img->getAttribute('data-src'));
+					}
+					// Web-Component-Bilder (z.B. heise.de <a-img src="...echtes-foto.jpeg">)
+					// wrappen intern ein <img> mit einer Base64/data:-Platzhalter-SVG als
+					// src (Lazy-Loading-Fallback für JS-lose Clients) - die echte
+					// Bild-URL steckt dann nur am <a-img>-Wrapper selbst. Ohne diesen
+					// Fallback würde die Figure mit der Platzhalter-SVG statt des echten
+					// Fotos gebaut, wodurch der spätere Hero-Bild-Abgleich (Step 12 in
+					// extract(), imagesMatchForDedup()) nie träfe und die hier extrahierte
+					// Caption verworfen würde.
+					if ($imgSrc === '' || str_starts_with($imgSrc, 'data:')) {
+						$carrier = $img->parentNode;
+						while ($carrier instanceof \DOMElement) {
+							$carrierSrc = trim($carrier->getAttribute('src'));
+							if ($carrierSrc !== '' && !str_starts_with($carrierSrc, 'data:')) {
+								$imgSrc = $carrierSrc;
+								break;
+							}
+							$carrier = $carrier->parentNode;
+						}
+					}
+					if ($imgSrc === '' || str_starts_with($imgSrc, 'data:')) continue;
+
+					$img->setAttribute('src', $imgSrc);
+
 					// Extract caption text
 					$captionResult = @$xpath->query($captionXpath, $container);
 					if ($captionResult === false) {
