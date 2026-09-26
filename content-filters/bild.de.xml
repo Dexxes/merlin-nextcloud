@@ -41,4 +41,9 @@
     -->
   </metadata>
 
+<paywall>
+    <marker xpath='//script[contains(text(), contentAccessType) and contains(text(), "paid")]' />
+    <subscribe url="https://angebot.bild.de/info/" />
+  </paywall>
+
 </domain>
