@@ -92,6 +92,7 @@ final class ContentFilterSchema {
 		'json',
 		'metadata',
 		'category',
+		'paywall',
 	];
 
 	/**
@@ -108,6 +109,7 @@ final class ContentFilterSchema {
 		'json',
 		'metadata',
 		'category',
+		'paywall',
 	];
 
 	/**
@@ -202,6 +204,18 @@ final class ContentFilterSchema {
 		],
 		'category' => [
 			'kind' => 'root-text',
+		],
+		'paywall' => [
+			'kind'     => 'field-group',
+			'children' => [
+				// XPath, der auf das rohe HTML VOR Readability angewendet wird und
+				// nur dann matcht, wenn der Artikel (noch) hinter einer Paywall
+				// liegt, z. B. //div[contains(@class,'paywall-notice')].
+				'marker'    => ['required' => ['xpath']],
+				// Ziel-URL, zu der der Reader verlinkt, wenn ein Artikel dieser
+				// Domain als Paywall erkannt wurde ("Abo abschliessen").
+				'subscribe' => ['required' => ['url']],
+			],
 		],
 		'note' => [
 			'kind' => 'root-text',
