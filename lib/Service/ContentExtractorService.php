@@ -1383,13 +1383,16 @@ class ContentExtractorService {
 			// Basis-ID normalisieren.
 			$url = preg_replace('/(csm_\d+)_[0-9a-f]{6,}(\.\w+)$/i', '$1$2', $url) ?? $url;
 
-			// taz.de-Bildserver: Pfadschema "/picture/<artikel-id>/<breite>/<hash>.<ext>"
+			// taz.de-Bildserver: Pfadschema "/picture/<artikel-id>/<breite>/<dateiname>.<ext>"
 			// liefert je nach Einbettung unterschiedliche Renditions UND unterschiedliche
 			// Formate derselben Aufnahme, z. B. ".../picture/8594055/1200/41632941.jpeg"
 			// (og:image) vs. ".../picture/8594055/14/41632941.webp" (Lazy-Load-Platzhalter
-			// im Artikeltext, an dem im DOM die <figcaption> hängt). Breite und
-			// Dateiendung entfernen, damit beide auf dieselbe Basis-Asset-ID normalisieren.
-			$url = preg_replace('#(/picture/\d+)/\d+/(\d+)\.\w+$#i', '$1/$2', $url) ?? $url;
+			// im Artikeltext, an dem im DOM die <figcaption> hängt). Der Dateiname ist
+			// nicht immer ein reiner numerischer Hash - taz.de nutzt teils sprechende
+			// Slugs, auch mit eingebetteten Punkten (z. B. "TRS.IMG-8042.KevinMazur.jpeg").
+			// Deshalb "[^/]+" statt "\d+": Breite und Dateiendung entfernen, damit beide
+			// auf denselben Dateinamen (ohne Endung) normalisieren.
+			$url = preg_replace('#(/picture/\d+)/\d+/([^/]+)\.\w+$#i', '$1/$2', $url) ?? $url;
 
 			// AEM-Bildserver-Renditions: ein oder mehrere trailing "key=wert"-
 			// Pfadsegmente (z. B. "size=1280x720.jpg", "quality=160")
