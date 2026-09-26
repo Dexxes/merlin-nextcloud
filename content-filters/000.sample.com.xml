@@ -266,6 +266,21 @@
   ═══════════════════════════════════════════════════════════════════════════════
   Weist allen Artikeln dieser Domain eine feste Kategorie zu, ohne XPath.
   Wird von <metadata><category> überschrieben, falls dort ein Wert gefunden wird.
+
+  ═══════════════════════════════════════════════════════════════════════════════
+  PAYWALL  (<paywall>)
+  ═══════════════════════════════════════════════════════════════════════════════
+  Reine Deklaration, noch ohne Auswertung durch den Extractor: legt fest, woran
+  ein Paywall-Artikel dieser Domain zu erkennen wäre und wohin ein Abo-Link
+  führen würde. Beide Felder sind unabhängig voneinander optional.
+
+    <marker xpath="//div[contains(@class,'paywall-notice')]" />
+      XPath auf das rohe HTML VOR Readability. Soll nur dann matchen, wenn der
+      Artikel (noch) hinter der Paywall liegt.
+
+    <subscribe url="https://abo.sample.com/bestellen" />
+      Ziel-URL zum Abschliessen eines Abos für diese Domain. Muss eine absolute
+      http(s)-URL sein.
 -->
 <domain name="sample.com">
 
@@ -419,5 +434,14 @@
   <!-- Weist allen Artikeln dieser Domain die Kategorie "Nachrichten" zu.   -->
   <!-- Wird durch <metadata><category xpath="..."> überschrieben.           -->
   <!-- <category>Nachrichten</category> -->
+
+  <!-- ── Paywall ────────────────────────────────────────────────────────── -->
+  <!-- Noch ohne Auswertung durch den Extractor, siehe Erklärung oben.       -->
+  <!--
+  <paywall>
+    <marker xpath="//div[contains(@class,'paywall-notice')]" />
+    <subscribe url="https://abo.sample.com/bestellen" />
+  </paywall>
+  -->
 
 </domain>

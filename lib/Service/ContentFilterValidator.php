@@ -449,6 +449,16 @@ class ContentFilterValidator {
 			return;
 		}
 
+		if ($tag === 'subscribe' && $attrName === 'url') {
+			if (!$this->isHttpUrl($value)) {
+				$errors[] = [
+					'message' => sprintf('url bei <subscribe> muss eine absolute http(s)-URL sein, war: %s', $value),
+					'line'    => $rule->getLineNo(),
+				];
+			}
+			return;
+		}
+
 		if ($tag === 'header' && $attrName === 'name') {
 			if (!in_array(strtolower($value), ContentFilterSchema::FETCH_HEADER_WHITELIST, true)) {
 				$errors[] = [
@@ -641,6 +651,21 @@ class ContentFilterValidator {
 		libxml_use_internal_errors($prev);
 
 		return $result !== false;
+	}
+
+	/**
+	 * true, wenn $value eine absolute http(s)-URL ist.
+	 *
+	 * Nur http/https zugelassen: die Config-Datei ist Verwaltungs-/Nutzerdaten,
+	 * ein anderes Schema (javascript:, data:, file:) hat hier keinen legitimen
+	 * Anwendungsfall und der Wert landet als Link im Reader.
+	 */
+	private function isHttpUrl(string $value): bool {
+		if (filter_var($value, FILTER_VALIDATE_URL) === false) {
+			return false;
+		}
+		$scheme = strtolower((string) parse_url($value, PHP_URL_SCHEME));
+		return $scheme === 'http' || $scheme === 'https';
 	}
 
 	/**
