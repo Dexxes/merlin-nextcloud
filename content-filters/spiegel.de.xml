@@ -22,15 +22,16 @@
 <domain name="spiegel.de">
 
   <pre-filter>
+  <!-- FÜR SPIGEL MUSS WEGEN ALPINE.JS ALLES ALS POST FILTER -->
     <!--<remove xpath="//article/header" />-->
     <!--<remove xpath="//svg[@data-link-flag]" />-->
     <!--<remove xpath="//div[@data-has-paid-access-hidden='' and @data-not-gift-article-hidden='']" />-->
-    <remove xpath="//section[@data-area='related_articles']" />
     <!--<remove xpath="//*[@x-effect]" />-->
   </pre-filter>
 
   <post-filter>
-    <!-- Hier post-Readability-Remove-Regeln eintragen -->
+    <remove xpath="//*[@data-area='embed']" />
+    <remove xpath="//*[@data-area='related_articles']" />
   </post-filter>
 
 <images>
@@ -51,7 +52,7 @@
   </metadata>
 
 <paywall>
-    <marker xpath="//span[@data-contains-flags='plus-paid']" />
+    <marker xpath="//header//span[@data-contains-flags='plus-paid']" />
     <subscribe url="https://abo.spiegel.de/" />
   </paywall>
 
