@@ -274,6 +274,12 @@ class UserContentFilterController extends Controller {
 				'readingTime' => $article['readingTime'] ?? 0,
 				'publishedAt' => $published instanceof \DateTime ? $published->format(\DateTimeInterface::ATOM) : null,
 				'content'     => $article['content'] ?? '',
+				// Derselbe Nachtrag wie in ContentFilterController::test() (siehe
+				// dort): isPaywalled/paywallSubscribeUrl fehlten hier ebenso, weil
+				// dies ein komplett separater Controller für die Personal-
+				// Settings-Testleiste ist, nicht bloss ein Aufruf derselben Methode.
+				'isPaywalled'         => (bool) ($article['isPaywalled'] ?? false),
+				'paywallSubscribeUrl' => $article['paywallSubscribeUrl'] ?? null,
 			],
 			'trace' => $trace->toArray(),
 			'summary' => [
