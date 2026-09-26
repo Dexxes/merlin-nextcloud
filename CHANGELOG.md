@@ -4,6 +4,17 @@ All notable changes to Merlin are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning based on
 [SemVer](https://semver.org/).
 
+## [1.0.9]
+
+### Fixed
+- `ExtensionController::add()` (the Pocket-compatible browser-extension save
+  endpoint) never persisted `isPaywalled`/`paywallSubscribeUrl` at all - it
+  has its own separate copy of the extraction-result-to-Article mapping,
+  independent of `ArticleController::create()`, which was already correct.
+  Articles saved through this endpoint always got `isPaywalled = false`
+  regardless of what the content filter detected. Confirmed no other copies
+  of this mapping exist (`grep` for `$extracted['content']` across `lib/`).
+
 ## [1.0.8]
 
 ### Fixed
