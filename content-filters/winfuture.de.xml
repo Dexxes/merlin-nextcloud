@@ -25,6 +25,7 @@
     <remove xpath="//div[@class='summary_box']" />
     <remove xpath="//strong[@class='article-intro']" />
     <remove xpath="//div[@class='video_container']" />
+    <remove xpath="//b[text()='Siehe auch:']" />
   </pre-filter>
 
   <post-filter>
@@ -32,7 +33,7 @@
   </post-filter>
 
   <metadata>
-  <author   xpath="//a[@rel='author']" />
+  <author   xpath="//span[@class='author']/a[@rel='author']" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
     <author   xpath="//span[@class='author-name']" />

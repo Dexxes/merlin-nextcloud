@@ -29,8 +29,8 @@
 
   <images>
     <caption
-      container-xpath="//div[@class='article-text-wrapper']//figure"
-      caption-xpath=".//figcaption/text()"
+      container-xpath="//figure"
+      caption-xpath=".//figcaption"
     />
   </images>
 

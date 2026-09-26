@@ -33,6 +33,13 @@
     <!-- Hier post-Readability-Remove-Regeln eintragen -->
   </post-filter>
 
+  <images>
+    <caption
+      container-xpath="//div[contains(@class,'contentimage')]"
+      caption-xpath=".//span[contains(@class,'caption')]"
+    />
+  </images>
+
   <metadata>
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
