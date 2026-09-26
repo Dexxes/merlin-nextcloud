@@ -350,6 +350,20 @@ $checkMatch(
 	false
 );
 
+$checkMatch(
+	'TYPO3-Bildserver-Renditions (lto.de-Stil): unterschiedlicher Crop-Hash hinter "csm_<id>", gleiches Basis-Bild',
+	'https://www.lto.de/fileadmin/_processed_/3/d/csm_585333926_c7e56823e5.jpg',
+	'https://www.lto.de/fileadmin/_processed_/3/d/csm_585333926_caaa07ccb1.jpg',
+	true
+);
+
+$checkMatch(
+	'TYPO3-Bildserver-Rendition eines ANDEREN Basis-Bilds (andere "csm_<id>") matcht nicht',
+	'https://www.lto.de/fileadmin/_processed_/3/d/csm_585333926_c7e56823e5.jpg',
+	'https://www.lto.de/fileadmin/_processed_/3/d/csm_111222333_caaa07ccb1.jpg',
+	false
+);
+
 echo "\n" . str_repeat('─', 72) . "\n";
 if ($failures === []) {
 	echo "\033[32mAlle " . $passed . " Prüfungen bestanden.\033[0m\n";

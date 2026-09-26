@@ -1338,6 +1338,14 @@ class ContentExtractorService {
 			// normalisieren.
 			$url = preg_replace('#/[A-Z0-9]+_\d+_\d+_W\d+(?=/)#i', '', $url) ?? $url;
 
+			// TYPO3-Bildserver-Renditions (z. B. lto.de): "csm_"-verarbeitete
+			// Dateien kodieren pro Crop/Skalierung einen eigenen Hash hinter der
+			// Basis-Asset-ID, z. B. "csm_585333926_c7e56823e5.jpg" (og:image) vs.
+			// "csm_585333926_caaa07ccb1.jpg" (Content-<figure>) - beide Renditions
+			// derselben Aufnahme. Den Hash entfernen, damit beide auf dieselbe
+			// Basis-ID normalisieren.
+			$url = preg_replace('/(csm_\d+)_[0-9a-f]{6,}(\.\w+)$/i', '$1$2', $url) ?? $url;
+
 			// AEM-Bildserver-Renditions: ein oder mehrere trailing "key=wert"-
 			// Pfadsegmente (z. B. "size=1280x720.jpg", "quality=160")
 			// entfernen, bis das stabile Basis-Asset übrig bleibt.
