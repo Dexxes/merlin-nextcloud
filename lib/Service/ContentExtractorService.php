@@ -737,6 +737,18 @@ class ContentExtractorService {
 		// der Content-Security-Policy zu überlassen (Defense-in-Depth).
 		$content = $this->sanitizeHtml($content);
 
+		// ── Step 14: Paywall-Artikel ohne Login-Möglichkeit ─────────────────────
+		// Ohne gültiges Abo ist $content bestenfalls ein Teaser, im schlimmsten
+		// Fall Reste des Paywall-Overlays selbst, die Readability trotz Pre-
+		// Filter als "Artikel" durchgewunken hat - beides Datenmüll, den kein
+		// Client sinnvoll anzeigen kann. Wird daher NICHT in die DB
+		// geschrieben; der Client zeigt stattdessen den in Article::isPaywalled
+		// transportierten Hinweis mit den Optionen Abo/Archivieren.
+		if ($paywall['isPaywalled']) {
+			$content     = '';
+			$readingTime = 0;
+		}
+
 		return [
 			'url'                 => $url,
 			'title'               => $title,
