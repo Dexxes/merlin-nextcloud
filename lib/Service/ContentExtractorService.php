@@ -2165,18 +2165,41 @@ class ContentExtractorService {
 
 					// Wenn ein Custom-Element-Ancestor existiert (Tag-Name enthält "-"),
 					// wird dieser durch die figure ersetzt – Readability würde sonst den
-					// gesamten Custom-Element-Baum (z.B. <a-lightbox>) verwerfen.
-					$replaceTarget = $container;
+					// gesamten Custom-Element-Baum (z.B. <a-lightbox>) verwerfen. Gleichzeitig
+					// wird der äußerste <header>/<nav>/<aside>/<footer>-Vorfahre gemerkt
+					// (z.B. heise.de's <header class="a-article-header">, das den kompletten
+					// Hero-Bild-Block umschließt): Readability entfernt solche Layout-Tags
+					// per grabArticle()-Scoring komplett aus dem Top-Kandidaten, bevor die
+					// "content"-Klasse der Figure überhaupt greifen kann - "merlin-content-figure"
+					// rettet das Element also nur, wenn es NICHT in so einem Vorfahren hängen bleibt.
+					$replaceTarget  = $container;
+					$hoistAncestor  = null;
 					$ancestor = $container->parentNode;
 					while ($ancestor instanceof \DOMElement && strtolower($ancestor->nodeName) !== 'body') {
 						if (str_contains($ancestor->nodeName, '-')) {
 							$replaceTarget = $ancestor;
+						}
+						if (in_array(strtolower($ancestor->nodeName), ['header', 'nav', 'aside', 'footer'], true)) {
+							$hoistAncestor = $ancestor;
 						}
 						$ancestor = $ancestor->parentNode;
 					}
 
 					if ($replaceTarget->parentNode !== null) {
 						$replaceTarget->parentNode->replaceChild($figure, $replaceTarget);
+					}
+
+					// Figure aus dem Layout-Element herausziehen und als dessen direktes
+					// Geschwister-Element wieder einfügen, damit sie im Dokumentfluss
+					// neben dem eigentlichen Artikeltext steht statt in einem von
+					// Readability verworfenen Ast.
+					if ($hoistAncestor !== null && $hoistAncestor->parentNode !== null) {
+						$contentContainer = $this->findLikelyContentContainer($hoistAncestor);
+						if ($contentContainer !== null) {
+							$contentContainer->insertBefore($figure, $contentContainer->firstChild);
+						} else {
+							$hoistAncestor->parentNode->insertBefore($figure, $hoistAncestor->nextSibling);
+						}
 					}
 				}
 			}
@@ -2185,6 +2208,53 @@ class ContentExtractorService {
 		} catch (\Throwable) {
 			return $html; // Never break extraction
 		}
+	}
+
+	/**
+	 * Findet ausgehend von einem verworfenen Layout-Element (siehe
+	 * normalizeImageCaptions()' $hoistAncestor) den wahrscheinlichen
+	 * Artikeltext-Container, in den die gerettete Hero-Figure gehängt werden
+	 * kann, damit sie im selben Ast wie der von Readability ausgewählte
+	 * Top-Kandidat landet.
+	 *
+	 * Domain-unabhängig: startet beim nächsten Geschwister-Container des
+	 * Layout-Elements (bzw. dessen Elternelements) und steigt darin
+	 * wiederholt in das Kind mit dem meisten Textinhalt ab, dessen
+	 * class/id Readabilitys eigenem POSITIVE-Muster
+	 * (article|body|content|entry|main|page|post|text|blog|story) entspricht -
+	 * bei geschachtelten Wrapper-Divs (z.B. "content-container" >
+	 * "article-content") konvergiert das zuverlässig auf den innersten
+	 * Wrapper direkt um die eigentlichen Absätze, ohne domainspezifische
+	 * Selektoren zu benötigen.
+	 */
+	private function findLikelyContentContainer(\DOMElement $hoistAncestor): ?\DOMElement {
+		$start = $hoistAncestor->parentNode instanceof \DOMElement
+			? ($hoistAncestor->parentNode->nextElementSibling ?? $hoistAncestor->nextElementSibling)
+			: $hoistAncestor->nextElementSibling;
+		if (!$start instanceof \DOMElement) {
+			return null;
+		}
+
+		$target = $start;
+		for ($depth = 0; $depth < 6; $depth++) {
+			$best    = null;
+			$bestLen = 0;
+			foreach ($target->childNodes as $child) {
+				if (!$child instanceof \DOMElement) continue;
+				if (in_array(strtolower($child->nodeName), ['script', 'style', 'nav', 'header', 'footer', 'aside'], true)) continue;
+				$classAndId = strtolower($child->getAttribute('class') . ' ' . $child->getAttribute('id'));
+				if (!preg_match('/article|body|content|entry|main|page|post|text|blog|story/i', $classAndId)) continue;
+				$len = strlen(trim($child->textContent));
+				if ($len > $bestLen) {
+					$bestLen = $len;
+					$best    = $child;
+				}
+			}
+			if ($best === null) break;
+			$target = $best;
+		}
+
+		return $target;
 	}
 
 	/**
