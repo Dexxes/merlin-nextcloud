@@ -378,6 +378,27 @@ $checkMatch(
 	false
 );
 
+$checkMatch(
+	'taz.de-Bildserver: sprechender Dateiname mit Bindestrichen statt numerischem Hash matcht',
+	'https://taz.de/picture/8591408/14/Jugendzentrum-La-Casa-Hellersdorf-Berlin.webp',
+	'https://taz.de/picture/8591408/1200/Jugendzentrum-La-Casa-Hellersdorf-Berlin.jpeg',
+	true
+);
+
+$checkMatch(
+	'taz.de-Bildserver: sprechender Dateiname mit eingebetteten Punkten matcht',
+	'https://taz.de/picture/8589465/14/TRS.IMG-8042.KevinMazur.webp',
+	'https://taz.de/picture/8589465/1200/TRS.IMG-8042.KevinMazur.jpeg',
+	true
+);
+
+$checkMatch(
+	'taz.de-Bildserver: unterschiedliche sprechende Dateinamen (anderes Bild) matcht nicht',
+	'https://taz.de/picture/8591408/14/Jugendzentrum-La-Casa-Hellersdorf-Berlin.webp',
+	'https://taz.de/picture/8591408/1200/Ein-anderes-Bild.jpeg',
+	false
+);
+
 echo "\n" . str_repeat('─', 72) . "\n";
 if ($failures === []) {
 	echo "\033[32mAlle " . $passed . " Prüfungen bestanden.\033[0m\n";
