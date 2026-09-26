@@ -140,7 +140,9 @@ class ContentExtractorService {
 	 *   imageUrl: ?string,
 	 *   readingTime: int,
 	 *   publishedAt: ?\DateTime,
-	 *   category: ?string
+	 *   category: ?string,
+	 *   isPaywalled: bool,
+	 *   paywallSubscribeUrl: ?string
 	 * }
 	 * @param ContentFilterTrace|null $trace Optionale Regel-Diagnose für den
 	 *        Filter-Testlauf in den Admin-Einstellungen. Im Normalbetrieb null,
@@ -207,7 +209,9 @@ class ContentExtractorService {
 	 *   imageUrl: ?string,
 	 *   readingTime: int,
 	 *   publishedAt: ?\DateTime,
-	 *   category: ?string
+	 *   category: ?string,
+	 *   isPaywalled: bool,
+	 *   paywallSubscribeUrl: ?string
 	 * }
 	 * @param string|null $userId UID des aufrufenden Nutzers, siehe extract().
 	 */
@@ -324,6 +328,12 @@ class ContentExtractorService {
 				$domainMeta['category'] = 'Mastodon';
 			}
 		}
+
+		// ── Step 2c: Generische Paywall-Erkennung ────────────────────────────
+		// Muss vor dem Pre-Filter laufen: ein Bundle-<remove> entfernt
+		// Paywall-Overlays typischerweise genau dort, wo der <paywall><marker>
+		// sie erkennen soll.
+		$paywall = $this->detectPaywall($rawHtml, $domain);
 
 		// ── Step 3: Image caption normalisation ─────────────────────────────
 		// Rewrap domain-specific image+caption structures into standard
@@ -728,16 +738,18 @@ class ContentExtractorService {
 		$content = $this->sanitizeHtml($content);
 
 		return [
-			'url'         => $url,
-			'title'       => $title,
-			'content'     => $content,
-			'excerpt'     => $excerpt,
-			'author'      => $author,
-			'siteName'    => $siteName,
-			'imageUrl'    => $normalizedImageUrl,
-			'readingTime' => $readingTime,
-			'publishedAt' => $publishedAt,
-			'category'    => $domainMeta['category'],
+			'url'                 => $url,
+			'title'               => $title,
+			'content'             => $content,
+			'excerpt'             => $excerpt,
+			'author'              => $author,
+			'siteName'            => $siteName,
+			'imageUrl'            => $normalizedImageUrl,
+			'readingTime'         => $readingTime,
+			'publishedAt'         => $publishedAt,
+			'category'            => $domainMeta['category'],
+			'isPaywalled'         => $paywall['isPaywalled'],
+			'paywallSubscribeUrl' => $paywall['subscribeUrl'],
 		];
 	}
 
@@ -1711,6 +1723,91 @@ class ContentExtractorService {
 		}
 
 		throw new PaywallLoginRequiredException($domain, $loginConfig->page);
+	}
+
+	/**
+	 * Generische Paywall-Erkennung über <paywall><marker xpath="…"> (siehe
+	 * ContentFilterSchema): anders als assertNotPaywalled() löst ein Treffer
+	 * KEINE Exception und keinen Login-Versuch aus, sondern liefert ein Flag +
+	 * optionale Abo-URL, die der Aufrufer auf den Artikel schreibt. Gedacht
+	 * für Domains OHNE <login>-Unterstützung, bei denen Merlin den Artikel
+	 * grundsätzlich nicht automatisch freischalten kann - der Client zeigt
+	 * stattdessen einen Hinweis mit den Optionen "Abo abschliessen"/
+	 * "Archivieren" (siehe Article::jsonSerialize()).
+	 *
+	 * Läuft bewusst VOR dem Pre-Filter (auf dem noch unveränderten
+	 * $rawHtml): ein Bundle-<remove> entfernt Paywall-Overlays typischerweise
+	 * genau dort, wo der Marker sie erkennen soll.
+	 *
+	 * Hat die Domain eine <login>-Konfiguration, übernimmt stattdessen der
+	 * bestehende Credential-Login-Flow (assertNotPaywalled()) die Erkennung -
+	 * ein zusätzlicher generischer Treffer wäre dort redundant und würde dem
+	 * Nutzer zwei widersprüchliche Hinweise gleichzeitig zeigen.
+	 *
+	 * @return array{isPaywalled: bool, subscribeUrl: ?string}
+	 */
+	private function detectPaywall(string $rawHtml, string $domain): array {
+		$none = ['isPaywalled' => false, 'subscribeUrl' => null];
+
+		$config = $this->loadDomainConfig($domain);
+		if ($config === null || !isset($config->paywall)) {
+			return $none;
+		}
+
+		$markerRules = $config->xpath('paywall/marker') ?: [];
+		if (empty($markerRules)) {
+			return $none;
+		}
+
+		if ($this->siteCredentials->loadLoginConfig($domain) !== null) {
+			return $none;
+		}
+
+		$prev = libxml_use_internal_errors(true);
+		$dom  = new \DOMDocument();
+		$dom->encoding = 'UTF-8';
+		$dom->loadHTML(
+			'<?xml encoding="utf-8" ?>' . $rawHtml,
+			LIBXML_NOERROR | LIBXML_NOWARNING
+		);
+		libxml_clear_errors();
+		libxml_use_internal_errors($prev);
+		$xpath = new \DOMXPath($dom);
+
+		$matched = false;
+		foreach ($markerRules as $rule) {
+			$expr = trim((string) ($rule['xpath'] ?? ''));
+			if ($expr === '') {
+				continue;
+			}
+			$result = @$xpath->query($expr);
+			if ($result === false) {
+				$this->logger->warning('content-filters: invalid paywall marker XPath skipped', [
+					'xpath'   => $expr,
+					'context' => $domain,
+				]);
+				continue;
+			}
+			if ($result->length > 0) {
+				$matched = true;
+				break;
+			}
+		}
+
+		if (!$matched) {
+			return $none;
+		}
+
+		$subscribeUrl = null;
+		foreach (($config->xpath('paywall/subscribe') ?: []) as $rule) {
+			$candidate = trim((string) ($rule['url'] ?? ''));
+			if ($candidate !== '') {
+				$subscribeUrl = $candidate;
+				break;
+			}
+		}
+
+		return ['isPaywalled' => true, 'subscribeUrl' => $subscribeUrl];
 	}
 
 	// SSRF-Guard (assertPublicHostAndResolve/resolveHostIps/isPublicIp/buildResolvePin) via SsrfSafeResolver-Trait.
