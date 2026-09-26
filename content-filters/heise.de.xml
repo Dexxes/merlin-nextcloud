@@ -45,9 +45,24 @@
     <title    xpath="//h1[@class='article-title']" />
     <author   xpath="//span[@class='author-name']" />
     <excerpt  xpath="//p[@class='article-intro']" />
-    <image    xpath="//meta[@property='og:image']/@content" />
     <published xpath="//time[@itemprop='datePublished']/@datetime" />
     -->
+
+    <!--
+      og:image zeigt bei heise.de auf eine eigens generierte Social-Crop-
+      Rendition (anderer Datei-Hash als das Bild im Artikeltext, z.B.
+      "...-0528f3028c5228bb.jpg" vs. "...-dcb760efb2016392.jpeg" für dasselbe
+      Foto) - imagesMatchForDedup() kann die beiden URLs deshalb nicht als
+      "gleiches Bild" erkennen, wodurch die per <images><caption> oben
+      extrahierte Caption nie dem Hero-Bild zugeordnet wird (siehe z.B.
+      https://www.heise.de/news/Ueberwachung-ohne-Staatstrojaner-...).
+      Hier wird daher direkt die src des Artikel-Hero-Bilds selbst als
+      imageUrl übernommen (überschreibt og:image, siehe Step 9 in
+      ContentExtractorService::extract()) - identisch zur vom
+      <images><caption>-Container gelieferten URL, damit der Dedup-Abgleich
+      exakt matcht.
+    -->
+    <image xpath="//a-lightbox[contains(@class,'article-image')]//a-img/@src" />
   </metadata>
 
 </domain>
