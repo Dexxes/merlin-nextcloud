@@ -1432,6 +1432,14 @@ class ContentExtractorService {
 			$url = explode('?', $url, 2)[0];
 			$url = preg_replace('/-\d+x\d+(?=\.\w+$)/i', '', $url) ?? $url;
 
+			// spiegel.de-Bildserver: Dateiname trägt Breite, Seitenverhältnis und
+			// Fokuspunkt als "_w<Breite>_r<Verhältnis>_fpx<x>_fpy<y>"-Suffix vor
+			// der Endung, z. B. "<uuid>_w1200_r1.778_fpx29_fpy41.jpg" (og:image)
+			// vs. "<uuid>_w960_r1.5_fpx29_fpy41.jpg" (Content-<figure>, andere
+			// Breite/Beschnitt derselben Aufnahme). Das Suffix entfernen, damit
+			// beide auf dieselbe UUID+Endung normalisieren.
+			$url = preg_replace('/_w\d+_r[\d.]+_fpx\d+_fpy\d+(?=\.\w+$)/i', '', $url) ?? $url;
+
 			// Tagesspiegel-CDN "alternates"-Renditions: ein mittleres Pfadsegment
 			// wie "BASE_16_9_W1400" oder "BASE_21_9_W1000" kodiert Seitenverhältnis
 			// und Breite derselben Aufnahme, z. B.
