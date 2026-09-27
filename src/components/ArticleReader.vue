@@ -1307,6 +1307,24 @@ article {
 	border-radius: 4px;
 }
 
+/* Tabellen aus dem Artikel-HTML bringen oft feste Spaltenbreiten mit und
+   sprengen sonst die Artikelspalte statt zu umbrechen; block+auto-Scroll
+   hält sie innerhalb der Spaltenbreite. */
+.article-body :deep(table) {
+	display: block;
+	max-width: 100%;
+	width: max-content;
+	overflow-x: auto;
+	margin: 2em 0;
+	border-collapse: collapse;
+}
+
+.article-body :deep(th),
+.article-body :deep(td) {
+	border: 1px solid var(--color-border);
+	padding: 0.5em 0.75em;
+}
+
 /* Video-Embeds (YouTube/Vimeo/Twitch/TikTok/Facebook/Arte), siehe
    isAllowedVideoEmbedSrc() im Backend. 16:9 als bester Kompromiss über alle
    Hosts hinweg – einzelne Embeds bringen zwar eigene width/height mit, die
