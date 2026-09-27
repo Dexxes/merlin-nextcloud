@@ -3775,8 +3775,9 @@ class ContentExtractorService {
 		// side effects. The only thing this can break is same-document anchor
 		// links (<a href="#fn1"> → <sup id="fn1">) inside the article, which is
 		// an acceptable trade-off in a read-later reader view - sanitizeHtml()'s
-		// isPureFragmentLink() check removes such pure-fragment links outright
-		// anyway, rather than leaving them pointing nowhere.
+		// isPureFragmentLink() check unwraps such pure-fragment links anyway
+		// (dropping the dead <a> but keeping its content), rather than leaving
+		// them pointing nowhere.
 		$html = preg_replace_callback(
 			'/(<[^>]+\bid=["\'])([^"\']*?)(["\'])/i',
 			static function (array $m): string {
@@ -3981,13 +3982,20 @@ class ContentExtractorService {
 			// Reine Sprungmarken-Links (z. B. <a href="#focus">) verweisen nur auf eine
 			// Anker-ID der URSPRÜNGLICHEN Seite - deren Zielelement existiert im
 			// extrahierten Artikel gar nicht mehr (id-Attribute werden oben in
-			// cleanHtml() entfernt, siehe Kommentar dort). In der Praxis sind das
-			// ohnehin UI-Elemente der Quellseite (Skip-Navigation, "Nach oben",
-			// Inhaltsverzeichnis-Anker) statt Artikeltext, deshalb komplett samt
-			// Inhalt entfernen statt nur den href zu leeren - ein toter Link-Rest
-			// ohne Ziel wäre im Reader nur Lese-Rauschen.
+			// cleanHtml() entfernt, siehe Kommentar dort). Nur den <a>-Wrapper
+			// auflösen (Kinder an seine Stelle setzen), NICHT das ganze Element
+			// samt Inhalt entfernen: manche Seiten (z. B. t-online.de) verwenden
+			// genau so einen Link als reinen Lightbox-/Vollbild-Trigger UM ein
+			// Bild - ein removeChild() hätte dort das Bild mitgelöscht. Die
+			// hochgezogenen Kinder (z. B. dieses <img>) stehen bereits in
+			// $elements und durchlaufen den Rest dieser Schleife normal weiter,
+			// nur ohne den nun toten Link drumherum.
 			if ($tag === 'a' && $this->isPureFragmentLink($el->getAttribute('href'))) {
-				$el->parentNode->removeChild($el);
+				$parent = $el->parentNode;
+				while ($el->firstChild !== null) {
+					$parent->insertBefore($el->firstChild, $el);
+				}
+				$parent->removeChild($el);
 				continue;
 			}
 
