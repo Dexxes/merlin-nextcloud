@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+
 <!--
 	Parkliste von Domains, die Merlin bewusst NICHT zu scrapen versucht (siehe
 	ContentFilterRepository::isUnsupportedDomain(), ContentExtractorService::extract()).
@@ -16,8 +17,9 @@
 	als XML erkennen; ContentFilterRepository::getUnsupportedDomains() liest
 	sie mit einem künstlich hinzugefügten Root-Element ein, nicht als
 	eigenständiges Dokument.
-
-	Anders als 000dead.xml (reine Doku-Parkliste, wird nirgends geparst) wird
-	diese Datei tatsächlich programmatisch ausgewertet.
 -->
+
+<domain name="t3n.de" />
+<domain name="nytimes.com" />
+<domain name="lemonde.fr" />
 <domain name="pressreader.com" />

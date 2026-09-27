@@ -35,7 +35,8 @@
     <remove xpath="//p[contains(@class,'typo-r-subline-longread-b')]" />
     <remove xpath="//h1" />
     <remove id="Kommentarbereich" />
-    <remove xpath="//section[contains(@class, 'has-insta')]" />
+    <remove xpath="//section[contains(@class, 'has-insta')]" /> <!-- Insta embeds -->
+    <remove xpath='//*[@data-for="html"]' /> <!-- Web embeds, zB Wahlgrafik-Module -->
   </pre-filter>
 
   <quotes>
