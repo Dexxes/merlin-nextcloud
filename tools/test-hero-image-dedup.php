@@ -399,6 +399,20 @@ $checkMatch(
 	false
 );
 
+$checkMatch(
+	'nd-aktuell.de-Bildserver: og:image ("/2400/…") vs. kleinste <picture>-Variante im Content ("/640/…"), gleiche Bild-ID',
+	'https://www.nd-aktuell.de/img/jpeg/640/325646',
+	'https://www.nd-aktuell.de/img/jpeg/2400/325646',
+	true
+);
+
+$checkMatch(
+	'nd-aktuell.de-Bildserver-Rendition eines ANDEREN Artikelbilds (andere Bild-ID) matcht nicht',
+	'https://www.nd-aktuell.de/img/jpeg/640/325646',
+	'https://www.nd-aktuell.de/img/jpeg/2400/999999',
+	false
+);
+
 echo "\n" . str_repeat('─', 72) . "\n";
 if ($failures === []) {
 	echo "\033[32mAlle " . $passed . " Prüfungen bestanden.\033[0m\n";
