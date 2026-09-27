@@ -3774,7 +3774,9 @@ class ContentExtractorService {
 		// chrome uses elsewhere in the same page, with unpredictable CSS/JS
 		// side effects. The only thing this can break is same-document anchor
 		// links (<a href="#fn1"> → <sup id="fn1">) inside the article, which is
-		// an acceptable trade-off in a read-later reader view.
+		// an acceptable trade-off in a read-later reader view - sanitizeHtml()'s
+		// isPureFragmentLink() check removes such pure-fragment links outright
+		// anyway, rather than leaving them pointing nowhere.
 		$html = preg_replace_callback(
 			'/(<[^>]+\bid=["\'])([^"\']*?)(["\'])/i',
 			static function (array $m): string {
@@ -3973,6 +3975,19 @@ class ContentExtractorService {
 				} else {
 					$el->parentNode->removeChild($el);
 				}
+				continue;
+			}
+
+			// Reine Sprungmarken-Links (z. B. <a href="#focus">) verweisen nur auf eine
+			// Anker-ID der URSPRÜNGLICHEN Seite - deren Zielelement existiert im
+			// extrahierten Artikel gar nicht mehr (id-Attribute werden oben in
+			// cleanHtml() entfernt, siehe Kommentar dort). In der Praxis sind das
+			// ohnehin UI-Elemente der Quellseite (Skip-Navigation, "Nach oben",
+			// Inhaltsverzeichnis-Anker) statt Artikeltext, deshalb komplett samt
+			// Inhalt entfernen statt nur den href zu leeren - ein toter Link-Rest
+			// ohne Ziel wäre im Reader nur Lese-Rauschen.
+			if ($tag === 'a' && $this->isPureFragmentLink($el->getAttribute('href'))) {
+				$el->parentNode->removeChild($el);
 				continue;
 			}
 
@@ -4499,6 +4514,17 @@ class ContentExtractorService {
 		return str_starts_with($normalized, 'javascript:')
 			|| str_starts_with($normalized, 'vbscript:')
 			|| str_starts_with($normalized, 'data:');
+	}
+
+	/**
+	 * Ein href, der ausschließlich aus einer Sprungmarke besteht (z. B. "#focus",
+	 * "#top" oder das bloße JS-Platzhalter-"#") - kein Schema, kein Host, kein
+	 * Pfad. Ein href wie "https://example.com/artikel#abschnitt" oder
+	 * "/seite#abschnitt" zählt bewusst NICHT dazu: dort führt der Link noch
+	 * woandershin, die Sprungmarke ist nur ein Zusatz.
+	 */
+	private function isPureFragmentLink(string $href): bool {
+		return str_starts_with(trim($href), '#');
 	}
 
 	// ──────────────────────────────────────────────────────────────────────────
