@@ -260,6 +260,13 @@ $checkStrip(
 );
 
 $checkStrip(
+	'<main><article><section><div><figure> wird transparent durchstiegen (spiegel.de-Regression)',
+	'<main><article><section><div><figure><img src="https://example.com/foto.jpg"></figure></div>'
+		. '<div><p>' . str_repeat('Echter Fließtext. ', 6) . '</p></div></section></article></main>',
+	1
+);
+
+$checkStrip(
 	'Leerer src wird nicht als Bild gewertet',
 	'<p><a href="x"><img src=""></a></p><p>Text.</p>',
 	0
