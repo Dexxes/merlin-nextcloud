@@ -2319,14 +2319,23 @@ class ContentExtractorService {
 	 * Selektoren zu benötigen.
 	 */
 	private function findLikelyContentContainer(\DOMElement $hoistAncestor): ?\DOMElement {
-		$start = $hoistAncestor->parentNode instanceof \DOMElement
-			? ($hoistAncestor->parentNode->nextElementSibling ?? $hoistAncestor->nextElementSibling)
-			: $hoistAncestor->nextElementSibling;
+		// Erst das eigene nächste Geschwister-Element des Layout-Ankers
+		// probieren (z.B. <header>'s Geschwister-<div> mit dem Artikeltext) -
+		// nur wenn der Anker selbst keins hat (z.B. letztes Kind seines
+		// Elternelements), auf das Geschwister des Elternelements ausweichen.
+		// Umgekehrt (Eltern-Geschwister zuerst) griff bei verschachtelten
+		// <article><header>…</header><div>Text</div></article>-Strukturen
+		// (z.B. tagesspiegel.de) daneben: dort ist <article>'s eigenes
+		// nächstes Geschwister ein unverwandtes Layout-Element (z.B. ein
+		// Related-Content-Widget), nicht der Textcontainer.
+		$start = $hoistAncestor->nextElementSibling
+			?? ($hoistAncestor->parentNode instanceof \DOMElement ? $hoistAncestor->parentNode->nextElementSibling : null);
 		if (!$start instanceof \DOMElement) {
 			return null;
 		}
 
-		$target = $start;
+		$target  = $start;
+		$matched = false;
 		for ($depth = 0; $depth < 6; $depth++) {
 			$best    = null;
 			$bestLen = 0;
@@ -2342,10 +2351,16 @@ class ContentExtractorService {
 				}
 			}
 			if ($best === null) break;
-			$target = $best;
+			$target  = $best;
+			$matched = true;
 		}
 
-		return $target;
+		// Kein einziger content-klassifizierter Nachfahre gefunden: $start war
+		// eine reine Vermutung ohne Bestätigung (z.B. ein unrelated Widget) -
+		// lieber null zurückgeben, damit die Aufrufer-Fallback-Logik greift
+		// (Figure direkt neben $hoistAncestor einfügen), statt sie blind in
+		// $start hineinzuhängen.
+		return $matched ? $target : null;
 	}
 
 	/**
