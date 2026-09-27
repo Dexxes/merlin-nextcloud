@@ -342,6 +342,25 @@ class ContentExtractorService {
 		// sie erkennen soll.
 		$paywall = $this->detectPaywall($rawHtml, $domain);
 
+		// ── Step 2d: Script/style removal (früh, VOR jedem DOM-Roundtrip) ────
+		// stripScriptAndStyleTags() arbeitet linear per strpos()/stripos() auf
+		// dem rohen String, ohne den String selbst je zu parsen - sie kann ein
+		// <script> daher nicht mit fremdem Markup verwechseln. Ein
+		// DOMDocument::loadHTML()-Roundtrip (normalizeImageCaptions(),
+		// applyPreFilters() & Co., alle unten) kann das dagegen sehr wohl: PHP
+		// libxml ist kein spec-treuer HTML5-Parser und behandelt <template>
+		// nicht als inerten DocumentFragment, sondern wie ein normales
+		// Container-Element (verbreitet auf Alpine.js-Seiten wie spiegel.de,
+		// siehe content-filters/spiegel.de.xml). Bei genug solcher <template>-
+		// Elemente vor einem großen <script>-Block gerät libxmls interner
+		// Parser-Zustand durcheinander und splittet den Script-Inhalt an einer
+		// Stelle, an der im Original gar kein </script> stand - der Rest des
+		// echten JS-Codes (mit < / > als Vergleichsoperatoren) rutscht als
+		// gewöhnlicher Text in den Baum und wird von Readability als
+		// Artikeltext aufgegriffen. Scripts/Styles VOR dem ersten
+		// DOM-Roundtrip zu entfernen umgeht den Bug, statt ihn zu reparieren.
+		$rawHtml = $this->stripScriptAndStyleTags($rawHtml);
+
 		// ── Step 3: Image caption normalisation ─────────────────────────────
 		// Rewrap domain-specific image+caption structures into standard
 		// <figure><img><figcaption> HTML so Readability preserves them.
