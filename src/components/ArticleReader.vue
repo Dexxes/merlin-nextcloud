@@ -300,7 +300,13 @@
 						 kaputten Artikel zu speichern - Content ist hier immer leer,
 						 ein Retry würde am selben Ergebnis nichts ändern. -->
 					<NcNoteCard v-if="article.unsupportedSiteDomain" type="warning" class="article-unsupported-notice">
-						{{ t('merlin', 'This site ({domain}) is not supported by Merlin: it does not provide readable article text to fetch.', { domain: article.unsupportedSiteDomain }) }}
+						<p>{{ t('merlin', 'This site ({domain}) is not supported by Merlin: it does not provide readable article text to fetch.', { domain: article.unsupportedSiteDomain }) }}</p>
+						<NcButton type="error" @click="confirmDelete">
+							<template #icon>
+								<Delete :size="18" />
+							</template>
+							{{ t('merlin', 'Delete article') }}
+						</NcButton>
 					</NcNoteCard>
 
 					<!-- Bei abspielbarem Video dient das Hero-Bild als Poster im
@@ -1275,6 +1281,10 @@ article {
 
 .article-body :deep(p) {
 	margin: 1.5em 0;
+}
+
+.article-unsupported-notice :deep(button) {
+	margin-top: 8px;
 }
 
 .article-body :deep(img) {
