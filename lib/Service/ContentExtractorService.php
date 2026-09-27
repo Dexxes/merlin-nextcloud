@@ -3163,6 +3163,17 @@ class ContentExtractorService {
 				// z. B. og:image sowohl übers Theme als auch übers SEO-Plugin aus.
 				// implode() würde daraus eine ungültige "url1, url2"-Bild-URL bzw. ein
 				// unparsbares Datum bauen; hier gewinnt deshalb immer der erste Treffer.
+				//
+				// Vor dem Zusammenfassen exakte Duplikate entfernen: Der
+				// og:/twitter:description-Union-XPath für "excerpt" liefert z. B. zwei
+				// Treffer, wenn eine Seite (wie nd-aktuell.de) beide Meta-Tags mit
+				// identischem Text setzt - ohne array_unique() würde daraus "Text, Text"
+				// werden, das dann durch die 300-Zeichen-Kürzung mitten im zweiten Text
+				// abgeschnitten wird.
+				if (is_array($value)) {
+					$value = array_values(array_unique($value));
+				}
+
 				if (count($value) > 1 && !in_array($field, ['image', 'published'], true))
 					$value = implode(', ', $value);
 				else
