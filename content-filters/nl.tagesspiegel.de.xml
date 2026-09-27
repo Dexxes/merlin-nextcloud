@@ -13,20 +13,27 @@
 <domain name="nl.tagesspiegel.de">
 
   <pre-filter>
-
+    <remove class="bezirke-hero-desktop" />
     <!-- Das graue "Anzeige"-Label selbst. -->
     <remove xpath="//div[contains(@class,'mobile-section') and .//div[normalize-space(text())='Anzeige']]" />
 
     <!-- Der direkt darauffolgende mobile-section-Block: der eigentliche
          Anzeigeninhalt, unabhängig von dessen interner Struktur. -->
     <remove xpath="//div[contains(@class,'mobile-section') and .//div[normalize-space(text())='Anzeige']]/following-sibling::div[contains(@class,'mobile-section')][1]" />
-
   </pre-filter>
 
-
+  <images>
+  
+  <images>
+    <caption
+        container-xpath="//table[@class='image-credit']/.."
+        caption-xpath=".//table[@class='image-credit']//td/text()"
+    />
+  </images>
+  </images>
 
   <metadata>
-    <image xpath="//div[@class='checkpoint-hero-desktop']/img/@src" />
+    <image xpath="//div[@class='bezirke-hero-mobile']/img/@src" />
     <excerpt xpath="//td[@class='ticker-mobile']/div/h2"/>
     <excerpt xpath="//html/body/div[2]/div[2]/table/tbody/tr/td/div[5]/table/tbody/tr/td/div/table/tbody/tr/td/div/h2" />
   </metadata>
