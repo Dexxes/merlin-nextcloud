@@ -1475,6 +1475,15 @@ class ContentExtractorService {
 			// damit beide auf dieselbe Bild-ID normalisieren.
 			$url = preg_replace('#(/img/jpeg)/\d+(/\d+)$#i', '$1$2', $url) ?? $url;
 
+			// t-online.de-Bildserver (images.t-online.de): Pfadschema
+			// ".../<crop>/fit-in/<breite>x0/<slug>.<ext>" liefert je nach
+			// Einbettung unterschiedliche Renditions derselben Aufnahme, z. B.
+			// ".../fit-in/1200x0/der-russische-....png" (og:image) vs.
+			// ".../fit-in/1920x0/der-russische-....png" (Content-<figure>,
+			// größte srcset-Variante). Nur die Zielbreite hinter "fit-in/"
+			// entfernen, damit beide auf denselben Basispfad normalisieren.
+			$url = preg_replace('#(/fit-in/)\d+x\d+(?=/)#i', '$1', $url) ?? $url;
+
 			// AEM-Bildserver-Renditions: ein oder mehrere trailing "key=wert"-
 			// Pfadsegmente (z. B. "size=1280x720.jpg", "quality=160")
 			// entfernen, bis das stabile Basis-Asset übrig bleibt.
