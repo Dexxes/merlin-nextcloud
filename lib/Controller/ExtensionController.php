@@ -7,6 +7,7 @@ namespace OCA\Merlin\Controller;
 use OCA\Merlin\Db\Article;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Service\ContentExtractorService;
+use OCA\Merlin\Service\UnsupportedSiteException;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -130,6 +131,20 @@ class ExtensionController extends Controller {
 					$article->setUpdatedAt(new \DateTime());
 					$article->setIsProcessing(0);
 					$mapper->update($article);
+				} catch (UnsupportedSiteException $e) {
+					// Domain steht in content-filters/$unsupported.xml: kein
+					// genereller Fehlschlag, sondern ein Zustand, auf den der
+					// Client mit einem erklärenden Hinweis reagieren soll
+					// (Polling auf unsupportedSiteDomain, siehe
+					// Article::jsonSerialize()), analog zum
+					// ArticleController-Pendant.
+					try {
+						$article = $mapper->find($articleId, $userId);
+						$article->setIsProcessing(0);
+						$article->setUnsupportedSiteDomain($e->domain);
+						$mapper->update($article);
+					} catch (\Throwable) {
+					}
 				} catch (\Throwable) {
 					// Silently ignore extraction errors — the article is already saved.
 					try {

@@ -161,6 +161,16 @@ class ContentExtractorService {
 			// real target before fetching, so we get the actual article.
 			$url = $this->resolveRedirectUrl($url);
 
+			// Domains aus content-filters/$unsupported.xml werden gar nicht erst
+			// angefragt: dort liefert der Server ohnehin nie brauchbares HTML
+			// (z. B. reine JS-SPA/Bild-Viewer wie PressReader), ein Fetch wäre
+			// also nur unnötiger Traffic beim Zielserver, der am Ende doch nur in
+			// einem für Nutzer unverständlichen ParseException endet.
+			$domain = $this->contentFilters->normalizeUrlDomain($url);
+			if ($domain !== '' && $this->contentFilters->isUnsupportedDomain($domain)) {
+				throw new UnsupportedSiteException($domain);
+			}
+
 			// Fetch HTML content from the network. httpRequestFollowingRedirects()
 			// (aufgerufen über fetchUrl()) folgt jeder 3xx-Kette bereits vollständig,
 			// unabhängig davon, ob der Host in resources/url-shorteners.json steht –
@@ -183,6 +193,13 @@ class ContentExtractorService {
 			// Exception muss unverändert bei ArticleController ankommen, das
 			// daraus eine eindeutige "Login erforderlich"-API-Antwort baut
 			// (siehe PLATFORMS.md) statt eines generischen Fehlschlags.
+			throw $e;
+		}
+		catch (UnsupportedSiteException $e)
+		{
+			// Ebenso absichtlich vor dem generischen Catch: ArticleController/
+			// ExtensionController übersetzen das in ein eindeutiges
+			// unsupportedSiteDomain-Feld statt eines generischen Fehlschlags.
 			throw $e;
 		}
 		catch (ParseException $e)

@@ -10,6 +10,7 @@ use OCA\Merlin\Db\TagMapper;
 use OCA\Merlin\Service\ContentExtractorService;
 use OCA\Merlin\Service\ExportService;
 use OCA\Merlin\Service\Login\PaywallLoginRequiredException;
+use OCA\Merlin\Service\UnsupportedSiteException;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -295,6 +296,20 @@ class ArticleController extends Controller {
 					$blocked->setIsProcessing(0);
 					$blocked->setRequiresLoginDomain($e->domain);
 					$blocked->setRequiresLoginPage($e->loginPage);
+					$mapper->update($blocked);
+				} catch (\Throwable $e2) {
+					// Ignore – nothing more we can do.
+				}
+			} catch (UnsupportedSiteException $e) {
+				// Domain steht in content-filters/$unsupported.xml: kein
+				// genereller Fehlschlag, sondern ein Zustand, auf den der
+				// Client mit einem erklärenden Hinweis statt einem
+				// Retry-Button reagieren soll (Polling auf
+				// unsupportedSiteDomain, siehe Article::jsonSerialize()).
+				try {
+					$blocked = $mapper->find($articleId, $userId);
+					$blocked->setIsProcessing(0);
+					$blocked->setUnsupportedSiteDomain($e->domain);
 					$mapper->update($blocked);
 				} catch (\Throwable $e2) {
 					// Ignore – nothing more we can do.
