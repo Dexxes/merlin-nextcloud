@@ -31,7 +31,7 @@
     <remove   xpath="//details" />
     <remove   xpath="//ul[@aria-label='Autorenbilder']" />
     <remove   xpath="//span[@aria-label='Bezeichnung mit Videotitel']/../../.." />
-    
+    <remove xpath="//img[@alt='Vergrößern des Bildes']/.." />
     
     
     <infobox xpath="//div[div[@class='rounded-8 bg-whitelilac p-12 md:px-24 md:py-12']]"/>
