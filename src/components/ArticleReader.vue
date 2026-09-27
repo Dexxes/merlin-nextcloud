@@ -295,6 +295,14 @@
 				</header>
 
 				<div class="article-body" :class="{ 'has-native-video': videoPlayable }">
+					<!-- unsupportedSiteDomain: Merlin hat den Fetch abgelehnt (siehe
+						 UnsupportedSiteException server-seitig) statt einen leeren/
+						 kaputten Artikel zu speichern - Content ist hier immer leer,
+						 ein Retry würde am selben Ergebnis nichts ändern. -->
+					<NcNoteCard v-if="article.unsupportedSiteDomain" type="warning" class="article-unsupported-notice">
+						{{ t('merlin', 'This site ({domain}) is not supported by Merlin: it does not provide readable article text to fetch.', { domain: article.unsupportedSiteDomain }) }}
+					</NcNoteCard>
+
 					<!-- Bei abspielbarem Video dient das Hero-Bild als Poster im
 						Player (siehe :poster-url unten) statt zusätzlich separat
 						darüber angezeigt zu werden.
@@ -339,7 +347,7 @@
 <script>
 import { mapState, mapActions } from 'vuex'
 import { showSuccess, showError } from '@nextcloud/dialogs'
-import { NcButton } from '@nextcloud/vue'
+import { NcButton, NcNoteCard } from '@nextcloud/vue'
 import ArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
 import WeatherNight from 'vue-material-design-icons/WeatherNight.vue'
 import WhiteBalanceSunny from 'vue-material-design-icons/WhiteBalanceSunny.vue'
@@ -398,6 +406,7 @@ export default {
 
 	components: {
 		NcButton,
+		NcNoteCard,
 		ArrowLeft,
 		WeatherNight,
 		WhiteBalanceSunny,
