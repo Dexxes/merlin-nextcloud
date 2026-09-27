@@ -420,6 +420,20 @@ $checkMatch(
 	false
 );
 
+$checkMatch(
+	'spiegel.de-Bildserver: unterschiedliche Breite/Seitenverhältnis-Rendition, gleiche Bild-UUID',
+	'https://cdn.prod.www.spiegel.de/images/8ee2a471-d444-4707-83d0-a2f7e3ed4d49_w960_r1.5_fpx29_fpy41.jpg',
+	'https://cdn.prod.www.spiegel.de/images/8ee2a471-d444-4707-83d0-a2f7e3ed4d49_w1200_r1.778_fpx29_fpy41.jpg',
+	true
+);
+
+$checkMatch(
+	'spiegel.de-Bildserver-Rendition eines ANDEREN Bilds (andere UUID) matcht nicht',
+	'https://cdn.prod.www.spiegel.de/images/11111111-1111-1111-1111-111111111111_w960_r1.5_fpx29_fpy41.jpg',
+	'https://cdn.prod.www.spiegel.de/images/22222222-2222-2222-2222-222222222222_w1200_r1.778_fpx29_fpy41.jpg',
+	false
+);
+
 echo "\n" . str_repeat('─', 72) . "\n";
 if ($failures === []) {
 	echo "\033[32mAlle " . $passed . " Prüfungen bestanden.\033[0m\n";
