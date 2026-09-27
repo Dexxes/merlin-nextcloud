@@ -1994,7 +1994,9 @@ class ContentExtractorService {
 	 *   2. Erstes <img> in irgendeiner <figure> im Dokument
 	 *   3. Erstes <img> im <article>- oder <main>-Bereich (ohne figure-Wrapper)
 	 *
-	 * data-src wird als Fallback für lazy-load-Bilder berücksichtigt.
+	 * data-src / data-orig-src werden als Fallback für lazy-load-Bilder
+	 * berücksichtigt (letzteres z. B. bei WP-Rocket-artigem Lazy-Loading, das
+	 * die echte URL in data-orig-src statt data-src ablegt).
 	 * Tracking-Pixel (1x1, data:-URLs, Icon-/Logo-Klassen) werden übersprungen.
 	 *
 	 * @return array{src: string, caption: ?string}|null
@@ -2010,11 +2012,11 @@ class ContentExtractorService {
 
 		$candidates = [
 			// Prominenteste Position: figure in article/main
-			'(//article | //main)//figure//img[@src or @data-src]',
+			'(//article | //main)//figure//img[@src or @data-src or @data-orig-src]',
 			// Fallback: irgendeine figure im Dokument
-			'//figure//img[@src or @data-src]',
+			'//figure//img[@src or @data-src or @data-orig-src]',
 			// Letzter Ausweg: erstes img in article/main ohne figure-Wrapper
-			'(//article | //main)//img[@src or @data-src]',
+			'(//article | //main)//img[@src or @data-src or @data-orig-src]',
 		];
 
 		foreach ($candidates as $query) {
@@ -2024,10 +2026,13 @@ class ContentExtractorService {
 			foreach ($nodes as $img) {
 				if (!$img instanceof \DOMElement) continue;
 
-				// data-src bevorzugen bei lazy-loading, sonst src
+				// data-src/data-orig-src bevorzugen bei lazy-loading, sonst src
 				$src = trim($img->getAttribute('src'));
 				if ($src === '' || str_starts_with($src, 'data:')) {
 					$src = trim($img->getAttribute('data-src'));
+				}
+				if ($src === '' || str_starts_with($src, 'data:')) {
+					$src = trim($img->getAttribute('data-orig-src'));
 				}
 				if ($src === '' || str_starts_with($src, 'data:')) continue;
 
@@ -2135,15 +2140,20 @@ class ContentExtractorService {
 					if (!$container instanceof \DOMElement) continue;
 
 					// Find the <img> inside the container
-					$imgNodes = $xpath->query('.//img[@src or @data-src]', $container);
+					$imgNodes = $xpath->query('.//img[@src or @data-src or @data-orig-src]', $container);
 					if (!$imgNodes || $imgNodes->length === 0) continue;
 					$img = $imgNodes->item(0);
 					if (!$img instanceof \DOMElement) continue;
 
-					// Bildquelle bevorzugt aus src, sonst data-src (Lazy-Loading).
+					// Bildquelle bevorzugt aus src, sonst data-src bzw. data-orig-src
+					// (Lazy-Loading; letzteres z. B. bei WP-Rocket-artigem Lazy-Loading,
+					// das die echte URL nur in data-orig-src ablegt).
 					$imgSrc = trim($img->getAttribute('src'));
 					if ($imgSrc === '' || str_starts_with($imgSrc, 'data:')) {
 						$imgSrc = trim($img->getAttribute('data-src'));
+					}
+					if ($imgSrc === '' || str_starts_with($imgSrc, 'data:')) {
+						$imgSrc = trim($img->getAttribute('data-orig-src'));
 					}
 					// Web-Component-Bilder (z.B. heise.de <a-img src="...echtes-foto.jpeg">)
 					// wrappen intern ein <img> mit einer Base64/data:-Platzhalter-SVG als
