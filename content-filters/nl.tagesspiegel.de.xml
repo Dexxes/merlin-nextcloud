@@ -35,7 +35,7 @@
 
   <metadata>
     <image xpath="//div[@class='bezirke-hero-mobile']/img/@src" />
-    <excerpt xpath="//td[@class='ticker-mobile']/div/h2"/>
+    <excerpt xpath="//*[contains(@class,'ticker-mobile')]//text()" />
     <excerpt xpath="//html/body/div[2]/div[2]/table/tbody/tr/td/div[5]/table/tbody/tr/td/div/table/tbody/tr/td/div/h2" />
   </metadata>
 </domain>
