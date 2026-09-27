@@ -3,7 +3,7 @@
 <domain name="entwicklungsstadt.de">
 
   <pre-filter>
-    <remove xpath="//div[contains(@class, 'fusion-content-tb')]/p/strong"/>
+    <!--<remove xpath="//div[contains(@class, 'fusion-content-tb')]/p/strong"/>-->
   </pre-filter>
 
   <images>
