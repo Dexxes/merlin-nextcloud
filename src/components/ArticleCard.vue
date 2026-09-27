@@ -10,6 +10,12 @@
 			{{ t('merlin', 'Loading…') }}
 		</div>
 
+		<!-- unsupportedSiteDomain: Merlin hat den Fetch abgelehnt (siehe
+			 UnsupportedSiteException server-seitig), kein Retry-Fall. -->
+		<div v-else-if="article.unsupportedSiteDomain" class="article-unsupported-badge">
+			{{ t('merlin', 'Not supported') }}
+		</div>
+
 		<div class="article-image">
 			<img :src="article.imageUrl || noImgPath" :alt="article.title" @error="onImageError">
 			<!-- Lese-Fortschrittsbalken, analog zur Karten-Anzeige in den Mobile-Apps;
@@ -577,6 +583,17 @@ export default {
 	border-radius: 50%;
 	animation: merlin-spin 0.7s linear infinite;
 	flex-shrink: 0;
+}
+
+/* Small badge shown at the top of a card whose site Merlin refused to fetch */
+.article-unsupported-badge {
+	display: flex;
+	align-items: center;
+	padding: 4px 10px;
+	font-size: 11px;
+	color: #fff;
+	background: var(--color-warning, #c9820a);
+	border-radius: var(--border-radius-large) var(--border-radius-large) 0 0;
 }
 
 

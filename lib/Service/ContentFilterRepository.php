@@ -54,6 +54,21 @@ class ContentFilterRepository {
 	private const DOC_FILE_PREFIX = '000';
 
 	/**
+	 * Parkliste von Domains, die grundsätzlich nicht gescrapt werden (siehe
+	 * getUnsupportedDomains()). Der führende "$" sorgt zusätzlich dafür, dass
+	 * die Datei isValidDomain() nicht besteht und daher nie mit einer
+	 * Domain-Config verwechselt in listFilters() auftaucht.
+	 */
+	private const UNSUPPORTED_SITES_FILE = '$unsupported.xml';
+
+	/**
+	 * Gecachte Domains aus $unsupported.xml für die Dauer DIESES Requests.
+	 *
+	 * @var list<string>|null
+	 */
+	private ?array $unsupportedDomainsCache = null;
+
+	/**
 	 * Gecachte Merge-Ergebnisse pro (Domain, Nutzer) innerhalb eines Requests.
 	 *
 	 * Schlüssel: "{domain}|{userId}" (userId leer bei anonymem Aufruf ohne
@@ -236,6 +251,68 @@ class ContentFilterRepository {
 	}
 
 	// ──────────────────────────────────────────────────────────────────────────
+	// Lesen: unterstützte/nicht unterstützte Domains
+	// ──────────────────────────────────────────────────────────────────────────
+
+	/**
+	 * Domains aus $unsupported.xml, für die ContentExtractorService::extract()
+	 * jeden Scrape-Versuch ablehnt (siehe UnsupportedSiteException).
+	 *
+	 * Die Datei ist wie 000dead.xml absichtlich kein einzelnes wohlgeformtes
+	 * XML-Dokument (mehrere <domain>-Elemente ohne gemeinsames Root) - anders
+	 * als dort wird sie hier aber tatsächlich geparst, daher die führende
+	 * <?xml?>-Deklaration vor dem künstlichen Root-Element entfernen, sonst
+	 * bricht simplexml_load_string() mit "XML declaration allowed only at
+	 * the start of the document" ab.
+	 *
+	 * @return list<string>
+	 */
+	public function getUnsupportedDomains(): array {
+		if ($this->unsupportedDomainsCache !== null) {
+			return $this->unsupportedDomainsCache;
+		}
+
+		$dir = $this->getBundleDir();
+		$raw = $dir === null ? null : $this->readFile($dir . '/' . self::UNSUPPORTED_SITES_FILE);
+		if ($raw === null) {
+			return $this->unsupportedDomainsCache = [];
+		}
+
+		$fragment = preg_replace('/^\s*<\?xml[^>]*\?>/', '', $raw) ?? $raw;
+		$xml      = @simplexml_load_string('<domains>' . $fragment . '</domains>');
+		if ($xml === false) {
+			$this->logger->warning('content-filters: $unsupported.xml ist nicht parsbar', ['file' => self::UNSUPPORTED_SITES_FILE]);
+			return $this->unsupportedDomainsCache = [];
+		}
+
+		$domains = [];
+		foreach ($xml->domain as $node) {
+			$name = strtolower(trim((string) $node['name']));
+			if ($name !== '' && $this->isValidDomain($name)) {
+				$domains[] = $name;
+			}
+		}
+		return $this->unsupportedDomainsCache = $domains;
+	}
+
+	/**
+	 * Ob $urlDomain (oder eine ihrer Elterndomains über einen Wildcard-Eintrag,
+	 * siehe lookupCandidates()) in $unsupported.xml steht.
+	 */
+	public function isUnsupportedDomain(string $urlDomain): bool {
+		if ($urlDomain === '') {
+			return false;
+		}
+		$unsupported = $this->getUnsupportedDomains();
+		foreach ($this->lookupCandidates($urlDomain) as $candidate) {
+			if (in_array($candidate, $unsupported, true)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// ──────────────────────────────────────────────────────────────────────────
 	// Lesen: Admin-Custom (scope='admin', DB)
 	// ──────────────────────────────────────────────────────────────────────────
 
@@ -346,7 +423,7 @@ class ContentFilterRepository {
 		if (is_string($bundleDir) && is_dir($bundleDir)) {
 			foreach ((glob($bundleDir . '/*.xml') ?: []) as $path) {
 				$name = basename($path, '.xml');
-				if (str_starts_with($name, self::DOC_FILE_PREFIX)) {
+				if (str_starts_with($name, self::DOC_FILE_PREFIX) || basename($path) === self::UNSUPPORTED_SITES_FILE) {
 					continue;
 				}
 				if (!$this->isValidDomain($name)) {

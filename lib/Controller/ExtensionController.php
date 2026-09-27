@@ -7,6 +7,7 @@ namespace OCA\Merlin\Controller;
 use OCA\Merlin\Db\Article;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Service\ContentExtractorService;
+use OCA\Merlin\Service\UnsupportedSiteException;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -60,6 +61,32 @@ class ExtensionController extends Controller {
 		if ($this->userId === null) {
 			return new DataResponse(['status' => 0, 'error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
 		}
+
+		// Domains aus content-filters/$unsupported.xml werden HIER (synchron, vor
+		// dem Platzhalter-Artikel) abgelehnt statt erst im asynchronen
+		// register_shutdown_function()-Block unten: Browser-Erweiterungen pollen
+		// den Artikel nach dem Speichern nie auf sein Extraktions-Ergebnis (siehe
+		// saveToMerlin() in background.js - "Content extraction runs
+		// asynchronously; no need to wait for it here") und würden sonst IMMER
+		// einen Erfolg anzeigen, obwohl der Artikel nie Inhalt bekommt. Gilt nur,
+		// wenn wir die Seite selbst holen ($html === null) - liefert die
+		// Erweiterung das HTML schon mit, wird nichts gescraped.
+		if ($html === null) {
+			try {
+				$this->contentExtractor->assertUrlIsSupported($url);
+			} catch (UnsupportedSiteException $e) {
+				return new DataResponse([
+					'status' => 0,
+					'error'  => 'unsupported_site',
+					'domain' => $e->domain,
+				], Http::STATUS_UNPROCESSABLE_ENTITY);
+			} catch (\Throwable) {
+				// Andere Fehler (z. B. Shortener-Auflösung schlägt fehl) hier
+				// ignorieren - das eigentliche extract() unten prüft ohnehin
+				// erneut und liefert dafür die etablierte Fehlerbehandlung.
+			}
+		}
+
 		try {
 			// 1. Save a placeholder article immediately so the client is not blocked.
 			$article = new Article();
@@ -130,6 +157,20 @@ class ExtensionController extends Controller {
 					$article->setUpdatedAt(new \DateTime());
 					$article->setIsProcessing(0);
 					$mapper->update($article);
+				} catch (UnsupportedSiteException $e) {
+					// Domain steht in content-filters/$unsupported.xml: kein
+					// genereller Fehlschlag, sondern ein Zustand, auf den der
+					// Client mit einem erklärenden Hinweis reagieren soll
+					// (Polling auf unsupportedSiteDomain, siehe
+					// Article::jsonSerialize()), analog zum
+					// ArticleController-Pendant.
+					try {
+						$article = $mapper->find($articleId, $userId);
+						$article->setIsProcessing(0);
+						$article->setUnsupportedSiteDomain($e->domain);
+						$mapper->update($article);
+					} catch (\Throwable) {
+					}
 				} catch (\Throwable) {
 					// Silently ignore extraction errors — the article is already saved.
 					try {

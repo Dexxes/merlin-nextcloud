@@ -56,6 +56,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setIsPaywalled(bool $isPaywalled)
  * @method string|null getPaywallSubscribeUrl()
  * @method void setPaywallSubscribeUrl(?string $paywallSubscribeUrl)
+ * @method string|null getUnsupportedSiteDomain()
+ * @method void setUnsupportedSiteDomain(?string $unsupportedSiteDomain)
  */
 class Article extends Entity implements JsonSerializable {
 	protected $userId;
@@ -92,6 +94,13 @@ class Article extends Entity implements JsonSerializable {
 	// Optionen "Abo abschliessen" (paywallSubscribeUrl) oder "Archivieren".
 	protected $isPaywalled;
 	protected $paywallSubscribeUrl;
+	// Gesetzt, wenn die Domain in content-filters/$unsupported.xml steht (siehe
+	// Service\UnsupportedSiteException) - Merlin hat den Fetch gar nicht erst
+	// versucht, weil die Seite grundsätzlich nichts scrapbares ausliefert (z. B.
+	// PressReader, eine reine JS-SPA/Bild-Viewer). null im Normalfall. Anders
+	// als requiresLoginDomain gibt es hier keinen Login-Dialog, der das beheben
+	// könnte - der Client zeigt nur einen erklärenden Hinweis.
+	protected $unsupportedSiteDomain;
 
 	public function __construct() {
 		$this->addType('userId', 'string');
@@ -123,6 +132,7 @@ class Article extends Entity implements JsonSerializable {
 		$this->addType('requiresLoginPage', 'string');
 		$this->addType('isPaywalled', 'integer');
 		$this->addType('paywallSubscribeUrl', 'string');
+		$this->addType('unsupportedSiteDomain', 'string');
 	}
 
 	public function jsonSerialize(): array {
@@ -162,6 +172,12 @@ class Article extends Entity implements JsonSerializable {
 			// requiresLoginDomain kann Merlin hier NICHT automatisch einloggen.
 			'isPaywalled'         => (bool) $this->getIsPaywalled(),
 			'paywallSubscribeUrl' => $this->getPaywallSubscribeUrl(),
+			// null im Normalfall. Gesetzt: Merlin hat den Fetch abgelehnt, weil die
+			// Domain als grundsätzlich nicht scrapbar bekannt ist (siehe
+			// Service\UnsupportedSiteException) - der Client zeigt einen
+			// erklärenden Hinweis statt eines Retry-Buttons, da ein erneuter
+			// Versuch am selben Ergebnis nichts ändert.
+			'unsupportedSiteDomain' => $this->getUnsupportedSiteDomain(),
 		];
 	}
 }

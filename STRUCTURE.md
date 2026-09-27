@@ -52,7 +52,8 @@ merlin-nextcloud/
 │   └── Migration/            # Datenbank-Migrationen (Version1000Date20240101000000 … 000020)
 ├── content-filters/          # Mitgelieferte Filter, eine Datei je Domain (~55 Domains, z. B. spiegel.de, zeit.de, taz.de, youtube.com)
 │   ├── 000.sample.com.xml    # Kommentierte Referenz aller Regeltypen
-│   └── 000dead.xml           # Parkliste toter Domains (kein gültiges XML)
+│   ├── 000dead.xml           # Parkliste toter Domains (kein gültiges XML)
+│   └── $unsupported.xml      # Domains, die grundsätzlich nicht gescrapt werden (siehe UnsupportedSiteException)
 └── tools/
     ├── test-content-filter-merge.php  # Testharness (pures PHP, ohne Composer)
     └── test-caption-flatten.php       # Testharness: Bildunterschriften einzeilig ("•")

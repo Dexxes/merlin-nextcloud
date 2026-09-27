@@ -1,4 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+	Parkliste von Domains, die Merlin bewusst NICHT zu scrapen versucht (siehe
+	ContentFilterRepository::isUnsupportedDomain(), ContentExtractorService::extract()).
+	Anders als ein normaler Content-Filter (<domain>.xml) geht es hier nicht um
+	Bereinigungsregeln für eine scrapbare Seite, sondern um Seiten, bei denen
+	jeder Scrape-Versuch von vornherein sinnlos ist - z. B. weil der
+	Artikeltext serverseitig gar nicht als HTML ausgeliefert wird (reine
+	JS-SPA oder Bild/Canvas-Viewer). Ein Fetch würde dort nur unnötigen
+	Traffic beim Zielserver erzeugen und mit einem rohen
+	Readability-ParseException fehlschlagen, statt einer klaren Fehlermeldung.
+
+	Format wie 000dead.xml: mehrere <domain name="..."/>-Elemente, absichtlich
+	kein einzelnes wohlgeformtes XML-Dokument (kein gemeinsames Root-Element) -
+	die Datei fängt trotzdem mit einer XML-Deklaration an, damit Editoren sie
+	als XML erkennen; ContentFilterRepository::getUnsupportedDomains() liest
+	sie mit einem künstlich hinzugefügten Root-Element ein, nicht als
+	eigenständiges Dokument.
+-->
+
 <domain name="t3n.de" />
 <domain name="nytimes.com" />
 <domain name="lemonde.fr" />

@@ -157,9 +157,9 @@ class ContentExtractorService {
 		$this->currentUserId = $userId;
 
 		try {
-			// Resolve tracking/redirect URLs (e.g. google.com/url?url=...) to their
-			// real target before fetching, so we get the actual article.
-			$url = $this->resolveRedirectUrl($url);
+			// Wirft UnsupportedSiteException, bevor überhaupt Netzwerk-Traffic zur
+			// eigentlichen Zielseite entsteht (siehe assertUrlIsSupported()).
+			$url = $this->assertUrlIsSupported($url);
 
 			// Fetch HTML content from the network. httpRequestFollowingRedirects()
 			// (aufgerufen über fetchUrl()) folgt jeder 3xx-Kette bereits vollständig,
@@ -183,6 +183,13 @@ class ContentExtractorService {
 			// Exception muss unverändert bei ArticleController ankommen, das
 			// daraus eine eindeutige "Login erforderlich"-API-Antwort baut
 			// (siehe PLATFORMS.md) statt eines generischen Fehlschlags.
+			throw $e;
+		}
+		catch (UnsupportedSiteException $e)
+		{
+			// Ebenso absichtlich vor dem generischen Catch: ArticleController/
+			// ExtensionController übersetzen das in ein eindeutiges
+			// unsupportedSiteDomain-Feld statt eines generischen Fehlschlags.
 			throw $e;
 		}
 		catch (ParseException $e)
@@ -948,6 +955,37 @@ class ContentExtractorService {
 	// ──────────────────────────────────────────────────────────────────────────
 	// URL Resolution & Redirects
 	// ──────────────────────────────────────────────────────────────────────────
+
+	/**
+	 * Löst Redirect-Wrapper auf (siehe resolveRedirectUrl()) und prüft die
+	 * Ziel-Domain gegen content-filters/$unsupported.xml, OHNE die Zielseite
+	 * selbst abzurufen.
+	 *
+	 * Public, damit ExtensionController::add() das schon VOR dem Anlegen des
+	 * Platzhalter-Artikels aufrufen kann: eine bekannt unscrapbare Domain wird
+	 * so synchron mit der API-Antwort abgelehnt (HTTP 422) statt erst Sekunden
+	 * später im Hintergrund zu scheitern - notwendig für Firefox/Thunderbird,
+	 * die den asynchronen Extraktions-Ausgang sonst NIE sehen (kein Polling,
+	 * siehe saveToMerlin() in background.js: "Content extraction runs
+	 * asynchronously; no need to wait for it here") und ohne diesen Vorab-Check
+	 * immer einen Erfolg anzeigen würden, obwohl der Artikel nie Inhalt bekommt.
+	 *
+	 * ArticleController::create() (Web/iOS/Android) macht diesen Vorab-Check
+	 * bewusst NICHT: dort pollen die Clients ohnehin auf den Artikel und zeigen
+	 * unsupportedSiteDomain, sobald extract() es asynchron setzt (siehe
+	 * scheduleExtraction()) - ein zusätzlicher synchroner Fehlschlag würde dort
+	 * nur eine zweite, abweichende Fehlerbehandlung nötig machen.
+	 *
+	 * @throws UnsupportedSiteException
+	 */
+	public function assertUrlIsSupported(string $url): string {
+		$resolved = $this->resolveRedirectUrl($url);
+		$domain   = $this->contentFilters->normalizeUrlDomain($resolved);
+		if ($domain !== '' && $this->contentFilters->isUnsupportedDomain($domain)) {
+			throw new UnsupportedSiteException($domain);
+		}
+		return $resolved;
+	}
 
 	/**
 	 * Resolve common redirect/tracking URLs to their real target.
