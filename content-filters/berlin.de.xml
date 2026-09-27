@@ -30,7 +30,7 @@
     <images>
     <caption
       container-xpath="//div[@class='image']"
-      caption-xpath=".//p[@class='image__caption']"
+      caption-xpath=".//p[@class='image__caption'] | .//p[contains(@class, 'image__copyright')]"
     />
     </images>
 
@@ -40,8 +40,9 @@
          og:-Fallback zurück. og:image liefert dort teils http:// statt https:// -
          das wird zentral in normalizeUrl() (ContentExtractorService) auf https://
          hochgestuft, iOS ATS blockiert unverschlüsselte Bild-Loads sonst. -->
-    <image    xpath="//meta[@name='og:image']/@content | //meta[@property='og:image']/@content" />
     <image xpath="//div[contains(@class, 'type-teaser')]/img/@src" />
+    <image xpath="//div[@class='image'][1]//img/@src" />
+    <image    xpath="//meta[@name='og:image']/@content | //meta[@property='og:image']/@content" />
 
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
