@@ -29,6 +29,7 @@
     <remove xpath="//*[@x-effect]" />
     <remove xpath="//*[@data-area='embed']" />
     <remove xpath="//*[@data-area='related_articles']" />
+    <remove xpath="//section[@data-is-unsupported-smartarticle-summary-hidden]" />
   </pre-filter>
 
   <post-filter>
