@@ -1160,10 +1160,11 @@ class ContentExtractorService {
 	 * MAX_LEAD_IN_NODES ab (Schutz vor pathologischen Fällen, z. B. viele
 	 * kurze Absätze in Folge).
 	 *
-	 * Reine Struktur-Wrapper (<div>/<section>/<article>) werden dabei IMMER
-	 * transparent durchstiegen - unabhängig von ihrer Kinderzahl -, statt sie
-	 * wie jeden anderen Knoten über resolveLeadingImage()/isSkippableLeadIn()
-	 * zu bewerten. Zwei reale Fälle brauchen das:
+	 * Reine Struktur-Wrapper (<div>/<section>/<article>/<main>) werden dabei
+	 * IMMER transparent durchstiegen - unabhängig von ihrer Kinderzahl -,
+	 * statt sie wie jeden anderen Knoten über
+	 * resolveLeadingImage()/isSkippableLeadIn() zu bewerten. Drei reale Fälle
+	 * brauchen das:
 	 *   - Readabilitys äußerer Wrapper-Div (typischerweise
 	 *     <div id="readability-page-1">…</div>, Attribute bereits von
 	 *     cleanHtml() entfernt) enthält das Hero-Bild UND alle folgenden
@@ -1179,6 +1180,14 @@ class ContentExtractorService {
 	 *     isSkippableLeadIn() zurück und wird dort fälschlich als "zu langer
 	 *     echter Absatz" gewertet, sobald z. B. allein die Bildunterschrift
 	 *     über der Schwelle liegt - die Suche bricht dann VOR dem Bild ab.
+	 *   - <main><article><section><div><figure>… (z. B. spiegel.de): ohne
+	 *     <main> in dieser Liste würde resolveLeadingImage() den <main>-Knoten
+	 *     verwerfen (nicht in seiner eigenen p/div/span/a/figure-Allowlist)
+	 *     und isSkippableLeadIn() ihn wegen des kompletten, weit über
+	 *     LEAD_IN_TEXT_MAX_LENGTH liegenden Artikeltexts als "substantiell"
+	 *     werten - die Suche bräche dann VOR dem eigentlichen Hero-Bild ab,
+	 *     das Hero-Bild bliebe unentfernt im Content stehen und würde neben
+	 *     dem in Step 12 separat vorangestellten og:image-Bild dupliziert.
 	 * Deshalb muss dieser Check vor resolveLeadingImage()/isSkippableLeadIn()
 	 * laufen, nicht danach.
 	 *
@@ -1206,7 +1215,7 @@ class ContentExtractorService {
 				continue;
 			}
 
-			if (in_array(strtolower($node->nodeName), ['div', 'section', 'article'], true)) {
+			if (in_array(strtolower($node->nodeName), ['div', 'section', 'article', 'main'], true)) {
 				if (!$this->scanForLeadingImages($node, $baseUrl, $images, $inspected)) {
 					return false;
 				}
