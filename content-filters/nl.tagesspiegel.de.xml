@@ -21,15 +21,16 @@
          Anzeigeninhalt, unabhängig von dessen interner Struktur. -->
     <remove xpath="//div[contains(@class,'mobile-section') and .//div[normalize-space(text())='Anzeige']]/following-sibling::div[contains(@class,'mobile-section')][1]" />
   </pre-filter>
-
-  <images>
   
   <images>
     <caption
         container-xpath="//table[@class='image-credit']/.."
         caption-xpath=".//table[@class='image-credit']//td/text()"
     />
-  </images>
+    <caption
+        container-xpath="//div[@class='image-credit']/.."
+        caption-xpath=".//div[@class='image-credit']/span/text()"
+    />
   </images>
 
   <metadata>
