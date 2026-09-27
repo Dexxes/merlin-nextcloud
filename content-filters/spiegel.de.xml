@@ -22,16 +22,17 @@
 <domain name="spiegel.de">
 
   <pre-filter>
-  <!-- FÜR SPIGEL MUSS WEGEN ALPINE.JS ALLES ALS POST FILTER -->
-    <!--<remove xpath="//article/header" />-->
-    <!--<remove xpath="//svg[@data-link-flag]" />-->
-    <!--<remove xpath="//div[@data-has-paid-access-hidden='' and @data-not-gift-article-hidden='']" />-->
-    <!--<remove xpath="//*[@x-effect]" />-->
+  
+    <remove xpath="//article/header" />
+    <remove xpath="//svg[@data-link-flag]" />
+    <remove xpath="//div[@data-has-paid-access-hidden='' and @data-not-gift-article-hidden='']" />
+    <remove xpath="//*[@x-effect]" />
+    <remove xpath="//*[@data-area='embed']" />
+    <remove xpath="//*[@data-area='related_articles']" />
   </pre-filter>
 
   <post-filter>
-    <remove xpath="//*[@data-area='embed']" />
-    <remove xpath="//*[@data-area='related_articles']" />
+    
   </post-filter>
 
 <images>
