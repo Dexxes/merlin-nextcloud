@@ -13,7 +13,7 @@
 		<!-- unsupportedSiteDomain: Merlin hat den Fetch abgelehnt (siehe
 			 UnsupportedSiteException server-seitig), kein Retry-Fall. -->
 		<div v-else-if="article.unsupportedSiteDomain" class="article-unsupported-badge">
-			{{ t('merlin', 'Not supported') }}
+			{{ t('merlin', 'Page unavailable') }}
 		</div>
 
 		<div class="article-image">
@@ -585,14 +585,18 @@ export default {
 	flex-shrink: 0;
 }
 
-/* Small badge shown at the top of a card whose site Merlin refused to fetch */
+/* Small badge shown at the top of a card whose site Merlin refused to fetch.
+   Fixed colors instead of --color-warning: that variable resolves to a pale
+   yellow in Nextcloud's default theme, which made white text unreadable here
+   (unlike --color-primary above, it isn't a solid/dark tone meant to carry
+   white text). */
 .article-unsupported-badge {
 	display: flex;
 	align-items: center;
 	padding: 4px 10px;
 	font-size: 11px;
 	color: #fff;
-	background: var(--color-warning, #c9820a);
+	background: #8a5300;
 	border-radius: var(--border-radius-large) var(--border-radius-large) 0 0;
 }
 
