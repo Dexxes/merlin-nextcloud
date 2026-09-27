@@ -3,16 +3,14 @@
 <domain name="entwicklungsstadt.de">
 
   <pre-filter>
-  <remove xpath="//div[contains(@class, 'fusion-content-tb')]/p/strong"/>
+    <remove xpath="//div[contains(@class, 'fusion-content-tb')]/p/strong"/>
   </pre-filter>
 
   <images>
-  
     <caption
         container-xpath="//div[contains(@class,'wp-caption')]"
         caption-xpath=".//p"
     />
-
   </images>
 
   <post-filter>
