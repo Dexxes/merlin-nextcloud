@@ -325,6 +325,24 @@ export default {
 	margin: 2em auto;
 }
 
+/* Tabellen aus dem Artikel-HTML bringen oft feste Spaltenbreiten mit und
+   sprengen sonst die Artikelspalte statt zu umbrechen; block+auto-Scroll
+   hält sie innerhalb der Spaltenbreite. */
+.pav-body :deep(table) {
+	display: block;
+	max-width: 100%;
+	width: max-content;
+	overflow-x: auto;
+	margin: 2em 0;
+	border-collapse: collapse;
+}
+
+.pav-body :deep(th),
+.pav-body :deep(td) {
+	border: 1px solid var(--color-border);
+	padding: 0.5em 0.75em;
+}
+
 /* Video-Embeds (YouTube/Vimeo/Twitch/TikTok/Facebook/Arte), siehe
    isAllowedVideoEmbedSrc() im Backend. */
 .pav-body :deep(iframe) {
