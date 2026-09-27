@@ -434,6 +434,20 @@ $checkMatch(
 	false
 );
 
+$checkMatch(
+	'tagesspiegel.de-CDN "alternates"-Renditions: og:image ("BASE_16_9_W1400") vs. Content-<figure> ("BASE_21_9_W1000"), gleicher Basispfad',
+	'https://www.tagesspiegel.de/images/16093924/alternates/BASE_21_9_W1000/1790325574000/bearb1-223137136.jpeg',
+	'https://www.tagesspiegel.de/images/16093924/alternates/BASE_16_9_W1400/1790325574000/bearb1-223137136.jpeg',
+	true
+);
+
+$checkMatch(
+	'tagesspiegel.de-CDN-Rendition eines ANDEREN Artikelbilds (andere Bild-ID) matcht nicht',
+	'https://www.tagesspiegel.de/images/16093924/alternates/BASE_21_9_W1000/1790325574000/bearb1-223137136.jpeg',
+	'https://www.tagesspiegel.de/images/99999999/alternates/BASE_16_9_W1400/1790325574000/anderes-foto.jpeg',
+	false
+);
+
 echo "\n" . str_repeat('─', 72) . "\n";
 if ($failures === []) {
 	echo "\033[32mAlle " . $passed . " Prüfungen bestanden.\033[0m\n";
