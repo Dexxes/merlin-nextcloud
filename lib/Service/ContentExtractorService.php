@@ -1394,6 +1394,13 @@ class ContentExtractorService {
 			// auf denselben Dateinamen (ohne Endung) normalisieren.
 			$url = preg_replace('#(/picture/\d+)/\d+/([^/]+)\.\w+$#i', '$1/$2', $url) ?? $url;
 
+			// nd-aktuell.de-Bildserver: Pfadschema "/img/jpeg/<breite>/<id>" liefert je
+			// nach Einbettung unterschiedliche Renditions derselben Aufnahme, z. B.
+			// ".../img/jpeg/2400/325646" (og:image) vs. ".../img/jpeg/640/325646"
+			// (Content-<figure>, kleinste srcset-Variante). Die Breite entfernen,
+			// damit beide auf dieselbe Bild-ID normalisieren.
+			$url = preg_replace('#(/img/jpeg)/\d+(/\d+)$#i', '$1$2', $url) ?? $url;
+
 			// AEM-Bildserver-Renditions: ein oder mehrere trailing "key=wert"-
 			// Pfadsegmente (z. B. "size=1280x720.jpg", "quality=160")
 			// entfernen, bis das stabile Basis-Asset übrig bleibt.
