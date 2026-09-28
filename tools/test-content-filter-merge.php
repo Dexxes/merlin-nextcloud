@@ -924,5 +924,45 @@ namespace {
 	$t->eq(count($dupTrace->toArray()), 2, 'Gleiche Regel aus Bundle und Custom bleibt getrennt');
 	$t->eq($dupTrace->countMisses(), 1, 'Die wirkungslose eigene Regel ist als Fehltreffer sichtbar');
 
+	// ══════════════════════════════════════════════════════════════════════════
+	$t->group('16. <media>: Quellen je type, Beschreibung als Ganzes');
+
+	$bundle = $doc('example.com', '
+		<media>
+			<source type="xpath" kind="audio" xpath="//audio/@src" />
+			<source type="json-ld" kind="audio" />
+			<description xpath="//meta[@name=\'description\']/@content" />
+		</media>
+	');
+	$custom = $doc('example.com', '
+		<media>
+			<source type="xpath" kind="audio" xpath="//a[@class=\'mp3\']/@href" host-allow="cdn.example.com" />
+			<description json="$.description" />
+		</media>
+	');
+	$merged = $merger->merge($bundle, $custom, 'example.com');
+	$t->eq(count($merged?->xpath('media/source') ?: []), 2, 'media: source mit gleichem type ersetzt, anderer bleibt');
+	$t->eq($values($merged, 'media/source[@type="xpath"]/@xpath'), ["//a[@class='mp3']/@href"], 'media: Custom-Quelle gewinnt');
+	$t->eq($values($merged, 'media/source[@type="json-ld"]/@kind'), ['audio'], 'media: nicht überschriebene Bundle-Quelle bleibt');
+	$t->eq(count($merged?->xpath('media/description') ?: []), 1, 'media: description existiert nur einmal');
+	$t->eq($values($merged, 'media/description/@json'), ['$.description'], 'media: Custom-Beschreibung ersetzt die Bundle-Beschreibung');
+
+	$disabled = $merger->merge($bundle, $doc('example.com', '<disable section="media" />'), 'example.com');
+	$t->eq(count($disabled?->xpath('media/source') ?: []), 0, 'media: per <disable section="media"> abschaltbar');
+
+	$t->eq($validator->validate($bundle, 'example.com'), [], 'media: gültige Datei wird akzeptiert');
+	$mediaCases = [
+		'unbekannter type'    => ['<media><source type="spotify" kind="audio" /></media>', 'Unbekannter Medien-Typ'],
+		'unbekanntes kind'    => ['<media><source type="json-ld" kind="podcast" /></media>', 'kind muss'],
+		'kind fehlt'          => ['<media><source type="json-ld" /></media>', 'braucht das Attribut kind'],
+		'xpath-Typ ohne xpath' => ['<media><source type="xpath" kind="audio" /></media>', 'braucht das Attribut xpath'],
+		'host-allow ungültig' => ['<media><source type="json-ld" kind="audio" host-allow="nicht gültig/" /></media>', 'host-allow'],
+		'type doppelt'        => ['<media><source type="json-ld" kind="audio" /><source type="json-ld" kind="video" /></media>', 'mehrfach'],
+	];
+	foreach ($mediaCases as $label => [$body, $needle]) {
+		$message = $firstError($validator->validate($doc('a.example', $body), 'a.example'));
+		$t->ok(str_contains($message, $needle), 'media abgelehnt: ' . $label, $message);
+	}
+
 	exit($t->summary());
 }

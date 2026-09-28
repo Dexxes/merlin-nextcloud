@@ -27,6 +27,7 @@
 			<template #icon>
 				<Magnify v-if="searchQuery.trim()" :size="64" />
 				<PlayCircleOutline v-else-if="filterCategory && filterCategory.startsWith('videos-')" :size="64" />
+				<Headphones v-else-if="filterCategory && filterCategory.startsWith('audio-')" :size="64" />
 				<BookOpen v-else :size="64" />
 			</template>
 		</NcEmptyContent>
@@ -55,6 +56,7 @@ import {
 } from '@nextcloud/vue'
 import BookOpen from 'vue-material-design-icons/BookOpen.vue'
 import PlayCircleOutline from 'vue-material-design-icons/PlayCircleOutline.vue'
+import Headphones from 'vue-material-design-icons/Headphones.vue'
 import Magnify from 'vue-material-design-icons/Magnify.vue'
 import Close from 'vue-material-design-icons/Close.vue'
 import ArticleCard from './ArticleCard.vue'
@@ -67,6 +69,7 @@ export default {
 		NcLoadingIcon,
 		BookOpen,
 		PlayCircleOutline,
+		Headphones,
 		Magnify,
 		Close,
 		ArticleCard,
@@ -102,6 +105,9 @@ export default {
 			if (this.filterCategory && this.filterCategory.startsWith('videos-')) {
 				return t('merlin', 'No videos yet')
 			}
+			if (this.filterCategory && this.filterCategory.startsWith('audio-')) {
+				return t('merlin', 'No audio yet')
+			}
 			return t('merlin', 'No articles yet')
 		},
 		emptyDescription() {
@@ -110,6 +116,9 @@ export default {
 			}
 			if (this.filterCategory && this.filterCategory.startsWith('videos-')) {
 				return t('merlin', 'Save video links to watch them here')
+			}
+			if (this.filterCategory && this.filterCategory.startsWith('audio-')) {
+				return t('merlin', 'Save podcast and radio links to listen to them here')
 			}
 			return t('merlin', 'Add your first article to get started')
 		},

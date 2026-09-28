@@ -4,6 +4,10 @@
 -->
 <domain name="arte.tv">
   <category>Video</category>
+  <media>
+    <source type="arte" kind="video" />
+    <description xpath="//meta[@property='og:description']/@content" />
+  </media>
   <pre-filter />
   <post-filter />
   <metadata>

@@ -25,7 +25,9 @@ return [
         // TTS route (kombinierter Proxy-Endpunkt: Synthese + Streaming in einem Request)
         ['name' => 'tts#synthesize', 'url' => '/api/articles/{id}/tts', 'verb' => 'GET'],
 
-        // Native ARD/ZDF/Arte-Stream-Auflösung (siehe VideoStreamResolverService-Docblock)
+        // Audio-/Video-Quelle eines Artikels (siehe Service/Media/MediaResolverService)
+        ['name' => 'media#resolve', 'url' => '/api/articles/{id}/media', 'verb' => 'GET'],
+        // Veraltet, nur für bestehende Clients: altes Format, nur HLS-Video
         ['name' => 'videoStream#resolve', 'url' => '/api/articles/{id}/video-stream', 'verb' => 'GET'],
 
         // YouTube-Embed-Proxy (siehe YoutubeEmbedController-Docblock): gibt dem

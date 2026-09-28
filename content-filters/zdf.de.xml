@@ -6,6 +6,12 @@
 
   <category>Video</category>
 
+  <!-- HLS-Stream über ZDFs GraphQL-/PTMD-API; Teaser und Beschreibung liest der
+       Provider selbst aus dem Next.js-Payload (keine <description>-Regel nötig). -->
+  <media>
+    <source type="zdf" kind="video" />
+  </media>
+
   <pre-filter>
     <remove xpath="//*[contains(@class,'b-navigation')]" />
     <remove xpath="//*[contains(@class,'b-footer')]" />

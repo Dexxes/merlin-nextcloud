@@ -19,6 +19,7 @@ export default createStore({
 		counts: {
 			pages: { total: 0, unread: 0, favorites: 0, archived: 0 },
 			videos: { total: 0, unread: 0, favorites: 0, archived: 0 },
+			audio: { total: 0, unread: 0, favorites: 0, archived: 0 },
 		},
 		tags: [],
 		settings: {},
@@ -386,8 +387,9 @@ export default createStore({
 		async pollForUpdates({ state, commit }) {
 			try {
 				const counts = await articlesAPI.getCounts()
-				const total = counts.pages.total + counts.videos.total
-				const previousTotal = state.counts.pages.total + state.counts.videos.total
+				const sumTotals = c => ['pages', 'videos', 'audio'].reduce((sum, group) => sum + (c[group]?.total || 0), 0)
+				const total = sumTotals(counts)
+				const previousTotal = sumTotals(state.counts)
 				if (total !== previousTotal) {
 					commit('SET_COUNTS', counts)
 					if (state.view === 'list') {

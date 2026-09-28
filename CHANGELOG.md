@@ -4,6 +4,47 @@ All notable changes to Merlin are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning based on
 [SemVer](https://semver.org/).
 
+## [1.0.11]
+
+### Added
+- Extensible audio/video handling modelled on the content filters: a new
+  `<media>` section in `content-filters/{domain}.xml` declares which source
+  type a domain uses (`<source type="…" kind="video|audio">`, optional
+  `<description>`), merged across bundle/admin/user like every other section.
+  The per-type logic lives in providers under `lib/Service/Media/Provider/`
+  (`ard-mediathek`, `zdf`, `arte`, `youtube-embed`, and the generic `xpath`
+  and `json-ld`). A new broadcaster that ships its media file in the page
+  markup or in schema.org JSON-LD needs only a `<media>` entry, no code.
+- Audio: Deutschlandfunk / Deutschlandfunk Kultur (article audio via
+  `data-audio`, live stream excluded) and ARD Sounds (`ardsounds.de.xml`,
+  episode file from JSON-LD).
+- YouTube articles now play in the reader through the official
+  youtube-nocookie embed instead of only linking out.
+- Categories `Audio` and `Mixed` next to `Video`: `Mixed` is set automatically
+  for text articles with a media source (with fewer than 80 words the article
+  counts as a pure `Audio`/`Video` page instead). Sidebar group "Audio",
+  `contentType=audio` on `GET /api/articles`, `audio` block in
+  `GET /api/articles/counts`; `Mixed` counts as a page.
+- `GET /api/articles/{id}/media` → `{available, kind, delivery (hls|file|embed),
+  variants, defaultIndex}`. Stable sources (files, embeds) are written into the
+  content as a `<div class="merlin-media" data-media-*>` marker at save time, so
+  they also play offline and on public share links; mediathek HLS streams are
+  still resolved per request.
+- `MediaPlayer.vue` replaces `VideoPlayer.vue` (HLS via hls.js, now loaded on
+  demand; native `<audio>`/`<video>` for files; iframe for embeds).
+
+### Changed
+- `GET /api/articles/{id}/video-stream` is deprecated; it keeps its old response
+  format (HLS video only) for existing clients.
+- CSP: `media-src https:` for direct audio/video files.
+- `content-filters/deutschlandfunk.kultur.de.xml` renamed to
+  `deutschlandfunkkultur.de.xml` - under the old name it never matched the
+  domain, so its rules were not applied at all until now.
+
+### Fixed
+- Video/audio pages without `og:title` (e.g. YouTube's consent page) no longer
+  abort the extraction with a TypeError.
+
 ## [1.0.9]
 
 ### Fixed

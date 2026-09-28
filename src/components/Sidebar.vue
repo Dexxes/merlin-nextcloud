@@ -14,8 +14,9 @@
 				</NcButton>
 			</div>
 
-			<!-- Top-level filters: Pages and Videos, each with their own
-			     Unread(/Unwatched)/Favorites/Archived sub-views. -->
+			<!-- Top-level filters: Pages, Videos and Audio, each with their own
+			     Unread(/Unwatched/Not listened)/Favorites/Archived sub-views.
+			     "Mixed" articles (text with embedded media) count as pages. -->
 			<li class="filter-caption-row app-navigation-caption">
 				<span class="filter-caption-label">{{ t('merlin', 'Pages') }}</span>
 			</li>
@@ -91,6 +92,45 @@
 				</template>
 				<template #counter>
 					<NcCounterBubble :count="counts.videos.archived" />
+				</template>
+			</NcAppNavigationItem>
+
+			<li class="filter-caption-row app-navigation-caption">
+				<span class="filter-caption-label">{{ t('merlin', 'Audio') }}</span>
+			</li>
+			<NcAppNavigationItem
+				:name="t('merlin', 'Not listened')"
+				:active="currentFilter === 'audio-unread'"
+				@click="$emit('filter', 'audio-unread')">
+				<template #icon>
+					<Headphones :size="20" />
+				</template>
+				<template #counter>
+					<NcCounterBubble :count="counts.audio.unread" />
+				</template>
+			</NcAppNavigationItem>
+
+			<NcAppNavigationItem
+				:name="t('merlin', 'Favorites')"
+				:active="currentFilter === 'audio-favorites'"
+				@click="$emit('filter', 'audio-favorites')">
+				<template #icon>
+					<Star :size="20" />
+				</template>
+				<template #counter>
+					<NcCounterBubble :count="counts.audio.favorites" />
+				</template>
+			</NcAppNavigationItem>
+
+			<NcAppNavigationItem
+				:name="t('merlin', 'Archived')"
+				:active="currentFilter === 'audio-archived'"
+				@click="$emit('filter', 'audio-archived')">
+				<template #icon>
+					<Archive :size="20" />
+				</template>
+				<template #counter>
+					<NcCounterBubble :count="counts.audio.archived" />
 				</template>
 			</NcAppNavigationItem>
 
@@ -204,6 +244,7 @@ import Archive from 'vue-material-design-icons/Archive.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
 import TrashCanOutline from 'vue-material-design-icons/TrashCanOutline.vue'
 import PlayCircleOutline from 'vue-material-design-icons/PlayCircleOutline.vue'
+import Headphones from 'vue-material-design-icons/Headphones.vue'
 import Cog from 'vue-material-design-icons/Cog.vue'
 import Magnify from 'vue-material-design-icons/Magnify.vue'
 import Close from 'vue-material-design-icons/Close.vue'
@@ -227,6 +268,7 @@ export default {
 		Plus,
 		TrashCanOutline,
 		PlayCircleOutline,
+		Headphones,
 		Cog,
 		Magnify,
 		Close,

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Merlin Content-Filter: ardsounds.de (vormals ARD Audiothek)
+  Kategorie: Audio – Episodenseiten sind reine Audioseiten.
+-->
+<domain name="ardsounds.de">
+
+  <category>Audio</category>
+
+  <!-- Die Episodendatei steht im schema.org-JSON-LD
+       (PodcastEpisode.associatedMedia.contentUrl), die Beschreibung ebenfalls. -->
+  <media>
+    <source type="json-ld" kind="audio" />
+    <description json="$.description" />
+  </media>
+
+  <metadata>
+    <title   xpath="//meta[@property='og:title']/@content" />
+    <excerpt json="$.description" />
+    <image   xpath="//meta[@property='og:image']/@content" />
+    <published json="$.datePublished" />
+  </metadata>
+
+</domain>

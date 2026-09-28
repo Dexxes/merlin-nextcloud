@@ -87,6 +87,8 @@ export default {
 				return this.t('merlin', 'Named JSON sources that metadata fields can reference')
 			case 'metadata':
 				return this.t('merlin', 'Overrides title, author, date etc.; several rules per field act as a fallback chain')
+			case 'media':
+				return this.t('merlin', 'Audio or video source of the page (player in the reader); several sources act as a fallback chain')
 			default:
 				return ''
 			}

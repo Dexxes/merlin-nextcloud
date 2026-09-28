@@ -75,10 +75,15 @@ class ArticleMapper extends QBMapper {
 		if (isset($filters['category'])) {
 			$qb->andWhere($qb->expr()->eq('a.category', $qb->createNamedParameter($filters['category'])));
 		}
+		// not_category: einzelner Wert oder Liste (Seiten = alles außer
+		// Video und Audio, siehe ArticleController::index()).
 		if (isset($filters['not_category'])) {
 			$qb->andWhere($qb->expr()->orX(
 				$qb->expr()->isNull('a.category'),
-				$qb->expr()->neq('a.category', $qb->createNamedParameter($filters['not_category']))
+				$qb->expr()->notIn('a.category', $qb->createNamedParameter(
+					(array) $filters['not_category'],
+					IQueryBuilder::PARAM_STR_ARRAY
+				))
 			));
 		}
 
@@ -135,12 +140,14 @@ class ArticleMapper extends QBMapper {
 
 		$result = $qb->executeQuery();
 
-		// Seiten/Videos sind die obersten Kategorien (category = "Video" oder
-		// nicht), Unread/Favorites/Archived darunter je Kategorie gezählt -
+		// Seiten/Videos/Audio sind die obersten Kategorien (category = "Video",
+		// "Audio" oder etwas anderes - "Mixed", also Text mit Medium, zählt zu
+		// den Seiten), Unread/Favorites/Archived darunter je Kategorie gezählt -
 		// siehe getCounts() in merlin-standalone-server/src/Db/ArticleRepository.php.
 		$counts = [
 			'pages'  => ['total' => 0, 'unread' => 0, 'favorites' => 0, 'archived' => 0],
 			'videos' => ['total' => 0, 'unread' => 0, 'favorites' => 0, 'archived' => 0],
+			'audio'  => ['total' => 0, 'unread' => 0, 'favorites' => 0, 'archived' => 0],
 		];
 
 		while ($row = $result->fetch()) {
@@ -150,7 +157,11 @@ class ArticleMapper extends QBMapper {
 			// DATETIME-String oder NULL, kein Integer mehr – nicht (int)/(bool)
 			// casten (führt bei Datums-Strings zu Fehlinterpretation).
 			$favorite = $row['is_favorite'] !== null;
-			$group    = ($row['category'] ?? '') === 'Video' ? 'videos' : 'pages';
+			$group    = match ($row['category'] ?? '') {
+				'Video' => 'videos',
+				'Audio' => 'audio',
+				default => 'pages',
+			};
 
 			if ($isArchived) {
 				$counts[$group]['archived']++;

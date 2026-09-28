@@ -44,7 +44,8 @@
   Zusammenführung:
     · Listen-Sektionen (pre-filter, post-filter, quotes, images) werden ergänzt;
       Custom-Regeln laufen NACH den Regeln der jeweils darunterliegenden Ebene.
-    · <fetch><header> wird je name-Attribut ersetzt, <json> je id-Attribut.
+    · <fetch><header> wird je name-Attribut ersetzt, <json> je id-Attribut,
+      <media><source> je type-Attribut (<media><description> als Ganzes).
     · <metadata>-Felder und <category>: definiert eine Custom-Ebene ein Feld,
       ersetzt sie die komplette Kette dieses Feldes aus den darunterliegenden Ebenen.
     · Einzelne Regeln einer darunterliegenden Ebene lassen sich über <disable>
@@ -267,6 +268,45 @@
   Weist allen Artikeln dieser Domain eine feste Kategorie zu, ohne XPath.
   Wird von <metadata><category> überschrieben, falls dort ein Wert gefunden wird.
 
+  Medien-Kategorien:
+    Video, Audio  – reine Medienseiten: KEIN Readability-Durchlauf, der Content
+                    besteht aus Player-Marker + <media><description>.
+    Mixed         – Textartikel mit eingebettetem Medium: normaler Readability-
+                    Durchlauf, der Player steht über dem Text. Wird AUTOMATISCH
+                    gesetzt, wenn eine <media><source> etwas findet und die Domain
+                    keine feste Kategorie hat – nicht selbst eintragen.
+
+  ═══════════════════════════════════════════════════════════════════════════════
+  MEDIEN  (<media>)
+  ═══════════════════════════════════════════════════════════════════════════════
+  Audio-/Video-Quelle der Seite, abgespielt vom Player im Reader. Die Logik je
+  Quellen-Typ liegt in lib/Service/Media/Provider/; hier wird nur deklariert,
+  welcher Typ für diese Domain gilt.
+
+    <source type="..." kind="video|audio" [xpath="..."] [host-allow="..."] />
+      Mehrere <source> bilden eine Fallback-Kette in Dokumentreihenfolge.
+
+      type="xpath"          – generisch: Medien-URL per XPath aus dem Seiten-HTML
+                              (Attribut oder Text). xpath ist Pflicht.
+      type="json-ld"        – generisch: erstes contentUrl eines AudioObject/
+                              VideoObject/MediaObject im schema.org-JSON-LD
+      type="youtube-embed"  – offizieller YouTube-Player, Video-ID aus der URL
+      type="ard-mediathek"  – HLS über die ARD-Mediathek-API
+      type="zdf"            – HLS über die ZDF-API (liefert auch die Beschreibung)
+      type="arte"           – HLS über die Arte-Player-API
+
+      host-allow            – Domain-Suffixe (leerzeichen-/kommagetrennt), auf die
+                              eine per xpath/json-ld gefundene URL zeigen darf.
+                              Ohne Angabe ist jede https-URL erlaubt.
+
+    <description xpath="..." />  bzw.  <description json="$.description" />
+      Lesetext reiner Medienseiten (Kategorie Video/Audio); Absätze werden an
+      Leerzeilen getrennt. Erste nicht-leere Regel gewinnt.
+
+  Neuer Sender: reicht xpath oder json-ld, genügt ein Eintrag hier. Sonst einen
+  Provider unter lib/Service/Media/Provider/ anlegen und in
+  MediaProviderRegistry sowie ContentFilterSchema::MEDIA_SOURCE_TYPES eintragen.
+
   ═══════════════════════════════════════════════════════════════════════════════
   PAYWALL  (<paywall>)
   ═══════════════════════════════════════════════════════════════════════════════
@@ -434,6 +474,17 @@
   <!-- Weist allen Artikeln dieser Domain die Kategorie "Nachrichten" zu.   -->
   <!-- Wird durch <metadata><category xpath="..."> überschrieben.           -->
   <!-- <category>Nachrichten</category> -->
+
+  <!-- ── Medien ─────────────────────────────────────────────────────────── -->
+  <!-- Audio im Seiten-HTML, siehe Erklärung oben.                           -->
+  <!--
+  <media>
+    <source type="xpath" kind="audio"
+            xpath="(//audio/source/@src)[1]"
+            host-allow="cdn.sample.com" />
+    <description xpath="//div[@class='episode-description']" />
+  </media>
+  -->
 
   <!-- ── Paywall ────────────────────────────────────────────────────────── -->
   <!-- Noch ohne Auswertung durch den Extractor, siehe Erklärung oben.       -->

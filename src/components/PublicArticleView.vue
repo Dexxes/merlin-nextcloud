@@ -56,8 +56,15 @@
 				</div>
 			</header>
 
+			<!-- Nur Medien mit stabiler Quelle im Marker (Datei/Embed) - ohne
+				Login gibt es keinen /media-Endpunkt für Mediathek-Streams. -->
+			<MediaPlayer
+				:content="article.content || ''"
+				:category="article.category || null"
+				@state-change="mediaPlayable = $event.playable" />
+
 			<!-- eslint-disable-next-line vue/no-v-html -->
-			<div ref="bodyEl" class="pav-body" v-html="article.content" />
+			<div ref="bodyEl" class="pav-body" :class="{ 'has-native-media': mediaPlayable }" v-html="article.content" />
 		</article>
 	</div>
 </template>
@@ -67,9 +74,12 @@ import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { loadState } from '@nextcloud/initial-state'
 import { renderHighlightsReadOnly } from '../highlight-engine'
+import MediaPlayer from './MediaPlayer.vue'
 
 export default {
 	name: 'PublicArticleView',
+
+	components: { MediaPlayer },
 
 	data() {
 		return {
@@ -80,6 +90,7 @@ export default {
 			unlocking: false,
 			unlockError: '',
 			audioVisible: false,
+			mediaPlayable: false,
 		}
 	},
 
@@ -341,6 +352,13 @@ export default {
 .pav-body :deep(td) {
 	border: 1px solid var(--color-border);
 	padding: 0.5em 0.75em;
+}
+
+/* Medien-Marker samt Fallback-Link ausblenden, sobald der MediaPlayer
+   darüber die Quelle abspielt (siehe ArticleReader.vue). */
+.pav-body.has-native-media :deep(.merlin-media),
+.pav-body.has-native-media :deep(.merlin-video-fallback-link) {
+	display: none;
 }
 
 /* Video-Embeds (YouTube/Vimeo/Twitch/TikTok/Facebook/Arte), siehe

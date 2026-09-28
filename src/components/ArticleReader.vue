@@ -294,7 +294,7 @@
 					</div>
 				</header>
 
-				<div class="article-body" :class="{ 'has-native-video': videoPlayable }">
+				<div class="article-body" :class="{ 'has-native-media': mediaState.playable }">
 					<!-- unsupportedSiteDomain: Merlin hat den Fetch abgelehnt (siehe
 						 UnsupportedSiteException server-seitig) statt einen leeren/
 						 kaputten Artikel zu speichern - Content ist hier immer leer,
@@ -356,12 +356,13 @@
 						</div>
 					</NcNoteCard>
 
-					<!-- Bei abspielbarem Video dient das Hero-Bild als Poster im
-						Player (siehe :poster-url unten) statt zusätzlich separat
-						darüber angezeigt zu werden.
+					<!-- Bei abspielbarem Video (auch Embed) dient das Hero-Bild als
+						Poster im Player (siehe :poster-url unten) bzw. zeigt der
+						Embed sein eigenes Vorschaubild - dann nicht zusätzlich
+						separat darüber anzeigen. Bei Audio bleibt es stehen.
 
 						data-hl-flatten: der Hero/Rest-Split (siehe heroAndRestContent) und der
-						dazwischen eingefügte VideoPlayer sind rein präsentationell - sie
+						dazwischen eingefügte MediaPlayer sind rein präsentationell - sie
 						existieren nicht im rohen article-content-HTML, gegen das Highlight-XPaths
 						auf anderen Plattformen berechnet werden. highlight-engine.js sieht durch
 						data-hl-flatten-Wrapper hindurch (ihre Kinder zählen als direkte Kinder von
@@ -369,15 +370,15 @@
 						der XPath eines Highlights weiterhin so auflöst, als hätte dieser Split nie
 						stattgefunden. -->
 					<!-- eslint-disable-next-line vue/no-v-html -->
-					<div v-if="heroAndRestContent.heroHtml && !videoPlayable" data-hl-flatten v-html="heroAndRestContent.heroHtml" />
+					<div v-if="heroAndRestContent.heroHtml && mediaState.kind !== 'video'" data-hl-flatten v-html="heroAndRestContent.heroHtml" />
 
-					<VideoPlayer
-						v-if="article.url"
+					<MediaPlayer
 						data-hl-exclude
 						:article-id="article.id"
-						:article-url="article.url"
+						:content="processedContent"
+						:category="article.category"
 						:poster-url="heroAndRestContent.heroImageUrl"
-						@playable-change="videoPlayable = $event" />
+						@state-change="mediaState = $event" />
 
 					<!-- eslint-disable-next-line vue/no-v-html -->
 					<div data-hl-flatten v-html="heroAndRestContent.restHtml" />
@@ -431,7 +432,7 @@ import * as articlesAPI from '../api/articles'
 import * as highlightsAPI from '../api/highlights'
 import { HighlightEngine } from '../highlight-engine'
 import ShareLinkDialog from './ShareLinkDialog.vue'
-import VideoPlayer from './VideoPlayer.vue'
+import MediaPlayer from './MediaPlayer.vue'
 
 const TAG_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899']
 
@@ -470,7 +471,7 @@ export default {
 		ShareVariant,
 		LinkVariant,
 		ShareLinkDialog,
-		VideoPlayer,
+		MediaPlayer,
 		ContentCopy,
 		Email,
 		Butterfly,
@@ -511,10 +512,10 @@ export default {
 			shareMenuStyle: {},
 			shareLinkDialogOpen: false,
 			hasNativeShare: typeof navigator !== 'undefined' && !!navigator.share,
-			// true, sobald VideoPlayer erfolgreich einen nativen Stream lädt -
-			// blendet dann den redundanten "Zum Video"-Fallback-Link aus (siehe
-			// .merlin-video-fallback-link weiter unten).
-			videoPlayable: false,
+			// Zustand des MediaPlayers: playable = Quelle geladen (blendet dann
+			// den redundanten Fallback-Link/Marker aus, siehe .merlin-media
+			// weiter unten), kind = 'video'/'audio' (Video ersetzt das Hero-Bild).
+			mediaState: { playable: false, kind: null },
 			isMobile: false,
 			showBottomBar: true,
 			_lastScrollTop: 0,
@@ -665,7 +666,7 @@ export default {
 
 		// Trennt eine führende <figure class="merlin-hero-image"> (siehe
 		// ContentExtractorService Step 12) vom restlichen Content ab, damit der
-		// VideoPlayer zwischen Hero-Bild und Rest platziert werden kann statt
+		// MediaPlayer zwischen Hero-Bild und Rest platziert werden kann statt
 		// immer ganz oben. Nur ein Split, wenn die Figure wirklich das erste
 		// Element ist - sonst bleibt alles wie zuvor in restHtml.
 		heroAndRestContent() {
@@ -680,7 +681,7 @@ export default {
 
 			const heroHtml = hero.outerHTML
 			// Dient bei einem abspielbaren Video als Poster-Bild statt separat
-			// über der Figure angezeigt zu werden (siehe VideoPlayer-Bindung
+			// über der Figure angezeigt zu werden (siehe MediaPlayer-Bindung
 			// unten) - deshalb schon hier mit heraustrennen.
 			const heroImageUrl = hero.querySelector('img')?.src ?? ''
 			hero.remove()
@@ -1356,10 +1357,14 @@ article {
 	line-height: inherit;
 }
 
-/* Der "Zum Video"-Fallback-Link (siehe ContentExtractorService, Video-Zweig)
-   wird redundant, sobald VideoPlayer erfolgreich einen nativen Stream
-   gefunden hat - videoPlayable steuert diese Klasse. */
-.article-body.has-native-video :deep(.merlin-video-fallback-link) {
+/* Der Medien-Marker samt "Zum Video"/"Zum Audio"-Fallback-Link (siehe
+   MediaResolverService::buildMarkerHtml()) wird redundant, sobald der
+   MediaPlayer eine Quelle abspielt - mediaState.playable steuert diese
+   Klasse. .merlin-video-fallback-link deckt Artikel ab, die vor Einführung
+   der Marker gespeichert wurden. */
+.article-body.has-native-media :deep(.merlin-media),
+.article-body.has-native-media :deep(.merlin-media-fallback-link),
+.article-body.has-native-media :deep(.merlin-video-fallback-link) {
 	display: none;
 }
 

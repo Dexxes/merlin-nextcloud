@@ -4,6 +4,12 @@
 -->
 <domain name="m.youtube.com">
   <category>Video</category>
+
+  <!-- Offizieller Embed-Player (youtube-nocookie), die Video-ID kommt aus der URL. -->
+  <media>
+    <source type="youtube-embed" kind="video" />
+    <description xpath="//meta[@name='description']/@content" />
+  </media>
   <pre-filter />
   <post-filter />
   <metadata>
