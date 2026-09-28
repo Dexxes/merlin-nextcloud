@@ -472,6 +472,27 @@ $checkMatch(
 	false
 );
 
+$checkMatch(
+	'beck-aktuell.de (Drupal-Bildstile): og:image-Original vs. "styles/<stil>/public"-Rendition mit angehängter .webp-Endung, gleicher Basispfad',
+	'https://www.beck-aktuell.de/sites/default/files/styles/1280w720h-webp-80/public/media/2026-08/Sicherheit.jpeg.webp?itok=AGI5d1OB-aN6t6DMi-A8NnMDWd',
+	'https://www.beck-aktuell.de/sites/default/files/media/2026-08/Sicherheit.jpeg',
+	true
+);
+
+$checkMatch(
+	'Drupal-Bildstil-Rendition eines ANDEREN Artikelbilds (anderer Dateiname) matcht nicht',
+	'https://www.beck-aktuell.de/sites/default/files/styles/1280w720h-webp-80/public/media/2026-08/Sicherheit.jpeg.webp?itok=AGI5d1OB-aN6t6DMi-A8NnMDWd',
+	'https://www.beck-aktuell.de/sites/default/files/media/2026-08/Anderes-Bild.jpeg',
+	false
+);
+
+$checkMatch(
+	'beck-aktuell.de: <picture>-Fallback-<img> mit LEEREM Stilnamen ("styles//public/…", vom picturefill-Polyfill erst clientseitig per JS befüllt) matcht trotzdem',
+	'https://www.beck-aktuell.de/sites/default/files/styles//public/media/2026-08/Sicherheit.jpeg?itok=',
+	'https://www.beck-aktuell.de/sites/default/files/media/2026-08/Sicherheit.jpeg',
+	true
+);
+
 echo "\n\033[1mremoveDuplicateHeroImage(): Duplikat HINTER substantiellem Text wird entfernt\033[0m\n";
 
 $checkRemoveDuplicate = function (
@@ -514,6 +535,17 @@ $checkRemoveDuplicate(
 	'https://example.com/foto.jpg',
 	'<img',
 	'Ein Foto:  Ende.'
+);
+
+$checkRemoveDuplicate(
+	'beck-aktuell.de-Regression: <picture>-Fallback-<img> (leerer Stilname, per picturefill erst clientseitig befüllt) hinter einer langen Meta-<ul> (Badge/Autor/Rubrik/Datum/Lesezeit > 80 Zeichen, stoppt stripLeadingImages() vorher) wird trotzdem entfernt',
+	'<p>Kicker</p>'
+		. '<ul><li>NJW</li><li>Forum von Stephan Göcken</li><li>Berufsrecht der Rechtsanwälte und Notare</li><li>18. August 2026</li><li>2 Min.</li></ul>'
+		. '<figure><picture><source srcset="https://www.beck-aktuell.de/sites/default/files/styles/1280w720h-webp-80/public/media/2026-08/Sicherheit.jpeg.webp?itok=AGI5d1OB-aN6t6DMi-A8NnMDWd 1x"><img src="https://www.beck-aktuell.de/sites/default/files/styles//public/media/2026-08/Sicherheit.jpeg?itok="></picture><figcaption>© nomadnes/adobe</figcaption></figure>'
+		. '<p>' . str_repeat('Weiterer Fließtext. ', 6) . '</p>',
+	'https://www.beck-aktuell.de/sites/default/files/media/2026-08/Sicherheit.jpeg',
+	'<img',
+	'Weiterer Fließtext.'
 );
 
 $checkRemoveDuplicate(

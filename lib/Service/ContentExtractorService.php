@@ -1706,6 +1706,27 @@ class ContentExtractorService {
 			// alle Renditions auf denselben Basispfad normalisieren.
 			$url = preg_replace('#/content/images/size/w\d+(?:/format/[a-z0-9]+)?(?=/)#i', '', $url) ?? $url;
 
+			// Drupal-Bildstile ("image styles", verbreitet u. a. bei
+			// beck-aktuell.de): das Original liegt unter
+			// "/sites/default/files/<pfad>", jede Rendition zusätzlich unter
+			// einem eingeschobenen "/sites/default/files/styles/<stilname>/public/<pfad>"
+			// - oft zusätzlich mit angehängter Formatendung, z. B.
+			// ".../styles/1280w720h-webp-80/public/media/2026-08/Sicherheit.jpeg.webp"
+			// (<picture>-<source>-Renditions) vs. ".../media/2026-08/Sicherheit.jpeg"
+			// (og:image). Das eingebettete <picture>-Fallback-<img> selbst trägt
+			// dabei sogar einen LEEREN Stilnamen ("styles//public/…", vom
+			// clientseitigen picturefill-Polyfill erst per JS befüllt) - deshalb
+			// "[^/]*" (auch 0 Zeichen), nicht "[^/]+". Das Segment entfernen,
+			// damit beide auf denselben Pfad unter "files/" normalisieren.
+			$url = preg_replace('#/styles/[^/]*/public(?=/)#i', '', $url) ?? $url;
+
+			// Die Rendition oben hängt zusätzlich das Zielformat als weitere
+			// Endung an die ursprüngliche Dateiendung an (z. B. ".jpeg.webp"
+			// statt ".jpeg"). Dieses Anhängsel entfernen, wenn die verbleibende
+			// Basis-Endung ein bekanntes Bildformat ist, damit beide Varianten
+			// auf denselben Dateinamen normalisieren.
+			$url = preg_replace('/\.(jpe?g|png|gif|webp|avif)\.(webp|avif|jpe?g|png)$/i', '.$1', $url) ?? $url;
+
 			// AEM-Bildserver-Renditions: ein oder mehrere trailing "key=wert"-
 			// Pfadsegmente (z. B. "size=1280x720.jpg", "quality=160")
 			// entfernen, bis das stabile Basis-Asset übrig bleibt.
