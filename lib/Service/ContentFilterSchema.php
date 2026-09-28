@@ -162,6 +162,8 @@ final class ContentFilterSchema {
 	 *   required – Attribute, die vorhanden und nicht leer sein müssen
 	 *   optional – Attribute, die vorhanden sein dürfen
 	 *   oneOf    – genau eines dieser Attribute muss gesetzt sein
+	 *   values   – optional: je Attribut die Liste erlaubter Werte (nur für
+	 *              den Editor; geprüft wird im ContentFilterValidator)
 	 */
 	public const SECTIONS = [
 		'fetch' => [
@@ -244,6 +246,12 @@ final class ContentFilterSchema {
 					// host-allow: Domain-Suffixe, auf die eine per xpath/json-ld
 					// gefundene URL zeigen darf
 					'optional' => ['xpath', 'host-allow'],
+					// Feste Wertelisten - der Filter-Editor bietet dafür eine
+					// Auswahl statt eines Freitextfelds an (siehe describe()).
+					'values'   => [
+						'type' => self::MEDIA_SOURCE_TYPES,
+						'kind' => self::MEDIA_KINDS,
+					],
 				],
 				// Lesetext reiner Medienseiten (Kategorie Video/Audio). Ohne
 				// eigene Regel liefert ggf. der Provider selbst eine (zdf).
@@ -366,6 +374,8 @@ final class ContentFilterSchema {
 					'required' => array_values($rules['required'] ?? []),
 					'optional' => array_values($rules['optional'] ?? []),
 					'oneOf'    => array_values($rules['oneOf'] ?? []),
+					// Objekt statt Liste, auch wenn leer (JSON {} statt [])
+					'values'   => (object) array_map('array_values', $rules['values'] ?? []),
 				];
 			}
 			$sections[$name] = [

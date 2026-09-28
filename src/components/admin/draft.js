@@ -168,11 +168,14 @@ export function attributeNames(schema, section, element) {
 	const def = schema && schema.sections ? schema.sections[section] : null
 	const child = def && def.children ? def.children[element] : null
 	if (!child) {
-		return { required: [], optional: [], oneOf: [] }
+		return { required: [], optional: [], oneOf: [], values: {} }
 	}
 	return {
 		required: child.required || [],
 		optional: child.optional || [],
 		oneOf: child.oneOf || [],
+		// Attribut → erlaubte Werte (z. B. <media><source type/kind>), dafür
+		// zeigt RuleRow eine Auswahl statt eines Freitextfelds.
+		values: child.values || {},
 	}
 }

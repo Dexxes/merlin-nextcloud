@@ -32,6 +32,9 @@ All notable changes to Merlin are documented here. Format based on
   still resolved per request.
 - `MediaPlayer.vue` replaces `VideoPlayer.vue` (HLS via hls.js, now loaded on
   demand; native `<audio>`/`<video>` for files; iframe for embeds).
+- Content-filter editor: `<media><source type/kind>` are chosen from a list
+  instead of typed freely; the schema (`ContentFilterSchema::describe()`) now
+  carries the allowed values per attribute.
 
 ### Changed
 - `GET /api/articles/{id}/video-stream` is deprecated; it keeps its old response

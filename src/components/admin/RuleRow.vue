@@ -33,10 +33,26 @@
 				@input="setAttribute(activeOneOf, $event.target.value)">
 		</template>
 
-		<!-- Feste Attribute (z. B. saveElements: xpath + class) -->
+		<!-- Feste Attribute (z. B. saveElements: xpath + class). Attribute mit
+			fester Werteliste (z. B. <media><source type/kind>) als Auswahl. -->
 		<label v-for="name in fixedFields" :key="name" class="rule-row__field">
 			<span class="rule-row__field-name">{{ name }}</span>
+			<select
+				v-if="valueOptions(name)"
+				:value="rule.attributes[name] || ''"
+				:disabled="readonly"
+				@change="setAttribute(name, $event.target.value)">
+				<!-- Unbekannter Wert (z. B. aus einer von Hand bearbeiteten Datei)
+					bleibt sichtbar, statt stillschweigend den ersten Eintrag zu zeigen. -->
+				<option v-if="!valueOptions(name).includes(rule.attributes[name] || '')" :value="rule.attributes[name] || ''">
+					{{ rule.attributes[name] || '–' }}
+				</option>
+				<option v-for="option in valueOptions(name)" :key="option" :value="option">
+					{{ option }}
+				</option>
+			</select>
 			<input
+				v-else
 				type="text"
 				:value="rule.attributes[name] || ''"
 				:readonly="readonly"
@@ -105,6 +121,12 @@ export default {
 	},
 
 	methods: {
+		/** Erlaubte Werte des Attributs laut Schema, oder null für Freitext. */
+		valueOptions(name) {
+			const values = this.fields.values[name]
+			return Array.isArray(values) && values.length ? values : null
+		},
+
 		placeholder(name) {
 			switch (name) {
 			case 'id': return 'cookie-banner'
@@ -118,6 +140,7 @@ export default {
 			case 'name': return 'Cookie'
 			case 'value': return 'consent=1'
 			case 'index': return '0'
+			case 'host-allow': return 'cdn.example.com'
 			default: return ''
 			}
 		},
