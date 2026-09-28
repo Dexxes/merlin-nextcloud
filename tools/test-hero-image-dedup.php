@@ -448,6 +448,27 @@ $checkMatch(
 	false
 );
 
+$checkMatch(
+	'Ghost-CMS-Bildserver (storage.ghost.io, jacobin.de-Stil): Lazy-Load-Platzhalter im Content ("size/w30") vs. og:image ("size/w1200"), gleiches Basis-Bild',
+	'https://storage.ghost.io/c/1b/9d/1b9d5475-fc8b-4167-bce4-6d6bd12ae6ab/content/images/size/w30/2026/09/imago0193356615h.jpg',
+	'https://storage.ghost.io/c/1b/9d/1b9d5475-fc8b-4167-bce4-6d6bd12ae6ab/content/images/size/w1200/2026/09/imago0193356615h.jpg',
+	true
+);
+
+$checkMatch(
+	'Ghost-CMS-Bildserver: größte srcset-Variante mit zusätzlichem "format/webp"-Segment matcht ebenfalls',
+	'https://storage.ghost.io/c/1b/9d/1b9d5475-fc8b-4167-bce4-6d6bd12ae6ab/content/images/size/w2000/format/webp/2026/09/imago0193356615h.jpg',
+	'https://storage.ghost.io/c/1b/9d/1b9d5475-fc8b-4167-bce4-6d6bd12ae6ab/content/images/size/w1200/2026/09/imago0193356615h.jpg',
+	true
+);
+
+$checkMatch(
+	'Ghost-CMS-Bildserver-Rendition eines ANDEREN Artikelbilds (anderer Dateiname) matcht nicht',
+	'https://storage.ghost.io/c/1b/9d/1b9d5475-fc8b-4167-bce4-6d6bd12ae6ab/content/images/size/w30/2026/09/anderes-foto.jpg',
+	'https://storage.ghost.io/c/1b/9d/1b9d5475-fc8b-4167-bce4-6d6bd12ae6ab/content/images/size/w1200/2026/09/imago0193356615h.jpg',
+	false
+);
+
 echo "\n" . str_repeat('─', 72) . "\n";
 if ($failures === []) {
 	echo "\033[32mAlle " . $passed . " Prüfungen bestanden.\033[0m\n";

@@ -1484,6 +1484,15 @@ class ContentExtractorService {
 			// entfernen, damit beide auf denselben Basispfad normalisieren.
 			$url = preg_replace('#(/fit-in/)\d+x\d+(?=/)#i', '$1', $url) ?? $url;
 
+			// Ghost-CMS-Bildserver (storage.ghost.io, u. a. jacobin.de): Renditions
+			// werden über ein Pfadsegment ".../content/images/size/w<Breite>/..."
+			// kodiert, optional gefolgt von "format/<fmt>/", z. B.
+			// ".../size/w1200/2026/09/foto.jpg" (og:image) vs.
+			// ".../size/w30/2026/09/foto.jpg" (Lazy-Load-Platzhalter im src-Attribut,
+			// an dem im DOM die <figcaption> hängt). Das Segment entfernen, damit
+			// alle Renditions auf denselben Basispfad normalisieren.
+			$url = preg_replace('#/content/images/size/w\d+(?:/format/[a-z0-9]+)?(?=/)#i', '', $url) ?? $url;
+
 			// AEM-Bildserver-Renditions: ein oder mehrere trailing "key=wert"-
 			// Pfadsegmente (z. B. "size=1280x720.jpg", "quality=160")
 			// entfernen, bis das stabile Basis-Asset übrig bleibt.
