@@ -3,6 +3,7 @@ import { generateUrl } from '@nextcloud/router'
 import * as articlesAPI from '../api/articles'
 import * as tagsAPI from '../api/tags'
 import * as settingsAPI from '../api/settings'
+import { listSiteCredentials } from '../api/siteCredentials'
 
 // Module-level EventSource so we can close any existing connection before
 // opening a new one.  Kept outside the store to avoid reactivity overhead.
@@ -21,6 +22,12 @@ export default createStore({
 		},
 		tags: [],
 		settings: {},
+		// Domains, deren Content-Filter eine <login>-Sektion mitbringen (siehe
+		// SiteCredentialService::listLoginCapableDomains) - unabhängig von den
+		// eigenen gespeicherten Zugangsdaten des Nutzers. Treibt z.B. im
+		// ArticleReader, ob bei einem als isPaywalled markierten Artikel der
+		// "Abodaten hinterlegen"-Button überhaupt sinnvoll ist.
+		loginCapableDomains: [],
 		currentArticle: null,
 		loading: false,
 		filter: {
@@ -65,6 +72,9 @@ export default createStore({
 		},
 		SET_SETTINGS(state, settings) {
 			state.settings = settings
+		},
+		SET_LOGIN_CAPABLE_DOMAINS(state, domains) {
+			state.loginCapableDomains = domains
 		},
 		SET_CURRENT_ARTICLE(state, article) {
 			state.currentArticle = article
@@ -343,6 +353,18 @@ export default createStore({
 				commit('SET_SETTINGS', settings)
 			} catch (error) {
 				console.error('Failed to fetch settings:', error)
+			}
+		},
+
+		// Nur availableDomains übernehmen - die eigenen credentials des Nutzers
+		// gehören in Settings.vue (dort lokal geladen), hier geht es nur um die
+		// Frage "hat diese Domain überhaupt Login-Unterstützung".
+		async fetchLoginCapableDomains({ commit }) {
+			try {
+				const { availableDomains } = await listSiteCredentials()
+				commit('SET_LOGIN_CAPABLE_DOMAINS', availableDomains)
+			} catch (error) {
+				console.error('Failed to fetch login-capable domains:', error)
 			}
 		},
 

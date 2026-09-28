@@ -341,7 +341,7 @@
 								</template>
 								{{ t('merlin', 'Subscribe') }}
 							</NcButton>
-							<NcButton type="secondary" @click="$emit('open-settings')">
+							<NcButton v-if="canStoreSubscriptionLogin" type="secondary" @click="$emit('open-settings')">
 								<template #icon>
 									<Lock :size="18" />
 								</template>
@@ -532,7 +532,7 @@ export default {
 	},
 
 	computed: {
-		...mapState(['settings', 'tags']),
+		...mapState(['settings', 'tags', 'loginCapableDomains']),
 
 		isArchivedFromStore() {
 			const stored = this.$store.state.articles.find(a => a.id === this.article.id)
@@ -551,6 +551,39 @@ export default {
 
 		allTags() {
 			return this.$store.state.tags || []
+		},
+
+		// Normalisierte Domain aus article.url (Kleinschreibung, ohne "www.") -
+		// article trägt für isPaywalled-Artikel (anders als requiresLoginDomain)
+		// keine eigene domain-Property, siehe Article::jsonSerialize(). Gleiche
+		// Normalisierung wie ContentFilterRepository::normalizeUrlDomain().
+		articleDomain() {
+			try {
+				return new URL(this.article.url).hostname.toLowerCase().replace(/^www\./, '')
+			} catch {
+				return null
+			}
+		},
+
+		// Ob die aktuelle Content-Filter-Datei für diese Domain eine
+		// <login>-Sektion hat (siehe tagesspiegel.de.xml) - nur dann macht der
+		// "Abodaten hinterlegen"-Button im isPaywalled-Hinweis Sinn. Bewusst
+		// unabhängig vom (ggf. veralteten) isPaywalled-Flag des Artikels selbst:
+		// ein Filter kann nachträglich Login-Unterstützung bekommen, nachdem der
+		// Artikel schon gespeichert wurde. Wildcard-Einträge ("_.basis.tld", siehe
+		// ContentFilterRepository::domainMatchesFilterKey) werden wie serverseitig
+		// als echte Subdomain der Basis behandelt, nicht die nackte Basis selbst.
+		canStoreSubscriptionLogin() {
+			const domain = this.articleDomain
+			if (!domain) return false
+			return this.loginCapableDomains.some(filterDomain => {
+				if (filterDomain === domain) return true
+				if (filterDomain.startsWith('_.')) {
+					const base = filterDomain.slice(2)
+					return domain !== base && domain.endsWith('.' + base)
+				}
+				return false
+			})
 		},
 
 		isDarkMode() {
