@@ -47,6 +47,9 @@ $stripLeadingImages->setAccessible(true);
 $imagesMatchForDedup = new ReflectionMethod(ContentExtractorService::class, 'imagesMatchForDedup');
 $imagesMatchForDedup->setAccessible(true);
 
+$removeDuplicateHeroImage = new ReflectionMethod(ContentExtractorService::class, 'removeDuplicateHeroImage');
+$removeDuplicateHeroImage->setAccessible(true);
+
 $passed   = 0;
 $failures = [];
 
@@ -467,6 +470,58 @@ $checkMatch(
 	'https://storage.ghost.io/c/1b/9d/1b9d5475-fc8b-4167-bce4-6d6bd12ae6ab/content/images/size/w30/2026/09/anderes-foto.jpg',
 	'https://storage.ghost.io/c/1b/9d/1b9d5475-fc8b-4167-bce4-6d6bd12ae6ab/content/images/size/w1200/2026/09/imago0193356615h.jpg',
 	false
+);
+
+echo "\n\033[1mremoveDuplicateHeroImage(): Duplikat HINTER substantiellem Text wird entfernt\033[0m\n";
+
+$checkRemoveDuplicate = function (
+	string $label,
+	string $html,
+	string $normalizedImageUrl,
+	?string $expectedRestNotContains,
+	?string $expectedRestContains = null
+) use ($service, $removeDuplicateHeroImage, $baseUrl, &$passed, &$failures): void {
+	$result = $removeDuplicateHeroImage->invoke($service, $html, $normalizedImageUrl, $baseUrl);
+
+	$ok = $expectedRestNotContains === null || !str_contains($result, $expectedRestNotContains);
+	if ($ok && $expectedRestContains !== null) {
+		$ok = str_contains($result, $expectedRestContains);
+	}
+
+	if ($ok) {
+		$passed++;
+		echo "  \033[32m✓\033[0m " . $label . "\n";
+		return;
+	}
+	$failures[] = $label;
+	echo "  \033[31m✗ " . $label . "\033[0m\n";
+	echo '      erhalten: ' . $result . "\n";
+};
+
+$checkRemoveDuplicate(
+	'fsfe.org-Regression: Intro-Absatz vor og:image-identischer Feature-Grafik - Duplikat wird entfernt',
+	'<p>' . str_repeat('Intro-Absatz mit echtem Fließtext. ', 6) . '</p>'
+		. '<figure><img src="https://pics.fsfe.org/uploads/medium/47/f0/22cea1e170761aa7ecebc4c16c82.jpg" alt=""></figure>'
+		. '<p>' . str_repeat('Weiterer Fließtext. ', 6) . '</p>',
+	'https://pics.fsfe.org/uploads/medium/47/f0/22cea1e170761aa7ecebc4c16c82.jpg',
+	'<img',
+	'Weiterer Fließtext.'
+);
+
+$checkRemoveDuplicate(
+	'Bild ohne umschließende <figure> wird ebenfalls entfernt, umgebender Text bleibt',
+	'<p>' . str_repeat('Intro. ', 6) . '</p><p>Ein Foto: <img src="https://example.com/foto.jpg"> Ende.</p>',
+	'https://example.com/foto.jpg',
+	'<img',
+	'Ein Foto:  Ende.'
+);
+
+$checkRemoveDuplicate(
+	'Nicht passendes Bild bleibt unangetastet',
+	'<p>' . str_repeat('Intro. ', 6) . '</p><figure><img src="https://example.com/anderes-foto.jpg"></figure>',
+	'https://example.com/foto.jpg',
+	null,
+	'<img'
 );
 
 echo "\n" . str_repeat('─', 72) . "\n";
