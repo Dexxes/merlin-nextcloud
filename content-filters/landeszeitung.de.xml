@@ -16,6 +16,14 @@
   </post-filter>
 
   <metadata>
+    <!-- og:image zeigt auf ein separat zugeschnittenes, wasserzeichenversehenes
+         Social-Share-Bild (assets.rndtech.de/.../watermark-plus.png) mit einer
+         völlig anderen Resizer-Asset-ID als das echte Bild im Artikeltext -
+         kein Renditions-Unterschied (der von imagesMatchForDedup() aufgelöst
+         würde), sondern ein anderes Asset. Dadurch fand die Hero-Bild-Caption
+         nie ihr Bild wieder. Stattdessen das echte Artikelbild (mit Caption)
+         verwenden. -->
+    <image xpath="(//figure[@data-testid='article-header-image']//img)[1]/@src" />
   </metadata>
 
   <paywall>
