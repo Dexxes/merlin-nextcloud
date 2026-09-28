@@ -309,6 +309,53 @@
 						</NcButton>
 					</NcNoteCard>
 
+					<!-- requiresLoginDomain: Extraktion ist an einer Paywall gescheitert, für
+						 deren Domain eigene Zugangsdaten hinterlegt werden können (siehe
+						 SiteCredentialController/Settings.vue "Paywall subscriptions").
+						 Analog zu PaywallWarningBanner in ArticleReaderView (iOS). -->
+					<NcNoteCard v-else-if="article.requiresLoginDomain" type="warning" class="article-paywall-notice">
+						<p>{{ t('merlin', 'This article may be behind a paywall on {domain}. The text below might be incomplete — store your subscription login for this site to let Merlin fetch the full article.', { domain: article.requiresLoginDomain }) }}</p>
+						<NcButton type="primary" @click="$emit('open-settings')">
+							<template #icon>
+								<Lock :size="18" />
+							</template>
+							{{ t('merlin', 'Manage subscriptions') }}
+						</NcButton>
+					</NcNoteCard>
+
+					<!-- isPaywalled ohne requiresLoginDomain: Bezahlartikel erkannt, aber die
+						 Domain unterstützt keinen eigenen Login (siehe Article.php-Docblock -
+						 beide Felder sind nie gleichzeitig gesetzt). Analog zu
+						 PaywallSubscribeBanner in ArticleReaderView (iOS). -->
+					<NcNoteCard v-else-if="article.isPaywalled" type="warning" class="article-paywall-notice">
+						<p>{{ t('merlin', 'This article is behind a paywall and could not be fetched in full.') }}</p>
+						<div class="article-paywall-notice-actions">
+							<NcButton
+								v-if="article.paywallSubscribeUrl"
+								type="primary"
+								:href="article.paywallSubscribeUrl"
+								target="_blank"
+								rel="noopener noreferrer">
+								<template #icon>
+									<OpenInNew :size="18" />
+								</template>
+								{{ t('merlin', 'Subscribe') }}
+							</NcButton>
+							<NcButton v-if="canStoreSubscriptionLogin" type="secondary" @click="$emit('open-settings')">
+								<template #icon>
+									<Lock :size="18" />
+								</template>
+								{{ t('merlin', 'Store subscription login') }}
+							</NcButton>
+							<NcButton type="secondary" @click="archiveAndClose">
+								<template #icon>
+									<ArchiveArrowDown :size="18" />
+								</template>
+								{{ t('merlin', 'Archive') }}
+							</NcButton>
+						</div>
+					</NcNoteCard>
+
 					<!-- Bei abspielbarem Video dient das Hero-Bild als Poster im
 						Player (siehe :poster-url unten) statt zusätzlich separat
 						darüber angezeigt zu werden.
@@ -377,6 +424,8 @@ import Web from 'vue-material-design-icons/Web.vue'
 import Calendar from 'vue-material-design-icons/Calendar.vue'
 import CalendarPlus from 'vue-material-design-icons/CalendarPlus.vue'
 import Clock from 'vue-material-design-icons/Clock.vue'
+import Lock from 'vue-material-design-icons/Lock.vue'
+import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import axios from '@nextcloud/axios'
 import * as articlesAPI from '../api/articles'
 import * as highlightsAPI from '../api/highlights'
@@ -438,9 +487,11 @@ export default {
 		Calendar,
 		CalendarPlus,
 		Clock,
+		Lock,
+		OpenInNew,
 	},
 
-	emits: ['close', 'delete-article'],
+	emits: ['close', 'delete-article', 'open-settings'],
 
 	props: {
 		article: {
@@ -481,7 +532,7 @@ export default {
 	},
 
 	computed: {
-		...mapState(['settings', 'tags']),
+		...mapState(['settings', 'tags', 'loginCapableDomains']),
 
 		isArchivedFromStore() {
 			const stored = this.$store.state.articles.find(a => a.id === this.article.id)
@@ -500,6 +551,39 @@ export default {
 
 		allTags() {
 			return this.$store.state.tags || []
+		},
+
+		// Normalisierte Domain aus article.url (Kleinschreibung, ohne "www.") -
+		// article trägt für isPaywalled-Artikel (anders als requiresLoginDomain)
+		// keine eigene domain-Property, siehe Article::jsonSerialize(). Gleiche
+		// Normalisierung wie ContentFilterRepository::normalizeUrlDomain().
+		articleDomain() {
+			try {
+				return new URL(this.article.url).hostname.toLowerCase().replace(/^www\./, '')
+			} catch {
+				return null
+			}
+		},
+
+		// Ob die aktuelle Content-Filter-Datei für diese Domain eine
+		// <login>-Sektion hat (siehe tagesspiegel.de.xml) - nur dann macht der
+		// "Abodaten hinterlegen"-Button im isPaywalled-Hinweis Sinn. Bewusst
+		// unabhängig vom (ggf. veralteten) isPaywalled-Flag des Artikels selbst:
+		// ein Filter kann nachträglich Login-Unterstützung bekommen, nachdem der
+		// Artikel schon gespeichert wurde. Wildcard-Einträge ("_.basis.tld", siehe
+		// ContentFilterRepository::domainMatchesFilterKey) werden wie serverseitig
+		// als echte Subdomain der Basis behandelt, nicht die nackte Basis selbst.
+		canStoreSubscriptionLogin() {
+			const domain = this.articleDomain
+			if (!domain) return false
+			return this.loginCapableDomains.some(filterDomain => {
+				if (filterDomain === domain) return true
+				if (filterDomain.startsWith('_.')) {
+					const base = filterDomain.slice(2)
+					return domain !== base && domain.endsWith('.' + base)
+				}
+				return false
+			})
 		},
 
 		isDarkMode() {
@@ -1285,6 +1369,17 @@ article {
 
 .article-unsupported-notice :deep(button) {
 	margin-top: 8px;
+}
+
+.article-paywall-notice :deep(button),
+.article-paywall-notice :deep(a) {
+	margin-top: 8px;
+}
+
+.article-paywall-notice-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
 }
 
 .article-body :deep(img) {

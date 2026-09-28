@@ -25,7 +25,8 @@
 				v-else-if="view === 'reader' && currentArticle"
 				:article="currentArticle"
 				@close="closeReader"
-				@delete-article="onDeleteArticle" />
+				@delete-article="onDeleteArticle"
+				@open-settings="openSettings" />
 
 			<Settings v-else-if="view === 'settings'" />
 		</NcAppContent>
@@ -133,7 +134,7 @@ export default {
 	},
 
 	methods: {
-		...mapActions(['fetchArticles', 'fetchCounts', 'fetchTags', 'fetchSettings', 'deleteArticle', 'deleteTag', 'pollForUpdates']),
+		...mapActions(['fetchArticles', 'fetchCounts', 'fetchTags', 'fetchSettings', 'fetchLoginCapableDomains', 'deleteArticle', 'deleteTag', 'pollForUpdates']),
 		...mapMutations(['SET_FILTER', 'RESET_FILTER', 'SET_VIEW', 'SET_CURRENT_ARTICLE']),
 
 		async loadData() {
@@ -142,6 +143,7 @@ export default {
 				this.fetchCounts(),
 				this.fetchTags(),
 				this.fetchSettings(),
+				this.fetchLoginCapableDomains(),
 			])
 		},
 
