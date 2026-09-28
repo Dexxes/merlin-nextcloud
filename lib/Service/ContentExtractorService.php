@@ -315,6 +315,26 @@ class ContentExtractorService {
 		// destroy JSON-LD and other embedded JSON sources before they can be read.
 		$domainMeta = $this->extractDomainMetadata($rawHtml, $domain, $trace);
 
+		// ── Step 2a: ZDF-Teaser/Detailbeschreibung ───────────────────────────
+		// zdf.de liefert Teaser und die mehrabsätzige Detailbeschreibung nicht
+		// über <meta>-Tags (das og:description dort ist ein generischer
+		// SEO-Text, weder Teaser noch Detailbeschreibung), sondern eingebettet
+		// im Next.js-RSC-Payload. extractZdfDescriptions() liest daher direkt
+		// aus $rawHtml, VOR dem Script/Style-Strip unten (Step 2d) - danach
+		// wäre der Payload weg. Der Teaser ersetzt hier den XPath-Excerpt aus
+		// content-filters/zdf.de.xml, damit die Kürzung direkt darunter (auf
+		// max. 300 Zeichen) einheitlich auch für ihn gilt. Die Detailbeschreibung
+		// wird als $zdfDetailParagraphs für den Video-Zweig unten (Step 8)
+		// vorgehalten, wo sie zusammen mit dem Video-Link zum Content wird.
+		$zdfDetailParagraphs = [];
+		if ($domain === 'zdf.de' || str_ends_with($domain, '.zdf.de')) {
+			$zdfDescriptions = $this->extractZdfDescriptions($rawHtml);
+			if ($zdfDescriptions['teaser'] !== null) {
+				$domainMeta['excerpt'] = $zdfDescriptions['teaser'];
+			}
+			$zdfDetailParagraphs = $zdfDescriptions['paragraphs'];
+		}
+
 		//When the excerpt is too long, short it
 		if(isset($domainMeta) && key_exists("excerpt", $domainMeta) && strlen($domainMeta['excerpt']) > 300)
 			$domainMeta['excerpt'] = substr($domainMeta['excerpt'],0,300) . "...";
@@ -687,6 +707,15 @@ class ContentExtractorService {
 			// abspielbaren Stream gefunden hat - sonst stünde er redundant neben
 			// dem nativen Player.
 			$content = '<a href="' . $escapedVideoUrl . '" class="merlin-video-fallback-link">Zum Video</a>';
+
+			// ZDF-Detailbeschreibung (siehe Step 2a) als eigentlicher Content
+			// nach dem Video-Link anhängen - der Link bleibt als Fallback/
+			// Ausblend-Marker bestehen (Docblock oben), die Detailbeschreibung
+			// ist der Lesetext, den es für andere Video-Domains (ardmediathek.de,
+			// arte.tv) mangels vergleichbarer Datenquelle nicht gibt.
+			foreach ($zdfDetailParagraphs as $paragraph) {
+				$content .= '<p>' . htmlspecialchars($paragraph, ENT_QUOTES, 'UTF-8') . '</p>';
+			}
 		}
 
 		// ── Step 9: Apply domain metadata overrides ───────────────────────────
@@ -897,6 +926,84 @@ class ContentExtractorService {
 			return null;
 		}
 		return $m[1];
+	}
+
+	/**
+	 * Liest Teaser und Detailbeschreibung einer zdf.de-Videoseite aus dem
+	 * rohen HTML. Beides steht dort NICHT als <meta>-Tag (og:description ist
+	 * ein generischer SEO-Text, weder Teaser noch Detailbeschreibung),
+	 * sondern eingebettet im Next.js-RSC-Payload (self.__next_f.push(…)) -
+	 * einem vollständigen JSON-Dokument, das als JS-String-Literal
+	 * eingebettet ist und daher einfach escaped ist (jedes strukturelle
+	 * Anführungszeichen als \", jedes literale Anführungszeichen INNERHALB
+	 * eines Textwerts als \\\", weil dort schon die JSON-eigene Escaping-Regel
+	 * für Textwerte griff, bevor die JS-String-Einbettung nochmal escapte).
+	 * Der Payload ist selbst kein eigenständiges, isoliert parsbares JSON
+	 * (durchsetzt mit RSC-Steuersyntax wie "$b6:props:…"-Referenzen), ein
+	 * echter json_decode() scheitert deshalb - Extraktion daher per Regex auf
+	 * bekannte Nachbar-Feldnamen, analog zu den anderen domain-spezifischen
+	 * Regex-Parsern hier (parseXStatusHandle(), parseTikTokVideoId() & Co.).
+	 *
+	 * Muss auf dem UNVERÄNDERTEN $rawHtml laufen, vor stripScriptAndStyleTags()
+	 * (Step 2d) - danach ist genau das <script>, in dem der Payload steht,
+	 * bereits entfernt.
+	 *
+	 * @return array{teaser: ?string, paragraphs: list<string>}
+	 */
+	private function extractZdfDescriptions(string $rawHtml): array {
+		$teaser = null;
+		if (preg_match(
+			'/\\\\"teaser\\\\":\{\\\\"title\\\\":\\\\"(?:[^"\\\\]|\\\\.)*?\\\\",\\\\"description\\\\":\\\\"(.*?)\\\\",\\\\"imageWithoutLogo\\\\"/s',
+			$rawHtml,
+			$m
+		)) {
+			$decoded = trim($this->unescapeZdfFlightString($m[1]));
+			$teaser  = $decoded !== '' ? $decoded : null;
+		}
+
+		$paragraphs = [];
+		if (preg_match(
+			'/\\\\"longInfoText\\\\":\{\\\\"items\\\\":\[(.*?)\\\\"editorialDate\\\\"/s',
+			$rawHtml,
+			$blockMatch
+		)) {
+			if (preg_match_all('/\\\\"text\\\\":\\\\"(.*?)\\\\",\\\\"style\\\\"/s', $blockMatch[1], $textMatches)) {
+				foreach ($textMatches[1] as $rawText) {
+					$text = trim($this->unescapeZdfFlightString($rawText));
+					if ($text !== '') {
+						$paragraphs[] = $text;
+					}
+				}
+			}
+		}
+
+		return ['teaser' => $teaser, 'paragraphs' => $paragraphs];
+	}
+
+	/**
+	 * Löst die doppelte Escaping-Ebene aus extractZdfDescriptions() auf: das
+	 * erfasste Fragment ist ein Wert aus einem JSON-Dokument, das seinerseits
+	 * als JS-String-Literal escaped wurde - zwei Escaping-Ebenen, zwei
+	 * Unescape-Durchläufe. Bewusst kein stripcslashes(): das kennt \uXXXX
+	 * nicht und würde solche Sequenzen falsch behandeln; die hier
+	 * vorkommenden Escapes sind auf \\, \", \n, \t, \r, \/ beschränkt (siehe
+	 * Docblock oben), alles andere bleibt unverändert stehen.
+	 */
+	private function unescapeZdfFlightString(string $s): string {
+		$unescapeOnce = static function (string $s): string {
+			return preg_replace_callback('/\\\\(.)/', static function (array $m): string {
+				return match ($m[1]) {
+					'n'     => "\n",
+					't'     => "\t",
+					'r'     => "\r",
+					'"'     => '"',
+					'\\'    => '\\',
+					'/'     => '/',
+					default => $m[1],
+				};
+			}, $s) ?? $s;
+		};
+		return $unescapeOnce($unescapeOnce($s));
 	}
 
 	/**
