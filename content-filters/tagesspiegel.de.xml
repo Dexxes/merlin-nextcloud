@@ -106,4 +106,9 @@
     -->
   </metadata>
 
+  <paywall>
+    <marker xpath="//div[@id='paywall']" />
+    <subscribe url="https://abo.spiegel.de/" />
+  </paywall>
+
 </domain>
