@@ -315,24 +315,47 @@ class ContentExtractorService {
 		// destroy JSON-LD and other embedded JSON sources before they can be read.
 		$domainMeta = $this->extractDomainMetadata($rawHtml, $domain, $trace);
 
-		// ── Step 2a: ZDF-Teaser/Detailbeschreibung ───────────────────────────
-		// zdf.de liefert Teaser und die mehrabsätzige Detailbeschreibung nicht
-		// über <meta>-Tags (das og:description dort ist ein generischer
-		// SEO-Text, weder Teaser noch Detailbeschreibung), sondern eingebettet
-		// im Next.js-RSC-Payload. extractZdfDescriptions() liest daher direkt
-		// aus $rawHtml, VOR dem Script/Style-Strip unten (Step 2d) - danach
-		// wäre der Payload weg. Der Teaser ersetzt hier den XPath-Excerpt aus
-		// content-filters/zdf.de.xml, damit die Kürzung direkt darunter (auf
-		// max. 300 Zeichen) einheitlich auch für ihn gilt. Die Detailbeschreibung
-		// wird als $zdfDetailParagraphs für den Video-Zweig unten (Step 8)
-		// vorgehalten, wo sie zusammen mit dem Video-Link zum Content wird.
-		$zdfDetailParagraphs = [];
+		// ── Step 2a: Video-Beschreibung für den Content-Zweig ─────────────────
+		// Video-Domains überspringen Readability komplett (siehe Video-Zweig
+		// unten, Step 8) - der Content ist sonst nur der nackte "Zum
+		// Video"-Fallback-Link. $videoDetailParagraphs sammelt hier die
+		// Absätze, die dort zusätzlich als Lesetext angehängt werden.
+		// Bewusst VOR der Excerpt-Kürzung direkt darunter erfasst: die
+		// Detailbeschreibung soll ungekürzt in den Content wandern, auch wenn
+		// dieselbe Quelle für das (gekürzte) Excerpt wiederverwendet wird.
+		$videoDetailParagraphs = [];
 		if ($domain === 'zdf.de' || str_ends_with($domain, '.zdf.de')) {
+			// zdf.de liefert Teaser und die mehrabsätzige Detailbeschreibung
+			// nicht über <meta>-Tags (das og:description dort ist nur ein
+			// generischer SEO-Text, weder Teaser noch Detailbeschreibung),
+			// sondern eingebettet im Next.js-RSC-Payload.
+			// extractZdfDescriptions() liest daher direkt aus $rawHtml, VOR
+			// dem Script/Style-Strip unten (Step 2d) - danach wäre der
+			// Payload weg. Der Teaser ersetzt hier den XPath-Excerpt aus
+			// content-filters/zdf.de.xml.
 			$zdfDescriptions = $this->extractZdfDescriptions($rawHtml);
 			if ($zdfDescriptions['teaser'] !== null) {
 				$domainMeta['excerpt'] = $zdfDescriptions['teaser'];
 			}
-			$zdfDetailParagraphs = $zdfDescriptions['paragraphs'];
+			$videoDetailParagraphs = $zdfDescriptions['paragraphs'];
+		} elseif ($domain === 'ardmediathek.de' || str_ends_with($domain, '.ardmediathek.de')) {
+			// ardmediathek.de hat (anders als zdf.de) keinen separaten
+			// Teaser/Detail-Split - die page-gateway-API (dieselbe, die
+			// VideoStreamResolverService::resolveArd() für den Stream nutzt)
+			// liefert nur ein einzelnes "synopsis"-Feld, das textgleich mit
+			// og:description ist. content-filters/ardmediathek.de.xml holt
+			// diesen Text bereits per XPath als Excerpt - hier nur zusätzlich
+			// als Content-Absätze übernehmen (auf Leerzeilen aufgeteilt,
+			// falls die Quelle mehrere Absätze durch \n\n trennt).
+			$ardDescription = $domainMeta['excerpt'] ?? null;
+			if (is_string($ardDescription) && trim($ardDescription) !== '') {
+				foreach (preg_split('/\n{2,}/', trim($ardDescription)) as $paragraph) {
+					$paragraph = trim($paragraph);
+					if ($paragraph !== '') {
+						$videoDetailParagraphs[] = $paragraph;
+					}
+				}
+			}
 		}
 
 		//When the excerpt is too long, short it
@@ -708,12 +731,12 @@ class ContentExtractorService {
 			// dem nativen Player.
 			$content = '<a href="' . $escapedVideoUrl . '" class="merlin-video-fallback-link">Zum Video</a>';
 
-			// ZDF-Detailbeschreibung (siehe Step 2a) als eigentlicher Content
-			// nach dem Video-Link anhängen - der Link bleibt als Fallback/
-			// Ausblend-Marker bestehen (Docblock oben), die Detailbeschreibung
-			// ist der Lesetext, den es für andere Video-Domains (ardmediathek.de,
-			// arte.tv) mangels vergleichbarer Datenquelle nicht gibt.
-			foreach ($zdfDetailParagraphs as $paragraph) {
+			// Video-Beschreibung (siehe Step 2a, zdf.de/ardmediathek.de) als
+			// eigentlicher Content nach dem Video-Link anhängen - der Link
+			// bleibt als Fallback/Ausblend-Marker bestehen (Docblock oben),
+			// die Beschreibung ist der Lesetext, den es für arte.tv mangels
+			// vergleichbarer Datenquelle (noch) nicht gibt.
+			foreach ($videoDetailParagraphs as $paragraph) {
 				$content .= '<p>' . htmlspecialchars($paragraph, ENT_QUOTES, 'UTF-8') . '</p>';
 			}
 		}
