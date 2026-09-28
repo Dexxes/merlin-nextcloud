@@ -18,11 +18,24 @@ use OCA\Merlin\Service\Media\VariantHelper;
  *
  *   <source type="json-ld" kind="audio" />
  *
+ * Die Medienart folgt dem @type des gefundenen Objekts: AudioObject → audio,
+ * VideoObject → video. Nur beim generischen MediaObject gilt das kind der
+ * <source>-Regel. So deckt EINE Quelle Seiten ab, die je Artikel mal ein
+ * Audio, mal ein Video als Aufmacher haben (tagesschau.de, rbb24.de) – zwei
+ * json-ld-Quellen mit unterschiedlichem kind gingen nicht, weil <source>
+ * beim Merge je type geschlüsselt ist.
+ *
  * host-allow wirkt wie bei type="xpath". Braucht das rohe HTML, wirkt also
  * nur beim Speichern (siehe MediaContext).
  */
 class JsonLdMediaProvider implements MediaSourceProviderInterface {
 	private const MEDIA_TYPES = ['AudioObject', 'VideoObject', 'MediaObject'];
+
+	/** schema.org-Typen mit eindeutiger Medienart. */
+	private const KIND_BY_TYPE = [
+		'AudioObject' => MediaResult::KIND_AUDIO,
+		'VideoObject' => MediaResult::KIND_VIDEO,
+	];
 
 	/** Schutz gegen absurd tief verschachtelte Dokumente. */
 	private const MAX_DEPTH = 12;
@@ -58,9 +71,10 @@ class JsonLdMediaProvider implements MediaSourceProviderInterface {
 			if (!is_array($data)) {
 				continue;
 			}
-			$url = $this->findContentUrl($data, $allowed, 0);
-			if ($url !== null) {
-				return MediaResult::single($context->kind(), VariantHelper::deliveryForUrl($url), $url);
+			$found = $this->findContentUrl($data, $allowed, 0);
+			if ($found !== null) {
+				[$url, $kind] = $found;
+				return MediaResult::single($kind ?? $context->kind(), VariantHelper::deliveryForUrl($url), $url);
 			}
 		}
 
@@ -70,26 +84,29 @@ class JsonLdMediaProvider implements MediaSourceProviderInterface {
 	/**
 	 * @param array<mixed> $node
 	 * @param list<string> $allowed
+	 * @return array{0: string, 1: ?string}|null URL und aus @type abgeleitete
+	 *         Medienart (null bei MediaObject)
 	 */
-	private function findContentUrl(array $node, array $allowed, int $depth): ?string {
+	private function findContentUrl(array $node, array $allowed, int $depth): ?array {
 		if ($depth > self::MAX_DEPTH) {
 			return null;
 		}
 
 		$type = $node['@type'] ?? null;
-		$types = is_array($type) ? $type : [$type];
-		if (array_intersect(self::MEDIA_TYPES, array_filter($types, 'is_string')) !== []) {
+		$types = array_filter(is_array($type) ? $type : [$type], 'is_string');
+		if (array_intersect(self::MEDIA_TYPES, $types) !== []) {
 			$url = $node['contentUrl'] ?? null;
 			if (is_string($url) && VariantHelper::isHttpsUrlOnDomain($url, $allowed)) {
-				return $url;
+				$kinds = array_unique(array_values(array_intersect_key(self::KIND_BY_TYPE, array_flip($types))));
+				return [$url, count($kinds) === 1 ? $kinds[0] : null];
 			}
 		}
 
 		foreach ($node as $child) {
 			if (is_array($child)) {
-				$url = $this->findContentUrl($child, $allowed, $depth + 1);
-				if ($url !== null) {
-					return $url;
+				$found = $this->findContentUrl($child, $allowed, $depth + 1);
+				if ($found !== null) {
+					return $found;
 				}
 			}
 		}
