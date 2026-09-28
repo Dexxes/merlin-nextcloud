@@ -51,4 +51,9 @@
     -->
   </metadata>
 
+  <paywall>
+    <marker xpath="//div[@id='paywall-container']" />
+    <subscribe url="https://www.morgenpost.de/aboprodukte/" />
+  </paywall>
+
 </domain>

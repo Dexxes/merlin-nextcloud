@@ -43,4 +43,9 @@
     -->
   </metadata>
 
+<paywall>
+    <marker xpath="//aside[@id='paywall']" />
+    <subscribe url="https://premium.zeit.de/probe-abo" />
+  </paywall>
+
 </domain>
