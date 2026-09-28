@@ -56,4 +56,13 @@
     -->
   </metadata>
 
+  <!-- Aufmacher-Medium aus dem article-head: tagesschau liefert es als
+       erstes AudioObject bzw. VideoObject im JSON-LD (Audio von
+       tagesschau-podcast.ard-mcdn.de, Video von
+       tagesschau-progressive.ard-mcdn.de). Die Medienart folgt dem @type,
+       kind ist nur der Fallback für generische MediaObjects. -->
+  <media>
+    <source type="json-ld" kind="video" host-allow="ard-mcdn.de" />
+  </media>
+
 </domain>

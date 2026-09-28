@@ -230,6 +230,35 @@ namespace {
 	$t->eq($save['result']?->defaultUrl(), 'https://funk-02dd.akamaized.net/22679/uploads/episode.mp3', 'contentUrl aus verschachteltem MediaObject');
 	$t->eq($save['kind'] ?? null, 'audio', 'kind=audio');
 
+	// tagesschau.de/rbb24.de: EINE json-ld-Quelle, die Medienart folgt dem
+	// @type des ersten Medienobjekts (Aufmacher), nicht dem kind der Regel.
+	$ldPage = static fn (string $first, string $second): string => '<html><head>
+		<script type="application/ld+json">{"@type":"NewsArticle","headline":"x"}</script>
+	</head><body>
+		<div class="article-head"><script type="application/ld+json">' . $first . '</script></div>
+		<div class="copytext__video"><script type="application/ld+json">' . $second . '</script></div>
+	</body></html>';
+	$tsAudio = '{"@type":"AudioObject","contentUrl":"https://tagesschau-podcast.ard-mcdn.de/audio/2026/0928/AU-1.mp3"}';
+	$tsVideo = '{"@type":"VideoObject","contentUrl":"https://tagesschau-progressive.ard-mcdn.de/video/2026/0928/TV-1.webxxl.h264.mp4"}';
+	$tsConfig = $bundleConfig('tagesschau.de');
+	$t->ok($tsConfig !== null && isset($tsConfig->media->source), 'tagesschau.de.xml deklariert eine <media><source>');
+	$save = $resolver->resolveOnSave('https://www.tagesschau.de/a-100.html', $tsConfig, $ldPage($tsAudio, $tsVideo));
+	$t->eq([$save['kind'] ?? null, $save['result']?->defaultUrl()], ['audio', 'https://tagesschau-podcast.ard-mcdn.de/audio/2026/0928/AU-1.mp3'], 'tagesschau: Audio-Aufmacher → kind=audio');
+	$save = $resolver->resolveOnSave('https://www.tagesschau.de/a-100.html', $tsConfig, $ldPage($tsVideo, $tsAudio));
+	$t->eq([$save['kind'] ?? null, $save['result']?->defaultUrl()], ['video', 'https://tagesschau-progressive.ard-mcdn.de/video/2026/0928/TV-1.webxxl.h264.mp4'], 'tagesschau: Video-Aufmacher → kind=video');
+
+	$rbbAudio = '{"@type":"AudioObject","contentUrl":"https://rbbmediapmdp-a.akamaihd.net/content/1e/4e/x_mp3-256k.mp3"}';
+	$rbbVideo = '{"@type":"VideoObject","contentUrl":"https://rbb-progressive.ard-mcdn.de/content/62/3a/x_hd1080-avc1080.mp4"}';
+	$rbbConfig = $bundleConfig('rbb24.de');
+	$t->ok($rbbConfig !== null && isset($rbbConfig->media->source), 'rbb24.de.xml deklariert eine <media><source>');
+	$save = $resolver->resolveOnSave('https://www.rbb24.de/a.html', $rbbConfig, $ldPage($rbbAudio, $rbbVideo));
+	$t->eq([$save['kind'] ?? null, $save['result']?->delivery], ['audio', 'file'], 'rbb24: Audio-Aufmacher → audio/file');
+	$save = $resolver->resolveOnSave('https://www.rbb24.de/a.html', $rbbConfig, $ldPage($rbbVideo, $rbbAudio));
+	$t->eq([$save['kind'] ?? null, $save['result']?->delivery], ['video', 'file'], 'rbb24: Video-Aufmacher → video/file');
+	$foreignLd = '{"@type":"VideoObject","contentUrl":"https://evil.example/x.mp4"}';
+	$save = $resolver->resolveOnSave('https://www.rbb24.de/a.html', $rbbConfig, $ldPage($foreignLd, $rbbAudio));
+	$t->eq($save['result']?->defaultUrl(), 'https://rbbmediapmdp-a.akamaihd.net/content/1e/4e/x_mp3-256k.mp3', 'rbb24: fremder Host übersprungen, nächstes Objekt gewinnt');
+
 	// ══════════════════════════════════════════════════════════════════════════
 	$t->group('5. Marker: bauen, parsen, Mediathek-Provider erst beim Öffnen');
 
@@ -290,6 +319,9 @@ namespace {
 			['https://www.youtube.com/watch?v=ECbCbaGCpIQ', 'youtube.com', 'video', 'embed'],
 			['https://www.deutschlandfunkkultur.de/elektrotech-wer-auf-strom-setzt-spart-kuenftig-viel-geld-100.html', 'deutschlandfunkkultur.de', 'audio', 'file'],
 			['https://www.ardsounds.de/episode/urn:ard:episode:3619826c5915c2e0/', 'ardsounds.de', 'audio', 'file'],
+			['https://www.tagesschau.de/tagesschau_in_100_sekunden/video-1656878.html', 'tagesschau.de', 'video', 'file'],
+			['https://www.tagesschau.de/multimedia/audio/audio-3503736.html', 'tagesschau.de', 'audio', 'file'],
+			['https://www.rbb24.de/panorama/av/av24/forscher-aus-senftenberg-entwickeln-sternestaub-fuer-supercomput.html', 'rbb24.de', 'video', 'file'],
 		];
 		foreach ($liveCases as [$url, $domain, $kind, $delivery]) {
 			$config = $bundleConfig($domain);

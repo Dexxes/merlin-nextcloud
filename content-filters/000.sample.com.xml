@@ -289,7 +289,12 @@
       type="xpath"          – generisch: Medien-URL per XPath aus dem Seiten-HTML
                               (Attribut oder Text). xpath ist Pflicht.
       type="json-ld"        – generisch: erstes contentUrl eines AudioObject/
-                              VideoObject/MediaObject im schema.org-JSON-LD
+                              VideoObject/MediaObject im schema.org-JSON-LD.
+                              Die Medienart folgt dem @type (AudioObject →
+                              audio, VideoObject → video); kind gilt nur für
+                              ein generisches MediaObject. Damit reicht EINE
+                              Quelle für Seiten mit mal Audio, mal Video
+                              (tagesschau.de, rbb24.de).
       type="youtube-embed"  – offizieller YouTube-Player, Video-ID aus der URL
       type="ard-mediathek"  – HLS über die ARD-Mediathek-API
       type="zdf"            – HLS über die ZDF-API (liefert auch die Beschreibung)
