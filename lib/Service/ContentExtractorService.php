@@ -744,6 +744,13 @@ class ContentExtractorService {
 				$heroCaption = $heroImageData['caption'];
 			}
 
+			// Zweite, gezielte Dedup-Runde gegen die tatsächlich gewählte
+			// Hero-Bild-URL - auch für Bilder, die stripLeadingImages() oben
+			// bewusst stehen ließ, weil sie nicht am Content-Anfang stehen
+			// (z. B. fsfe.org: Intro-Absatz vor der og:image-identischen
+			// Feature-Grafik). Siehe removeDuplicateHeroImage()-Docblock.
+			$content = $this->removeDuplicateHeroImage($content, $normalizedImageUrl, $url);
+
 			$escapedUrl = htmlspecialchars($normalizedImageUrl, ENT_QUOTES, 'UTF-8');
 			$figcaption = $heroCaption !== null
 				? '<figcaption>' . htmlspecialchars($heroCaption, ENT_QUOTES, 'UTF-8') . '</figcaption>'
@@ -1150,6 +1157,74 @@ class ContentExtractorService {
 		}
 
 		return ['content' => $out, 'images' => $images];
+	}
+
+	/**
+	 * Entfernt aus dem (nach stripLeadingImages() verbliebenen) Content ein
+	 * <img>, dessen Quelle exakt bzw. per imagesMatchForDedup() zur gewählten
+	 * Hero-Bild-URL passt - auch wenn es NICHT am Content-Anfang steht.
+	 *
+	 * stripLeadingImages() entfernt bewusst nur Leitbilder vor dem ersten
+	 * substantiellen Absatz (siehe dortiger Kommentar): ein Bild HINTER
+	 * echtem Fließtext soll normalerweise stehen bleiben, weil es i. A. ein
+	 * anderes Bild als die og:image-Vorschau ist. Newsletter-artige Seiten
+	 * (z. B. fsfe.org: Intro-Absatz, danach dieselbe Grafik wie og:image)
+	 * unterlaufen diese Annahme aber - dort ist das Bild nach dem Intro
+	 * tatsächlich dasselbe wie das separat vorangestellte Hero-Bild, das
+	 * Duplikat bliebe sonst sichtbar im Content stehen. Weil hier - anders
+	 * als bei stripLeadingImages() - gegen die tatsächlich gewählte
+	 * Hero-Bild-URL abgeglichen wird (nicht gegen ein beliebiges anderes
+	 * Bild), ist das Entfernen hier sicher: ein Treffer bedeutet immer
+	 * "dasselbe Bild wie das Hero-Bild", nie ein zufällig ähnliches anderes
+	 * Motiv.
+	 */
+	private function removeDuplicateHeroImage(string $content, string $normalizedImageUrl, string $baseUrl): string {
+		if (!str_contains($content, '<img')) {
+			return $content;
+		}
+
+		$prevLibxmlErrors = libxml_use_internal_errors(true);
+		$dom = new \DOMDocument();
+		$dom->loadHTML('<?xml encoding="UTF-8"><body>' . $content . '</body>', LIBXML_NOERROR | LIBXML_NOWARNING);
+		libxml_clear_errors();
+		libxml_use_internal_errors($prevLibxmlErrors);
+
+		$body = $dom->getElementsByTagName('body')->item(0);
+		if ($body === null) {
+			return $content;
+		}
+
+		// Snapshot statt Live-NodeList: removeChild() unten würde eine
+		// getElementsByTagName()-Live-Liste während der Iteration verändern.
+		$imgs = iterator_to_array($body->getElementsByTagName('img'));
+
+		foreach ($imgs as $img) {
+			$src = $img->getAttribute('src');
+			if ($src === '' || !$this->imagesMatchForDedup($this->normalizeUrl($src, $baseUrl), $normalizedImageUrl)) {
+				continue;
+			}
+
+			// Umschließende <figure> (falls vorhanden) komplett entfernen, sonst
+			// nur das <img> selbst - eine evtl. Caption wurde bereits über
+			// stripLeadingImages()/heroImageData für die separat vorangestellte
+			// merlin-hero-image-Figure berücksichtigt.
+			$target = $img;
+			for ($ancestor = $img->parentNode; $ancestor !== null && $ancestor !== $body; $ancestor = $ancestor->parentNode) {
+				if ($ancestor instanceof \DOMElement && strtolower($ancestor->nodeName) === 'figure') {
+					$target = $ancestor;
+					break;
+				}
+			}
+			$target->parentNode?->removeChild($target);
+			break;
+		}
+
+		$out = '';
+		foreach ($body->childNodes as $child) {
+			$out .= $dom->saveHTML($child);
+		}
+
+		return $out;
 	}
 
 	/**
