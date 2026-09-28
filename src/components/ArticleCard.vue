@@ -16,6 +16,14 @@
 			{{ t('merlin', 'Page unavailable') }}
 		</div>
 
+		<!-- requiresLoginDomain/isPaywalled: Extractor ist auf eine Paywall
+			 gestoßen (siehe Article.php-Docblock), analog zum Schloss-Icon in
+			 ArticleRowView/ArticleCardView (iOS). -->
+		<div v-else-if="article.requiresLoginDomain || article.isPaywalled" class="article-paywall-badge">
+			<Lock :size="12" />
+			{{ t('merlin', 'Paywall') }}
+		</div>
+
 		<div class="article-image">
 			<img :src="article.imageUrl || noImgPath" :alt="article.title" @error="onImageError">
 			<!-- Lese-Fortschrittsbalken, analog zur Karten-Anzeige in den Mobile-Apps;
@@ -257,6 +265,7 @@ import StarOutline from 'vue-material-design-icons/StarOutline.vue'
 import Tag from 'vue-material-design-icons/Tag.vue'
 import Check from 'vue-material-design-icons/Check.vue'
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
+import Lock from 'vue-material-design-icons/Lock.vue'
 
 
 const TAG_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899']
@@ -287,6 +296,7 @@ export default {
 		Tag,
 		Check,
 		AlertCircleOutline,
+		Lock,
 	},
 
 	props: {
@@ -598,6 +608,25 @@ export default {
 	color: #fff;
 	background: #8a5300;
 	border-radius: var(--border-radius-large) var(--border-radius-large) 0 0;
+}
+
+/* Small badge shown at the top of a card whose article text is incomplete
+   because the source site sits behind a paywall (requiresLoginDomain /
+   isPaywalled - see Article model docblock). Same fixed-color reasoning as
+   the unsupported badge above; a distinct amber tone keeps the two apart. */
+.article-paywall-badge {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 10px;
+	font-size: 11px;
+	color: #fff;
+	background: #b45309;
+	border-radius: var(--border-radius-large) var(--border-radius-large) 0 0;
+}
+
+.article-paywall-badge .material-design-icon {
+	display: flex;
 }
 
 

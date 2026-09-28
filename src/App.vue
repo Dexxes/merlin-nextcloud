@@ -25,7 +25,8 @@
 				v-else-if="view === 'reader' && currentArticle"
 				:article="currentArticle"
 				@close="closeReader"
-				@delete-article="onDeleteArticle" />
+				@delete-article="onDeleteArticle"
+				@open-settings="openSettings" />
 
 			<Settings v-else-if="view === 'settings'" />
 		</NcAppContent>
