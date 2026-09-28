@@ -341,6 +341,12 @@
 								</template>
 								{{ t('merlin', 'Subscribe') }}
 							</NcButton>
+							<NcButton type="secondary" @click="$emit('open-settings')">
+								<template #icon>
+									<Lock :size="18" />
+								</template>
+								{{ t('merlin', 'Store subscription login') }}
+							</NcButton>
 							<NcButton type="secondary" @click="archiveAndClose">
 								<template #icon>
 									<ArchiveArrowDown :size="18" />

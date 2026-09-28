@@ -222,6 +222,7 @@
         "Size in pixels for the article body text.": "Größe in Pixeln für den Artikeltext.",
         "Small": "Klein",
         "Source code on GitHub": "Quellcode auf GitHub",
+        "Store subscription login": "Abodaten hinterlegen",
         "Store your own subscription login for supported paywalled websites (like Tagesspiegel Plus) so Merlin can save the full article instead of the paywalled excerpt. Your password is stored encrypted and only used to log in on your behalf.": "Für Websites mit Paywall (z. B. Tagesspiegel Plus): eigene Zugangsdaten hinterlegen, damit Merlin auch bezahlpflichtige Artikel vollständig speichern kann. Das Passwort wird verschlüsselt gespeichert und nur zum Einloggen verwendet.",
         "Subscribe": "Abo abschliessen",
         "Subscriptions": "Abos",
