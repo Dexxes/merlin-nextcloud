@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<domain name="tomhshardware.com">
+
+  <pre-filter>
+    <remove xpath="//div[contains(@class, 'hero-image-wrapper')]" />
+    <remove xpath="//aside" />
+    <remove id="elk-seasonal" />
+    <remove xpath="//div[contains(@class, 'slice-container-newsletterForm')]" />
+    <remove xpath="//div[contains(@class, 'slice-container-authorBio')]" />
+  </pre-filter>
+
+
+  <post-filter>
+  </post-filter>
+
+  <metadata>
+  </metadata>
+
+</domain>
