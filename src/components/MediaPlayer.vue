@@ -17,6 +17,13 @@
 	  file  - natives <audio>/<video src>
 	  embed - offizieller iframe-Player (z. B. YouTube über youtube-nocookie)
 
+	Abspielposition (nur hls/file, nicht bei Embeds - deren iframe ist
+	cross-origin und lässt sich nicht auslesen): wird wie der Lesefortschritt
+	lokal und per PUT /api/articles/{id}/media-position geräteübergreifend
+	gespeichert und beim erneuten Öffnen wiederhergestellt (Last-Write-Wins
+	über den Zeitstempel). Gesteuert über dieselben Einstellungen wie die
+	Leseposition (saveProgress/resumeOnOpen); in der Share-Ansicht nie.
+
 	Rendert NICHTS, solange/falls sich keine Quelle auflösen lässt oder die
 	Wiedergabe fehlschlägt: der Artikeltext bleibt in jedem Fall sichtbar,
 	inklusive des Fallback-Links im Marker, nie ein kaputter/leerer Player.
@@ -36,6 +43,10 @@
 			ref="mediaEl"
 			controls
 			preload="metadata"
+			@play="onPlay"
+			@timeupdate="onTimeUpdate"
+			@pause="savePosition"
+			@ended="savePosition"
 			@error="handlePlaybackError" />
 
 		<video
@@ -44,6 +55,10 @@
 			:poster="posterUrl"
 			controls
 			playsinline
+			@play="onPlay"
+			@timeupdate="onTimeUpdate"
+			@pause="savePosition"
+			@ended="savePosition"
 			@error="handlePlaybackError" />
 
 		<!-- Nur bei mehr als einer Variante zeigen (z. B. Standard vs.
@@ -62,7 +77,7 @@
 </template>
 
 <script>
-import { resolveMedia } from '../api/articles.js'
+import { resolveMedia, updateMediaPosition } from '../api/articles.js'
 
 // Kategorien reiner Medienseiten (siehe ContentFilterSchema::MEDIA_CATEGORIES).
 // Für sie wird auch ohne Marker beim Backend nachgefragt - Artikel, die vor
@@ -70,6 +85,28 @@ import { resolveMedia } from '../api/articles.js'
 const MEDIA_CATEGORIES = ['Video', 'Audio']
 const KINDS = ['video', 'audio']
 const DELIVERIES = ['hls', 'file', 'embed']
+
+// Während der Wiedergabe höchstens so oft speichern (ms) - timeupdate feuert
+// mehrmals pro Sekunde.
+const POSITION_SAVE_INTERVAL = 5000
+
+/**
+ * Abspielposition, die für das Medium gespeichert werden soll, oder null,
+ * wenn sich keine sinnvolle Position angeben lässt (Livestream ohne feste
+ * Dauer, Metadaten noch nicht geladen). Kurz vor dem Ende zählt das Medium
+ * als fertig abgespielt: dann 0, damit es beim nächsten Öffnen von vorn
+ * beginnt statt in den letzten Sekunden.
+ *
+ * @param {HTMLMediaElement} media Audio-/Video-Element
+ * @return {?number} Sekunden
+ */
+function playbackPosition(media) {
+	const duration = media.duration
+	if (!Number.isFinite(duration) || duration <= 0) return null
+	const position = media.currentTime
+	if (media.ended || duration - position <= Math.min(10, duration * 0.02)) return 0
+	return Math.max(0, position)
+}
 
 /**
  * Liest den ersten Medien-Marker aus dem Artikel-HTML.
@@ -115,6 +152,27 @@ export default {
 			type: String,
 			default: '',
 		},
+		// Serverseitig gespeicherte Abspielposition (Sekunden) samt
+		// Zeitstempel, siehe Article::jsonSerialize() (mediaPosition,
+		// mediaPositionUpdatedAt).
+		savedPosition: {
+			type: Number,
+			default: 0,
+		},
+		savedPositionUpdatedAt: {
+			type: Number,
+			default: 0,
+		},
+		// Abspielposition speichern (Einstellung saveProgress) bzw. beim
+		// Öffnen wiederherstellen (Einstellung resumeOnOpen).
+		rememberPosition: {
+			type: Boolean,
+			default: false,
+		},
+		resumePosition: {
+			type: Boolean,
+			default: false,
+		},
 	},
 
 	emits: ['state-change'],
@@ -149,12 +207,30 @@ export default {
 		},
 	},
 
+	mounted() {
+		// Tab/App in den Hintergrund (auf Mobilgeräten oft das letzte
+		// zuverlässige Ereignis vor dem Beenden): aktuelle Position sichern.
+		this._onVisibilityChange = () => {
+			if (document.visibilityState === 'hidden') this.savePosition()
+		}
+		document.addEventListener('visibilitychange', this._onVisibilityChange)
+	},
+
 	beforeUnmount() {
+		document.removeEventListener('visibilitychange', this._onVisibilityChange)
+		this.savePosition()
 		this._teardown()
 	},
 
 	methods: {
 		_reset() {
+			// Läuft beim Artikelwechsel noch vor dem Neu-Rendern: $refs.mediaEl
+			// ist dann noch das Element des bisherigen Artikels.
+			this.savePosition()
+			this._positionArticleId = null
+			this._hasPlayed = false
+			this._lastSavedAt = 0
+			this._lastSavedPosition = null
 			this._teardown()
 			this.playable = false
 			this.kind = 'video'
@@ -208,7 +284,8 @@ export default {
 			this.playable = true
 			await this.$nextTick()
 			if (this.delivery !== 'embed') {
-				this._attach(this.currentVariant)
+				this._positionArticleId = this.articleId
+				this._attach(this.currentVariant, { resumeAt: this._storedPosition() })
 			}
 		},
 
@@ -306,6 +383,55 @@ export default {
 			}
 			apply()
 			media.textTracks.addEventListener('addtrack', apply)
+		},
+
+		// ── Abspielposition ─────────────────────────────────────────────
+
+		// Last-Write-Wins zwischen lokal (localStorage) und Server gespeicherter
+		// Position, wie ArticleReader._restoreScrollPosition().
+		_storedPosition() {
+			if (!this.resumePosition || this.articleId === null) return 0
+			let localPos = 0
+			let localTs = 0
+			try {
+				localPos = parseFloat(localStorage.getItem(`merlin_mpos_${this.articleId}`)) || 0
+				localTs = parseInt(localStorage.getItem(`merlin_mposts_${this.articleId}`), 10) || 0
+			} catch {}
+			const position = this.savedPositionUpdatedAt > localTs ? this.savedPosition : localPos
+			return Number.isFinite(position) && position > 0 ? position : 0
+		},
+
+		onPlay() {
+			// Erst ab dem ersten Abspielen speichern: sonst überschriebe schon
+			// das bloße Öffnen (currentTime 0 vor dem Laden der Metadaten) die
+			// gespeicherte Position.
+			this._hasPlayed = true
+		},
+
+		onTimeUpdate() {
+			if (Date.now() - (this._lastSavedAt || 0) >= POSITION_SAVE_INTERVAL) {
+				this.savePosition()
+			}
+		},
+
+		savePosition() {
+			const media = this.$refs.mediaEl
+			const articleId = this._positionArticleId
+			if (!this.rememberPosition || !this._hasPlayed || !media || articleId == null) return
+
+			const position = playbackPosition(media)
+			if (position === null) return
+			this._lastSavedAt = Date.now()
+			if (this._lastSavedPosition !== null && Math.abs(position - this._lastSavedPosition) < 1) return
+			this._lastSavedPosition = position
+
+			const now = Date.now()
+			try {
+				localStorage.setItem(`merlin_mpos_${articleId}`, String(position))
+				localStorage.setItem(`merlin_mposts_${articleId}`, String(now))
+			} catch {}
+			// Fire-and-forget: bei Server-Fehler bleibt der lokale Wert erhalten.
+			updateMediaPosition(articleId, position, now).catch(() => {})
 		},
 
 		handlePlaybackError() {

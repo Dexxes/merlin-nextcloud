@@ -378,6 +378,10 @@
 						:content="processedContent"
 						:category="article.category"
 						:poster-url="heroAndRestContent.heroImageUrl"
+						:saved-position="article.mediaPosition || 0"
+						:saved-position-updated-at="article.mediaPositionUpdatedAt || 0"
+						:remember-position="settings.saveProgress"
+						:resume-position="settings.resumeOnOpen"
 						@state-change="mediaState = $event" />
 
 					<!-- eslint-disable-next-line vue/no-v-html -->

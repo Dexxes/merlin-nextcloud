@@ -104,6 +104,21 @@ export async function updateProgress(id, progress, updatedAt) {
 	return response.data
 }
 
+/**
+ * Speichert die geräteübergreifende Abspielposition des Audios/Videos im
+ * Artikel (Sekunden, 0 = von vorn) plus Client-Zeitstempel für Last-Write-Wins.
+ *
+ * @param {number} id Artikel-ID
+ * @param {number} position Abspielposition in Sekunden
+ * @param {number} updatedAt Epoch-Millis dieses Schreibvorgangs
+ * @return {Promise<object>} { mediaPosition, mediaPositionUpdatedAt }
+ */
+export async function updateMediaPosition(id, position, updatedAt) {
+	const url = generateUrl(`/apps/merlin/api/articles/${id}/media-position`)
+	const response = await axios.put(url, { position, updatedAt })
+	return response.data
+}
+
 export async function searchArticles(query) {
 	const url = generateUrl('/apps/merlin/api/articles/search')
 	const response = await axios.get(url, { params: { query } })

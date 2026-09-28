@@ -543,6 +543,39 @@ class ArticleController extends Controller {
 	}
 
 	/**
+	 * Update the cross-device playback position of the article's audio/video.
+	 *
+	 * Same contract as updateProgress(), but the position is absolute seconds
+	 * (a media timeline is identical on every device, and an HLS stream's
+	 * duration is not yet known when the client restores it). 0 means "start
+	 * from the beginning" - clients send it once playback reached the end.
+	 * Does not bump the article's `updated_at` either.
+	 *
+	 * @NoAdminRequired
+	 * @NoCSRFRequired
+	 */
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function updateMediaPosition(int $id, float $position = 0.0, ?int $updatedAt = null): DataResponse {
+		try {
+			$article = $this->articleMapper->find($id, $this->userId);
+
+			// Negative/NaN-Werte eines fehlerhaften Clients nicht persistieren.
+			$article->setMediaPosition(is_finite($position) ? max(0.0, $position) : 0.0);
+			$article->setMediaPositionUpdatedAt($updatedAt ?? (int) round(microtime(true) * 1000));
+
+			$this->articleMapper->update($article);
+
+			return new DataResponse([
+				'mediaPosition'          => $article->getMediaPosition(),
+				'mediaPositionUpdatedAt' => $article->getMediaPositionUpdatedAt(),
+			]);
+		} catch (\Exception $e) {
+			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
+		}
+	}
+
+	/**
 	 * Search articles
 	 *
 	 * @NoAdminRequired

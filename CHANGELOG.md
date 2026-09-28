@@ -7,6 +7,14 @@ All notable changes to Merlin are documented here. Format based on
 ## [1.0.11]
 
 ### Added
+- Audio and video remember their playback position: when an article is
+  opened again, the player resumes where it was stopped. Stored locally and
+  synced across devices via the new `PUT /api/articles/{id}/media-position`
+  (`{position, updatedAt}`, seconds + epoch-millis, last-write-wins like the
+  reading position); articles expose `mediaPosition`/`mediaPositionUpdatedAt`.
+  Playing to the end resets it to 0. Follows the existing "save reading
+  position"/"resume on open" settings; not for embeds (e.g. YouTube) and not
+  in the public share view.
 - Extensible audio/video handling modelled on the content filters: a new
   `<media>` section in `content-filters/{domain}.xml` declares which source
   type a domain uses (`<source type="…" kind="video|audio">`, optional

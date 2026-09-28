@@ -48,6 +48,10 @@ use OCP\AppFramework\Db\Entity;
  * @method void setScrollProgress(float $scrollProgress)
  * @method int getScrollUpdatedAt()
  * @method void setScrollUpdatedAt(int $scrollUpdatedAt)
+ * @method float getMediaPosition()
+ * @method void setMediaPosition(float $mediaPosition)
+ * @method int getMediaPositionUpdatedAt()
+ * @method void setMediaPositionUpdatedAt(int $mediaPositionUpdatedAt)
  * @method string|null getRequiresLoginDomain()
  * @method void setRequiresLoginDomain(?string $requiresLoginDomain)
  * @method string|null getRequiresLoginPage()
@@ -80,6 +84,10 @@ class Article extends Entity implements JsonSerializable {
 	protected $category;
 	protected $scrollProgress;
 	protected $scrollUpdatedAt;
+	// Abspielposition (Sekunden) des Audios/Videos im Artikel, siehe
+	// Migration Version1000Date20240101000025 und MediaPlayer.vue.
+	protected $mediaPosition;
+	protected $mediaPositionUpdatedAt;
 	// Gesetzt, wenn die Extraktion an einer Paywall scheiterte, für die der
 	// Nutzer keine (gültigen) Zugangsdaten hinterlegt hat (siehe
 	// Service\Login\PaywallLoginRequiredException, ArticleController::create()).
@@ -128,6 +136,8 @@ class Article extends Entity implements JsonSerializable {
 		$this->addType('category', 'string');
 		$this->addType('scrollProgress', 'float');
 		$this->addType('scrollUpdatedAt', 'integer');
+		$this->addType('mediaPosition', 'float');
+		$this->addType('mediaPositionUpdatedAt', 'integer');
 		$this->addType('requiresLoginDomain', 'string');
 		$this->addType('requiresLoginPage', 'string');
 		$this->addType('isPaywalled', 'integer');
@@ -160,6 +170,10 @@ class Article extends Entity implements JsonSerializable {
 			'category'     => $this->getCategory(),
 			'scrollProgress'  => (float) ($this->getScrollProgress() ?? 0),
 			'scrollUpdatedAt' => (int) ($this->getScrollUpdatedAt() ?? 0),
+			// Abspielposition in Sekunden (0 = von vorn), Last-Write-Wins über
+			// mediaPositionUpdatedAt wie bei scrollProgress.
+			'mediaPosition'          => (float) ($this->getMediaPosition() ?? 0),
+			'mediaPositionUpdatedAt' => (int) ($this->getMediaPositionUpdatedAt() ?? 0),
 			// null im Normalfall. Gesetzt: Client soll einen Login-Dialog für
 			// requiresLoginDomain anbieten (requiresLoginPage als Info-Link),
 			// danach das Speichern erneut anstoßen (POST /api/articles erneut,
