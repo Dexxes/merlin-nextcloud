@@ -39,6 +39,13 @@
   <post-filter>
   </post-filter>
 
+  <images>
+    <caption
+      container-xpath="//div[contains(@class,'absatzbild')]"
+      caption-xpath=".//p[contains(@class, 'absatzbild__info__text')]"
+    />
+  </images>
+
   <metadata>
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />

@@ -53,7 +53,7 @@
     -->
   </metadata>
 
-<paywall>
+  <paywall>
     <marker xpath="//header//span[@data-contains-flags='plus-paid']" />
     <subscribe url="https://abo.spiegel.de/" />
   </paywall>

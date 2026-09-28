@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<domain name="jacobin.de">
+
+  <pre-filter>
+  </pre-filter>
+
+  <post-filter>
+  </post-filter>
+
+  <images>
+  </images>
+
+  <metadata>
+    <!-- Beispiele:
+    <title    xpath="//h1[@class='article-title']" />
+    <author   xpath="//span[@class='author-name']" />
+    <excerpt  xpath="//p[@class='article-intro']" />
+    <image    xpath="//meta[@property='og:image']/@content" />
+    <published xpath="//time[@itemprop='datePublished']/@datetime" />
+    -->
+  </metadata>
+
+  <paywall>
+    <marker xpath="//aside[contains(@class, 'paywall')]" />
+    <subscribe url="https://jacobin.de/abo/" />
+  </paywall>
+
+</domain>
