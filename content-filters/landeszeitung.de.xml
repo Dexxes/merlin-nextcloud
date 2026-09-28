@@ -8,7 +8,20 @@
     <remove xpath="//div[contains(@class, 'Adstyled__AdWrapper')]" /> <!--Werbung-->
   </pre-filter>
 
+  <!-- Jedes Bild (Hero UND Content) steckt in <figure data-testid="article-header-image">
+       mit mehrfach verschachtelten Wrapper-<div>s zwischen <figure> und <img> (React-
+       Fullscreen-Viewer-Markup) sowie einer <figcaption> mit zwei getrennten <div>s
+       (Bildtext + Quelle). Ohne diese Regel verwirft Readability die <figcaption>
+       komplett - die Wrapper-Divs allein reichen ihr nicht, um die Figure als
+       Artikel-Content zu erkennen. Betrifft auch das Hero-Bild im <header>: das wird
+       von <pre-filter><remove xpath="//article//header"> entfernt, bevor Readability
+       läuft - die automatische Hoist-Logik in normalizeImageCaptions() zieht die
+       Figure vorher aus dem <header> heraus, sonst ginge Bild UND Caption verloren. -->
   <images>
+    <caption
+      container-xpath="//figure[@data-testid='article-header-image']"
+      caption-xpath=".//div[contains(@class,'ImageFooterstyled__Caption')] | .//div[contains(@class,'ImageFooterstyled__Copyright')]"
+    />
   </images>
 
 
@@ -16,14 +29,6 @@
   </post-filter>
 
   <metadata>
-    <!-- og:image zeigt auf ein separat zugeschnittenes, wasserzeichenversehenes
-         Social-Share-Bild (assets.rndtech.de/.../watermark-plus.png) mit einer
-         völlig anderen Resizer-Asset-ID als das echte Bild im Artikeltext -
-         kein Renditions-Unterschied (der von imagesMatchForDedup() aufgelöst
-         würde), sondern ein anderes Asset. Dadurch fand die Hero-Bild-Caption
-         nie ihr Bild wieder. Stattdessen das echte Artikelbild (mit Caption)
-         verwenden. -->
-    <image xpath="(//figure[@data-testid='article-header-image']//img)[1]/@src" />
   </metadata>
 
   <paywall>
