@@ -8,6 +8,7 @@ use OCA\Merlin\Db\Article;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Db\TagMapper;
 use OCA\Merlin\Service\ContentExtractorService;
+use OCA\Merlin\Service\ContentFilterSchema;
 use OCA\Merlin\Service\ExportService;
 use OCA\Merlin\Service\Login\PaywallLoginRequiredException;
 use OCA\Merlin\Service\UnsupportedSiteException;
@@ -113,14 +114,17 @@ class ArticleController extends Controller {
 			'category'   => $category,
 		], fn($value) => $value !== null);
 
-		// contentType=page/video: Seiten/Videos-Aufteilung auf oberster Ebene,
-		// orthogonal zu isRead/isFavorite/isArchived. "video" ist gleichbedeutend
-		// mit category=Video; "page" ist alles andere (category ungleich Video).
+		// contentType=page/video/audio: Seiten/Videos/Audio-Aufteilung auf
+		// oberster Ebene, orthogonal zu isRead/isFavorite/isArchived. "video"
+		// ist gleichbedeutend mit category=Video, "audio" mit category=Audio;
+		// "page" ist alles andere (inkl. "Mixed", also Text mit Medium).
 		if ($contentType === 'video') {
 			$filters['category'] = 'Video';
+		} elseif ($contentType === 'audio') {
+			$filters['category'] = 'Audio';
 		} elseif ($contentType === 'page') {
 			unset($filters['category']);
-			$filters['not_category'] = 'Video';
+			$filters['not_category'] = ContentFilterSchema::MEDIA_CATEGORIES;
 		}
 
 		// Clear articles stuck in processing state from crashed/previous sessions.

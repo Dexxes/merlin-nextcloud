@@ -6,7 +6,6 @@ namespace OCA\Merlin\Controller;
 
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Service\Media\MediaResolverService;
-use OCA\Merlin\Service\Media\MediaResult;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Http;
@@ -16,16 +15,15 @@ use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 
 /**
- * Veralteter Endpunkt GET /api/articles/{id}/video-stream, nur noch für
- * bestehende Clients. Neue Clients nutzen GET /api/articles/{id}/media
- * (MediaController), das zusätzlich Audio, direkte Dateien und Embeds
- * liefert.
+ * Liefert die abspielbare Audio-/Video-Quelle eines Artikels – siehe
+ * MediaResolverService für die Provider-Kette und die bewusste
+ * Produktentscheidung bei den Mediathek-Streams. Reine Auflösung pro
+ * Request, nichts wird gespeichert/gecacht.
  *
- * Antwortet im alten Format und nur für HLS-Videos, also genau für die
- * Fälle, die der Endpunkt vor Einführung der Medien-Provider abdeckte (ARD
- * Mediathek, ZDF, Arte).
+ * Antwort: {available: false} oder
+ *          {available: true, kind, delivery, variants[], defaultIndex}
  */
-class VideoStreamController extends Controller {
+class MediaController extends Controller {
 	public function __construct(
 		string $appName,
 		IRequest $request,
@@ -58,17 +56,10 @@ class VideoStreamController extends Controller {
 			(string) $article->getContent(),
 			$this->userId,
 		);
-		if ($resolved === null
-			|| $resolved->kind !== MediaResult::KIND_VIDEO
-			|| $resolved->delivery !== MediaResult::DELIVERY_HLS) {
+		if ($resolved === null) {
 			return new DataResponse(['available' => false]);
 		}
 
-		return new DataResponse([
-			'available'    => true,
-			'type'         => 'hls',
-			'variants'     => $resolved->variants,
-			'defaultIndex' => $resolved->defaultIndex,
-		]);
+		return new DataResponse(['available' => true] + $resolved->toArray());
 	}
 }

@@ -30,7 +30,7 @@ use OCP\Security\CSP\AddContentSecurityPolicyEvent;
  * both directives are needed for the embed to actually render.
  *
  * connect-src: hls.js (native ARD/ZDF/Arte-Player, siehe
- * VideoStreamResolverService) lädt HLS-Manifest/-Segmente per fetch/XHR statt
+ * Service/Media/MediaResolverService) lädt HLS-Manifest/-Segmente per fetch/XHR statt
  * über ein natives <video src>, das fällt unter connect-src statt media-src/
  * frame-src. Nextclouds eigene Baseline-CSP setzt hier default `'self'`, was
  * jeden Request zum Sender-CDN blockiert (live bestätigt: "Refused to
@@ -53,6 +53,14 @@ use OCP\Security\CSP\AddContentSecurityPolicyEvent;
  * für jede Anstalt deren eigene CDN-Domain - deshalb hier zusätzlich die
  * Domains der Anstalten, die dieser Instanz bereits als Artikel-Domains
  * bekannt sind (siehe content-filters/), auf Verdacht mit demselben Muster.
+ *
+ * media-src: direkte Audio-/Videodateien (MediaResult::DELIVERY_FILE, z. B.
+ * Deutschlandfunk-mp3, ARD-Sounds-Episoden) spielt der MediaPlayer über ein
+ * natives <audio>/<video src> ab. Deren Hosts sind nicht vorhersagbar (ARD
+ * Sounds liefert je nach Sendung von ganz unterschiedlichen CDNs aus), deshalb
+ * hier bewusst jede https-Quelle: Medienelemente führen keinen Code aus, und
+ * welche URL überhaupt im Marker landet, begrenzt bereits der Provider
+ * (host-allow) bzw. sanitizeMediaMarker() serverseitig.
  *
  * @template-implements IEventListener<AddContentSecurityPolicyEvent>
  */
@@ -92,6 +100,8 @@ class AddContentSecurityPolicyListener implements IEventListener {
 		$policy->addAllowedScriptDomain('https://platform.twitter.com');
 		$policy->addAllowedScriptDomain('https://embed.bsky.app');
 		$policy->addAllowedScriptDomain('https://www.tiktok.com');
+
+		$policy->addAllowedMediaDomain('https:');
 
 		$policy->addAllowedConnectDomain('https://*.ard-mcdn.de');
 		$policy->addAllowedConnectDomain('https://*.akamaized.net');

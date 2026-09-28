@@ -147,15 +147,17 @@ export default {
 			])
 		},
 
-		// type ist eine der sechs Pages/Videos x Unread/Favorites/Archived-Ansichten,
-		// z.B. 'pages-unread' oder 'videos-favorites' - siehe Sidebar.vue.
+		// type ist eine der neun Pages/Videos/Audio x Unread/Favorites/Archived-
+		// Ansichten, z.B. 'pages-unread' oder 'audio-favorites' - siehe Sidebar.vue.
+		// "Mixed"-Artikel (Text mit Medium) gehören zu den Pages.
 		setFilter(type) {
 			this.currentFilter = type
 			this.currentTagId = null
 			this.RESET_FILTER()
 			this.SET_VIEW('list')
 			const [contentType, status] = type.split('-')
-			this.SET_FILTER({ key: 'contentType', value: contentType === 'videos' ? 'video' : 'page' })
+			const contentTypeFilter = { videos: 'video', audio: 'audio' }
+			this.SET_FILTER({ key: 'contentType', value: contentTypeFilter[contentType] || 'page' })
 			switch (status) {
 			case 'unread':
 				this.SET_FILTER({ key: 'isRead', value: false })
@@ -177,8 +179,8 @@ export default {
 			this.RESET_FILTER()
 			this.SET_VIEW('list')
 			this.SET_FILTER({ key: 'tagId', value: tagId })
-			// Always show both archived and non-archived articles, and both
-			// pages and videos, for tag filters
+			// Always show both archived and non-archived articles, and all of
+			// pages, videos and audio, for tag filters
 			this.SET_FILTER({ key: 'isArchived', value: null })
 			this.fetchArticles()
 		},

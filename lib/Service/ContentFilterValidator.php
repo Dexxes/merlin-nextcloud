@@ -459,6 +459,51 @@ class ContentFilterValidator {
 			return;
 		}
 
+		if ($tag === 'source' && $attrName === 'type') {
+			if (!in_array($value, ContentFilterSchema::MEDIA_SOURCE_TYPES, true)) {
+				$errors[] = [
+					'message' => sprintf(
+						'Unbekannter Medien-Typ %s. Erlaubt sind: %s.',
+						$value,
+						implode(', ', ContentFilterSchema::MEDIA_SOURCE_TYPES)
+					),
+					'line' => $rule->getLineNo(),
+				];
+			} elseif ($value === 'xpath' && trim($rule->getAttribute('xpath')) === '') {
+				$errors[] = [
+					'message' => '<source type="xpath"> braucht das Attribut xpath.',
+					'line'    => $rule->getLineNo(),
+				];
+			}
+			return;
+		}
+
+		if ($tag === 'source' && $attrName === 'kind') {
+			if (!in_array($value, ContentFilterSchema::MEDIA_KINDS, true)) {
+				$errors[] = [
+					'message' => sprintf(
+						'kind muss %s sein, war: %s',
+						implode(' oder ', ContentFilterSchema::MEDIA_KINDS),
+						$value
+					),
+					'line' => $rule->getLineNo(),
+				];
+			}
+			return;
+		}
+
+		if ($tag === 'source' && $attrName === 'host-allow') {
+			foreach (preg_split('/[\s,]+/', $value) ?: [] as $host) {
+				if ($host !== '' && preg_match('/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i', $host) !== 1) {
+					$errors[] = [
+						'message' => sprintf('host-allow enthält keinen gültigen Domainnamen: %s', $host),
+						'line'    => $rule->getLineNo(),
+					];
+				}
+			}
+			return;
+		}
+
 		if ($tag === 'header' && $attrName === 'name') {
 			if (!in_array(strtolower($value), ContentFilterSchema::FETCH_HEADER_WHITELIST, true)) {
 				$errors[] = [

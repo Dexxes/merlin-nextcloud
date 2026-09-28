@@ -12,6 +12,8 @@ use fivefilters\Readability\ParseException;
 use fivefilters\Readability\Readability;
 use OCA\Merlin\Service\Http\SsrfSafeResolver;
 use OCA\Merlin\Service\Login\PaywallLoginRequiredException;
+use OCA\Merlin\Service\Media\MediaResolverService;
+use OCA\Merlin\Service\Media\MediaResult;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
 
@@ -117,6 +119,7 @@ class ContentExtractorService {
 		private MastodonPostResolverService $mastodonPostResolver,
 		private TikTokPostResolverService $tiktokPostResolver,
 		private IURLGenerator $urlGenerator,
+		private MediaResolverService $mediaResolver,
 	) {
 		$this->logger         = $logger;
 		$this->contentFilters = $contentFilters;
@@ -314,48 +317,32 @@ class ContentExtractorService {
 		// because applyRemoveRules() removes all <script> tags — which would
 		// destroy JSON-LD and other embedded JSON sources before they can be read.
 		$domainMeta = $this->extractDomainMetadata($rawHtml, $domain, $trace);
+		// extractDomainMetadata() setzt category nur, wenn eine gefunden wurde –
+		// die Prüfungen unten (Medien, Mastodon, Readability-Zweig) erwarten
+		// aber einen vorhandenen Schlüssel.
+		$domainMeta['category'] ??= null;
 
-		// ── Step 2a: Video-Beschreibung für den Content-Zweig ─────────────────
-		// Video-Domains überspringen Readability komplett (siehe Video-Zweig
-		// unten, Step 8) - der Content ist sonst nur der nackte "Zum
-		// Video"-Fallback-Link. $videoDetailParagraphs sammelt hier die
-		// Absätze, die dort zusätzlich als Lesetext angehängt werden.
-		// Bewusst VOR der Excerpt-Kürzung direkt darunter erfasst: die
-		// Detailbeschreibung soll ungekürzt in den Content wandern, auch wenn
-		// dieselbe Quelle für das (gekürzte) Excerpt wiederverwendet wird.
-		$videoDetailParagraphs = [];
-		if ($domain === 'zdf.de' || str_ends_with($domain, '.zdf.de')) {
-			// zdf.de liefert Teaser und die mehrabsätzige Detailbeschreibung
-			// nicht über <meta>-Tags (das og:description dort ist nur ein
-			// generischer SEO-Text, weder Teaser noch Detailbeschreibung),
-			// sondern eingebettet im Next.js-RSC-Payload.
-			// extractZdfDescriptions() liest daher direkt aus $rawHtml, VOR
-			// dem Script/Style-Strip unten (Step 2d) - danach wäre der
-			// Payload weg. Der Teaser ersetzt hier den XPath-Excerpt aus
-			// content-filters/zdf.de.xml.
-			$zdfDescriptions = $this->extractZdfDescriptions($rawHtml);
-			if ($zdfDescriptions['teaser'] !== null) {
-				$domainMeta['excerpt'] = $zdfDescriptions['teaser'];
+		// ── Step 2a: Medien (Audio/Video) ────────────────────────────────────
+		// Quelle und Beschreibung kommen deklarativ aus der <media>-Sektion
+		// der Domain-Config, die senderspezifische Logik steckt in den
+		// Providern unter Service/Media/ (siehe MediaResolverService). Läuft
+		// auf dem UNVERÄNDERTEN $rawHtml, vor dem Script/Style-Strip (Step
+		// 2d): JSON-LD und Next.js-Payloads stehen in <script>-Tags.
+		//
+		// $mediaDetailParagraphs: Beschreibung reiner Medienseiten (Kategorie
+		// Video/Audio), die dort Readability überspringen und sonst nur den
+		// Medien-Marker als Content hätten. Bewusst VOR der Excerpt-Kürzung
+		// direkt darunter erfasst: die Beschreibung soll ungekürzt in den
+		// Content wandern.
+		$domainConfig          = $this->loadDomainConfig($domain);
+		$media                 = $this->mediaResolver->resolveOnSave($url, $domainConfig, $rawHtml);
+		$mediaDetailParagraphs = [];
+		if ($this->isMediaCategory($domainMeta['category'])) {
+			$mediaDescription = $this->extractMediaDescription($rawHtml, $domainConfig, $domain, $trace);
+			if ($mediaDescription['teaser'] !== null) {
+				$domainMeta['excerpt'] = $mediaDescription['teaser'];
 			}
-			$videoDetailParagraphs = $zdfDescriptions['paragraphs'];
-		} elseif ($domain === 'ardmediathek.de' || str_ends_with($domain, '.ardmediathek.de')) {
-			// ardmediathek.de hat (anders als zdf.de) keinen separaten
-			// Teaser/Detail-Split - die page-gateway-API (dieselbe, die
-			// VideoStreamResolverService::resolveArd() für den Stream nutzt)
-			// liefert nur ein einzelnes "synopsis"-Feld, das textgleich mit
-			// og:description ist. content-filters/ardmediathek.de.xml holt
-			// diesen Text bereits per XPath als Excerpt - hier nur zusätzlich
-			// als Content-Absätze übernehmen (auf Leerzeilen aufgeteilt,
-			// falls die Quelle mehrere Absätze durch \n\n trennt).
-			$ardDescription = $domainMeta['excerpt'] ?? null;
-			if (is_string($ardDescription) && trim($ardDescription) !== '') {
-				foreach (preg_split('/\n{2,}/', trim($ardDescription)) as $paragraph) {
-					$paragraph = trim($paragraph);
-					if ($paragraph !== '') {
-						$videoDetailParagraphs[] = $paragraph;
-					}
-				}
-			}
+			$mediaDetailParagraphs = $mediaDescription['paragraphs'];
 		}
 
 		//When the excerpt is too long, short it
@@ -377,6 +364,15 @@ class ContentExtractorService {
 			if ($mastodonThreadPosts !== null) {
 				$domainMeta['category'] = 'Mastodon';
 			}
+		}
+
+		// Textartikel mit gefundenem Medium (z. B. Deutschlandfunk-Beitrag mit
+		// Audio): eigene Kategorie "Mixed", der Text läuft trotzdem normal
+		// durch Readability. Erst NACH der Mastodon-Erkennung, die auf
+		// category === null prüft. Eine fest deklarierte <category> (Video,
+		// Audio, …) hat Vorrang.
+		if ($media !== null && $domainMeta['category'] === null) {
+			$domainMeta['category'] = ContentFilterSchema::MIXED_CATEGORY;
 		}
 
 		// ── Step 2c: Generische Paywall-Erkennung ────────────────────────────
@@ -408,7 +404,7 @@ class ContentExtractorService {
 		// Rewrap domain-specific image+caption structures into standard
 		// <figure><img><figcaption> HTML so Readability preserves them.
 		// Must run before Readability; affects all images in the article body.
-		if($domainMeta['category'] != "Video" && $domainMeta['category'] != "Thread" && $domainMeta['category'] != "XPost" && $domainMeta['category'] != "Mastodon" && $domainMeta['category'] != "InstagramPost" && $domainMeta['category'] != "TikTokPost")
+		if ($this->usesReadability($domainMeta['category']))
 			$rawHtml = $this->normalizeImageCaptions($rawHtml, $domain, $trace);
 
 		// ── Step 4: Pre-filter ────────────────────────────────────────────────
@@ -457,7 +453,7 @@ class ContentExtractorService {
 		$siteName = $this->extractSiteName($rawHtml, $url);
 		$siteName = html_entity_decode($siteName ?? '', ENT_QUOTES, 'UTF-8');
 
-		if($domainMeta['category'] != "Video" && $domainMeta['category'] != "Thread" && $domainMeta['category'] != "XPost" && $domainMeta['category'] != "Mastodon" && $domainMeta['category'] != "InstagramPost" && $domainMeta['category'] != "TikTokPost")
+		if ($this->usesReadability($domainMeta['category']))
 		{
 			// ── Step 7: hr-Schutz + Quote normalisation + Readability ───────────────
 			// fivefilters/readability.php's isElementWithoutContent() treats <hr>
@@ -720,23 +716,20 @@ class ContentExtractorService {
 			$domainMeta['image'] = $imageUrl;
 		}
 		else {
-			// $url in ein Attribut eingebettet → escapen, damit ein URL mit ' oder
-			// " nicht aus dem href ausbricht. Der finale sanitizeHtml()-Durchlauf
-			// filtert zusätzlich ein evtl. javascript:-Schema heraus.
-			$escapedVideoUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
-			// Eigene Marker-Klasse (wie merlin-hero-image/merlin-infobox), damit der
-			// Reader diesen Fallback-Link ausblenden kann, sobald
-			// VideoStreamResolverService::resolve() für dieselbe URL einen
-			// abspielbaren Stream gefunden hat - sonst stünde er redundant neben
-			// dem nativen Player.
-			$content = '<a href="' . $escapedVideoUrl . '" class="merlin-video-fallback-link">Zum Video</a>';
-
-			// Video-Beschreibung (siehe Step 2a, zdf.de/ardmediathek.de) als
-			// eigentlicher Content nach dem Video-Link anhängen - der Link
-			// bleibt als Fallback/Ausblend-Marker bestehen (Docblock oben),
-			// die Beschreibung ist der Lesetext, den es für arte.tv mangels
-			// vergleichbarer Datenquelle (noch) nicht gibt.
-			foreach ($videoDetailParagraphs as $paragraph) {
+			// Reine Medienseite (Video/Audio): kein Readability. Der Content
+			// ist die Beschreibung (siehe Step 2a); der Medien-Marker samt
+			// Fallback-Link wird unten nach dem Cleanup vorangestellt (Step 11b).
+			// Titel/Autor/Bild/Datum kommen ausschliesslich aus den Domain-
+			// Metadaten (Step 9) – hier nur initialisieren (Titel wie beim
+			// Platzhalter-Artikel mit dem Host), sonst bricht eine Seite ohne
+			// og:title (z. B. YouTubes Consent-Seite) die Extraktion in
+			// stripDuplicateMetadata() ab.
+			$content     = '';
+			$title       = (string) (parse_url($url, PHP_URL_HOST) ?: $url);
+			$author      = null;
+			$imageUrl    = null;
+			$publishedAt = null;
+			foreach ($mediaDetailParagraphs as $paragraph) {
 				$content .= '<p>' . htmlspecialchars($paragraph, ENT_QUOTES, 'UTF-8') . '</p>';
 			}
 		}
@@ -756,9 +749,37 @@ class ContentExtractorService {
 		$wordCount   = str_word_count(strip_tags($content));
 		$readingTime = max(1, (int) ceil($wordCount / 200));
 
+		// "Mixed" nur, wenn neben dem Medium auch wirklich Text da ist: Seiten
+		// wie Deutschlandfunk-Kommentare bestehen oft nur aus Audio plus
+		// Autorenzeile - die sind in der Liste bei "Audio" richtiger
+		// aufgehoben als bei den Seiten.
+		if ($media !== null
+			&& $domainMeta['category'] === ContentFilterSchema::MIXED_CATEGORY
+			&& $wordCount < self::MIXED_MIN_WORDS) {
+			$domainMeta['category'] = $media['kind'] === MediaResult::KIND_AUDIO ? 'Audio' : 'Video';
+		}
+
 		$content = $this->cleanHtml($content);
 
 		$normalizedImageUrl = $imageUrl ? $this->normalizeUrl($imageUrl, $url) : null;
+
+		// ── Step 11b: Medien-Marker ───────────────────────────────────────────
+		// Nach cleanHtml(), damit dessen Aufräumen die data-media-*-Attribute
+		// nicht anfasst; vor Step 12, damit das Hero-Bild davor landet. Der
+		// Marker trägt bei stabilen Quellen (Datei/Embed) die URL selbst, bei
+		// Mediathek-Streams nur die Medienart – der Reader löst sie dann über
+		// GET /api/articles/{id}/media auf (siehe MediaResolverService).
+		// Medienseiten ohne deklarierte Quelle (z. B. vimeo.com) bekommen
+		// weiterhin nur den Fallback-Link, wie vor Einführung von <media>.
+		if ($media !== null) {
+			$content = MediaResolverService::buildMarkerHtml($media['kind'], $media['result'], $url) . $content;
+		} elseif ($this->isMediaCategory($domainMeta['category'])) {
+			$isAudio = $domainMeta['category'] === 'Audio';
+			$content = '<a href="' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '" class="'
+				. MediaResolverService::FALLBACK_LINK_CLASS
+				. ($isAudio ? '' : ' ' . MediaResolverService::LEGACY_VIDEO_FALLBACK_CLASS) . '">'
+				. ($isAudio ? 'Zum Audio' : 'Zum Video') . '</a>' . $content;
+		}
 
 		// ── Step 12: Hero-Image in Content einfügen ────────────────────────────────────────
 		// Alle Bilder/Figures am Content-Anfang werden bis zum ersten
@@ -936,6 +957,92 @@ class ContentExtractorService {
 	}
 
 	/**
+	 * true, wenn Artikel dieser Kategorie durch Readability laufen. Nicht für
+	 * reine Medienseiten (Video/Audio, siehe ContentFilterSchema::
+	 * MEDIA_CATEGORIES) und Social-Posts – die bauen ihren Content selbst.
+	 * "Mixed" (Textartikel mit Medium) läuft bewusst normal durch.
+	 */
+	private function usesReadability(?string $category): bool {
+		return !$this->isMediaCategory($category)
+			&& !in_array($category, ['Thread', 'XPost', 'Mastodon', 'InstagramPost', 'TikTokPost'], true);
+	}
+
+	/** Reine Medienseite (Video/Audio)? */
+	private function isMediaCategory(?string $category): bool {
+		return in_array($category, ContentFilterSchema::MEDIA_CATEGORIES, true);
+	}
+
+	/**
+	 * Beschreibung einer reinen Medienseite: zuerst die <media><description>-
+	 * Regeln der Domain-Config (XPath oder JSON-Pfad wie bei <metadata>, erste
+	 * nicht-leere gewinnt; Absätze an Leerzeilen getrennt), sonst ein Provider
+	 * mit eigener Logik (DescriptionProviderInterface, z. B. zdf.de, dessen
+	 * Beschreibung nur im Next.js-Payload steht).
+	 *
+	 * teaser ersetzt – falls gesetzt – das Excerpt; nur Provider liefern ihn,
+	 * weil eine deklarative Regel dafür bereits <metadata><excerpt> hat.
+	 *
+	 * @return array{teaser: ?string, paragraphs: list<string>}
+	 */
+	private function extractMediaDescription(string $rawHtml, ?\SimpleXMLElement $config, string $domain, ?ContentFilterTrace $trace): array {
+		$rules = [];
+		if ($config !== null && isset($config->media)) {
+			foreach ($config->media->description as $rule) {
+				$rules[] = $rule;
+			}
+		}
+
+		if ($rules === []) {
+			return $this->mediaResolver->providerDescription($config, $rawHtml)
+				?? ['teaser' => null, 'paragraphs' => []];
+		}
+
+		$prev = libxml_use_internal_errors(true);
+		$dom  = new \DOMDocument();
+		$dom->loadHTML('<?xml version="1.0" encoding="UTF-8"?>' . $rawHtml, LIBXML_NOERROR | LIBXML_NOWARNING);
+		libxml_clear_errors();
+		libxml_use_internal_errors($prev);
+		$xpath       = new \DOMXPath($dom);
+		$jsonSources = null;
+
+		$text = '';
+		foreach ($rules as $rule) {
+			$expr = trim((string) ($rule['xpath'] ?? ''));
+			$json = trim((string) ($rule['json'] ?? ''));
+			if ($expr !== '') {
+				$nodes = @$xpath->query($expr);
+				$trace?->record('media', $rule, $nodes === false ? 0 : $nodes->length, $nodes === false ? 'Ungültiger XPath-Ausdruck' : null);
+				foreach ($nodes ?: [] as $node) {
+					$text = trim($node instanceof \DOMElement ? $node->textContent : (string) $node->nodeValue);
+					if ($text !== '') {
+						break;
+					}
+				}
+			} elseif ($json !== '') {
+				$jsonSources ??= $this->extractJsonSources($rawHtml, $config, $domain, null);
+				[$sourceId, $path] = (!str_starts_with($json, '$') && str_contains($json, ':'))
+					? array_map('trim', explode(':', $json, 2))
+					: ['default', $json];
+				$resolved = isset($jsonSources[$sourceId]) ? $this->resolveJsonPath($jsonSources[$sourceId], $path) : null;
+				$text     = is_string($resolved) ? trim($resolved) : '';
+				$trace?->record('media', $rule, $text !== '' ? 1 : 0);
+			}
+			if ($text !== '') {
+				break;
+			}
+		}
+
+		$paragraphs = [];
+		foreach (preg_split('/\n{2,}/', $text) ?: [] as $paragraph) {
+			$paragraph = trim($paragraph);
+			if ($paragraph !== '') {
+				$paragraphs[] = $paragraph;
+			}
+		}
+		return ['teaser' => null, 'paragraphs' => $paragraphs];
+	}
+
+	/**
 	 * Numerische Video-ID aus einer tiktok.com-Video-URL
 	 * ("/@handle/video/1234567890…"), oder null wenn die URL keine
 	 * Video-Permalink-Form hat (Profil, Discover, Startseite, …). Dient dem
@@ -949,84 +1056,6 @@ class ContentExtractorService {
 			return null;
 		}
 		return $m[1];
-	}
-
-	/**
-	 * Liest Teaser und Detailbeschreibung einer zdf.de-Videoseite aus dem
-	 * rohen HTML. Beides steht dort NICHT als <meta>-Tag (og:description ist
-	 * ein generischer SEO-Text, weder Teaser noch Detailbeschreibung),
-	 * sondern eingebettet im Next.js-RSC-Payload (self.__next_f.push(…)) -
-	 * einem vollständigen JSON-Dokument, das als JS-String-Literal
-	 * eingebettet ist und daher einfach escaped ist (jedes strukturelle
-	 * Anführungszeichen als \", jedes literale Anführungszeichen INNERHALB
-	 * eines Textwerts als \\\", weil dort schon die JSON-eigene Escaping-Regel
-	 * für Textwerte griff, bevor die JS-String-Einbettung nochmal escapte).
-	 * Der Payload ist selbst kein eigenständiges, isoliert parsbares JSON
-	 * (durchsetzt mit RSC-Steuersyntax wie "$b6:props:…"-Referenzen), ein
-	 * echter json_decode() scheitert deshalb - Extraktion daher per Regex auf
-	 * bekannte Nachbar-Feldnamen, analog zu den anderen domain-spezifischen
-	 * Regex-Parsern hier (parseXStatusHandle(), parseTikTokVideoId() & Co.).
-	 *
-	 * Muss auf dem UNVERÄNDERTEN $rawHtml laufen, vor stripScriptAndStyleTags()
-	 * (Step 2d) - danach ist genau das <script>, in dem der Payload steht,
-	 * bereits entfernt.
-	 *
-	 * @return array{teaser: ?string, paragraphs: list<string>}
-	 */
-	private function extractZdfDescriptions(string $rawHtml): array {
-		$teaser = null;
-		if (preg_match(
-			'/\\\\"teaser\\\\":\{\\\\"title\\\\":\\\\"(?:[^"\\\\]|\\\\.)*?\\\\",\\\\"description\\\\":\\\\"(.*?)\\\\",\\\\"imageWithoutLogo\\\\"/s',
-			$rawHtml,
-			$m
-		)) {
-			$decoded = trim($this->unescapeZdfFlightString($m[1]));
-			$teaser  = $decoded !== '' ? $decoded : null;
-		}
-
-		$paragraphs = [];
-		if (preg_match(
-			'/\\\\"longInfoText\\\\":\{\\\\"items\\\\":\[(.*?)\\\\"editorialDate\\\\"/s',
-			$rawHtml,
-			$blockMatch
-		)) {
-			if (preg_match_all('/\\\\"text\\\\":\\\\"(.*?)\\\\",\\\\"style\\\\"/s', $blockMatch[1], $textMatches)) {
-				foreach ($textMatches[1] as $rawText) {
-					$text = trim($this->unescapeZdfFlightString($rawText));
-					if ($text !== '') {
-						$paragraphs[] = $text;
-					}
-				}
-			}
-		}
-
-		return ['teaser' => $teaser, 'paragraphs' => $paragraphs];
-	}
-
-	/**
-	 * Löst die doppelte Escaping-Ebene aus extractZdfDescriptions() auf: das
-	 * erfasste Fragment ist ein Wert aus einem JSON-Dokument, das seinerseits
-	 * als JS-String-Literal escaped wurde - zwei Escaping-Ebenen, zwei
-	 * Unescape-Durchläufe. Bewusst kein stripcslashes(): das kennt \uXXXX
-	 * nicht und würde solche Sequenzen falsch behandeln; die hier
-	 * vorkommenden Escapes sind auf \\, \", \n, \t, \r, \/ beschränkt (siehe
-	 * Docblock oben), alles andere bleibt unverändert stehen.
-	 */
-	private function unescapeZdfFlightString(string $s): string {
-		$unescapeOnce = static function (string $s): string {
-			return preg_replace_callback('/\\\\(.)/', static function (array $m): string {
-				return match ($m[1]) {
-					'n'     => "\n",
-					't'     => "\t",
-					'r'     => "\r",
-					'"'     => '"',
-					'\\'    => '\\',
-					'/'     => '/',
-					default => $m[1],
-				};
-			}, $s) ?? $s;
-		};
-		return $unescapeOnce($unescapeOnce($s));
 	}
 
 	/**
@@ -3357,6 +3386,12 @@ class ContentExtractorService {
 	 * og:/article: XPaths used as fallback for every field that has no custom
 	 * XPath in the domain config.  These run for all domains automatically.
 	 */
+	/**
+	 * Mindestzahl Wörter, ab der ein Artikel mit gefundenem Medium als
+	 * "Mixed" (Text + Medium) statt als reine Audio-/Videoseite gilt.
+	 */
+	private const MIXED_MIN_WORDS = 80;
+
 	private const OG_FALLBACK_XPATHS = [
 		'title'     => "//meta[@property='og:title']/@content",
 		'excerpt'   => "//meta[@property='og:description']/@content | //meta[@name='twitter:description']/@content",
@@ -4124,6 +4159,9 @@ class ContentExtractorService {
 			// cite/data-video-id: TikToks offizielles Embed-Markup, siehe
 			// isAllowedTiktokEmbedCite() und die data-video-id-Prüfung in
 			// sanitizeAttributes() - analog für den TikTokPost-Zweig.
+			// Medien-Marker (siehe MediaResolverService::buildMarkerHtml()); die
+			// Werte werden zusammen in sanitizeMediaMarker() geprüft.
+			'div'        => ['data-media-kind', 'data-media-delivery', 'data-media-src'],
 			'blockquote' => ['data-instgrm-permalink', 'data-instgrm-version', 'data-bluesky-uri', 'cite', 'data-video-id'],
 			// iframe steht bewusst NICHT auf $allowedTags (generisches iframe-Embed
 			// ist ein XSS-Vektor) – erlaubt sind nur Video-Embeds von vertrauens-
@@ -4589,10 +4627,42 @@ class ContentExtractorService {
 			}
 		}
 
+		if ($tag === 'div' && $el->hasAttribute('data-media-kind')) {
+			$this->sanitizeMediaMarker($el);
+		}
+
 		// Bei Links, die in einem neuen Tab geöffnet werden, rel härten
 		// (Schutz gegen window.opener-Tabnabbing).
 		if ($tag === 'a' && $el->getAttribute('target') === '_blank') {
 			$el->setAttribute('rel', 'noopener noreferrer');
+		}
+	}
+
+	/**
+	 * Prüft die data-media-*-Attribute eines Medien-Markers als Einheit: die
+	 * Medienart muss bekannt sein (sonst fliegen alle drei Attribute raus),
+	 * Quelle und Auslieferung nur gemeinsam und nur mit https-URL – ein Embed
+	 * zusätzlich nur von einem Host aus isAllowedVideoEmbedSrc(), denn der
+	 * Reader rendert ihn als iframe. Bei ungültiger Quelle bleibt ein Marker
+	 * ohne URL stehen (Reader fragt dann GET /media).
+	 */
+	private function sanitizeMediaMarker(\DOMElement $el): void {
+		if (!in_array($el->getAttribute('data-media-kind'), MediaResult::KINDS, true)) {
+			$el->removeAttribute('data-media-kind');
+			$el->removeAttribute('data-media-delivery');
+			$el->removeAttribute('data-media-src');
+			return;
+		}
+
+		$delivery = $el->getAttribute('data-media-delivery');
+		$src      = trim($el->getAttribute('data-media-src'));
+		$valid    = in_array($delivery, MediaResult::DELIVERIES, true)
+			&& str_starts_with(strtolower($src), 'https://')
+			&& !$this->isDangerousUrl($src)
+			&& ($delivery !== MediaResult::DELIVERY_EMBED || $this->isAllowedVideoEmbedSrc($src));
+		if (!$valid) {
+			$el->removeAttribute('data-media-delivery');
+			$el->removeAttribute('data-media-src');
 		}
 	}
 

@@ -55,7 +55,7 @@ if (typeof document !== 'undefined' && !document.getElementById('merlin-hl-style
 // injected as a flat run of top-level nodes directly under a bare container
 // (no extra wrapper elements). merlin-nextcloud's authenticated reader
 // (ArticleReader.vue) instead splits that same content into two separate
-// `v-html` wrapper <div>s (hero image / rest) so a <VideoPlayer> can be
+// `v-html` wrapper <div>s (hero image / rest) so a <MediaPlayer> can be
 // inserted between them — an extra level of nesting, plus a sibling element
 // that doesn't exist in the original content at all. Resolving a
 // cross-platform XPath directly against that live DOM would look for e.g.

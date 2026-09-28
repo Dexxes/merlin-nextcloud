@@ -18,6 +18,8 @@ merlin-nextcloud/
 │   │   ├── ManifestController.php             # PWA-Manifest
 │   │   ├── ServiceWorkerController.php         # Liefert den Service-Worker (PWA)
 │   │   ├── YoutubeEmbedController.php          # Proxy für eingebettete YouTube-Player (CSP)
+│   │   ├── MediaController.php                 # GET /api/articles/{id}/media: Audio-/Video-Quelle eines Artikels
+│   │   ├── VideoStreamController.php           # Veraltet: /video-stream im alten Format (nur HLS-Video)
 │   │   ├── SettingsController.php
 │   │   ├── ContentFilterController.php        # Admin-API für Content-Filter
 │   │   ├── UserContentFilterController.php    # Personal-API: eigener Override
@@ -32,6 +34,12 @@ merlin-nextcloud/
 │   │   ├── ContentFilterTrace.php        # Trefferzähler für den Testlauf
 │   │   ├── TtsStreamService.php          # Ausgelagert aus TtsController: gemeinsamer Stream-Pfad für authentifizierten und öffentlichen (Share-)Endpunkt
 │   │   ├── ExportService.php
+│   │   ├── Media/                        # Audio/Video, siehe Abschnitt "Medien-Provider" unten
+│   │   │   ├── MediaResolverService.php       # <media>-Sektion lesen, Provider aufrufen, Marker bauen/lesen
+│   │   │   ├── MediaProviderRegistry.php      # type → Provider (einzige Registrierungsstelle)
+│   │   │   ├── MediaSourceProviderInterface.php / DescriptionProviderInterface.php
+│   │   │   ├── MediaContext.php / MediaResult.php / MediaHttpClient.php / VariantHelper.php
+│   │   │   └── Provider/                      # ard-mediathek, zdf, arte, youtube-embed, xpath, json-ld
 │   │   └── Login/                        # 🔜 geplant: Paywall-Abo-Login (siehe PLATFORMS.md)
 │   │       ├── LoginProviderInterface.php     # login(username, password): Cookie-Bundle
 │   │       └── PianoJsonFormLoginProvider.php # type="piano-json-form" (z. B. tagesspiegel.de)
@@ -56,7 +64,8 @@ merlin-nextcloud/
 │   └── $unsupported.xml      # Domains, die grundsätzlich nicht gescrapt werden (siehe UnsupportedSiteException)
 └── tools/
     ├── test-content-filter-merge.php  # Testharness (pures PHP, ohne Composer)
-    └── test-caption-flatten.php       # Testharness: Bildunterschriften einzeilig ("•")
+    ├── test-caption-flatten.php       # Testharness: Bildunterschriften einzeilig ("•")
+    └── test-media-providers.php       # Testharness Medien-Provider (--live: gegen echte Sender)
 ```
 
 Hinweis: `FeedController`/`FeedService`/`Feed(Mapper)` aus einer früheren Version existieren nicht mehr.
@@ -84,6 +93,40 @@ der Merger wieder ein `SimpleXMLElement` liefert. Die Grammatik steht ausschlies
 in `ContentFilterSchema` – Validator, Serializer, Merger und die Vue-Builder leiten
 sich daraus ab. Das Herkunftsattribut (`data-merlin-origin`) kennt seit der
 Drei-Ebenen-Erweiterung drei Werte (`bundle`/`admin`/`user`) statt zwei.
+
+### Medien-Provider (Audio/Video)
+
+Welche Audio-/Video-Quelle eine Domain hat, steht deklarativ in der
+`<media>`-Sektion ihres Content-Filters (Schema: `ContentFilterSchema`,
+Merge wie alle anderen Sektionen, `<source>` je `type`). Die Logik je
+Quellen-Typ liegt in `lib/Service/Media/Provider/`:
+
+```
+<media>
+  <source type="xpath" kind="audio" xpath="…" host-allow="dradio.de" />
+  <description xpath="//meta[@property='og:description']/@content" />
+</media>
+
+Speichern:  ContentExtractorService Step 2a
+              └─ MediaResolverService::resolveOnSave(url, config, rawHtml)
+                   ├─ stabile Quelle (xpath, json-ld, youtube-embed) → Marker MIT URL
+                   └─ Mediathek (resolvesPerRequest(): ard, zdf, arte) → Marker OHNE URL
+            Step 11b: <div class="merlin-media" data-media-kind data-media-delivery data-media-src>
+            (sanitizeMediaMarker() prüft die Attribute, Embeds gegen isAllowedVideoEmbedSrc())
+Öffnen:     MediaPlayer.vue
+              ├─ Marker mit URL → direkt abspielen (auch in der öffentlichen Share-Ansicht)
+              └─ sonst GET /api/articles/{id}/media → resolveOnRequest() → Provider ohne HTML
+```
+
+Kategorien: `Video`/`Audio` (feste `<category>`, reine Medienseite, kein
+Readability, Content = Marker + `<description>`), `Mixed` (automatisch, wenn
+eine Quelle gefunden wurde und die Domain keine feste Kategorie hat; unter 80
+Wörtern Text stattdessen `Audio`/`Video`).
+
+Neuer Sender: reichen `xpath` oder `json-ld`, genügt der XML-Eintrag. Sonst
+einen Provider anlegen und in `MediaProviderRegistry` sowie
+`ContentFilterSchema::MEDIA_SOURCE_TYPES` eintragen
+(`tools/test-media-providers.php` prüft, dass beide übereinstimmen).
 
 ### Titel-Duplikat-Heuristik (`stripDuplicateMetadata()`)
 
@@ -166,6 +209,7 @@ src/
     ├── Sidebar.vue
     ├── ShareLinkDialog.vue        # Dialog zum Anlegen/Verwalten von Share-Links
     ├── PublicArticleView.vue      # Ansicht für öffentliche Share-Links (public-main.js)
+    ├── MediaPlayer.vue            # Audio-/Video-Player (HLS, Datei, Embed), siehe "Medien-Provider"
     ├── Settings.vue
     ├── SettingsPreview.vue
     ├── admin/               # Content-Filter-Verwaltung (instanzweit)

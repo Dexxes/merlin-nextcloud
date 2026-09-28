@@ -50,6 +50,28 @@ final class ContentFilterSchema {
 	public const ORIGIN_ADMIN     = 'admin';
 	public const ORIGIN_USER      = 'user';
 
+	/**
+	 * Erlaubte Werte für <media><source type="…">. Muss mit den in
+	 * Media\MediaProviderRegistry registrierten Providern übereinstimmen
+	 * (tools/test-media-providers.php prüft das) – hier als Konstante, damit
+	 * Validator und Regel-Builder die Liste ohne DI-Container kennen.
+	 */
+	public const MEDIA_SOURCE_TYPES = ['ard-mediathek', 'zdf', 'arte', 'xpath', 'json-ld', 'youtube-embed'];
+
+	/** Erlaubte Werte für <media><source kind="…">. */
+	public const MEDIA_KINDS = ['video', 'audio'];
+
+	/**
+	 * Kategorien, deren Artikel reine Medienseiten sind: Readability wird
+	 * übersprungen, der Content besteht aus Medien-Marker und Beschreibung.
+	 * "Mixed" (Textartikel mit eingebettetem Medium) gehört bewusst NICHT
+	 * dazu – dort läuft die normale Textextraktion.
+	 */
+	public const MEDIA_CATEGORIES = ['Video', 'Audio'];
+
+	/** Kategorie für Textartikel, in denen ein Medium gefunden wurde. */
+	public const MIXED_CATEGORY = 'Mixed';
+
 	/** Wurzelelement jeder Filterdatei. */
 	public const ROOT_ELEMENT = 'domain';
 
@@ -92,6 +114,7 @@ final class ContentFilterSchema {
 		'json',
 		'metadata',
 		'category',
+		'media',
 		'paywall',
 	];
 
@@ -109,6 +132,7 @@ final class ContentFilterSchema {
 		'json',
 		'metadata',
 		'category',
+		'media',
 		'paywall',
 	];
 
@@ -204,6 +228,27 @@ final class ContentFilterSchema {
 		],
 		'category' => [
 			'kind' => 'root-text',
+		],
+		'media' => [
+			// Audio-/Video-Quelle der Domain, siehe Service/Media/. Mehrere
+			// <source> bilden eine Fallback-Kette in Dokumentreihenfolge; eine
+			// Custom-Ebene mit gleichem type ersetzt die Bundle-Quelle.
+			// <description> (ohne type) ersetzt entsprechend die Bundle-
+			// Beschreibung.
+			'kind'     => 'list-keyed',
+			'key'      => 'type',
+			'children' => [
+				'source' => [
+					'required' => ['type', 'kind'],
+					// xpath: Pflicht bei type="xpath" (siehe Validator)
+					// host-allow: Domain-Suffixe, auf die eine per xpath/json-ld
+					// gefundene URL zeigen darf
+					'optional' => ['xpath', 'host-allow'],
+				],
+				// Lesetext reiner Medienseiten (Kategorie Video/Audio). Ohne
+				// eigene Regel liefert ggf. der Provider selbst eine (zdf).
+				'description' => ['oneOf' => ['xpath', 'json']],
+			],
 		],
 		'paywall' => [
 			'kind'     => 'field-group',

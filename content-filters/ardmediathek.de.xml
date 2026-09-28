@@ -6,6 +6,13 @@
 
   <category>Video</category>
 
+  <!-- HLS-Stream über die page-gateway-API (Service/Media/Provider/ArdMediathekProvider);
+       die Sendungsbeschreibung (synopsis = og:description) wird der Lesetext. -->
+  <media>
+    <source type="ard-mediathek" kind="video" />
+    <description xpath="//meta[@property='og:description']/@content" />
+  </media>
+
   <pre-filter>
     <remove xpath="//*[contains(@class,'teaser')]" />
     <remove xpath="//*[contains(@class,'navigation')]" />

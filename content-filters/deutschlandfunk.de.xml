@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Merlin Content-Filter: nd-aktuell.de
+  Merlin Content-Filter: deutschlandfunk.de
 
   Verfügbare Sektionen:
     <pre-filter>   – Regeln, die auf das rohe HTML VOR dem Readability-Durchlauf angewendet werden
@@ -28,6 +28,16 @@
   <post-filter>
     <!-- Hier post-Readability-Remove-Regeln eintragen -->
   </post-filter>
+
+  <!-- Beitrags-Audio (Kategorie wird automatisch "Mixed", wenn eins gefunden
+       wird). Der Live-Stream-Button trägt dieselben data-audio-Attribute,
+       deshalb explizit ausgeschlossen; host-allow hält die URL auf den
+       Deutschlandradio-Servern. -->
+  <media>
+    <source type="xpath" kind="audio"
+            xpath="(//*[@data-audio and not(contains(@class,'b-btn-live')) and not(@data-islive='1')]/@data-audio)[1]"
+            host-allow="dradio.de deutschlandfunk.de" />
+  </media>
 
   <metadata>
     <!-- Beispiele:
