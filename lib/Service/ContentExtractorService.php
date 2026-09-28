@@ -1300,9 +1300,17 @@ class ContentExtractorService {
 		}
 
 		$caption = $figure->getElementsByTagName('figcaption')->item(0);
-		if ($caption === null) {
+		if (!$caption instanceof \DOMElement) {
 			return null;
 		}
+
+		// Löst Block-Umbrüche (separate Caption-/Copyright-<div>s ohne Text
+		// dazwischen, z. B. landeszeitung.de) in CAPTION_SEPARATOR auf statt
+		// sie beim rohen textContent-Zugriff kommentarlos zu verschmelzen
+		// ("…geheiratet.Quelle: privat"). Der Knoten wird gleich im Anschluss
+		// aus dem Baum entfernt (siehe scanForLeadingImages()), die Mutation
+		// hier ist also unbedenklich.
+		$this->flattenCaptionElement($caption);
 
 		$text = trim($caption->textContent);
 		return $text !== '' ? $text : null;
@@ -2104,8 +2112,14 @@ class ContentExtractorService {
 				}
 				if ($ancestor instanceof \DOMElement) {
 					$captionNodes = $xpath->query('.//figcaption', $ancestor);
-					if ($captionNodes && $captionNodes->length > 0) {
-						$captionText = trim($captionNodes->item(0)->textContent);
+					$captionNode  = $captionNodes ? $captionNodes->item(0) : null;
+					if ($captionNode instanceof \DOMElement) {
+						// Siehe findFigcaption(): löst Block-Umbrüche (separate
+						// Caption-/Copyright-<div>s ohne Text dazwischen) in
+						// CAPTION_SEPARATOR auf statt sie im rohen textContent
+						// zu verschmelzen.
+						$this->flattenCaptionElement($captionNode);
+						$captionText = trim($captionNode->textContent);
 						$caption = $captionText !== '' ? $captionText : null;
 					}
 				}
@@ -4064,8 +4078,6 @@ class ContentExtractorService {
 			return;
 		}
 
-		$xpath = new \DOMXPath($dom);
-
 		foreach ($captions as $caption) {
 			// Kann beim Auflösen einer umschliessenden Caption aus dem Baum
 			// gefallen sein (verschachtelte <figcaption> im Quell-HTML).
@@ -4073,67 +4085,87 @@ class ContentExtractorService {
 				continue;
 			}
 
-			// 1. <br> durch den Trenner ersetzen.
-			foreach (iterator_to_array($caption->getElementsByTagName('br')) as $br) {
-				$br->parentNode?->replaceChild($dom->createTextNode(self::CAPTION_SEPARATOR), $br);
-			}
+			$this->flattenCaptionElement($caption);
+		}
+	}
 
-			// 2. Block-Elemente auflösen. Rückwärts (= von innen nach aussen),
-			//    damit verschachtelte Blöcke nicht ins Leere greifen.
-			$blocks = [];
-			foreach ($caption->getElementsByTagName('*') as $el) {
-				if (in_array(strtolower($el->nodeName), self::CAPTION_BLOCK_TAGS, true)) {
-					$blocks[] = $el;
-				}
-			}
-			foreach (array_reverse($blocks) as $block) {
-				$parent = $block->parentNode;
-				if ($parent === null) {
-					continue;
-				}
-				// Trenner VOR und NACH dem Block: ein Block beendet auch die Zeile,
-				// der nachfolgende Inhalt begönne sonst ohne Trennung
-				// (<div><p>A</p><span>B</span></div> rendert A und B untereinander).
-				// Überzählige Trenner fallen in Schritt 3 wieder weg.
-				$parent->insertBefore($dom->createTextNode(self::CAPTION_SEPARATOR), $block);
-				while ($block->firstChild !== null) {
-					$parent->insertBefore($block->firstChild, $block);
-				}
-				$parent->insertBefore($dom->createTextNode(self::CAPTION_SEPARATOR), $block);
-				$parent->removeChild($block);
-			}
+	/**
+	 * Löst innerhalb einer einzelnen <figcaption> Block-Umbrüche (<br> und
+	 * Block-Elemente wie <div>/<p>, siehe CAPTION_BLOCK_TAGS) durch
+	 * CAPTION_SEPARATOR auf, damit z. B. separate "Caption"- und
+	 * "Copyright"-<div>s (ohne Text dazwischen) nicht zu einem Wort
+	 * verschmelzen ("…geheiratet.Quelle: privat" statt "…geheiratet. •
+	 * Quelle: privat"). Mutiert den Knoten in place - von flattenCaptions()
+	 * für den finalen Content-Baum genutzt, und von findFigcaption() für ein
+	 * einzelnes, ohnehin gleich aus dem Baum entferntes Leitbild.
+	 */
+	private function flattenCaptionElement(\DOMElement $caption): void {
+		$dom = $caption->ownerDocument;
+		if ($dom === null) {
+			return;
+		}
 
-			// 3. Textknoten glätten: Whitespace vereinheitlichen, Trenner-Ketten
-			//    zusammenfassen, führende Trenner entfernen.
-			$lastVisible    = null;
-			$afterSeparator = true;   // Caption-Anfang zählt wie "gerade getrennt"
-			foreach ($xpath->query('.//text()', $caption) as $text) {
-				$value = preg_replace('/\s+/u', ' ', (string) $text->nodeValue) ?? '';
-				$value = preg_replace(
-					'/(?:\s*' . self::CAPTION_BULLET . '\s*)+/u',
-					self::CAPTION_SEPARATOR,
-					$value
-				) ?? $value;
-				if ($afterSeparator) {
-					$value = preg_replace('/^\s*(?:' . self::CAPTION_BULLET . '\s*)?/u', '', $value) ?? $value;
-				}
-				$text->nodeValue = $value;
+		// 1. <br> durch den Trenner ersetzen.
+		foreach (iterator_to_array($caption->getElementsByTagName('br')) as $br) {
+			$br->parentNode?->replaceChild($dom->createTextNode(self::CAPTION_SEPARATOR), $br);
+		}
 
-				if (trim($value) !== '') {
-					$lastVisible    = $text;
-					$afterSeparator = (bool) preg_match('/' . self::CAPTION_BULLET . '\s*$/u', $value);
-				}
+		// 2. Block-Elemente auflösen. Rückwärts (= von innen nach aussen),
+		//    damit verschachtelte Blöcke nicht ins Leere greifen.
+		$blocks = [];
+		foreach ($caption->getElementsByTagName('*') as $el) {
+			if (in_array(strtolower($el->nodeName), self::CAPTION_BLOCK_TAGS, true)) {
+				$blocks[] = $el;
 			}
+		}
+		foreach (array_reverse($blocks) as $block) {
+			$parent = $block->parentNode;
+			if ($parent === null) {
+				continue;
+			}
+			// Trenner VOR und NACH dem Block: ein Block beendet auch die Zeile,
+			// der nachfolgende Inhalt begönne sonst ohne Trennung
+			// (<div><p>A</p><span>B</span></div> rendert A und B untereinander).
+			// Überzählige Trenner fallen in Schritt 3 wieder weg.
+			$parent->insertBefore($dom->createTextNode(self::CAPTION_SEPARATOR), $block);
+			while ($block->firstChild !== null) {
+				$parent->insertBefore($block->firstChild, $block);
+			}
+			$parent->insertBefore($dom->createTextNode(self::CAPTION_SEPARATOR), $block);
+			$parent->removeChild($block);
+		}
 
-			// 4. Trenner am Ende abschneiden (entsteht, wenn die Caption mit einem
-			//    Block oder einem <br> aufhört).
-			if ($lastVisible !== null) {
-				$lastVisible->nodeValue = preg_replace(
-					'/\s*(?:' . self::CAPTION_BULLET . '\s*)?$/u',
-					'',
-					(string) $lastVisible->nodeValue
-				) ?? '';
+		// 3. Textknoten glätten: Whitespace vereinheitlichen, Trenner-Ketten
+		//    zusammenfassen, führende Trenner entfernen.
+		$xpath          = new \DOMXPath($dom);
+		$lastVisible    = null;
+		$afterSeparator = true;   // Caption-Anfang zählt wie "gerade getrennt"
+		foreach ($xpath->query('.//text()', $caption) as $text) {
+			$value = preg_replace('/\s+/u', ' ', (string) $text->nodeValue) ?? '';
+			$value = preg_replace(
+				'/(?:\s*' . self::CAPTION_BULLET . '\s*)+/u',
+				self::CAPTION_SEPARATOR,
+				$value
+			) ?? $value;
+			if ($afterSeparator) {
+				$value = preg_replace('/^\s*(?:' . self::CAPTION_BULLET . '\s*)?/u', '', $value) ?? $value;
 			}
+			$text->nodeValue = $value;
+
+			if (trim($value) !== '') {
+				$lastVisible    = $text;
+				$afterSeparator = (bool) preg_match('/' . self::CAPTION_BULLET . '\s*$/u', $value);
+			}
+		}
+
+		// 4. Trenner am Ende abschneiden (entsteht, wenn die Caption mit einem
+		//    Block oder einem <br> aufhört).
+		if ($lastVisible !== null) {
+			$lastVisible->nodeValue = preg_replace(
+				'/\s*(?:' . self::CAPTION_BULLET . '\s*)?$/u',
+				'',
+				(string) $lastVisible->nodeValue
+			) ?? '';
 		}
 	}
 
