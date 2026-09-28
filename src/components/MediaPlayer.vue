@@ -17,8 +17,9 @@
 	  file  - natives <audio>/<video src>
 	  embed - offizieller iframe-Player (z. B. YouTube über youtube-nocookie)
 
-	Abspielposition (nur hls/file, nicht bei Embeds - deren iframe ist
-	cross-origin und lässt sich nicht auslesen): wird wie der Lesefortschritt
+	Abspielposition (hls/file über das Medien-Element, YouTube-Embeds über die
+	postMessage-Schnittstelle der IFrame-API; andere Embeds nicht): wird wie
+	der Lesefortschritt
 	lokal und per PUT /api/articles/{id}/media-position geräteübergreifend
 	gespeichert und beim erneuten Öffnen wiederhergestellt (Last-Write-Wins
 	über den Zeitstempel). Gesteuert über dieselben Einstellungen wie die
@@ -32,11 +33,13 @@
 	<div v-if="playable" class="media-player" :class="'media-player--' + kind">
 		<iframe
 			v-if="delivery === 'embed'"
-			:src="currentVariant.url"
+			ref="embedEl"
+			:src="embedSrc"
 			frameborder="0"
 			allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
 			allowfullscreen
-			referrerpolicy="strict-origin-when-cross-origin" />
+			referrerpolicy="strict-origin-when-cross-origin"
+			@load="onEmbedLoad" />
 
 		<audio
 			v-else-if="kind === 'audio'"
@@ -86,6 +89,22 @@ const MEDIA_CATEGORIES = ['Video', 'Audio']
 const KINDS = ['video', 'audio']
 const DELIVERIES = ['hls', 'file', 'embed']
 
+// Hosts, deren Embed die YouTube-IFrame-API (postMessage-Protokoll) spricht.
+const YOUTUBE_EMBED_HOSTS = ['www.youtube-nocookie.com', 'www.youtube.com']
+
+/**
+ * @param {string} url Embed-URL
+ * @return {?URL} geparste URL, wenn es ein YouTube-Embed ist
+ */
+function youtubeEmbedUrl(url) {
+	try {
+		const parsed = new URL(url)
+		return parsed.protocol === 'https:' && YOUTUBE_EMBED_HOSTS.includes(parsed.host) ? parsed : null
+	} catch {
+		return null
+	}
+}
+
 // Während der Wiedergabe höchstens so oft speichern (ms) - timeupdate feuert
 // mehrmals pro Sekunde.
 const POSITION_SAVE_INTERVAL = 5000
@@ -97,7 +116,8 @@ const POSITION_SAVE_INTERVAL = 5000
  * als fertig abgespielt: dann 0, damit es beim nächsten Öffnen von vorn
  * beginnt statt in den letzten Sekunden.
  *
- * @param {HTMLMediaElement} media Audio-/Video-Element
+ * @param {{currentTime: number, duration: number, ended: boolean}} media
+ *   Audio-/Video-Element oder zuletzt gemeldeter Zustand des YouTube-Players
  * @return {?number} Sekunden
  */
 function playbackPosition(media) {
@@ -184,12 +204,26 @@ export default {
 			delivery: null,
 			variants: [],
 			selectedIndex: 0,
+			// Startsekunde für YouTube-Embeds (wiederhergestellte Position).
+			embedStart: 0,
 		}
 	},
 
 	computed: {
 		currentVariant() {
 			return this.variants[this.selectedIndex] || { url: '' }
+		},
+
+		// YouTube-Embeds bekommen die IFrame-API freigeschaltet (enablejsapi +
+		// origin, sonst schickt der Player keine Nachrichten) und ggf. die
+		// wiederhergestellte Position als Startzeit. Andere Embeds unverändert.
+		embedSrc() {
+			const url = youtubeEmbedUrl(this.currentVariant.url)
+			if (!url) return this.currentVariant.url
+			url.searchParams.set('enablejsapi', '1')
+			url.searchParams.set('origin', window.location.origin)
+			if (this.embedStart > 0) url.searchParams.set('start', String(this.embedStart))
+			return url.toString()
 		},
 	},
 
@@ -214,10 +248,13 @@ export default {
 			if (document.visibilityState === 'hidden') this.savePosition()
 		}
 		document.addEventListener('visibilitychange', this._onVisibilityChange)
+		this._onWindowMessage = (event) => this.onEmbedMessage(event)
+		window.addEventListener('message', this._onWindowMessage)
 	},
 
 	beforeUnmount() {
 		document.removeEventListener('visibilitychange', this._onVisibilityChange)
+		window.removeEventListener('message', this._onWindowMessage)
 		this.savePosition()
 		this._teardown()
 	},
@@ -232,6 +269,8 @@ export default {
 			this._lastSavedAt = 0
 			this._lastSavedPosition = null
 			this._teardown()
+			this._embedState = null
+			this.embedStart = 0
 			this.playable = false
 			this.kind = 'video'
 			this.delivery = null
@@ -281,12 +320,20 @@ export default {
 				? data.defaultIndex
 				: 0
 
+			if (this.delivery === 'embed') {
+				if (youtubeEmbedUrl(this.currentVariant.url)) {
+					this._positionArticleId = this.articleId
+					// YouTube nimmt als Startzeit nur ganze Sekunden.
+					this.embedStart = Math.floor(this._storedPosition())
+				}
+				this.playable = true
+				return
+			}
+
 			this.playable = true
 			await this.$nextTick()
-			if (this.delivery !== 'embed') {
-				this._positionArticleId = this.articleId
-				this._attach(this.currentVariant, { resumeAt: this._storedPosition() })
-			}
+			this._positionArticleId = this.articleId
+			this._attach(this.currentVariant, { resumeAt: this._storedPosition() })
 		},
 
 		selectVariant(index) {
@@ -414,8 +461,67 @@ export default {
 			}
 		},
 
+		// YouTube-IFrame-API ohne das iframe_api-Skript (CSP): nach dem Laden
+		// "listening" senden, bis der Player antwortet - ab dann meldet er
+		// Zustandsänderungen per infoDelivery (nur geänderte Felder).
+		onEmbedLoad() {
+			clearInterval(this._embedListenTimer)
+			if (!youtubeEmbedUrl(this.currentVariant.url)) return
+			this._embedState = { currentTime: this.embedStart, duration: NaN, ended: false }
+			let attempts = 0
+			const listen = () => {
+				const frame = this.$refs.embedEl
+				if (!frame?.contentWindow || this._embedConnected || ++attempts > 40) {
+					clearInterval(this._embedListenTimer)
+					return
+				}
+				frame.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), new URL(frame.src).origin)
+			}
+			this._embedConnected = false
+			listen()
+			this._embedListenTimer = setInterval(listen, 250)
+		},
+
+		onEmbedMessage(event) {
+			const frame = this.$refs.embedEl
+			if (!frame || event.source !== frame.contentWindow) return
+			let data
+			try {
+				if (!YOUTUBE_EMBED_HOSTS.includes(new URL(event.origin).host)) return
+				data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data
+			} catch {
+				return
+			}
+			if (!data || typeof data !== 'object' || !this._embedState) return
+			this._embedConnected = true
+
+			const info = data.info && typeof data.info === 'object' ? data.info : null
+			let playerState = null
+			if (info) {
+				if (Number.isFinite(info.currentTime)) this._embedState.currentTime = info.currentTime
+				if (Number.isFinite(info.duration)) this._embedState.duration = info.duration
+				if (Number.isInteger(info.playerState)) playerState = info.playerState
+			} else if (data.event === 'onStateChange' && Number.isInteger(data.info)) {
+				playerState = data.info
+			}
+
+			// playerState: 0 beendet, 1 spielt, 2 pausiert (YT.PlayerState).
+			if (playerState === null) {
+				if (this._embedState.playing) this.onTimeUpdate()
+				return
+			}
+			this._embedState.ended = playerState === 0
+			this._embedState.playing = playerState === 1
+			if (playerState === 1) {
+				this.onPlay()
+				this.onTimeUpdate()
+			} else if (playerState === 0 || playerState === 2) {
+				this.savePosition()
+			}
+		},
+
 		savePosition() {
-			const media = this.$refs.mediaEl
+			const media = this.delivery === 'embed' ? this._embedState : this.$refs.mediaEl
 			const articleId = this._positionArticleId
 			if (!this.rememberPosition || !this._hasPlayed || !media || articleId == null) return
 
@@ -440,6 +546,7 @@ export default {
 		},
 
 		_teardown() {
+			clearInterval(this._embedListenTimer)
 			if (this._hls) {
 				this._hls.destroy()
 				this._hls = null
