@@ -26,12 +26,12 @@
 						· {{ n('merlin', '%n page', '%n pages', pages.length) }}
 					</span>
 				</span>
-				<a class="pdf-viewer__open"
+				<NcButton type="primary"
 					:href="sourceUrl"
 					target="_blank"
 					rel="noopener noreferrer">
 					{{ t('merlin', 'Open PDF') }}
-				</a>
+				</NcButton>
 			</div>
 
 			<div ref="container" class="pdf-viewer__pages">
@@ -52,6 +52,7 @@
 </template>
 
 <script>
+import { NcButton } from '@nextcloud/vue'
 import PdfCard from './PdfCard.vue'
 
 /** Höchste Pixeldichte, mit der Seiten gerendert werden (Speicher/Zeit gegen Schärfe). */
@@ -62,7 +63,7 @@ const MAX_PAGE_WIDTH = 900
 export default {
 	name: 'PdfViewer',
 
-	components: { PdfCard },
+	components: { NcButton, PdfCard },
 
 	props: {
 		/** URL des Durchreich-Endpunkts auf dem eigenen Server. */
@@ -264,15 +265,6 @@ export default {
 .pdf-viewer__count {
 	font-weight: 400;
 	color: var(--color-text-maxcontrast);
-}
-
-.pdf-viewer__open {
-	padding: 6px 14px;
-	border-radius: var(--border-radius-pill, 20px);
-	background: var(--color-primary-element);
-	color: var(--color-primary-element-text);
-	text-decoration: none;
-	font-weight: 600;
 }
 
 .pdf-viewer__pages {

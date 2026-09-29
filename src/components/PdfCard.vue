@@ -19,18 +19,23 @@
 			<span class="pdf-card__label">{{ t('merlin', 'PDF document') }}</span>
 			<span class="pdf-card__host">{{ host }}</span>
 		</div>
-		<a class="pdf-card__open button-vue button-vue--vue-primary"
+		<NcButton type="primary"
 			:href="url"
 			target="_blank"
 			rel="noopener noreferrer">
 			{{ t('merlin', 'Open PDF') }}
-		</a>
+		</NcButton>
 	</div>
 </template>
 
 <script>
+import { NcButton } from '@nextcloud/vue'
+
 export default {
 	name: 'PdfCard',
+
+	components: { NcButton },
+
 	props: {
 		/** Quell-URL der PDF. */
 		url: { type: String, required: true },
@@ -80,16 +85,6 @@ export default {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-
-.pdf-card__open {
-	flex: none;
-	padding: 8px 16px;
-	border-radius: var(--border-radius-pill, 20px);
-	background: var(--color-primary-element);
-	color: var(--color-primary-element-text);
-	text-decoration: none;
-	font-weight: 600;
 }
 
 @media (max-width: 480px) {
