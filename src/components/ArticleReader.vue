@@ -433,6 +433,7 @@ import * as highlightsAPI from '../api/highlights'
 import { HighlightEngine } from '../highlight-engine'
 import ShareLinkDialog from './ShareLinkDialog.vue'
 import MediaPlayer from './MediaPlayer.vue'
+import { insertSupportBox } from '../support-box'
 
 const TAG_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899']
 
@@ -503,6 +504,8 @@ export default {
 
 	data() {
 		return {
+			// Daten der Support-Infobox (Abo-/Spendenlink), null = keine Box
+			supportBox: null,
 			// Einzige Quelle der Wahrheit für das Erscheinungsbild dieser Reader-Instanz;
 			// 'dark'/'sepia' sind explizite Nutzerwahlen, 'auto' wird in mounted() einmalig
 			// anhand des OS-Farbschemas zu 'light'/'dark' aufgelöst (Sepia hängt nicht am OS).
@@ -669,7 +672,18 @@ export default {
 		// MediaPlayer zwischen Hero-Bild und Rest platziert werden kann statt
 		// immer ganz oben. Nur ein Split, wenn die Figure wirklich das erste
 		// Element ist - sonst bleibt alles wie zuvor in restHtml.
+		// Support-Infobox (Abo-/Spendenlink) zwischen zwei Absätzen des Rest-HTML,
+		// siehe support-box.js. Der Hero-Split darüber bleibt unverändert.
 		heroAndRestContent() {
+			const base = this.baseHeroAndRestContent
+			if (!this.supportBox) return base
+			return {
+				...base,
+				restHtml: insertSupportBox(base.restHtml, this.supportBox, this.article.id, this.t),
+			}
+		},
+
+		baseHeroAndRestContent() {
 			const html = this.processedContent
 			if (!html) return { heroHtml: '', heroImageUrl: '', restHtml: html }
 
@@ -696,6 +710,7 @@ export default {
 		},
 
 		'article.id'() {
+			this.loadSupportBox()
 			this.$nextTick(() => {
 				this._restoreScrollPosition()
 				this._initHighlights()
@@ -706,6 +721,7 @@ export default {
 	},
 
 	mounted() {
+		this.loadSupportBox()
 		this.themeMode = this.resolveThemeMode(this.settings.theme)
 		this.fontSize = parseFontSize(this.settings.fontSize)
 		this._checkMobile = () => {
@@ -765,6 +781,22 @@ export default {
 	},
 
 	methods: {
+		// supportBox (Abo-/Spendenlink der Quelle, null bei aktivem Login dort) steht
+		// nur in der Einzelabruf-Antwort, nicht in der Artikelliste, mit der der
+		// Reader geöffnet wird - deshalb hier nachladen.
+		async loadSupportBox() {
+			const id = this.article.id
+			this.supportBox = null
+			try {
+				const full = await articlesAPI.getArticle(id)
+				if (this.article.id === id) {
+					this.supportBox = full.supportBox || null
+				}
+			} catch (e) {
+				// Box ist optional - ohne sie einfach weiterlesen.
+			}
+		},
+
 		...mapActions(['toggleArchive', 'toggleFavorite', 'addTag', 'addTagToArticle', 'removeTagFromArticle', 'updateSettings']),
 
 		async toggleFavoriteStatus() {

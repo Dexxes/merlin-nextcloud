@@ -449,10 +449,10 @@ class ContentFilterValidator {
 			return;
 		}
 
-		if ($tag === 'subscribe' && $attrName === 'url') {
+		if (in_array($tag, ['subscribe', 'donations'], true) && $attrName === 'url') {
 			if (!$this->isHttpUrl($value)) {
 				$errors[] = [
-					'message' => sprintf('url bei <subscribe> muss eine absolute http(s)-URL sein, war: %s', $value),
+					'message' => sprintf('url bei <' . $tag . '> muss eine absolute http(s)-URL sein, war: %s', $value),
 					'line'    => $rule->getLineNo(),
 				];
 			}

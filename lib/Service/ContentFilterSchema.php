@@ -224,6 +224,11 @@ final class ContentFilterSchema {
 				'image'     => ['optional' => ['xpath', 'json']],
 				'published' => ['optional' => ['xpath', 'json']],
 				'category'  => ['optional' => ['xpath', 'json']],
+				// Spenden-Seite des Mediums (Literal-URL, kein XPath). Speist die
+				// Support-Infobox im Reader (Service\SupportBoxService); der
+				// Extractor liest <metadata>-Felder nur für OG_FALLBACK_XPATHS und
+				// ignoriert dieses Feld daher beim Extrahieren.
+				'donations' => ['required' => ['url']],
 			],
 		],
 		'category' => [

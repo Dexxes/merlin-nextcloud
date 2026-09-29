@@ -32,6 +32,7 @@ merlin-nextcloud/
 │   │   ├── ContentFilterValidator.php    # Prüfung vor dem Speichern
 │   │   ├── ContentFilterSerializer.php   # JSON ↔ XML für den Regel-Builder
 │   │   ├── ContentFilterTrace.php        # Trefferzähler für den Testlauf
+│   │   ├── SupportBoxService.php         # Daten der Support-Infobox (<paywall><subscribe> + <metadata><donations>); Reader: entfällt bei aktivem Abo-Login, Share: immer
 │   │   ├── TtsStreamService.php          # Ausgelagert aus TtsController: gemeinsamer Stream-Pfad für authentifizierten und öffentlichen (Share-)Endpunkt
 │   │   ├── ExportService.php
 │   │   ├── Media/                        # Audio/Video, siehe Abschnitt "Medien-Provider" unten
@@ -65,7 +66,8 @@ merlin-nextcloud/
 └── tools/
     ├── test-content-filter-merge.php  # Testharness (pures PHP, ohne Composer)
     ├── test-caption-flatten.php       # Testharness: Bildunterschriften einzeilig ("•")
-    └── test-media-providers.php       # Testharness Medien-Provider (--live: gegen echte Sender)
+    ├── test-media-providers.php       # Testharness Medien-Provider (--live: gegen echte Sender)
+    └── test-support-box.php           # Testharness SupportBoxService (URL-Auswahl, Login-Ausblendung, Share)
 ```
 
 Hinweis: `FeedController`/`FeedService`/`Feed(Mapper)` aus einer früheren Version existieren nicht mehr.
@@ -189,6 +191,7 @@ src/
 ├── public-main.js           # Einstiegspunkt öffentliche Share-Ansicht
 ├── admin-main.js            # Einstiegspunkt Verwaltungseinstellungen
 ├── personal-main.js         # Einstiegspunkt persönliche Einstellungen
+├── support-box.js / .css    # Support-Infobox (Abo-/Spendenlink) zur Lesezeit zwischen zwei Absätze setzen (data-hl-exclude)
 ├── highlight-engine.js      # Framework-unabhängige Logik zum Setzen/Wiederfinden von Textmarkierungen im DOM
 ├── App.vue                  # Hauptkomponente
 ├── store/

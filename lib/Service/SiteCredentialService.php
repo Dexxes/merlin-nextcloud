@@ -198,6 +198,19 @@ class SiteCredentialService {
 		}
 	}
 
+	/**
+	 * true, wenn der Nutzer für $domain Zugangsdaten hinterlegt hat UND der
+	 * letzte Login-Versuch erfolgreich war (STATUS_OK). Abgelaufene Cookies
+	 * zählen bewusst als aktiv - ensureValidCookies() loggt beim nächsten
+	 * Abruf selbst neu ein. Fehlgeschlagene/ungeprüfte Zugangsdaten sind kein
+	 * aktives Abo (siehe SupportBoxService).
+	 */
+	public function hasActiveLogin(string $userId, string $domain): bool {
+		$credential = $this->find($userId, $domain);
+		return $credential !== null
+			&& $credential->getLastLoginStatus() === SiteCredential::STATUS_OK;
+	}
+
 	public function delete(string $userId, string $domain): void {
 		$this->mapper->deleteByUserAndDomain($userId, $domain);
 	}

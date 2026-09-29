@@ -118,6 +118,7 @@ export default {
 			case 'name': return 'Cookie'
 			case 'value': return 'consent=1'
 			case 'index': return '0'
+			case 'url': return 'https://example.org/spenden'
 			default: return ''
 			}
 		},

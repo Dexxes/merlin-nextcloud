@@ -4,6 +4,22 @@ All notable changes to Merlin are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning based on
 [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Support box in articles: a new `<donations url="…"/>` field in the
+  `<metadata>` section of a content filter (next to `<paywall><subscribe>`)
+  makes the reader show, between two random paragraphs, "Enjoying this article
+  from {site}? Consider taking out a subscription or making a donation" with
+  links to the publisher's subscription and donation pages. A missing URL drops
+  its part of the sentence; with neither URL there is no box. The box is
+  hidden when the user has an active subscription login for that site, always
+  shown in public share links, and tinted with the user's accent colour
+  (the share link uses the accent colour of whoever created it). It is added at
+  render time from a new `supportBox` field (`GET /api/articles/{id}` and the
+  public share data), so stored content, highlights, TTS and exports are
+  unchanged.
+
 ## [1.0.11]
 
 ### Added

@@ -219,6 +219,18 @@
     <image    xpath="..." />   – Bild-URL
     <published xpath="..." />  – Veröffentlichungsdatum (ISO 8601 oder deutsches Format)
     <category xpath="..." />   – Feste Kategorie (alternativ als Textwert ohne xpath)
+    <donations url="..." />    – Spenden-Seite des Mediums (Literal-URL, kein xpath/json;
+                                 muss eine absolute http(s)-URL sein). Kein Extraktionsfeld,
+                                 sondern Deklaration für die Support-Infobox (siehe unten).
+
+  Support-Infobox: Zusammen mit <paywall><subscribe url="…"> (Abo-Seite) erscheint in
+  jedem Artikel der Domain zwischen zwei Absätzen ein Hinweis "Dir gefällt der Artikel von
+  …? Überlege ein Abo abzuschließen oder zu spenden" mit Links auf beide Seiten. Fehlt eine
+  der beiden URLs, entfällt der zugehörige Teil im Text; fehlen beide, gibt es keine Box.
+  Im Reader entfällt die Box, wenn der Nutzer für die Domain einen aktiven Abo-Login
+  hinterlegt hat; in der öffentlichen Share-Ansicht steht sie immer. Die Box wird erst
+  beim Anzeigen eingefügt (Service\SupportBoxService liefert die Daten), der gespeicherte
+  Artikeltext bleibt unverändert.
 
   Auflösungsreihenfolge je Feld:
     1. xpath-Attribut (falls angegeben)
@@ -325,7 +337,8 @@
 
     <subscribe url="https://abo.sample.com/bestellen" />
       Ziel-URL zum Abschliessen eines Abos für diese Domain. Muss eine absolute
-      http(s)-URL sein.
+      http(s)-URL sein. Speist außerdem die Support-Infobox (siehe METADATEN,
+      <donations>).
 -->
 <domain name="sample.com">
 
@@ -472,6 +485,9 @@
 
     <!-- Kategorie per XPath (überschreibt <category> unten) -->
     <!-- <category xpath="//meta[@property='article:section']/@content" /> -->
+
+    <!-- Spenden-Seite des Mediums für die Support-Infobox (Abo-Link: <paywall><subscribe>) -->
+    <!-- <donations url="https://www.sample.com/spenden" /> -->
 
   </metadata>
 

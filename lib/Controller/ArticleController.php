@@ -11,6 +11,7 @@ use OCA\Merlin\Service\ContentExtractorService;
 use OCA\Merlin\Service\ContentFilterSchema;
 use OCA\Merlin\Service\ExportService;
 use OCA\Merlin\Service\Login\PaywallLoginRequiredException;
+use OCA\Merlin\Service\SupportBoxService;
 use OCA\Merlin\Service\UnsupportedSiteException;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -54,6 +55,7 @@ class ArticleController extends Controller {
 		ExportService $exportService,
 		IURLGenerator $urlGenerator,
 		LoggerInterface $logger,
+		private SupportBoxService $supportBox,
 		?string $userId
 	) {
 		parent::__construct($appName, $request);
@@ -160,6 +162,10 @@ class ArticleController extends Controller {
 			$articleData = $article->jsonSerialize();
 			$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl']);
 			$articleData['tags'] = array_map(fn($tag) => $tag->jsonSerialize(), $tags);
+			// Daten für die Support-Infobox (Abo-/Spendenlink), null wenn die Domain
+			// keine URL hinterlegt hat oder der Nutzer dort einen aktiven Login hat.
+			// Nur hier (Einzelabruf), nicht in Listen - siehe SupportBoxService.
+			$articleData['supportBox'] = $this->supportBox->forReader($article, $this->userId);
 
 			return new DataResponse($articleData);
 		} catch (\Exception $e) {
