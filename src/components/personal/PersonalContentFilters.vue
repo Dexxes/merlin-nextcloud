@@ -56,6 +56,15 @@
 					@remove="remove" />
 			</div>
 		</div>
+
+		<p class="merlin-personal__source">
+			<a
+				href="https://github.com/dexxes/merlin-nextcloud"
+				target="_blank"
+				rel="noopener noreferrer">
+				{{ t('merlin', 'Source code on GitHub') }}
+			</a>
+		</p>
 	</div>
 </template>
 
@@ -240,6 +249,11 @@ export default {
 </script>
 
 <style scoped>
+.merlin-personal__source {
+	margin-top: 16px;
+	font-size: 0.9em;
+}
+
 .merlin-personal {
 	max-width: 1200px;
 }
