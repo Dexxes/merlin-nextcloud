@@ -34,6 +34,21 @@ function hashSeed(seed) {
 	return h >>> 0
 }
 
+const EXCLUDED_ANCESTORS = 'blockquote, figure, ul, ol, table, aside, .merlin-infobox, [data-hl-exclude]'
+
+/** Direkte, nicht leere <p>-Kinder des Containers mit den meisten davon. */
+function findParagraphs(body) {
+	const containers = [body, ...body.querySelectorAll('div, section, article, main')]
+		.filter(el => el === body || !el.closest(EXCLUDED_ANCESTORS))
+	let best = []
+	for (const container of containers) {
+		const paragraphs = [...container.children]
+			.filter(el => el.tagName === 'P' && el.textContent.trim() !== '')
+		if (paragraphs.length > best.length) best = paragraphs
+	}
+	return best
+}
+
 function buildSentence(t, box, doc) {
 	const subscribeUrl = safeHttpUrl(box.subscribeUrl)
 	const donationsUrl = safeHttpUrl(box.donationsUrl)
@@ -90,11 +105,12 @@ export function insertSupportBox(html, box, seed, t) {
 	const sentence = buildSentence(t, box, doc)
 	if (!sentence) return html
 
-	// Nur Absätze direkt unter <body>: nicht in Zitaten, Listen, Figures, Infoboxen.
-	const paragraphs = [...doc.body.children]
-		.filter(el => el.tagName === 'P' && el.textContent.trim() !== '')
+	// Nur Absätze eines einzelnen Containers, nicht in Zitaten, Listen, Figures,
+	// Infoboxen. Readability liefert den Text meist in einem äußeren <div>/<article>,
+	// deshalb wird der Container mit den meisten direkten <p>-Kindern gewählt
+	// (das kann auch <body> selbst sein).
+	const paragraphs = findParagraphs(doc.body)
 	if (paragraphs.length < MIN_PARAGRAPHS) return html
-
 	// Nach dem 2. bis (n-1). Absatz, nie ganz vorn oder am Ende.
 	const index = 1 + (hashSeed(seed) % (paragraphs.length - 2))
 
