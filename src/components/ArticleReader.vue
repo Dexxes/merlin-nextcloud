@@ -430,6 +430,10 @@
 						:poster-url="heroAndRestContent.heroImageUrl"
 						@state-change="mediaState = $event" />
 
+					<!-- PDF-Artikel: nur URL gespeichert (Marker .merlin-pdf im Content,
+						per CSS ausgeblendet); die Karte öffnet die PDF beim Quellserver. -->
+					<PdfCard v-if="article.category === 'PDF'" data-hl-exclude :url="article.url" />
+
 					<!-- eslint-disable-next-line vue/no-v-html -->
 					<div data-hl-flatten v-html="heroAndRestContent.restHtml" />
 				</div>
@@ -485,6 +489,7 @@ import * as highlightsAPI from '../api/highlights'
 import { HighlightEngine } from '../highlight-engine'
 import ShareLinkDialog from './ShareLinkDialog.vue'
 import MediaPlayer from './MediaPlayer.vue'
+import PdfCard from './PdfCard.vue'
 import { insertSupportBox } from '../support-box'
 
 const TAG_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899']
@@ -525,6 +530,7 @@ export default {
 		LinkVariant,
 		ShareLinkDialog,
 		MediaPlayer,
+		PdfCard,
 		ContentCopy,
 		Email,
 		Butterfly,
@@ -1511,6 +1517,11 @@ article {
 .article-body.has-native-media :deep(.merlin-media),
 .article-body.has-native-media :deep(.merlin-media-fallback-link),
 .article-body.has-native-media :deep(.merlin-video-fallback-link) {
+	display: none;
+}
+
+/* PDF-Marker + Fallback-Link: die PdfCard übernimmt die Darstellung. */
+.article-body :deep(.merlin-pdf) {
 	display: none;
 }
 

@@ -7,6 +7,16 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- PDF links: saving a URL that points to a PDF (path ends in `.pdf`, or the
+  server answers `application/pdf`) creates an article with category `PDF`
+  instead of failing in the HTML extractor. The PDF itself is never downloaded
+  or stored - only the URL, as a `<div class="merlin-pdf" data-pdf-src>` marker
+  plus a fallback link; the title is derived from the file name. The clients
+  load the document from the source at reading time (iOS/Android render it
+  natively). The web reader and public share links show a card with an "Open
+  PDF" button instead of embedding it, because most hosts block cross-origin
+  embedding. Public share data now includes `category`. The HTML fetch also
+  stops after 20 MB.
 - Reader: the "More" menu (desktop dock and mobile toolbar) now offers
   "Open via archive.ph" and "Report faulty rendered article", matching the iOS
   app.

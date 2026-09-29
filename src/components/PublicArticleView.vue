@@ -63,6 +63,9 @@
 				:category="article.category || null"
 				@state-change="mediaPlayable = $event.playable" />
 
+			<!-- PDF-Artikel: Karte statt Inhalt, die PDF liegt beim Quellserver. -->
+			<PdfCard v-if="article.category === 'PDF' && article.url" :url="article.url" />
+
 			<!-- eslint-disable-next-line vue/no-v-html -->
 			<div ref="bodyEl" class="pav-body" :class="{ 'has-native-media': mediaPlayable }" v-html="bodyHtml" />
 		</article>
@@ -75,12 +78,13 @@ import { generateUrl } from '@nextcloud/router'
 import { loadState } from '@nextcloud/initial-state'
 import { renderHighlightsReadOnly } from '../highlight-engine'
 import MediaPlayer from './MediaPlayer.vue'
+import PdfCard from './PdfCard.vue'
 import { insertSupportBox } from '../support-box'
 
 export default {
 	name: 'PublicArticleView',
 
-	components: { MediaPlayer },
+	components: { MediaPlayer, PdfCard },
 
 	data() {
 		return {
@@ -366,6 +370,11 @@ export default {
    darüber die Quelle abspielt (siehe ArticleReader.vue). */
 .pav-body.has-native-media :deep(.merlin-media),
 .pav-body.has-native-media :deep(.merlin-video-fallback-link) {
+	display: none;
+}
+
+/* PDF-Marker + Fallback-Link: die PdfCard übernimmt die Darstellung. */
+.pav-body :deep(.merlin-pdf) {
 	display: none;
 }
 

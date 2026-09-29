@@ -67,6 +67,7 @@ merlin-nextcloud/
     ├── test-content-filter-merge.php  # Testharness (pures PHP, ohne Composer)
     ├── test-caption-flatten.php       # Testharness: Bildunterschriften einzeilig ("•")
     ├── test-media-providers.php       # Testharness Medien-Provider (--live: gegen echte Sender)
+    ├── test-pdf-article.php           # Testharness PDF-Artikel (URL-Erkennung, Marker, SSRF, Sanitizer)
     └── test-support-box.php           # Testharness SupportBoxService (URL-Auswahl, Login-Ausblendung, Share)
 ```
 
@@ -129,6 +130,25 @@ Neuer Sender: reichen `xpath` oder `json-ld`, genügt der XML-Eintrag. Sonst
 einen Provider anlegen und in `MediaProviderRegistry` sowie
 `ContentFilterSchema::MEDIA_SOURCE_TYPES` eintragen
 (`tools/test-media-providers.php` prüft, dass beide übereinstimmen).
+
+### PDF-Artikel
+
+Eine URL, die auf eine PDF zeigt, wird als Artikel mit `category='PDF'` gespeichert,
+ohne die Datei zu laden oder abzulegen:
+
+```
+ContentExtractorService::extract()
+  ├─ isPdfUrl()          Pfad endet auf .pdf  → buildPdfResult() (kein Abruf)
+  └─ fetchUrl()          Fortschritts-Callback bricht bei Content-Type
+                         application/pdf ab   → buildPdfResult()
+buildPdfResult(): SSRF-Prüfung des Hosts, Titel aus dem Dateinamen,
+  content = <div class="merlin-pdf" data-pdf-src="…"> + Fallback-Link
+```
+
+`data-pdf-src` wird im Sanitizer nur für http(s)-URLs durchgelassen. Web-Reader und
+Share-Ansicht zeigen `PdfCard.vue` (Einbettung scheitert meist an CORS/X-Frame-Options
+fremder Server); iOS/Android rendern die PDF nativ aus der Quell-URL. Nebenbei
+begrenzt der HTML-Abruf den Body jetzt auf 20 MB (`MAX_BODY_BYTES`).
 
 ### Titel-Duplikat-Heuristik (`stripDuplicateMetadata()`)
 
@@ -213,6 +233,7 @@ src/
     ├── ShareLinkDialog.vue        # Dialog zum Anlegen/Verwalten von Share-Links
     ├── PublicArticleView.vue      # Ansicht für öffentliche Share-Links (public-main.js)
     ├── MediaPlayer.vue            # Audio-/Video-Player (HLS, Datei, Embed), siehe "Medien-Provider"
+    ├── PdfCard.vue                # Karte für PDF-Artikel (category PDF), öffnet die PDF beim Quellserver
     ├── Settings.vue
     ├── SettingsPreview.vue
     ├── admin/               # Content-Filter-Verwaltung (instanzweit)

@@ -198,6 +198,7 @@ class PublicShareController extends Controller {
 			'siteName'    => $article->getSiteName(),
 			'content'     => $article->getContent(),
 			'url'         => $article->getUrl(),
+			'category'    => $article->getCategory(),
 			'publishedAt' => $article->getPublishedAt() ? $article->getPublishedAt()->format('c') : null,
 			'readingTime' => $article->getReadingTime(),
 			'highlights'  => array_map(fn ($h) => $h->jsonSerialize(), $highlights),
