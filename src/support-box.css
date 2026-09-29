@@ -36,8 +36,12 @@
 .merlin-support-box__body {
 	flex: 1;
 	min-width: 0;
+	align-content: center;
 }
 
+.merlin-support-box__body p{
+	margin: 0!important;
+}
 .merlin-support-box__title {
 	margin: 0;
 	font-weight: 600;
