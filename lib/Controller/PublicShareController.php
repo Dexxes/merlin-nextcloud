@@ -9,6 +9,7 @@ use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Db\ArticleShare;
 use OCA\Merlin\Db\ArticleShareMapper;
 use OCA\Merlin\Db\HighlightMapper;
+use OCA\Merlin\Service\SupportBoxService;
 use OCA\Merlin\Service\TtsStreamService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Db\DoesNotExistException;
@@ -48,6 +49,7 @@ class PublicShareController extends Controller {
 		private ISession $session,
 		private IThrottler $throttler,
 		private IInitialState $initialState,
+		private SupportBoxService $supportBox,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -199,6 +201,9 @@ class PublicShareController extends Controller {
 			'publishedAt' => $article->getPublishedAt() ? $article->getPublishedAt()->format('c') : null,
 			'readingTime' => $article->getReadingTime(),
 			'highlights'  => array_map(fn ($h) => $h->jsonSerialize(), $highlights),
+			// Abo-/Spendenlink der Quelle; anders als im Reader immer, auch wenn der
+			// Ersteller dort ein Abo hat (Empfänger sind keine Abonnenten).
+			'supportBox'  => $this->supportBox->forShare($article, $share->getUserId()),
 		]);
 	}
 

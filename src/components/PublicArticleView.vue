@@ -64,7 +64,7 @@
 				@state-change="mediaPlayable = $event.playable" />
 
 			<!-- eslint-disable-next-line vue/no-v-html -->
-			<div ref="bodyEl" class="pav-body" :class="{ 'has-native-media': mediaPlayable }" v-html="article.content" />
+			<div ref="bodyEl" class="pav-body" :class="{ 'has-native-media': mediaPlayable }" v-html="bodyHtml" />
 		</article>
 	</div>
 </template>
@@ -75,6 +75,7 @@ import { generateUrl } from '@nextcloud/router'
 import { loadState } from '@nextcloud/initial-state'
 import { renderHighlightsReadOnly } from '../highlight-engine'
 import MediaPlayer from './MediaPlayer.vue'
+import { insertSupportBox } from '../support-box'
 
 export default {
 	name: 'PublicArticleView',
@@ -95,6 +96,13 @@ export default {
 	},
 
 	computed: {
+		// Artikeltext inkl. Support-Infobox (Abo-/Spendenlink der Quelle). Seed ist
+		// der Titel, weil die Share-Antwort keine Artikel-ID enthält.
+		bodyHtml() {
+			const content = this.article?.content || ''
+			return insertSupportBox(content, this.article?.supportBox, this.article?.title || '', this.t)
+		},
+
 		ttsUrl() {
 			return generateUrl(`/apps/merlin/s/${this.token}/tts`)
 		},

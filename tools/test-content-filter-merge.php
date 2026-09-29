@@ -964,5 +964,42 @@ namespace {
 		$t->ok(str_contains($message, $needle), 'media abgelehnt: ' . $label, $message);
 	}
 
+	// ══════════════════════════════════════════════════════════════════════════
+	$t->group('13. donations (Spenden-URL in <metadata>)');
+
+	$bundle = $doc('example.com', '
+		<metadata>
+			<title xpath="//h1" />
+			<donations url="https://example.com/spenden" />
+		</metadata>
+	');
+	$t->eq($validator->validate($bundle, 'example.com'), [], 'donations: gültige Datei wird akzeptiert');
+
+	$merged = $merger->merge($bundle, null, 'example.com');
+	$t->eq($values($merged, 'metadata/donations/@url'), ['https://example.com/spenden'], 'donations: Bundle-URL bleibt ohne Custom erhalten');
+
+	$custom = $doc('example.com', '<metadata><donations url="https://example.com/support" /></metadata>');
+	$merged = $merger->merge($bundle, $custom, 'example.com');
+	$t->eq($values($merged, 'metadata/donations/@url'), ['https://example.com/support'], 'donations: Custom-URL ersetzt die Bundle-URL');
+	$t->eq($values($merged, 'metadata/title/@xpath'), ['//h1'], 'donations: übrige metadata-Felder bleiben beim Bundle');
+
+	$custom = $doc('example.com', '<metadata><title xpath="//h2" /></metadata>');
+	$merged = $merger->merge($bundle, $custom, 'example.com');
+	$t->eq($values($merged, 'metadata/donations/@url'), ['https://example.com/spenden'], 'donations: nicht überschrieben → Bundle-URL bleibt');
+
+	$disabled = $merger->merge($bundle, $doc('example.com', '<disable><metadata><donations /></metadata></disable>'), 'example.com');
+	$t->eq(count($disabled?->xpath('metadata/donations') ?: []), 0, 'donations: per <disable> abschaltbar');
+
+	$donationCases = [
+		'url fehlt'         => ['<metadata><donations /></metadata>', 'braucht das Attribut url'],
+		'keine http-URL'    => ['<metadata><donations url="javascript:alert(1)" /></metadata>', 'http(s)-URL'],
+		'relative URL'      => ['<metadata><donations url="/spenden" /></metadata>', 'http(s)-URL'],
+		'xpath nicht erlaubt' => ['<metadata><donations url="https://example.com/x" xpath="//a" /></metadata>', 'nicht erlaubt'],
+	];
+	foreach ($donationCases as $label => [$body, $needle]) {
+		$message = $firstError($validator->validate($doc('a.example', $body), 'a.example'));
+		$t->ok(str_contains($message, $needle), 'donations abgelehnt: ' . $label, $message);
+	}
+
 	exit($t->summary());
 }
