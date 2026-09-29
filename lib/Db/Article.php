@@ -58,6 +58,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setPaywallSubscribeUrl(?string $paywallSubscribeUrl)
  * @method string|null getUnsupportedSiteDomain()
  * @method void setUnsupportedSiteDomain(?string $unsupportedSiteDomain)
+ * @method string|null getSiteIconUrl()
+ * @method void setSiteIconUrl(?string $siteIconUrl)
  */
 class Article extends Entity implements JsonSerializable {
 	protected $userId;
@@ -101,6 +103,12 @@ class Article extends Entity implements JsonSerializable {
 	// als requiresLoginDomain gibt es hier keinen Login-Dialog, der das beheben
 	// könnte - der Client zeigt nur einen erklärenden Hinweis.
 	protected $unsupportedSiteDomain;
+	// Icon der konkreten Artikelseite (apple-touch-icon / <link rel="icon"> / …),
+	// beim Extrahieren aus dem HTML gelesen (ContentExtractorService::
+	// extractSiteIconUrl()). null bei Artikeln aus der Zeit vor der Spalte.
+	// Bewusst NICHT in jsonSerialize(): nur die Support-Infobox braucht es
+	// (supportBox.iconUrl, Service\SupportBoxService), Listen bleiben schlank.
+	protected $siteIconUrl;
 
 	public function __construct() {
 		$this->addType('userId', 'string');
@@ -133,6 +141,7 @@ class Article extends Entity implements JsonSerializable {
 		$this->addType('isPaywalled', 'integer');
 		$this->addType('paywallSubscribeUrl', 'string');
 		$this->addType('unsupportedSiteDomain', 'string');
+		$this->addType('siteIconUrl', 'string');
 	}
 
 	public function jsonSerialize(): array {

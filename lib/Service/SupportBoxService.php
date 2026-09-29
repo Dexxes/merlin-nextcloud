@@ -35,7 +35,7 @@ class SupportBoxService {
 	 * Box für den eingeloggten Leser: entfällt, wenn er für die Seite einen
 	 * aktiven Abo-Login hinterlegt hat.
 	 *
-	 * @return array{siteName:string,subscribeUrl:?string,donationsUrl:?string,accentColor:string}|null
+	 * @return array{siteName:string,subscribeUrl:?string,donationsUrl:?string,accentColor:string,iconUrl:?string}|null
 	 */
 	public function forReader(Article $article, string $userId): ?array {
 		return $this->build($article, $userId, true);
@@ -45,14 +45,14 @@ class SupportBoxService {
 	 * Box für die öffentliche Share-Ansicht: immer, unabhängig vom Login des
 	 * Erstellers; Akzentfarbe des Erstellers ($ownerUserId).
 	 *
-	 * @return array{siteName:string,subscribeUrl:?string,donationsUrl:?string,accentColor:string}|null
+	 * @return array{siteName:string,subscribeUrl:?string,donationsUrl:?string,accentColor:string,iconUrl:?string}|null
 	 */
 	public function forShare(Article $article, string $ownerUserId): ?array {
 		return $this->build($article, $ownerUserId, false);
 	}
 
 	/**
-	 * @return array{siteName:string,subscribeUrl:?string,donationsUrl:?string,accentColor:string}|null
+	 * @return array{siteName:string,subscribeUrl:?string,donationsUrl:?string,accentColor:string,iconUrl:?string}|null
 	 */
 	private function build(Article $article, string $userId, bool $hideWithLogin): ?array {
 		$url    = (string) $article->getUrl();
@@ -83,6 +83,7 @@ class SupportBoxService {
 			'subscribeUrl' => $subscribeUrl,
 			'donationsUrl' => $donationsUrl,
 			'accentColor'  => $this->accentColor($userId),
+			'iconUrl'      => $this->iconUrl($article),
 		];
 	}
 
@@ -105,6 +106,32 @@ class SupportBoxService {
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * Icon der konkreten Artikelseite (beim Extrahieren gelesen, siehe
+	 * ContentExtractorService::extractSiteIconUrl()). Bei Artikeln aus der Zeit
+	 * vor der Spalte site_icon_url: /favicon.ico der Origin - ohne zusätzlichen
+	 * Request beim Öffnen; ein nicht ladbares Bild blendet der Client aus (ein
+	 * erneutes Extrahieren setzt das echte Icon).
+	 */
+	private function iconUrl(Article $article): ?string {
+		$stored = trim((string) $article->getSiteIconUrl());
+		if ($stored !== '' && $this->isHttpUrl($stored)) {
+			return $stored;
+		}
+		$parts  = parse_url((string) $article->getUrl());
+		$scheme = strtolower($parts['scheme'] ?? '');
+		$host   = $parts['host'] ?? '';
+		if (!in_array($scheme, ['http', 'https'], true) || $host === '') {
+			return null;
+		}
+		return $scheme . '://' . $host . (isset($parts['port']) ? ':' . $parts['port'] : '') . '/favicon.ico';
+	}
+
+	private function isHttpUrl(string $candidate): bool {
+		$scheme = strtolower((string) parse_url($candidate, PHP_URL_SCHEME));
+		return ($scheme === 'http' || $scheme === 'https') && filter_var($candidate, FILTER_VALIDATE_URL) !== false;
 	}
 
 	private function accentColor(string $userId): string {

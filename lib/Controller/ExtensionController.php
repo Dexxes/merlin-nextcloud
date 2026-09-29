@@ -154,6 +154,9 @@ class ExtensionController extends Controller {
 					}
 					$article->setIsPaywalled((bool) ($extracted['isPaywalled'] ?? false));
 					$article->setPaywallSubscribeUrl($extracted['paywallSubscribeUrl'] ?? null);
+					if (!empty($extracted['siteIconUrl'])) {
+						$article->setSiteIconUrl($extracted['siteIconUrl']);
+					}
 					$article->setUpdatedAt(new \DateTime());
 					$article->setIsProcessing(0);
 					$mapper->update($article);

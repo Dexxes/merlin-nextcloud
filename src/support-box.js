@@ -121,13 +121,55 @@ export function insertSupportBox(html, box, seed, t) {
 	wrapper.setAttribute('role', 'note')
 	wrapper.style.setProperty('--merlin-support-accent', accent)
 
+	// Zwei Spalten: links das Icon der Seite über die volle Höhe der Box (fehlt es,
+	// entfällt die Spalte), rechts Titel und Satz.
+	//
+	// Icon der konkreten Artikelseite (Server: supportBox.iconUrl). Die Box wird als
+	// HTML-String eingefügt, Event-Listener gehen dabei verloren - ein nicht ladbares
+	// Icon entfernt deshalb hideBrokenSupportBoxIcons() nach dem Rendern.
+	const iconUrl = safeHttpUrl(box.iconUrl)
+	if (iconUrl) {
+		const icon = doc.createElement('img')
+		icon.className = 'merlin-support-box__icon'
+		// setAttribute statt IDL-Properties: das Attribut muss die Serialisierung überleben.
+		icon.setAttribute('alt', '')
+		icon.setAttribute('loading', 'lazy')
+		icon.setAttribute('referrerpolicy', 'no-referrer')
+		icon.setAttribute('src', iconUrl)
+		wrapper.appendChild(icon)
+	}
+
+	const body = doc.createElement('div')
+	body.className = 'merlin-support-box__body'
+
 	const title = doc.createElement('p')
 	title.className = 'merlin-support-box__title'
 	title.textContent = t('merlin', 'Enjoying this article from {site}?')
 		.replace('{site}', box.siteName || '')
-	wrapper.appendChild(title)
-	wrapper.appendChild(sentence)
+	body.appendChild(title)
+	body.appendChild(sentence)
+	wrapper.appendChild(body)
 
 	paragraphs[index].after(wrapper)
 	return doc.body.innerHTML
+}
+
+/**
+ * Entfernt Support-Box-Icons, die nicht laden (Hotlink-Schutz, 404, blockiert) -
+ * die Box bleibt dann ohne Icon vollständig. Nach jedem Rendern des Artikel-HTML
+ * aufrufen; ein Icon, das schon als fehlgeschlagen im Cache steht, wird sofort
+ * entfernt. Bewusst getrennt vom "Bild nicht verfügbar"-Platzhalter der
+ * Artikelbilder (ArticleReader.vue): das Icon ist kein Artikelbild.
+ *
+ * @param {ParentNode} root Container mit dem gerenderten Artikel-HTML
+ */
+export function hideBrokenSupportBoxIcons(root) {
+	if (!root) return
+	root.querySelectorAll('.merlin-support-box__icon').forEach(img => {
+		if (img.complete && img.naturalWidth === 0 && img.getAttribute('src')) {
+			img.remove()
+		} else {
+			img.addEventListener('error', () => img.remove(), { once: true })
+		}
+	})
 }

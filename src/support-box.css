@@ -2,6 +2,10 @@
    der Akzentfarbe des Nutzers (--merlin-support-accent, inline gesetzt); Text
    erbt vom Reader, damit Hell/Dunkel/Sepia ohne eigene Regeln lesbar bleiben. */
 .merlin-support-box {
+	/* Zwei Spalten: Icon der Seite über die volle Höhe, daneben Titel + Satz. */
+	display: flex;
+	align-items: stretch;
+	gap: 0.9em;
 	margin: 1.5em 0;
 	padding: 0.85em 1em;
 	border-left: 4px solid var(--merlin-support-accent, #FF3B30);
@@ -12,8 +16,34 @@
 	line-height: 1.6;
 }
 
+/* !important: die Artikel-Bildregeln (.article-body img: margin auto, display
+   block, Breite/Höhe) dürfen das Icon nicht aufblasen oder zentrieren. Die Höhe
+   bleibt auto: align-self: stretch macht die Spalte so hoch wie die Box. */
+.merlin-support-box .merlin-support-box__icon {
+	flex: none !important;
+	align-self: stretch !important;
+	width: 6.5em !important;
+	height: auto !important;
+	max-width: 6.5em !important;
+	min-height: 0 !important;
+	margin: 0 !important;
+	padding: 0.3em !important;
+	box-sizing: border-box !important;
+	object-fit: contain !important;
+	border-radius: 6px !important;
+}
+
+.merlin-support-box__body {
+	flex: 1;
+	min-width: 0;
+	align-content: center;
+}
+
+.merlin-support-box__body p{
+	margin: 0!important;
+}
 .merlin-support-box__title {
-	margin: 0 0 0.25em;
+	margin: 0;
 	font-weight: 600;
 }
 

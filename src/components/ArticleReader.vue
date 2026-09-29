@@ -493,6 +493,7 @@ import * as highlightsAPI from '../api/highlights'
 import { HighlightEngine } from '../highlight-engine'
 import ShareLinkDialog from './ShareLinkDialog.vue'
 import MediaPlayer from './MediaPlayer.vue'
+import { hideBrokenSupportBoxIcons, insertSupportBox } from '../support-box'
 import PdfViewer from './PdfViewer.vue'
 import { generateUrl } from '@nextcloud/router'
 import { insertSupportBox } from '../support-box'
@@ -1235,7 +1236,10 @@ export default {
 		_addImageErrorHandlers() {
 			const bodyEl = this.$el?.querySelector('.article-body')
 			if (!bodyEl) return
-			bodyEl.querySelectorAll('img').forEach(img => {
+			// Das Icon der Support-Infobox hat einen eigenen Umgang mit Ladefehlern
+			// (einfach entfernen statt "Bild nicht verfügbar"-Platzhalter).
+			hideBrokenSupportBoxIcons(bodyEl)
+			bodyEl.querySelectorAll('img:not(.merlin-support-box__icon)').forEach(img => {
 				// Already broken (cached failure)
 				if (img.complete && img.naturalWidth === 0) {
 					this._replaceWithPlaceholder(img)

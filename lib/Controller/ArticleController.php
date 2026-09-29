@@ -292,6 +292,11 @@ class ArticleController extends Controller {
 				}
 				$article->setIsPaywalled((bool) ($extracted['isPaywalled'] ?? false));
 				$article->setPaywallSubscribeUrl($extracted['paywallSubscribeUrl'] ?? null);
+				// Icon der Seite nur überschreiben, wenn diesmal eins gefunden wurde
+				// (ein erneuter Versuch darf ein vorhandenes nicht löschen).
+				if (!empty($extracted['siteIconUrl'])) {
+					$article->setSiteIconUrl($extracted['siteIconUrl']);
+				}
 				$article->setUpdatedAt(new \DateTime());
 				$article->setIsProcessing(0);
 				$mapper->update($article);

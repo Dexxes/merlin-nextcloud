@@ -33,7 +33,7 @@ merlin-nextcloud/
 │   │   ├── ContentFilterValidator.php    # Prüfung vor dem Speichern
 │   │   ├── ContentFilterSerializer.php   # JSON ↔ XML für den Regel-Builder
 │   │   ├── ContentFilterTrace.php        # Trefferzähler für den Testlauf
-│   │   ├── SupportBoxService.php         # Daten der Support-Infobox (<paywall><subscribe> + <metadata><donations>); Reader: entfällt bei aktivem Abo-Login, Share: immer
+│   │   ├── SupportBoxService.php         # Daten der Support-Infobox (<paywall><subscribe> + <metadata><donations>, Seiten-Icon, Akzentfarbe); Reader: entfällt bei aktivem Abo-Login, Share: immer
 │   │   ├── PdfProxyService.php           # PDF-Durchreichung für PdfController und öffentlichen Share-Endpunkt (SSRF-Guard je Hop, %PDF-Prüfung, Range, 100-MB-Limit)
 │   │   ├── TtsStreamService.php          # Ausgelagert aus TtsController: gemeinsamer Stream-Pfad für authentifizierten und öffentlichen (Share-)Endpunkt
 │   │   ├── ExportService.php
@@ -71,7 +71,8 @@ merlin-nextcloud/
     ├── test-media-providers.php       # Testharness Medien-Provider (--live: gegen echte Sender)
     ├── test-pdf-proxy.php             # Testharness PdfProxyService (lokaler Quellserver: Range, Redirect, Nicht-PDF, Größe, SSRF)
     ├── test-pdf-article.php           # Testharness PDF-Artikel (URL-Erkennung, Marker, SSRF, Sanitizer)
-    └── test-support-box.php           # Testharness SupportBoxService (URL-Auswahl, Login-Ausblendung, Share)
+    ├── test-support-box.php           # Testharness SupportBoxService (URL-Auswahl, Login-Ausblendung, Share, Seiten-Icon))
+    └── test-site-icon.php             # Testharness ContentExtractorService::extractSiteIconUrl() (Apple > SVG > Bitmap > ICO, <base>, data:/javascript:, kein og:image)
 ```
 
 Hinweis: `FeedController`/`FeedService`/`Feed(Mapper)` aus einer früheren Version existieren nicht mehr.
@@ -134,6 +135,21 @@ einen Provider anlegen und in `MediaProviderRegistry` sowie
 `ContentFilterSchema::MEDIA_SOURCE_TYPES` eintragen
 (`tools/test-media-providers.php` prüft, dass beide übereinstimmen).
 
+### Seiten-Icon der Support-Infobox
+
+`ContentExtractorService::extractSiteIconUrl()` liest in `processHtml()` (also auch bei
+`extractFromHtml()`, d. h. Browser-Erweiterungen) aus dem rohen HTML das beste Icon der
+*konkreten Seite*: `apple-touch-icon` (größtes per `sizes`) > `<link rel="icon">` (SVG >
+Bitmap > ICO, jeweils größtes) > `msapplication-TileImage` > `/favicon.ico` der Origin.
+`<base href>` wird berücksichtigt, `mask-icon` (einfarbige Silhouette) und
+`data:`/`javascript:`-URLs werden ignoriert, `og:image` bewusst nie genommen (meist ein
+Artikelbanner). Es findet kein zusätzlicher Request statt. Das Ergebnis liegt in
+`merlin_articles.site_icon_url` (Migration `…000025`), steht bewusst NICHT in
+`Article::jsonSerialize()` (Listen bleiben schlank) und kommt nur als `supportBox.iconUrl` aus
+`SupportBoxService`. Artikel aus der Zeit vor der Spalte fallen dort auf `/favicon.ico` der
+Origin zurück; ein erneutes Extrahieren (`retryExtraction`) setzt das echte Icon. Die Clients
+laden das Icon direkt von der Quellseite (`referrerpolicy=no-referrer`, wie Artikelbilder) und
+blenden es bei einem Ladefehler aus.
 ### PDF-Artikel
 
 Eine URL, die auf eine PDF zeigt, wird als Artikel mit `category='PDF'` gespeichert,
@@ -218,7 +234,7 @@ src/
 ├── public-main.js           # Einstiegspunkt öffentliche Share-Ansicht
 ├── admin-main.js            # Einstiegspunkt Verwaltungseinstellungen
 ├── personal-main.js         # Einstiegspunkt persönliche Einstellungen
-├── support-box.js / .css    # Support-Infobox (Abo-/Spendenlink) zur Lesezeit zwischen zwei Absätze setzen (data-hl-exclude)
+├── support-box.js / .css    # Support-Infobox (Abo-/Spendenlink, Seiten-Icon als eigene Spalte über die volle Boxhöhe) zur Lesezeit zwischen zwei Absätze setzen (data-hl-exclude); hideBrokenSupportBoxIcons() entfernt nicht ladbare Icons nach dem Rendern
 ├── highlight-engine.js      # Framework-unabhängige Logik zum Setzen/Wiederfinden von Textmarkierungen im DOM
 ├── App.vue                  # Hauptkomponente
 ├── store/

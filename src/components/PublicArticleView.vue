@@ -80,6 +80,7 @@ import { generateUrl } from '@nextcloud/router'
 import { loadState } from '@nextcloud/initial-state'
 import { renderHighlightsReadOnly } from '../highlight-engine'
 import MediaPlayer from './MediaPlayer.vue'
+import { hideBrokenSupportBoxIcons, insertSupportBox } from '../support-box'
 import PdfViewer from './PdfViewer.vue'
 import { insertSupportBox } from '../support-box'
 
@@ -150,6 +151,7 @@ export default {
 					if (this.$refs.bodyEl) {
 						renderHighlightsReadOnly(this.$refs.bodyEl, this.article.highlights || [])
 						this._executeEmbedScripts()
+						hideBrokenSupportBoxIcons(this.$refs.bodyEl)
 					}
 				})
 			} catch (error) {
