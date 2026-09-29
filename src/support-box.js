@@ -121,9 +121,9 @@ export function insertSupportBox(html, box, seed, t) {
 	wrapper.setAttribute('role', 'note')
 	wrapper.style.setProperty('--merlin-support-accent', accent)
 
-	const header = doc.createElement('div')
-	header.className = 'merlin-support-box__header'
-
+	// Zwei Spalten: links das Icon der Seite über die volle Höhe der Box (fehlt es,
+	// entfällt die Spalte), rechts Titel und Satz.
+	//
 	// Icon der konkreten Artikelseite (Server: supportBox.iconUrl). Die Box wird als
 	// HTML-String eingefügt, Event-Listener gehen dabei verloren - ein nicht ladbares
 	// Icon entfernt deshalb hideBrokenSupportBoxIcons() nach dem Rendern.
@@ -136,17 +136,19 @@ export function insertSupportBox(html, box, seed, t) {
 		icon.setAttribute('loading', 'lazy')
 		icon.setAttribute('referrerpolicy', 'no-referrer')
 		icon.setAttribute('src', iconUrl)
-		header.appendChild(icon)
+		wrapper.appendChild(icon)
 	}
+
+	const body = doc.createElement('div')
+	body.className = 'merlin-support-box__body'
 
 	const title = doc.createElement('p')
 	title.className = 'merlin-support-box__title'
 	title.textContent = t('merlin', 'Enjoying this article from {site}?')
 		.replace('{site}', box.siteName || '')
-	header.appendChild(title)
-
-	wrapper.appendChild(header)
-	wrapper.appendChild(sentence)
+	body.appendChild(title)
+	body.appendChild(sentence)
+	wrapper.appendChild(body)
 
 	paragraphs[index].after(wrapper)
 	return doc.body.innerHTML

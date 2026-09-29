@@ -208,7 +208,7 @@ src/
 ├── public-main.js           # Einstiegspunkt öffentliche Share-Ansicht
 ├── admin-main.js            # Einstiegspunkt Verwaltungseinstellungen
 ├── personal-main.js         # Einstiegspunkt persönliche Einstellungen
-├── support-box.js / .css    # Support-Infobox (Abo-/Spendenlink, Seiten-Icon) zur Lesezeit zwischen zwei Absätze setzen (data-hl-exclude); hideBrokenSupportBoxIcons() entfernt nicht ladbare Icons nach dem Rendern
+├── support-box.js / .css    # Support-Infobox (Abo-/Spendenlink, Seiten-Icon als eigene Spalte über die volle Boxhöhe) zur Lesezeit zwischen zwei Absätze setzen (data-hl-exclude); hideBrokenSupportBoxIcons() entfernt nicht ladbare Icons nach dem Rendern
 ├── highlight-engine.js      # Framework-unabhängige Logik zum Setzen/Wiederfinden von Textmarkierungen im DOM
 ├── App.vue                  # Hauptkomponente
 ├── store/
