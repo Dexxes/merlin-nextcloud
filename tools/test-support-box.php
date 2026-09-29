@@ -21,9 +21,10 @@ namespace OCP {
 
 namespace OCA\Merlin\Db {
 	class Article {
-		public function __construct(private string $url, private ?string $siteName) {}
+		public function __construct(private string $url, private ?string $siteName, private ?string $siteIconUrl = null) {}
 		public function getUrl(): string { return $this->url; }
 		public function getSiteName(): ?string { return $this->siteName; }
+		public function getSiteIconUrl(): ?string { return $this->siteIconUrl; }
 	}
 }
 
@@ -73,8 +74,8 @@ namespace {
 	echo "SupportBoxService\n";
 
 	$box = $service($both, false)->forReader($article, 'alice');
-	$check($box === ['siteName' => 'Example Times', 'subscribeUrl' => 'https://example.com/abo', 'donationsUrl' => 'https://example.com/spenden', 'accentColor' => '#00AAFF'],
-		'Reader ohne Login: beide Links, Akzentfarbe des Nutzers');
+	$check($box === ['siteName' => 'Example Times', 'subscribeUrl' => 'https://example.com/abo', 'donationsUrl' => 'https://example.com/spenden', 'accentColor' => '#00AAFF', 'iconUrl' => 'https://www.example.com/favicon.ico'],
+		'Reader ohne Login: beide Links, Akzentfarbe des Nutzers, Altartikel-Icon = /favicon.ico der Origin');
 
 	$check($service($both, true)->forReader($article, 'alice') === null, 'Reader mit aktivem Login: keine Box');
 
@@ -108,6 +109,18 @@ namespace {
 	};
 	$fallback = $service($both, false, $badAccent)->forReader($article, 'alice');
 	$check($fallback !== null && $fallback['accentColor'] === '#FF3B30', 'ungültige Akzentfarbe: Fallback auf Standard');
+
+	$withIcon = $service($both, false)->forReader(new Article('https://www.example.com/a/1', 'Example Times', 'https://cdn.example.com/apple-touch-icon.png'), 'alice');
+	$check($withIcon !== null && $withIcon['iconUrl'] === 'https://cdn.example.com/apple-touch-icon.png', 'gespeichertes Seiten-Icon wird als iconUrl ausgeliefert');
+
+	$badIcon = $service($both, false)->forReader(new Article('http://example.com:8080/a', 'X', 'javascript:alert(1)'), 'alice');
+	$check($badIcon !== null && $badIcon['iconUrl'] === 'http://example.com:8080/favicon.ico', 'unsicheres gespeichertes Icon wird verworfen, Fallback /favicon.ico (inkl. Port)');
+
+	$dataIcon = $service($both, false)->forReader(new Article('https://example.com/a', 'X', 'data:image/svg+xml,<svg/>'), 'alice');
+	$check($dataIcon !== null && $dataIcon['iconUrl'] === 'https://example.com/favicon.ico', 'data:-Icon wird verworfen');
+
+	$shareIcon = $service($both, true)->forShare(new Article('https://example.com/a', 'X', 'https://example.com/i.png'), 'alice');
+	$check($shareIcon !== null && $shareIcon['iconUrl'] === 'https://example.com/i.png', 'Share liefert das Seiten-Icon ebenfalls');
 
 	echo $failed === 0 ? "\nAlle Prüfungen bestanden.\n" : "\n$failed Prüfung(en) fehlgeschlagen.\n";
 	exit($failed === 0 ? 0 : 1);

@@ -22,6 +22,15 @@ All notable changes to Merlin are documented here. Format based on
   render time from a new `supportBox` field (`GET /api/articles/{id}` and the
   public share data), so stored content, highlights, TTS and exports are
   unchanged.
+- The support box now shows the icon of the article's own page next to its
+  title. The icon is read from the page while the article is saved
+  (`apple-touch-icon`, else `<link rel="icon">` — SVG before bitmap before ICO,
+  the largest size — else the MS tile image, else `/favicon.ico`; never
+  `og:image`, which is usually a banner) and stored in a new
+  `merlin_articles.site_icon_url` column (migration 25). No extra request is
+  made; articles saved before the update fall back to the `/favicon.ico` of
+  their site until they are extracted again, and an icon that fails to load is
+  simply left out.
 
 ## [1.0.11]
 

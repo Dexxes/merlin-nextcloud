@@ -485,7 +485,7 @@ import * as highlightsAPI from '../api/highlights'
 import { HighlightEngine } from '../highlight-engine'
 import ShareLinkDialog from './ShareLinkDialog.vue'
 import MediaPlayer from './MediaPlayer.vue'
-import { insertSupportBox } from '../support-box'
+import { hideBrokenSupportBoxIcons, insertSupportBox } from '../support-box'
 
 const TAG_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899']
 
@@ -1219,7 +1219,10 @@ export default {
 		_addImageErrorHandlers() {
 			const bodyEl = this.$el?.querySelector('.article-body')
 			if (!bodyEl) return
-			bodyEl.querySelectorAll('img').forEach(img => {
+			// Das Icon der Support-Infobox hat einen eigenen Umgang mit Ladefehlern
+			// (einfach entfernen statt "Bild nicht verfügbar"-Platzhalter).
+			hideBrokenSupportBoxIcons(bodyEl)
+			bodyEl.querySelectorAll('img:not(.merlin-support-box__icon)').forEach(img => {
 				// Already broken (cached failure)
 				if (img.complete && img.naturalWidth === 0) {
 					this._replaceWithPlaceholder(img)
