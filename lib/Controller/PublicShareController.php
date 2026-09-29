@@ -9,6 +9,7 @@ use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Db\ArticleShare;
 use OCA\Merlin\Db\ArticleShareMapper;
 use OCA\Merlin\Db\HighlightMapper;
+use OCA\Merlin\Service\PdfProxyService;
 use OCA\Merlin\Service\SupportBoxService;
 use OCA\Merlin\Service\TtsStreamService;
 use OCP\AppFramework\Controller;
@@ -46,6 +47,7 @@ class PublicShareController extends Controller {
 		private ArticleMapper $articleMapper,
 		private HighlightMapper $highlightMapper,
 		private TtsStreamService $ttsStream,
+		private PdfProxyService $pdfProxy,
 		private ISession $session,
 		private IThrottler $throttler,
 		private IInitialState $initialState,
@@ -241,5 +243,39 @@ class PublicShareController extends Controller {
 		// Läuft nie normal zurück: TtsStreamService::stream() beendet den
 		// Prozess selbst per exit().
 		$this->ttsStream->stream($article, $lang, $speaker);
+	}
+
+	/**
+	 * PDF-Durchreichung für den geteilten PDF-Artikel – dieselbe Proxy-Logik
+	 * (PdfProxyService) wie der authentifizierte Endpunkt in PdfController, damit
+	 * die Share-Ansicht die PDF vom eigenen Origin laden kann.
+	 *
+	 * @PublicPage
+	 * @NoAdminRequired
+	 * @NoCSRFRequired
+	 */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function pdf(string $token): void {
+		$share = $this->resolveAccessibleShare($token);
+		if ($share instanceof DataResponse) {
+			http_response_code($share->getStatus());
+			header('Content-Type: application/json');
+			echo json_encode($share->getData());
+			exit();
+		}
+
+		try {
+			$article = $this->articleMapper->find($share->getArticleId(), $share->getUserId());
+		} catch (DoesNotExistException) {
+			http_response_code(404);
+			header('Content-Type: application/json');
+			echo json_encode(['error' => 'Article not found']);
+			exit();
+		}
+
+		// Läuft nie normal zurück: PdfProxyService::stream() beendet den Prozess selbst per exit().
+		$this->pdfProxy->stream($article);
 	}
 }

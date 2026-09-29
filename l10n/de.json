@@ -4,6 +4,10 @@
             "%n fehlerhaft",
             "%n fehlerhaft"
         ],
+        "%n page_::_%n pages": [
+            "%n Seite",
+            "%n Seiten"
+        ],
         "%n rule_::_%n rules": [
             "%n Regel",
             "%n Regeln"
@@ -130,6 +134,7 @@
         "Line height": "Zeilenhöhe",
         "Link copied to clipboard": "Link in Zwischenablage kopiert",
         "Live preview": "Live-Vorschau",
+        "Loading PDF…": "PDF wird geladen…",
         "Loading…": "Lädt…",
         "Login failed – check your password": "Login fehlgeschlagen – Passwort prüfen",
         "Login is temporarily unavailable": "Login ist vorübergehend nicht verfügbar",

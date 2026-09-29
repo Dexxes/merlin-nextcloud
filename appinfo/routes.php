@@ -24,6 +24,7 @@ return [
 
         // TTS route (kombinierter Proxy-Endpunkt: Synthese + Streaming in einem Request)
         ['name' => 'tts#synthesize', 'url' => '/api/articles/{id}/tts', 'verb' => 'GET'],
+        ['name' => 'pdf#show',       'url' => '/api/articles/{id}/pdf', 'verb' => 'GET'],
 
         // Audio-/Video-Quelle eines Artikels (siehe Service/Media/MediaResolverService)
         ['name' => 'media#resolve', 'url' => '/api/articles/{id}/media', 'verb' => 'GET'],
@@ -63,6 +64,7 @@ return [
         ['name' => 'public_share#unlock',     'url' => '/s/{token}/unlock',       'verb' => 'POST'],
         ['name' => 'public_share#data',       'url' => '/s/{token}/data',         'verb' => 'GET'],
         ['name' => 'public_share#tts',        'url' => '/s/{token}/tts',          'verb' => 'GET'],
+        ['name' => 'public_share#pdf',        'url' => '/s/{token}/pdf',          'verb' => 'GET'],
 
         // Settings routes
         ['name' => 'settings#get', 'url' => '/api/settings', 'verb' => 'GET'],

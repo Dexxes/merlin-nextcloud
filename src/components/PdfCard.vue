@@ -1,10 +1,10 @@
 <!--
   SPDX-License-Identifier: AGPL-3.0-or-later
 
-  Karte für PDF-Artikel (category "PDF"). Die PDF wird nicht gespeichert und
-  im Web-Reader auch nicht eingebettet: fremde Server blockieren Einbettung
-  (X-Frame-Options) und Cross-Origin-Abruf (CORS) meist. Stattdessen zeigt die
-  Karte Dateiname und Quelle und öffnet die PDF im Browser-eigenen Viewer.
+  Karte für PDF-Artikel (category "PDF"), die Dateiname/Quelle zeigt und die PDF
+  im Browser-eigenen Viewer öffnet. Fallback von PdfViewer.vue, wenn die
+  eingebettete Vorschau nicht geladen werden kann (Quelle nicht erreichbar,
+  keine gültige PDF, zu groß).
 -->
 <template>
 	<div class="pdf-card">

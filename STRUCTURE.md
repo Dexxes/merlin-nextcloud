@@ -14,6 +14,7 @@ merlin-nextcloud/
 │   │   ├── PublicShareController.php          # Öffentliche API hinter einem Share-Link (kein Login)
 │   │   ├── HighlightController.php            # REST-API für Textmarkierungen
 │   │   ├── TtsController.php
+│   │   ├── PdfController.php                  # GET /api/articles/{id}/pdf: PDF eines PDF-Artikels durchreichen (nichts gespeichert)
 │   │   ├── ExtensionController.php
 │   │   ├── ManifestController.php             # PWA-Manifest
 │   │   ├── ServiceWorkerController.php         # Liefert den Service-Worker (PWA)
@@ -33,6 +34,7 @@ merlin-nextcloud/
 │   │   ├── ContentFilterSerializer.php   # JSON ↔ XML für den Regel-Builder
 │   │   ├── ContentFilterTrace.php        # Trefferzähler für den Testlauf
 │   │   ├── SupportBoxService.php         # Daten der Support-Infobox (<paywall><subscribe> + <metadata><donations>); Reader: entfällt bei aktivem Abo-Login, Share: immer
+│   │   ├── PdfProxyService.php           # PDF-Durchreichung für PdfController und öffentlichen Share-Endpunkt (SSRF-Guard je Hop, %PDF-Prüfung, Range, 100-MB-Limit)
 │   │   ├── TtsStreamService.php          # Ausgelagert aus TtsController: gemeinsamer Stream-Pfad für authentifizierten und öffentlichen (Share-)Endpunkt
 │   │   ├── ExportService.php
 │   │   ├── Media/                        # Audio/Video, siehe Abschnitt "Medien-Provider" unten
@@ -67,6 +69,7 @@ merlin-nextcloud/
     ├── test-content-filter-merge.php  # Testharness (pures PHP, ohne Composer)
     ├── test-caption-flatten.php       # Testharness: Bildunterschriften einzeilig ("•")
     ├── test-media-providers.php       # Testharness Medien-Provider (--live: gegen echte Sender)
+    ├── test-pdf-proxy.php             # Testharness PdfProxyService (lokaler Quellserver: Range, Redirect, Nicht-PDF, Größe, SSRF)
     ├── test-pdf-article.php           # Testharness PDF-Artikel (URL-Erkennung, Marker, SSRF, Sanitizer)
     └── test-support-box.php           # Testharness SupportBoxService (URL-Auswahl, Login-Ausblendung, Share)
 ```
@@ -145,9 +148,13 @@ buildPdfResult(): SSRF-Prüfung des Hosts, Titel aus dem Dateinamen,
   content = <div class="merlin-pdf" data-pdf-src="…"> + Fallback-Link
 ```
 
-`data-pdf-src` wird im Sanitizer nur für http(s)-URLs durchgelassen. Web-Reader und
-Share-Ansicht zeigen `PdfCard.vue` (Einbettung scheitert meist an CORS/X-Frame-Options
-fremder Server); iOS/Android rendern die PDF nativ aus der Quell-URL. Nebenbei
+`data-pdf-src` wird im Sanitizer nur für http(s)-URLs durchgelassen. Der Web-Reader und die
+Share-Ansicht zeigen `PdfViewer.vue` (pdf.js, per dynamischem Import; der Worker liegt dank
+`worker.rollupOptions` in `js/`): Die PDF kommt nicht direkt vom Quellserver (CORS/X-Frame-Options),
+sondern über `PdfProxyService` (`/api/articles/{id}/pdf`, `/s/{token}/pdf`), der pro Request
+durchreicht: nur die gespeicherte Artikel-URL, SSRF-Guard je Hop, `%PDF-`-Prüfung, 100-MB-Limit,
+Range-Weitergabe für pdf.js, gehärtete Antwort (`nosniff`, `CSP: sandbox`). Schlägt das fehl,
+erscheint `PdfCard.vue`. iOS/Android rendern die PDF nativ aus der Quell-URL. Nebenbei
 begrenzt der HTML-Abruf den Body jetzt auf 20 MB (`MAX_BODY_BYTES`).
 
 ### Titel-Duplikat-Heuristik (`stripDuplicateMetadata()`)
@@ -233,7 +240,8 @@ src/
     ├── ShareLinkDialog.vue        # Dialog zum Anlegen/Verwalten von Share-Links
     ├── PublicArticleView.vue      # Ansicht für öffentliche Share-Links (public-main.js)
     ├── MediaPlayer.vue            # Audio-/Video-Player (HLS, Datei, Embed), siehe "Medien-Provider"
-    ├── PdfCard.vue                # Karte für PDF-Artikel (category PDF), öffnet die PDF beim Quellserver
+    ├── PdfViewer.vue              # Eingebettete PDF-Vorschau (pdf.js, lazy) für PDF-Artikel; lädt über den PdfProxyService-Endpunkt
+    ├── PdfCard.vue                # Fallback-Karte „PDF öffnen“, wenn die Vorschau nicht lädt
     ├── Settings.vue
     ├── SettingsPreview.vue
     ├── admin/               # Content-Filter-Verwaltung (instanzweit)

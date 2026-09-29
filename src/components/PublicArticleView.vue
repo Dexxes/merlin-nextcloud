@@ -63,8 +63,10 @@
 				:category="article.category || null"
 				@state-change="mediaPlayable = $event.playable" />
 
-			<!-- PDF-Artikel: Karte statt Inhalt, die PDF liegt beim Quellserver. -->
-			<PdfCard v-if="article.category === 'PDF' && article.url" :url="article.url" />
+			<!-- PDF-Artikel: Vorschau über den Durchreich-Endpunkt des Shares; die PDF liegt beim Quellserver. -->
+			<PdfViewer v-if="article.category === 'PDF' && article.url"
+				:src="pdfProxyUrl"
+				:source-url="article.url" />
 
 			<!-- eslint-disable-next-line vue/no-v-html -->
 			<div ref="bodyEl" class="pav-body" :class="{ 'has-native-media': mediaPlayable }" v-html="bodyHtml" />
@@ -78,13 +80,13 @@ import { generateUrl } from '@nextcloud/router'
 import { loadState } from '@nextcloud/initial-state'
 import { renderHighlightsReadOnly } from '../highlight-engine'
 import MediaPlayer from './MediaPlayer.vue'
-import PdfCard from './PdfCard.vue'
+import PdfViewer from './PdfViewer.vue'
 import { insertSupportBox } from '../support-box'
 
 export default {
 	name: 'PublicArticleView',
 
-	components: { MediaPlayer, PdfCard },
+	components: { MediaPlayer, PdfViewer },
 
 	data() {
 		return {
@@ -105,6 +107,11 @@ export default {
 		bodyHtml() {
 			const content = this.article?.content || ''
 			return insertSupportBox(content, this.article?.supportBox, this.article?.title || '', this.t)
+		},
+
+		/** Durchreich-Endpunkt für die PDF eines PDF-Artikels (siehe PdfProxyService). */
+		pdfProxyUrl() {
+			return generateUrl(`/apps/merlin/s/${this.token}/pdf`)
 		},
 
 		ttsUrl() {
