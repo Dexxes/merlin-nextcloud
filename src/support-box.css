@@ -24,15 +24,13 @@
 	align-self: stretch !important;
 	width: 3.5em !important;
 	height: auto !important;
-	max-width: 3.5em !important;
+	max-width: 6.5em !important;
 	min-height: 0 !important;
 	margin: 0 !important;
 	padding: 0.3em !important;
 	box-sizing: border-box !important;
 	object-fit: contain !important;
 	border-radius: 6px !important;
-	/* Helle Kachel: transparente Logos bleiben auch in Dark/Sepia erkennbar. */
-	background: #fff !important;
 }
 
 .merlin-support-box__body {
