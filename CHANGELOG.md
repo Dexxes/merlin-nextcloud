@@ -7,6 +7,9 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- Reader: the "More" menu (desktop dock and mobile toolbar) now offers
+  "Open via archive.ph" and "Report faulty rendered article", matching the iOS
+  app.
 - Support box in articles: a new `<donations url="…"/>` field in the
   `<metadata>` section of a content filter (next to `<paywall><subscribe>`)
   makes the reader show, between two random paragraphs, "Enjoying this article
