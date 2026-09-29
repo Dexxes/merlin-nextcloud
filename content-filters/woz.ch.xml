@@ -36,7 +36,8 @@
 </images>
 
   <metadata>
-  <author   xpath="//a[@rel='author']" />
+    <author   xpath="//a[@rel='author']" />
+    <donations url="https://www.woz.ch/spenden" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
     <excerpt  xpath="//p[@class='article-intro']" />

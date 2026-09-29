@@ -43,4 +43,9 @@
     -->
   </metadata>
 
+  <paywall>
+    <marker xpath="//app-paywall" />
+    <subscribe url="https://abo.handelsblatt.com/" />
+  </paywall>
+
 </domain>

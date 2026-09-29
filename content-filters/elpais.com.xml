@@ -40,4 +40,9 @@
     -->
   </metadata>
 
+  <paywall>
+    <subscribe url="https://elpais.com/suscripciones/" />
+    <marker xpath="//div[@id='ctn_freemium_article']" />
+  </paywall>
+
 </domain>

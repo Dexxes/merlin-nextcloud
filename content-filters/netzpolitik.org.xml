@@ -30,6 +30,7 @@
   </post-filter>
 
   <metadata>
+    <donations url="https://netzpolitik.org/spenden/" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
     <author   xpath="//span[@class='author-name']" />

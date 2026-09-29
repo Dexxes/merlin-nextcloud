@@ -38,6 +38,7 @@
   <metadata>
     <author   xpath="//p[@class='single-dachzeile author']/span" />
     <image    xpath="//img[@class='webfeedsFeaturedVisual']/@src" />
+    <donations url="https://taz.de/taz-zahl-ich/ihnen-liegt-die-taz-am-herzen/!v=bd8182f9-0363-4f43-936f-7a2f0666b18c/" />
     <!-- Beispiele:
     <author   xpath="//span[@class='typo-name-detail-bold link ']" />
     <excerpt  xpath="//p[@class='article-intro']" />

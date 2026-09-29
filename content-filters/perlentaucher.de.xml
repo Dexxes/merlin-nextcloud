@@ -11,6 +11,7 @@
   </post-filter>
 
   <metadata>
+    <donations url="https://www.perlentaucher.de/mein/support" />
     <author   xpath="//a[@class='artikel-autor']/text()" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />

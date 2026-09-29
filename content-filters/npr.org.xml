@@ -70,7 +70,7 @@
 
   <!-- ── Metadaten ──────────────────────────────────────────────────────── -->
   <metadata>
-
+    <donations url="https://contribute.npr.org/secure/stand-public-media-npr" />
     <!-- og:title trägt bei NPR den Site-Suffix " : NPR Music" o.ä. mit –
          der echte Artikeltitel steht sauber in der storytitle-Überschrift. -->
     <title xpath="//div[contains(@class,'storytitle')]/h1" />

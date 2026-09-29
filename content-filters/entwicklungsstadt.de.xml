@@ -29,4 +29,8 @@
     -->
   </metadata>
 
+  <paywall>
+    <subscribe url="https://www.entwicklungsstadt.de/pakete/" />
+  </paywall>
+
 </domain>

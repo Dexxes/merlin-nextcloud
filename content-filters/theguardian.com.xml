@@ -31,7 +31,8 @@
   </post-filter>
 
   <metadata>
-  <author   xpath="//a[@rel='author']" />
+    <author   xpath="//a[@rel='author']" />
+    <donations url="https://support.theguardian.com/eu/one-time-checkout" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
     <author   xpath="//span[@class='author-name']" />
@@ -40,5 +41,9 @@
     <published xpath="//time[@itemprop='datePublished']/@datetime" />
     -->
   </metadata>
+
+  <paywall>
+    <subscribe url="https://support.theguardian.com/eu/contribute" />
+  </paywall>
 
 </domain>

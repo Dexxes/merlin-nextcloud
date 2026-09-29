@@ -59,4 +59,8 @@
     -->
   </metadata>
 
+  <paywall>
+      <subscribe url="https://taz.de/abo/" />
+  </paywall>
+
 </domain>

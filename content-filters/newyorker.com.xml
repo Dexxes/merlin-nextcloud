@@ -39,4 +39,9 @@
     -->
   </metadata>
 
+  <paywall>
+    <marker xpath="//aside[contains(@class, 'paywall-bar')]" />
+    <subscribe url="https://www.newyorker.com/v2/offers/tnya01062?source=Site_0_JNY_NYR_DESKTOP_NAV_CTA_0_HARD_GATE_INTL_MARCH_2026_ZZ_ADB" />
+  </paywall>
+
 </domain>

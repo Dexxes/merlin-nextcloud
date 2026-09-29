@@ -37,6 +37,7 @@
   </post-filter>
 
   <metadata>
+    <donations url="https://go.nd-aktuell.de/ndbleibt" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
     <author   xpath="//span[@class='author-name']" />
@@ -45,5 +46,9 @@
     <published xpath="//time[@itemprop='datePublished']/@datetime" />
     -->
   </metadata>
+
+  <paywall>
+    <subscribe url="https://www.nd-aktuell.de/abo/" />
+  </paywall>
 
 </domain>

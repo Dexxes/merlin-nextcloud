@@ -67,4 +67,9 @@
     <image xpath="//a-lightbox[contains(@class,'article-image')]//a-img/@src" />
   </metadata>
 
+  <paywall>
+    <subscribe url="https://www.heise.de/plus/abo/uebersicht" />
+    <marker xpath="//div[@class='paywall-delimiter']" />
+  </paywall>
+
 </domain>

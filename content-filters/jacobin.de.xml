@@ -12,6 +12,7 @@
   </images>
 
   <metadata>
+  <donations url="https://jacobin.de/spenden/" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
     <author   xpath="//span[@class='author-name']" />

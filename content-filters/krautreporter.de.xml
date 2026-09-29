@@ -40,4 +40,9 @@
     -->
   </metadata>
 
+<paywall>
+  <subscribe url="https://krautreporter.de/mitgliedschaft-erklaert" />  
+  <marker xpath="//section[contains(@class, 'json-ld-paywall-marker')]" />
+</paywall>
+
 </domain>

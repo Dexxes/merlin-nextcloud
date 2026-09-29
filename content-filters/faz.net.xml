@@ -40,4 +40,9 @@
     -->
   </metadata>
 
+<paywall>
+  <subscribe url="https://abo.faz.net/" />
+  <marker xpath="//div[contains(@class, 'paywall')]" />
+</paywall>
+
 </domain>
