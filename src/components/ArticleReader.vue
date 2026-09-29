@@ -124,6 +124,14 @@
 						<Download :size="16" />
 						<span>{{ t('merlin', 'Export as HTML') }}</span>
 					</li>
+					<li v-if="archiveUrl" role="menuitem" @click="openViaArchive(); moreMenuOpen = false">
+						<Archive :size="16" />
+						<span>{{ t('merlin', 'Open via archive.ph') }}</span>
+					</li>
+					<li role="menuitem" @click="openReportDialog(); moreMenuOpen = false">
+						<AlertCircleOutline :size="16" />
+						<span>{{ t('merlin', 'Report faulty rendered article') }}</span>
+					</li>
 					<li role="menuitem" class="more-menu-danger" @click="confirmDelete(); moreMenuOpen = false">
 						<Delete :size="16" /><span>{{ t('merlin', 'Delete article') }}</span>
 					</li>
@@ -234,10 +242,52 @@
 					<WhiteBalanceSunny v-else :size="16" />
 					<span>{{ isDarkMode ? t('merlin', 'Switch to light mode') : t('merlin', 'Switch to dark mode') }}</span>
 				</li>
+				<li v-if="archiveUrl" role="menuitem" @click="openViaArchive(); mobileMoreOpen = false">
+					<Archive :size="16" />
+					<span>{{ t('merlin', 'Open via archive.ph') }}</span>
+				</li>
+				<li role="menuitem" @click="openReportDialog(); mobileMoreOpen = false">
+					<AlertCircleOutline :size="16" />
+					<span>{{ t('merlin', 'Report faulty rendered article') }}</span>
+				</li>
 				<li role="menuitem" class="more-menu-danger" @click="confirmDelete(); mobileMoreOpen = false">
 					<Delete :size="16" /><span>{{ t('merlin', 'Delete article') }}</span>
 				</li>
 			</ul>
+		</Teleport>
+
+		<!-- Report-Dialog (wie in ArticleCard) — zentriertes Modal -->
+		<Teleport to="body">
+			<template v-if="reportDialog.visible">
+				<div class="report-dialog-backdrop" @click="cancelReport" />
+				<div class="report-dialog" role="dialog" aria-modal="true" @click.stop>
+					<h3 class="report-dialog-title">
+						<AlertCircleOutline :size="18" />
+						{{ t('merlin', 'Report faulty rendered article') }}
+					</h3>
+					<p class="report-dialog-url">{{ article.url }}</p>
+					<textarea
+						v-model="reportDialog.comment"
+						class="report-dialog-textarea"
+						:placeholder="t('merlin', 'What is wrong? (optional)')"
+						rows="3"
+						:disabled="reportDialog.sending" />
+					<div class="report-dialog-actions">
+						<button
+							class="report-dialog-btn report-dialog-btn--cancel"
+							:disabled="reportDialog.sending"
+							@click="cancelReport">
+							{{ t('merlin', 'Cancel') }}
+						</button>
+						<button
+							class="report-dialog-btn report-dialog-btn--submit"
+							:disabled="reportDialog.sending"
+							@click="submitReport">
+							{{ reportDialog.sending ? '…' : t('merlin', 'Report') }}
+						</button>
+					</div>
+				</div>
+			</template>
 		</Teleport>
 
 		<!-- Reading progress bar: Position (links/rechts/oben/unten) und Farbe kommen aus den Settings,
@@ -427,6 +477,8 @@ import CalendarPlus from 'vue-material-design-icons/CalendarPlus.vue'
 import Clock from 'vue-material-design-icons/Clock.vue'
 import Lock from 'vue-material-design-icons/Lock.vue'
 import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
+import Archive from 'vue-material-design-icons/Archive.vue'
+import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
 import axios from '@nextcloud/axios'
 import * as articlesAPI from '../api/articles'
 import * as highlightsAPI from '../api/highlights'
@@ -491,6 +543,8 @@ export default {
 		Clock,
 		Lock,
 		OpenInNew,
+		Archive,
+		AlertCircleOutline,
 	},
 
 	emits: ['close', 'delete-article', 'open-settings'],
@@ -523,6 +577,11 @@ export default {
 			showBottomBar: true,
 			_lastScrollTop: 0,
 			mobileMoreOpen: false,
+			reportDialog: {
+				visible: false,
+				comment: '',
+				sending: false,
+			},
 			moreMenuOpen: false,
 			tagMenuOpen: false,
 			dockAnchoredMenuStyle: {},
@@ -603,6 +662,19 @@ export default {
 				'dark-mode': this.isDarkMode,
 				'sepia-mode': this.isSepia,
 			}
+		},
+
+		// archive.ph-Link wie in iOS: Schema entfernen und URL anhängen.
+		// Nur für http(s)-URLs, damit kein fremdes Schema durchgereicht wird.
+		archiveUrl() {
+			const safe = this.safeArticleUrl
+			if (!safe) return ''
+			return 'https://archive.ph/' + safe.replace(/^https?:\/\//i, '')
+		},
+
+		// URL des merlin-reports-Backends aus den Merlin-Settings
+		reportBackendUrl() {
+			return (this.$store.state.settings?.reportBackendUrl || '').trim()
 		},
 
 		// Sichere Variante der Artikel-URL für das href-Attribut: nur http(s)
@@ -981,6 +1053,48 @@ export default {
 			}
 			const text = encodeURIComponent(`${this.article.title}\n${this.article.url}`)
 			window.open(`https://${instance}/share?text=${text}`, '_blank')
+		},
+
+		openViaArchive() {
+			if (!this.archiveUrl) return
+			window.open(this.archiveUrl, '_blank', 'noopener,noreferrer')
+		},
+
+		openReportDialog() {
+			this.reportDialog.comment = ''
+			this.reportDialog.sending = false
+			this.reportDialog.visible = true
+		},
+
+		cancelReport() {
+			this.reportDialog.visible = false
+			this.reportDialog.comment = ''
+		},
+
+		async submitReport() {
+			if (!this.reportBackendUrl) {
+				showError(this.t('merlin', 'No report backend configured. Set the URL in Settings.'))
+				return
+			}
+			this.reportDialog.sending = true
+			try {
+				const res = await fetch(this.reportBackendUrl + '?action=report', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						url: this.article.url,
+						comment: this.reportDialog.comment.trim(),
+					}),
+				})
+				if (!res.ok) throw new Error(`HTTP ${res.status}`)
+				showSuccess(this.t('merlin', 'Article reported'))
+				this.reportDialog.visible = false
+			} catch (err) {
+				console.error('Failed to report article:', err)
+				showError(this.t('merlin', 'Could not send report — please try again.'))
+			} finally {
+				this.reportDialog.sending = false
+			}
 		},
 
 		confirmDelete() {
@@ -2200,5 +2314,113 @@ article {
 	z-index: 5;
 	transition: width 0.1s linear, height 0.1s linear;
 	pointer-events: none;
+}
+
+/* ── Report-Dialog (Kopie aus ArticleCard) ── */
+.report-dialog-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 10000;
+	background: rgba(0, 0, 0, 0.45);
+}
+
+.report-dialog {
+	position: fixed;
+	z-index: 10001;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	width: min(420px, calc(100vw - 32px));
+	background: var(--color-main-background, #fff);
+	border: 1px solid var(--color-border, #e0e0e0);
+	border-radius: 14px;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
+	padding: 20px 22px 18px;
+}
+
+.report-dialog-title {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 15px;
+	font-weight: 600;
+	color: var(--color-main-text);
+	margin-bottom: 8px;
+}
+
+.report-dialog-title .material-design-icon {
+	color: var(--color-warning, #e6a817);
+	opacity: 1;
+}
+
+.report-dialog-url {
+	font-size: 12px;
+	color: var(--color-text-lighter);
+	word-break: break-all;
+	margin-bottom: 14px;
+	max-height: 36px;
+	overflow: hidden;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+}
+
+.report-dialog-textarea {
+	width: 100%;
+	padding: 8px 10px;
+	border: 1px solid var(--color-border, #e0e0e0);
+	border-radius: 8px;
+	font-size: 13px;
+	line-height: 1.5;
+	resize: vertical;
+	background: var(--color-background-dark, #f5f5f7);
+	color: var(--color-main-text);
+	outline: none;
+	box-sizing: border-box;
+	font-family: inherit;
+	margin-bottom: 14px;
+}
+
+.report-dialog-textarea:focus {
+	border-color: var(--color-primary, #0082c9);
+}
+
+.report-dialog-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.report-dialog-btn {
+	padding: 7px 16px;
+	border-radius: 8px;
+	border: none;
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: filter 0.12s;
+}
+
+.report-dialog-btn:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+
+.report-dialog-btn--cancel {
+	background: var(--color-background-hover, #f0f0f0);
+	color: var(--color-main-text);
+}
+
+.report-dialog-btn--cancel:not(:disabled):hover {
+	filter: brightness(0.94);
+}
+
+.report-dialog-btn--submit {
+	background: var(--color-primary, #0082c9);
+	color: #fff;
+}
+
+.report-dialog-btn--submit:not(:disabled):hover {
+	filter: brightness(1.12);
 }
 </style>
