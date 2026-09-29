@@ -430,6 +430,14 @@
 						:poster-url="heroAndRestContent.heroImageUrl"
 						@state-change="mediaState = $event" />
 
+					<!-- PDF-Artikel: nur die URL ist gespeichert (Marker .merlin-pdf im Content, per
+						CSS ausgeblendet). Die Vorschau lädt die PDF über den Durchreich-Endpunkt
+						des Servers (pdfProxyUrl); scheitert das, zeigt PdfViewer die PdfCard. -->
+					<PdfViewer v-if="article.category === 'PDF'"
+						data-hl-exclude
+						:src="pdfProxyUrl"
+						:source-url="article.url" />
+
 					<!-- eslint-disable-next-line vue/no-v-html -->
 					<div data-hl-flatten v-html="heroAndRestContent.restHtml" />
 				</div>
@@ -485,6 +493,8 @@ import * as highlightsAPI from '../api/highlights'
 import { HighlightEngine } from '../highlight-engine'
 import ShareLinkDialog from './ShareLinkDialog.vue'
 import MediaPlayer from './MediaPlayer.vue'
+import PdfViewer from './PdfViewer.vue'
+import { generateUrl } from '@nextcloud/router'
 import { insertSupportBox } from '../support-box'
 
 const TAG_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899']
@@ -525,6 +535,7 @@ export default {
 		LinkVariant,
 		ShareLinkDialog,
 		MediaPlayer,
+		PdfViewer,
 		ContentCopy,
 		Email,
 		Butterfly,
@@ -595,6 +606,11 @@ export default {
 	},
 
 	computed: {
+		/** Durchreich-Endpunkt für die PDF eines PDF-Artikels (siehe PdfProxyService). */
+		pdfProxyUrl() {
+			return generateUrl(`/apps/merlin/api/articles/${this.article.id}/pdf`)
+		},
+
 		...mapState(['settings', 'tags', 'loginCapableDomains']),
 
 		isArchivedFromStore() {
@@ -1511,6 +1527,11 @@ article {
 .article-body.has-native-media :deep(.merlin-media),
 .article-body.has-native-media :deep(.merlin-media-fallback-link),
 .article-body.has-native-media :deep(.merlin-video-fallback-link) {
+	display: none;
+}
+
+/* PDF-Marker + Fallback-Link: die PdfCard übernimmt die Darstellung. */
+.article-body :deep(.merlin-pdf) {
 	display: none;
 }
 

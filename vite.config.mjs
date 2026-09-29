@@ -11,4 +11,15 @@ export default createAppConfig({
     // Persönliche Einstellungen (eigener Content-Filter-Override). Eigener
     // Entry aus demselben Grund wie admin.
     personal: 'src/personal-main.js',
+}, {
+    config: {
+        // pdf.js-Worker (PdfViewer.vue, Import mit ?worker) landet sonst in
+        // assets/, das weder im Tarball (Makefile kopiert nur js/) noch im
+        // Repo vorgesehen ist - er gehört zu den Build-Artefakten in js/.
+        worker: {
+            rollupOptions: {
+                output: { entryFileNames: 'js/[name]-[hash].js' },
+            },
+        },
+    },
 })
