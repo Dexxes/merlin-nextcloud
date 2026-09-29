@@ -82,7 +82,6 @@ import { renderHighlightsReadOnly } from '../highlight-engine'
 import MediaPlayer from './MediaPlayer.vue'
 import { hideBrokenSupportBoxIcons, insertSupportBox } from '../support-box'
 import PdfViewer from './PdfViewer.vue'
-import { insertSupportBox } from '../support-box'
 
 export default {
 	name: 'PublicArticleView',

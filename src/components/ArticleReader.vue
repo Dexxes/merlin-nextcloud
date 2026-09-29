@@ -496,7 +496,6 @@ import MediaPlayer from './MediaPlayer.vue'
 import { hideBrokenSupportBoxIcons, insertSupportBox } from '../support-box'
 import PdfViewer from './PdfViewer.vue'
 import { generateUrl } from '@nextcloud/router'
-import { insertSupportBox } from '../support-box'
 
 const TAG_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899']
 
