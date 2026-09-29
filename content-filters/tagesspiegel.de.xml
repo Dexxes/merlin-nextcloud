@@ -108,7 +108,7 @@
 
   <paywall>
     <marker xpath="//div[@id='paywall']" />
-    <subscribe url="https://abo.spiegel.de/" />
+    <subscribe url="https://abo.tagesspiegel.de/" />
   </paywall>
 
 </domain>

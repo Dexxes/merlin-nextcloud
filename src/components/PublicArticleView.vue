@@ -63,6 +63,11 @@
 				:category="article.category || null"
 				@state-change="mediaPlayable = $event.playable" />
 
+			<!-- PDF-Artikel: Vorschau über den Durchreich-Endpunkt des Shares; die PDF liegt beim Quellserver. -->
+			<PdfViewer v-if="article.category === 'PDF' && article.url"
+				:src="pdfProxyUrl"
+				:source-url="article.url" />
+
 			<!-- eslint-disable-next-line vue/no-v-html -->
 			<div ref="bodyEl" class="pav-body" :class="{ 'has-native-media': mediaPlayable }" v-html="bodyHtml" />
 		</article>
@@ -76,11 +81,13 @@ import { loadState } from '@nextcloud/initial-state'
 import { renderHighlightsReadOnly } from '../highlight-engine'
 import MediaPlayer from './MediaPlayer.vue'
 import { hideBrokenSupportBoxIcons, insertSupportBox } from '../support-box'
+import PdfViewer from './PdfViewer.vue'
+import { insertSupportBox } from '../support-box'
 
 export default {
 	name: 'PublicArticleView',
 
-	components: { MediaPlayer },
+	components: { MediaPlayer, PdfViewer },
 
 	data() {
 		return {
@@ -101,6 +108,11 @@ export default {
 		bodyHtml() {
 			const content = this.article?.content || ''
 			return insertSupportBox(content, this.article?.supportBox, this.article?.title || '', this.t)
+		},
+
+		/** Durchreich-Endpunkt für die PDF eines PDF-Artikels (siehe PdfProxyService). */
+		pdfProxyUrl() {
+			return generateUrl(`/apps/merlin/s/${this.token}/pdf`)
 		},
 
 		ttsUrl() {
@@ -367,6 +379,11 @@ export default {
    darüber die Quelle abspielt (siehe ArticleReader.vue). */
 .pav-body.has-native-media :deep(.merlin-media),
 .pav-body.has-native-media :deep(.merlin-video-fallback-link) {
+	display: none;
+}
+
+/* PDF-Marker + Fallback-Link: die PdfCard übernimmt die Darstellung. */
+.pav-body :deep(.merlin-pdf) {
 	display: none;
 }
 
