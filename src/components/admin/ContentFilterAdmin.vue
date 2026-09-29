@@ -49,6 +49,15 @@
 					@remove="remove" />
 			</div>
 		</div>
+
+		<p class="merlin-admin__source">
+			<a
+				href="https://github.com/dexxes/merlin-nextcloud"
+				target="_blank"
+				rel="noopener noreferrer">
+				{{ t('merlin', 'Source code on GitHub') }}
+			</a>
+		</p>
 	</div>
 </template>
 
@@ -253,6 +262,11 @@ export default {
 </script>
 
 <style scoped>
+.merlin-admin__source {
+	margin-top: 16px;
+	font-size: 0.9em;
+}
+
 .merlin-admin {
 	max-width: 1100px;
 }
