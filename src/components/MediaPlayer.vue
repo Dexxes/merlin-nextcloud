@@ -39,6 +39,7 @@
 			v-else
 			ref="stage"
 			class="media-stage"
+			:style="stageStyle"
 			:class="{
 				'media-stage--audio': kind === 'audio',
 				'media-stage--cover': kind === 'audio' && !!posterUrl,
@@ -248,6 +249,8 @@ export default {
 			duration: 0,
 			rate: 1,
 			muted: false,
+			// Seitenverhältnis des Cover-Bilds (Breite / Höhe), 0 = unbekannt
+			posterRatio: 0,
 			fullscreen: false,
 		}
 	},
@@ -256,9 +259,32 @@ export default {
 		currentVariant() {
 			return this.variants[this.selectedIndex] || { url: '' }
 		},
+
+		// Video-Bühne hat das Seitenverhältnis des Cover-Bilds (sonst 16:9),
+		// damit nie schwarze Balken entstehen; im Vollbild passt sie sich dem
+		// Bildschirm an.
+		stageStyle() {
+			if (this.kind !== 'video' || this.fullscreen) return null
+			return { aspectRatio: this.posterRatio > 0 ? String(this.posterRatio) : '16 / 9' }
+		},
 	},
 
 	watch: {
+		posterUrl: {
+			immediate: true,
+			handler(url) {
+				this.posterRatio = 0
+				if (!url) return
+				const img = new Image()
+				img.onload = () => {
+					if (this.posterUrl === url && img.naturalWidth && img.naturalHeight) {
+						this.posterRatio = img.naturalWidth / img.naturalHeight
+					}
+				}
+				img.src = url
+			},
+		},
+
 		playable() {
 			this._emitState()
 		},
@@ -583,10 +609,13 @@ export default {
 }
 
 .media-stage-video {
+	position: absolute;
+	inset: 0;
 	display: block;
 	width: 100%;
-	aspect-ratio: 16 / 9;
-	object-fit: contain;
+	height: 100%;
+	/* Füllt die Bühne (Seitenverhältnis des Covers) ohne Balken. */
+	object-fit: cover;
 	background: #000;
 	cursor: pointer;
 }
@@ -598,8 +627,7 @@ export default {
 }
 
 .media-stage--fullscreen .media-stage-video {
-	height: 100%;
-	aspect-ratio: auto;
+	object-fit: contain;
 }
 
 .media-stage-bigplay {
