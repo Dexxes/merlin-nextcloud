@@ -406,10 +406,12 @@
 						</div>
 					</NcNoteCard>
 
-					<!-- Bei abspielbarem Video (auch Embed) dient das Hero-Bild als
-						Poster im Player (siehe :poster-url unten) bzw. zeigt der
-						Embed sein eigenes Vorschaubild - dann nicht zusätzlich
-						separat darüber anzeigen. Bei Audio bleibt es stehen.
+					<!-- Bei abspielbarem Medium (Video, Audio, Embed) ersetzt der
+						MediaPlayer das Hero-Bild: bei Video dient es als Poster,
+						bei Audio als Cover (siehe :poster-url unten), bei Embeds
+						zeigt der Player sein eigenes Vorschaubild - dann nicht
+						zusätzlich separat darüber anzeigen. Die Bildunterschrift
+						zeigt der Player selbst.
 
 						data-hl-flatten: der Hero/Rest-Split (siehe heroAndRestContent) und der
 						dazwischen eingefügte MediaPlayer sind rein präsentationell - sie
@@ -420,7 +422,7 @@
 						der XPath eines Highlights weiterhin so auflöst, als hätte dieser Split nie
 						stattgefunden. -->
 					<!-- eslint-disable-next-line vue/no-v-html -->
-					<div v-if="heroAndRestContent.heroHtml && mediaState.kind !== 'video'" data-hl-flatten v-html="heroAndRestContent.heroHtml" />
+					<div v-if="heroAndRestContent.heroHtml && !mediaState.playable" data-hl-flatten v-html="heroAndRestContent.heroHtml" />
 
 					<MediaPlayer
 						data-hl-exclude
@@ -428,6 +430,8 @@
 						:content="processedContent"
 						:category="article.category"
 						:poster-url="heroAndRestContent.heroImageUrl"
+						:caption="heroAndRestContent.heroCaption"
+						hero
 						@state-change="mediaState = $event" />
 
 					<!-- PDF-Artikel: nur die URL ist gespeichert (Marker .merlin-pdf im Content, per
@@ -773,12 +777,12 @@ export default {
 
 		baseHeroAndRestContent() {
 			const html = this.processedContent
-			if (!html) return { heroHtml: '', heroImageUrl: '', restHtml: html }
+			if (!html) return { heroHtml: '', heroImageUrl: '', heroCaption: '', restHtml: html }
 
 			const doc = new DOMParser().parseFromString(html, 'text/html')
 			const hero = doc.body.firstElementChild
 			if (!hero || hero.tagName !== 'FIGURE' || !hero.classList.contains('merlin-hero-image')) {
-				return { heroHtml: '', heroImageUrl: '', restHtml: html }
+				return { heroHtml: '', heroImageUrl: '', heroCaption: '', restHtml: html }
 			}
 
 			const heroHtml = hero.outerHTML
@@ -786,8 +790,9 @@ export default {
 			// über der Figure angezeigt zu werden (siehe MediaPlayer-Bindung
 			// unten) - deshalb schon hier mit heraustrennen.
 			const heroImageUrl = hero.querySelector('img')?.src ?? ''
+			const heroCaption = hero.querySelector('figcaption')?.textContent?.trim() ?? ''
 			hero.remove()
-			return { heroHtml, heroImageUrl, restHtml: doc.body.innerHTML }
+			return { heroHtml, heroImageUrl, heroCaption, restHtml: doc.body.innerHTML }
 		},
 	},
 
