@@ -720,7 +720,8 @@ figure.media-player.media-player--hero {
 		transition: opacity 0.2s;
 	}
 
-	.media-stage--active .media-controls {
+	/* Höhere Spezifität nötig: die :not()-Regeln oben zählen mit. */
+	.media-player .media-stage.media-stage--active .media-controls {
 		opacity: 1;
 	}
 
