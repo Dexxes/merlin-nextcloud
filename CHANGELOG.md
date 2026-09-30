@@ -11,7 +11,8 @@ All notable changes to Merlin are documented here. Format based on
   the reader, like in Merlin iOS. Video and embeds use the full article width
   with the hero image as poster; audio shows the hero image as cover with an
   overlay control bar (play/pause, scrubber with remaining time, back 15 s /
-  forward 30 s, speed 0.75-2x, version picker). The hero caption moves below
+  forward 30 s, speed 0.75-2x, version picker). Video (file/HLS) gets the same custom controls with a
+  big play button, mute and fullscreen; embeds keep the provider's player. The hero caption moves below
   the player. Articles without a playable source keep the hero image.
 - PDF links: saving a URL that points to a PDF (path ends in `.pdf`, or the
   server answers `application/pdf`) creates an article with category `PDF`

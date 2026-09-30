@@ -288,6 +288,10 @@ OC.L10N.register(
     "Forward 30 seconds" : "30 Sekunden vor",
     "Playback speed" : "Wiedergabegeschwindigkeit",
     "Position" : "Position",
+    "Mute" : "Stumm schalten",
+    "Unmute" : "Ton einschalten",
+    "Fullscreen" : "Vollbild",
+    "Exit fullscreen" : "Vollbild beenden",
     "— empty —" : "— leer —"
 },
 "nplurals=2; plural=(n != 1);");

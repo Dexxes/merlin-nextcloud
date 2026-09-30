@@ -305,7 +305,11 @@
         "your own rules present": "deine eigenen Regeln vorhanden",
         "yours": "deine",
         "{minutes} min": "{minutes} Min.",
-        "— empty —": "— leer —"
+        "— empty —": "— leer —",
+        "Mute": "Stumm schalten",
+        "Unmute": "Ton einschalten",
+        "Fullscreen": "Vollbild",
+        "Exit fullscreen": "Vollbild beenden"
     },
     "pluralForm": "nplurals=2; plural=(n != 1);"
 }

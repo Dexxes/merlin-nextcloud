@@ -31,24 +31,66 @@
 			allowfullscreen
 			referrerpolicy="strict-origin-when-cross-origin" />
 
-		<!-- Audio: eigene Steuerung statt der Browser-Controls. Mit Cover
-			(Hero-Bild) liegt sie als Overlay am unteren Bildrand, sonst als
-			kompakte Leiste. -->
-		<div v-else-if="kind === 'audio'" class="media-audio" :class="{ 'media-audio--cover': !!posterUrl }">
-			<img v-if="posterUrl" class="media-audio-cover" :src="posterUrl" alt="">
+		<!-- Audio und Video (Datei/HLS): eigene Steuerung statt der Browser-
+			Controls, für beide dieselbe. Audio mit Cover (Hero-Bild) zeigt das
+			Bild, Video den Film; die Steuerung liegt als Overlay am unteren Rand
+			(bei Audio ohne Cover als kompakte Leiste). -->
+		<div
+			v-else
+			ref="stage"
+			class="media-stage"
+			:class="{
+				'media-stage--audio': kind === 'audio',
+				'media-stage--cover': kind === 'audio' && !!posterUrl,
+				'media-stage--paused': paused,
+				'media-stage--fullscreen': fullscreen,
+			}">
+			<img v-if="kind === 'audio' && posterUrl" class="media-stage-cover" :src="posterUrl" alt="">
 			<audio
+				v-if="kind === 'audio'"
 				ref="mediaEl"
 				preload="metadata"
 				@error="handlePlaybackError"
 				@loadedmetadata="syncTime"
 				@durationchange="syncTime"
 				@timeupdate="syncTime"
+				@volumechange="syncVolume"
 				@play="paused = false"
 				@pause="paused = true"
 				@ended="paused = true" />
-			<div class="media-audio-controls">
+			<video
+				v-else
+				ref="mediaEl"
+				class="media-stage-video"
+				:poster="posterUrl"
+				playsinline
+				preload="metadata"
+				@click="togglePlay"
+				@error="handlePlaybackError"
+				@loadedmetadata="syncTime"
+				@durationchange="syncTime"
+				@timeupdate="syncTime"
+				@volumechange="syncVolume"
+				@play="paused = false"
+				@pause="paused = true"
+				@ended="paused = true" />
+
+			<!-- Großer Play-Knopf über dem Bild, solange pausiert. -->
+			<button
+				v-if="kind === 'video' && paused"
+				type="button"
+				class="media-stage-bigplay"
+				:title="t('merlin', 'Play')"
+				:aria-label="t('merlin', 'Play')"
+				@click="togglePlay">
+				<svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+					<path fill="currentColor" d="M8 5v14l11-7z" />
+				</svg>
+			</button>
+
+			<div class="media-controls">
 				<input
-					class="media-audio-scrubber"
+					class="media-controls-scrubber"
 					type="range"
 					min="0"
 					:max="duration || 0"
@@ -57,15 +99,15 @@
 					:disabled="!duration"
 					:aria-label="t('merlin', 'Position')"
 					@input="seekTo(Number($event.target.value))">
-				<div class="media-audio-times">
+				<div class="media-controls-times">
 					<span>{{ formatTime(currentTime) }}</span>
 					<span v-if="duration">-{{ formatTime(duration - currentTime) }}</span>
 				</div>
-				<div class="media-audio-buttons">
+				<div class="media-controls-buttons">
 					<button type="button" :title="t('merlin', 'Back 15 seconds')" :aria-label="t('merlin', 'Back 15 seconds')" @click="skip(-15)">−15</button>
 					<button
 						type="button"
-						class="media-audio-play"
+						class="media-controls-play"
 						:title="paused ? t('merlin', 'Play') : t('merlin', 'Pause')"
 						:aria-label="paused ? t('merlin', 'Play') : t('merlin', 'Pause')"
 						@click="togglePlay">
@@ -76,17 +118,31 @@
 					</button>
 					<button type="button" :title="t('merlin', 'Forward 30 seconds')" :aria-label="t('merlin', 'Forward 30 seconds')" @click="skip(30)">+30</button>
 					<button type="button" :title="t('merlin', 'Playback speed')" :aria-label="t('merlin', 'Playback speed')" @click="cycleRate">{{ rate }}×</button>
+					<template v-if="kind === 'video'">
+						<button
+							type="button"
+							:title="muted ? t('merlin', 'Unmute') : t('merlin', 'Mute')"
+							:aria-label="muted ? t('merlin', 'Unmute') : t('merlin', 'Mute')"
+							@click="toggleMute">
+							<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+								<path v-if="!muted" fill="currentColor" d="M3 9v6h4l5 5V4L7 9zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4z" />
+								<path v-else fill="currentColor" d="M3 9v6h4l5 5V4L7 9zm13.6 3 2.7-2.7-1.4-1.4-2.7 2.7-2.7-2.7-1.4 1.4 2.7 2.7-2.7 2.7 1.4 1.4 2.7-2.7 2.7 2.7 1.4-1.4z" />
+							</svg>
+						</button>
+						<button
+							type="button"
+							:title="fullscreen ? t('merlin', 'Exit fullscreen') : t('merlin', 'Fullscreen')"
+							:aria-label="fullscreen ? t('merlin', 'Exit fullscreen') : t('merlin', 'Fullscreen')"
+							@click="toggleFullscreen">
+							<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+								<path v-if="!fullscreen" fill="currentColor" d="M5 5h5v2H7v3H5zm9 0h5v5h-2V7h-3zM5 14h2v3h3v2H5zm12 0h2v5h-5v-2h3z" />
+								<path v-else fill="currentColor" d="M8 5h2v5H5V8h3zm6 0h2v3h3v2h-5zM5 14h5v5H8v-3H5zm9 0h5v2h-3v3h-2z" />
+							</svg>
+						</button>
+					</template>
 				</div>
 			</div>
 		</div>
-
-		<video
-			v-else
-			ref="mediaEl"
-			:poster="posterUrl"
-			controls
-			playsinline
-			@error="handlePlaybackError" />
 
 		<!-- Nur bei mehr als einer Variante zeigen (z. B. Standard vs.
 			Gebärdensprache/Audiodeskription bei ARD/ZDF) - sonst wäre die
@@ -191,6 +247,8 @@ export default {
 			currentTime: 0,
 			duration: 0,
 			rate: 1,
+			muted: false,
+			fullscreen: false,
 		}
 	},
 
@@ -214,7 +272,12 @@ export default {
 		},
 	},
 
+	mounted() {
+		document.addEventListener('fullscreenchange', this.syncFullscreen)
+	},
+
 	beforeUnmount() {
+		document.removeEventListener('fullscreenchange', this.syncFullscreen)
 		this._teardown()
 	},
 
@@ -229,6 +292,7 @@ export default {
 			this.paused = true
 			this.currentTime = 0
 			this.duration = 0
+			this.fullscreen = false
 		},
 
 		syncTime() {
@@ -236,6 +300,34 @@ export default {
 			if (!media) return
 			this.currentTime = media.currentTime || 0
 			this.duration = Number.isFinite(media.duration) ? media.duration : 0
+		},
+
+		syncVolume() {
+			const media = this.$refs.mediaEl
+			if (media) this.muted = media.muted
+		},
+
+		toggleMute() {
+			const media = this.$refs.mediaEl
+			if (media) media.muted = !media.muted
+		},
+
+		syncFullscreen() {
+			this.fullscreen = !!this.$refs.stage && document.fullscreenElement === this.$refs.stage
+		},
+
+		// Die Bühne (nicht das <video>) geht in den Vollbildmodus, damit die
+		// eigene Steuerung erhalten bleibt. iOS-Safari kann das nur am Video.
+		toggleFullscreen() {
+			const stage = this.$refs.stage
+			const media = this.$refs.mediaEl
+			if (document.fullscreenElement) {
+				document.exitFullscreen?.()
+			} else if (stage?.requestFullscreen) {
+				stage.requestFullscreen().catch(() => {})
+			} else if (media?.webkitEnterFullscreen) {
+				media.webkitEnterFullscreen()
+			}
 		},
 
 		togglePlay() {
@@ -349,8 +441,8 @@ export default {
 			const media = this.$refs.mediaEl
 			if (!media) return
 
-			// Gewähltes Tempo überlebt Varianten-Wechsel (src-Wechsel setzt es zurück).
-			if (this.kind === 'audio') {
+			// Gewähltes Tempo (Audio und Video) überlebt Varianten-Wechsel (src-Wechsel setzt es zurück).
+			if (this.delivery !== 'embed') {
 				media.defaultPlaybackRate = this.rate
 				media.playbackRate = this.rate
 			}
@@ -462,38 +554,90 @@ export default {
 	margin: 0 0 2em;
 }
 
-.media-player video,
 .media-player iframe {
 	display: block;
 	width: 100%;
 	max-width: 100%;
 	aspect-ratio: 16 / 9;
-	object-fit: contain;
 	border: 0;
 	border-radius: 4px;
 	background: #000;
 }
 
-.media-audio {
+/* Bühne für Audio (Cover/Leiste) und Video. */
+.media-stage {
 	position: relative;
 	border-radius: 4px;
 	overflow: hidden;
+	background: #000;
+}
+
+.media-stage--audio {
 	background: var(--color-background-dark, #eee);
 }
 
-.media-audio-cover {
+.media-stage-cover {
 	display: block;
 	width: 100%;
 	height: auto;
 }
 
-.media-audio-controls {
-	padding: 10px 14px 12px;
-	color: var(--color-main-text, #222);
+.media-stage-video {
+	display: block;
+	width: 100%;
+	aspect-ratio: 16 / 9;
+	object-fit: contain;
+	background: #000;
+	cursor: pointer;
 }
 
-/* Cover: Steuerung als Overlay am unteren Bildrand. */
-.media-audio--cover .media-audio-controls {
+.media-stage--fullscreen {
+	display: flex;
+	align-items: center;
+	border-radius: 0;
+}
+
+.media-stage--fullscreen .media-stage-video {
+	height: 100%;
+	aspect-ratio: auto;
+}
+
+.media-stage-bigplay {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 72px;
+	height: 72px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	color: #fff;
+	background: rgba(0, 0, 0, 0.55);
+	backdrop-filter: blur(4px);
+	cursor: pointer;
+	transition: transform 0.15s, background 0.15s;
+}
+
+.media-stage-bigplay:hover,
+.media-stage-bigplay:focus-visible {
+	background: var(--color-primary-element, rgba(0, 0, 0, 0.75));
+	transform: translate(-50%, -50%) scale(1.08);
+}
+
+.media-controls {
+	color: var(--color-main-text, #222);
+	padding: 10px 14px 12px;
+}
+
+/* Video und Audio mit Cover: Steuerung als Overlay am unteren Rand. Beim
+   Video nur sichtbar, solange pausiert oder bei Hover/Fokus - sonst
+   verdeckt sie den Film; auf Touch-Geräten (kein Hover) bleibt sie zu sehen. */
+.media-stage--cover .media-controls,
+.media-stage:not(.media-stage--audio) .media-controls {
 	position: absolute;
 	left: 0;
 	right: 0;
@@ -503,14 +647,26 @@ export default {
 	padding-top: 40px;
 }
 
-.media-audio-scrubber {
+@media (hover: hover) {
+	.media-stage:not(.media-stage--audio):not(.media-stage--paused) .media-controls {
+		opacity: 0;
+		transition: opacity 0.2s;
+	}
+
+	.media-stage:not(.media-stage--audio):hover .media-controls,
+	.media-stage:not(.media-stage--audio):focus-within .media-controls {
+		opacity: 1;
+	}
+}
+
+.media-controls-scrubber {
 	display: block;
 	width: 100%;
 	margin: 0;
 	accent-color: var(--color-primary-element, #0082c9);
 }
 
-.media-audio-times {
+.media-controls-times {
 	display: flex;
 	justify-content: space-between;
 	font-size: 0.8em;
@@ -518,15 +674,19 @@ export default {
 	opacity: 0.85;
 }
 
-.media-audio-buttons {
+.media-controls-buttons {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	justify-content: center;
-	gap: 12px;
+	gap: 8px;
 	margin-top: 4px;
 }
 
-.media-audio-buttons button {
+.media-controls-buttons button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 	min-width: 44px;
 	height: 44px;
 	padding: 0 8px;
@@ -539,12 +699,12 @@ export default {
 	cursor: pointer;
 }
 
-.media-audio-buttons button:hover,
-.media-audio-buttons button:focus-visible {
+.media-controls-buttons button:hover,
+.media-controls-buttons button:focus-visible {
 	background: rgba(127, 127, 127, 0.3);
 }
 
-.media-audio-buttons .media-audio-play {
+.media-controls-buttons .media-controls-play {
 	width: 52px;
 	height: 52px;
 	border-radius: 50%;
