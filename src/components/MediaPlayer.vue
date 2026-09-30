@@ -34,7 +34,7 @@
 		<!-- Audio und Video (Datei/HLS): eigene Steuerung statt der Browser-
 			Controls, für beide dieselbe. Audio mit Cover (Hero-Bild) zeigt das
 			Bild, Video den Film; die Steuerung liegt als Overlay am unteren Rand
-			(bei Audio ohne Cover als kompakte Leiste). -->
+			(bei Audio ohne Cover als kompakte Leiste, immer sichtbar). -->
 		<div
 			v-else
 			ref="stage"
@@ -669,9 +669,9 @@ figure.media-player.media-player--hero {
 	padding: 10px 14px 12px;
 }
 
-/* Video und Audio mit Cover: Steuerung als Overlay am unteren Rand. Beim
-   Video nur sichtbar, solange pausiert oder bei Hover/Fokus - sonst
-   verdeckt sie den Film; auf Touch-Geräten (kein Hover) bleibt sie zu sehen. */
+/* Video und Audio mit Cover: Steuerung als Overlay am unteren Rand, erst
+   bei Hover/Fokus über dem Bild sichtbar (auch im pausierten Zustand). Auf
+   Touch-Geräten (kein Hover) bleibt sie zu sehen. */
 .media-stage--cover .media-controls,
 .media-stage:not(.media-stage--audio) .media-controls {
 	position: absolute;
@@ -684,11 +684,14 @@ figure.media-player.media-player--hero {
 }
 
 @media (hover: hover) {
-	.media-stage:not(.media-stage--audio):not(.media-stage--paused) .media-controls {
+	.media-stage--cover .media-controls,
+	.media-stage:not(.media-stage--audio) .media-controls {
 		opacity: 0;
 		transition: opacity 0.2s;
 	}
 
+	.media-stage--cover:hover .media-controls,
+	.media-stage--cover:focus-within .media-controls,
 	.media-stage:not(.media-stage--audio):hover .media-controls,
 	.media-stage:not(.media-stage--audio):focus-within .media-controls {
 		opacity: 1;
