@@ -45,7 +45,13 @@
 				'media-stage--cover': kind === 'audio' && !!posterUrl,
 				'media-stage--paused': paused,
 				'media-stage--fullscreen': fullscreen,
-			}">
+				'media-stage--active': active,
+			}"
+			@mousemove="wake"
+			@pointerdown="wake"
+			@keydown="wake"
+			@focusin="wake"
+			@mouseleave="sleep">
 			<img v-if="kind === 'audio' && posterUrl" class="media-stage-cover" :src="posterUrl" alt="">
 			<audio
 				v-if="kind === 'audio'"
@@ -89,7 +95,7 @@
 				</svg>
 			</button>
 
-			<div class="media-controls">
+			<div class="media-controls" @mouseenter="overControls = true" @mouseleave="overControls = false">
 				<input
 					class="media-controls-scrubber"
 					type="range"
@@ -175,6 +181,8 @@ import { resolveMedia } from '../api/articles.js'
 const MEDIA_CATEGORIES = ['Video', 'Audio']
 const KINDS = ['video', 'audio']
 const DELIVERIES = ['hls', 'file', 'embed']
+// Ruhezeit ohne Mausbewegung, nach der die Steuerung ausgeblendet wird.
+const IDLE_MS = 2500
 const RATES = [0.75, 1, 1.25, 1.5, 1.75, 2]
 
 /**
@@ -249,6 +257,10 @@ export default {
 			duration: 0,
 			rate: 1,
 			muted: false,
+			// Steuerung sichtbar (Hover-Geräte): wird durch Mausbewegung gesetzt
+			// und nach IDLE_MS ohne Bewegung wieder zurückgenommen.
+			active: false,
+			overControls: false,
 			// Seitenverhältnis des Cover-Bilds (Breite / Höhe), 0 = unbekannt
 			posterRatio: 0,
 			fullscreen: false,
@@ -304,6 +316,7 @@ export default {
 
 	beforeUnmount() {
 		document.removeEventListener('fullscreenchange', this.syncFullscreen)
+		clearTimeout(this._idleTimer)
 		this._teardown()
 	},
 
@@ -326,6 +339,22 @@ export default {
 			if (!media) return
 			this.currentTime = media.currentTime || 0
 			this.duration = Number.isFinite(media.duration) ? media.duration : 0
+		},
+
+		wake() {
+			this.active = true
+			clearTimeout(this._idleTimer)
+			this._idleTimer = setTimeout(() => {
+				// Über der Steuerung selbst bleibt sie stehen.
+				if (this.overControls) return this.wake()
+				this.active = false
+			}, IDLE_MS)
+		},
+
+		sleep() {
+			clearTimeout(this._idleTimer)
+			this.active = false
+			this.overControls = false
 		},
 
 		syncVolume() {
@@ -670,7 +699,8 @@ figure.media-player.media-player--hero {
 }
 
 /* Video und Audio mit Cover: Steuerung als Overlay am unteren Rand, erst
-   bei Hover/Fokus über dem Bild sichtbar (auch im pausierten Zustand). Auf
+   bei Mausbewegung über dem Bild sichtbar, nach Ruhe wieder weg (auch im
+   pausierten Zustand; siehe wake()/sleep()). Auf
    Touch-Geräten (kein Hover) bleibt sie zu sehen. */
 .media-stage--cover .media-controls,
 .media-stage:not(.media-stage--audio) .media-controls {
@@ -690,11 +720,13 @@ figure.media-player.media-player--hero {
 		transition: opacity 0.2s;
 	}
 
-	.media-stage--cover:hover .media-controls,
-	.media-stage--cover:focus-within .media-controls,
-	.media-stage:not(.media-stage--audio):hover .media-controls,
-	.media-stage:not(.media-stage--audio):focus-within .media-controls {
+	.media-stage--active .media-controls {
 		opacity: 1;
+	}
+
+	/* Mauszeiger verschwindet mit der Steuerung. */
+	.media-stage:not(.media-stage--audio):not(.media-stage--active) .media-stage-video {
+		cursor: none;
 	}
 }
 
