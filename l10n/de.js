@@ -282,6 +282,12 @@ OC.L10N.register(
     "your own rules present" : "deine eigenen Regeln vorhanden",
     "yours" : "deine",
     "{minutes} min" : "{minutes} Min.",
+    "Play" : "Wiedergabe",
+    "Pause" : "Pause",
+    "Back 15 seconds" : "15 Sekunden zurück",
+    "Forward 30 seconds" : "30 Sekunden vor",
+    "Playback speed" : "Wiedergabegeschwindigkeit",
+    "Position" : "Position",
     "— empty —" : "— leer —"
 },
 "nplurals=2; plural=(n != 1);");

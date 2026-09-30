@@ -22,7 +22,7 @@
 	inklusive des Fallback-Links im Marker, nie ein kaputter/leerer Player.
 -->
 <template>
-	<div v-if="playable" class="media-player" :class="'media-player--' + kind">
+	<figure v-if="playable" class="media-player" :class="['media-player--' + kind, { 'media-player--hero': hero }]">
 		<iframe
 			v-if="delivery === 'embed'"
 			:src="currentVariant.url"
@@ -31,12 +31,54 @@
 			allowfullscreen
 			referrerpolicy="strict-origin-when-cross-origin" />
 
-		<audio
-			v-else-if="kind === 'audio'"
-			ref="mediaEl"
-			controls
-			preload="metadata"
-			@error="handlePlaybackError" />
+		<!-- Audio: eigene Steuerung statt der Browser-Controls. Mit Cover
+			(Hero-Bild) liegt sie als Overlay am unteren Bildrand, sonst als
+			kompakte Leiste. -->
+		<div v-else-if="kind === 'audio'" class="media-audio" :class="{ 'media-audio--cover': !!posterUrl }">
+			<img v-if="posterUrl" class="media-audio-cover" :src="posterUrl" alt="">
+			<audio
+				ref="mediaEl"
+				preload="metadata"
+				@error="handlePlaybackError"
+				@loadedmetadata="syncTime"
+				@durationchange="syncTime"
+				@timeupdate="syncTime"
+				@play="paused = false"
+				@pause="paused = true"
+				@ended="paused = true" />
+			<div class="media-audio-controls">
+				<input
+					class="media-audio-scrubber"
+					type="range"
+					min="0"
+					:max="duration || 0"
+					step="1"
+					:value="currentTime"
+					:disabled="!duration"
+					:aria-label="t('merlin', 'Position')"
+					@input="seekTo(Number($event.target.value))">
+				<div class="media-audio-times">
+					<span>{{ formatTime(currentTime) }}</span>
+					<span v-if="duration">-{{ formatTime(duration - currentTime) }}</span>
+				</div>
+				<div class="media-audio-buttons">
+					<button type="button" :title="t('merlin', 'Back 15 seconds')" :aria-label="t('merlin', 'Back 15 seconds')" @click="skip(-15)">−15</button>
+					<button
+						type="button"
+						class="media-audio-play"
+						:title="paused ? t('merlin', 'Play') : t('merlin', 'Pause')"
+						:aria-label="paused ? t('merlin', 'Play') : t('merlin', 'Pause')"
+						@click="togglePlay">
+						<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
+							<path v-if="paused" fill="currentColor" d="M8 5v14l11-7z" />
+							<path v-else fill="currentColor" d="M6 5h4v14H6zm8 0h4v14h-4z" />
+						</svg>
+					</button>
+					<button type="button" :title="t('merlin', 'Forward 30 seconds')" :aria-label="t('merlin', 'Forward 30 seconds')" @click="skip(30)">+30</button>
+					<button type="button" :title="t('merlin', 'Playback speed')" :aria-label="t('merlin', 'Playback speed')" @click="cycleRate">{{ rate }}×</button>
+				</div>
+			</div>
+		</div>
 
 		<video
 			v-else
@@ -52,13 +94,19 @@
 		<select
 			v-if="variants.length > 1"
 			class="media-player-variant"
+			:aria-label="t('merlin', 'Version')"
 			:value="selectedIndex"
 			@change="selectVariant(Number($event.target.value))">
 			<option v-for="(variant, index) in variants" :key="variant.url" :value="index">
 				{{ variant.label }}
 			</option>
 		</select>
-	</div>
+
+		<!-- Bildunterschrift des Hero-Bilds, das der Player ersetzt. -->
+		<figcaption v-if="caption" class="media-player-caption">
+			{{ caption }}
+		</figcaption>
+	</figure>
 </template>
 
 <script>
@@ -70,6 +118,7 @@ import { resolveMedia } from '../api/articles.js'
 const MEDIA_CATEGORIES = ['Video', 'Audio']
 const KINDS = ['video', 'audio']
 const DELIVERIES = ['hls', 'file', 'embed']
+const RATES = [0.75, 1, 1.25, 1.5, 1.75, 2]
 
 /**
  * Liest den ersten Medien-Marker aus dem Artikel-HTML.
@@ -115,6 +164,17 @@ export default {
 			type: String,
 			default: '',
 		},
+		// Player sitzt an der Stelle des Hero-Bilds (Reader): volle
+		// Artikelbreite statt der 720px-Begrenzung.
+		hero: {
+			type: Boolean,
+			default: false,
+		},
+		// Bildunterschrift des Hero-Bilds, das der Player ersetzt.
+		caption: {
+			type: String,
+			default: '',
+		},
 	},
 
 	emits: ['state-change'],
@@ -126,6 +186,11 @@ export default {
 			delivery: null,
 			variants: [],
 			selectedIndex: 0,
+			// Zustand der eigenen Audio-Steuerung
+			paused: true,
+			currentTime: 0,
+			duration: 0,
+			rate: 1,
 		}
 	},
 
@@ -161,6 +226,58 @@ export default {
 			this.delivery = null
 			this.variants = []
 			this.selectedIndex = 0
+			this.paused = true
+			this.currentTime = 0
+			this.duration = 0
+		},
+
+		syncTime() {
+			const media = this.$refs.mediaEl
+			if (!media) return
+			this.currentTime = media.currentTime || 0
+			this.duration = Number.isFinite(media.duration) ? media.duration : 0
+		},
+
+		togglePlay() {
+			const media = this.$refs.mediaEl
+			if (!media) return
+			if (media.paused) {
+				media.play().catch(() => {})
+			} else {
+				media.pause()
+			}
+		},
+
+		seekTo(seconds) {
+			const media = this.$refs.mediaEl
+			if (!media) return
+			media.currentTime = seconds
+			this.currentTime = seconds
+		},
+
+		skip(delta) {
+			const media = this.$refs.mediaEl
+			if (!media) return
+			const max = this.duration || Infinity
+			this.seekTo(Math.min(Math.max(media.currentTime + delta, 0), max))
+		},
+
+		cycleRate() {
+			const media = this.$refs.mediaEl
+			const index = RATES.indexOf(this.rate)
+			this.rate = RATES[(index + 1) % RATES.length]
+			if (media) {
+				media.defaultPlaybackRate = this.rate
+				media.playbackRate = this.rate
+			}
+		},
+
+		formatTime(seconds) {
+			const total = Math.max(0, Math.floor(seconds || 0))
+			const h = Math.floor(total / 3600)
+			const m = Math.floor((total % 3600) / 60)
+			const sec = String(total % 60).padStart(2, '0')
+			return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`
 		},
 
 		_emitState() {
@@ -231,6 +348,12 @@ export default {
 		async _attach(variant, { resumeAt = 0, autoplay = false } = {}) {
 			const media = this.$refs.mediaEl
 			if (!media) return
+
+			// Gewähltes Tempo überlebt Varianten-Wechsel (src-Wechsel setzt es zurück).
+			if (this.kind === 'audio') {
+				media.defaultPlaybackRate = this.rate
+				media.playbackRate = this.rate
+			}
 
 			const seekAndPlay = () => {
 				if (resumeAt > 0) media.currentTime = resumeAt
@@ -333,6 +456,12 @@ export default {
 	margin: 0 auto 2em;
 }
 
+/* Hero-Position im Reader: volle Artikelbreite wie das Hero-Bild. */
+.media-player--hero {
+	max-width: none;
+	margin: 0 0 2em;
+}
+
 .media-player video,
 .media-player iframe {
 	display: block;
@@ -345,9 +474,87 @@ export default {
 	background: #000;
 }
 
-.media-player audio {
+.media-audio {
+	position: relative;
+	border-radius: 4px;
+	overflow: hidden;
+	background: var(--color-background-dark, #eee);
+}
+
+.media-audio-cover {
 	display: block;
 	width: 100%;
+	height: auto;
+}
+
+.media-audio-controls {
+	padding: 10px 14px 12px;
+	color: var(--color-main-text, #222);
+}
+
+/* Cover: Steuerung als Overlay am unteren Bildrand. */
+.media-audio--cover .media-audio-controls {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	color: #fff;
+	background: linear-gradient(to top, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0));
+	padding-top: 40px;
+}
+
+.media-audio-scrubber {
+	display: block;
+	width: 100%;
+	margin: 0;
+	accent-color: var(--color-primary-element, #0082c9);
+}
+
+.media-audio-times {
+	display: flex;
+	justify-content: space-between;
+	font-size: 0.8em;
+	font-variant-numeric: tabular-nums;
+	opacity: 0.85;
+}
+
+.media-audio-buttons {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	margin-top: 4px;
+}
+
+.media-audio-buttons button {
+	min-width: 44px;
+	height: 44px;
+	padding: 0 8px;
+	border: 0;
+	border-radius: 22px;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.media-audio-buttons button:hover,
+.media-audio-buttons button:focus-visible {
+	background: rgba(127, 127, 127, 0.3);
+}
+
+.media-audio-buttons .media-audio-play {
+	width: 52px;
+	height: 52px;
+	border-radius: 50%;
+	background: rgba(127, 127, 127, 0.3);
+}
+
+.media-player-caption {
+	margin: 0.5em 0 0;
+	font-size: 0.85em;
+	color: var(--color-text-maxcontrast, #666);
 }
 
 .media-player-variant {

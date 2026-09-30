@@ -7,6 +7,12 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- Video/audio articles: the player now takes the place of the hero image in
+  the reader, like in Merlin iOS. Video and embeds use the full article width
+  with the hero image as poster; audio shows the hero image as cover with an
+  overlay control bar (play/pause, scrubber with remaining time, back 15 s /
+  forward 30 s, speed 0.75-2x, version picker). The hero caption moves below
+  the player. Articles without a playable source keep the hero image.
 - PDF links: saving a URL that points to a PDF (path ends in `.pdf`, or the
   server answers `application/pdf`) creates an article with category `PDF`
   instead of failing in the HTML extractor. The PDF itself is never stored -
