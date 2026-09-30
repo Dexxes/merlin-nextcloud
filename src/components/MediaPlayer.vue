@@ -595,7 +595,9 @@ figure.media-player.media-player--hero {
 	position: relative;
 	border-radius: 4px;
 	overflow: hidden;
-	background: #000;
+	/* Nicht schwarz: bei Bruchteil-Pixeln (Seitenverhältnis des Covers) würde
+	   sonst am Rand eine dunkle Linie durchscheinen. */
+	background: var(--color-background-dark, #eee);
 }
 
 .media-stage--audio {
@@ -621,11 +623,12 @@ figure.media-player.media-player--hero {
 	border-radius: 0;
 	/* Füllt die Bühne (Seitenverhältnis des Covers) ohne Balken. */
 	object-fit: cover;
-	background: #000;
+	background: transparent;
 	cursor: pointer;
 }
 
 .media-stage--fullscreen {
+	background: #000;
 	display: flex;
 	align-items: center;
 	border-radius: 0;
