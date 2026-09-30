@@ -569,13 +569,13 @@ export default {
    (teils sehr breite) Reader-Spalte ausfüllt, wirkt beim Abspielen unruhig
    groß. Echtes "groß ansehen" gibt es über den nativen Vollbildmodus bzw.
    den des Embeds. margin: 0 auto zentriert unabhängig vom umgebenden Layout. */
-.media-player {
+figure.media-player {
 	max-width: 720px;
 	margin: 0 auto 2em;
 }
 
 /* Hero-Position im Reader: volle Artikelbreite wie das Hero-Bild. */
-.media-player--hero {
+figure.media-player.media-player--hero {
 	max-width: none;
 	margin: 0 0 2em;
 }
@@ -608,12 +608,17 @@ export default {
 	height: auto;
 }
 
-.media-stage-video {
+/* Erhöhte Spezifität: der Reader stylt `.article-body video` (Außenabstand,
+   height: auto, Radius) und würde sonst in die Bühne hineinwirken. */
+.media-player .media-stage .media-stage-video {
 	position: absolute;
 	inset: 0;
 	display: block;
 	width: 100%;
+	max-width: none;
 	height: 100%;
+	margin: 0;
+	border-radius: 0;
 	/* Füllt die Bühne (Seitenverhältnis des Covers) ohne Balken. */
 	object-fit: cover;
 	background: #000;
