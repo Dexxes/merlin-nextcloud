@@ -448,6 +448,9 @@
 
 				<!-- Article footer -->
 				<footer class="article-footer">
+					<p v-if="footerByline" class="article-footer-byline">
+						– {{ footerByline }}
+					</p>
 					<div class="next-article-divider" />
 				</footer>
 			</article>
@@ -610,6 +613,14 @@ export default {
 	},
 
 	computed: {
+		// "Autor, Medium" am Artikelende (z.B. "Max Muster, taz.de").
+		footerByline() {
+			return [this.article.author, this.article.siteName || this.articleDomain]
+				.map((v) => (v || '').trim())
+				.filter(Boolean)
+				.join(', ')
+		},
+
 		/** Durchreich-Endpunkt für die PDF eines PDF-Artikels (siehe PdfProxyService). */
 		pdfProxyUrl() {
 			return generateUrl(`/apps/merlin/api/articles/${this.article.id}/pdf`)
@@ -1943,6 +1954,13 @@ article {
 .article-footer {
 	margin-top: 60px;
 	padding-bottom: 40px;
+}
+
+.article-footer-byline {
+	margin: 0 0 24px;
+	font-size: 0.9em;
+	font-style: italic;
+	color: var(--color-text-maxcontrast);
 }
 
 .next-article-divider {

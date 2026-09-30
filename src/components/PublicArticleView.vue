@@ -70,6 +70,8 @@
 
 			<!-- eslint-disable-next-line vue/no-v-html -->
 			<div ref="bodyEl" class="pav-body" :class="{ 'has-native-media': mediaPlayable }" v-html="bodyHtml" />
+
+			<p v-if="footerByline" class="pav-footer-byline">– {{ footerByline }}</p>
 		</article>
 	</div>
 </template>
@@ -102,6 +104,20 @@ export default {
 	},
 
 	computed: {
+		// "Autor, Medium" am Artikelende (z.B. "Max Muster, taz.de").
+		footerByline() {
+			let host = ''
+			try {
+				host = new URL(this.article.url).hostname.replace(/^www\./, '')
+			} catch {
+				// keine gültige URL – kein Host-Fallback
+			}
+			return [this.article.author, this.article.siteName || host]
+				.map((v) => (v || '').trim())
+				.filter(Boolean)
+				.join(', ')
+		},
+
 		// Artikeltext inkl. Support-Infobox (Abo-/Spendenlink der Quelle). Seed ist
 		// der Titel, weil die Share-Antwort keine Artikel-ID enthält.
 		bodyHtml() {
@@ -334,6 +350,13 @@ export default {
 
 .pav-meta a {
 	color: inherit;
+}
+
+.pav-footer-byline {
+	margin: 40px 0 0;
+	font-size: 0.9em;
+	font-style: italic;
+	color: var(--color-text-maxcontrast);
 }
 
 .pav-body {
