@@ -12,6 +12,7 @@ use fivefilters\Readability\ParseException;
 use fivefilters\Readability\Readability;
 use OCA\Merlin\Service\Http\SsrfSafeResolver;
 use OCA\Merlin\Service\Login\PaywallLoginRequiredException;
+use OCA\Merlin\Service\Media\InlineMediaService;
 use OCA\Merlin\Service\Media\MediaResolverService;
 use OCA\Merlin\Service\Media\MediaResult;
 use OCP\IURLGenerator;
@@ -132,6 +133,7 @@ class ContentExtractorService {
 		private TikTokPostResolverService $tiktokPostResolver,
 		private IURLGenerator $urlGenerator,
 		private MediaResolverService $mediaResolver,
+		private InlineMediaService $inlineMedia,
 	) {
 		$this->logger         = $logger;
 		$this->contentFilters = $contentFilters;
@@ -439,6 +441,28 @@ class ContentExtractorService {
 		// Artikeltext aufgegriffen. Scripts/Styles VOR dem ersten
 		// DOM-Roundtrip zu entfernen umgeht den Bug, statt ihn zu reparieren.
 		$rawHtml = $this->stripScriptAndStyleTags($rawHtml);
+
+		// ── Step 2e: Inline-Videos ───────────────────────────────────────────
+		// Videos mitten im Text (<media><inline>, z. B. der ARD-Player bei
+		// rbb24.de) werden VOR der Caption-Normalisierung und den Pre-Filtern
+		// durch eine Figure mit Vorschaubild ersetzt, sonst bliebe vom Player
+		// nur das Posterbild als scheinbar gewöhnliches Foto übrig. Die
+		// Quellen-Marker setzt Step 11b ein, siehe InlineMediaService.
+		$inlineMedia = [];
+		if ($this->usesReadability($domainMeta['category']) && $this->inlineMedia->hasRules($domainConfig)) {
+			try {
+				$inline      = $this->inlineMedia->replace($rawHtml, $url, $domainConfig);
+				$rawHtml     = $inline['html'];
+				$inlineMedia = $inline['media'];
+				// Dasselbe Video zusätzlich als Aufmacher (JSON-LD) liefe sonst
+				// doppelt: oben als Hero-Player und im Text als Inline-Player.
+				if ($media !== null && $media['result'] !== null && $this->inlineMedia->containsSameMedia($inlineMedia, $media['result'])) {
+					$media = null;
+				}
+			} catch (\Throwable $e) {
+				$this->logger->info('Inline-Medien nicht auflösbar', ['url' => $url, 'exception' => $e]);
+			}
+		}
 
 		// ── Step 3: Image caption normalisation ─────────────────────────────
 		// Rewrap domain-specific image+caption structures into standard
@@ -808,6 +832,8 @@ class ContentExtractorService {
 		$normalizedImageUrl = $imageUrl ? $this->normalizeUrl($imageUrl, $url) : null;
 
 		// ── Step 11b: Medien-Marker ───────────────────────────────────────────
+		// Zuerst die Quellen der Inline-Videos (Step 2e) in deren Figures,
+		// dann der Marker des Aufmacher-Mediums.
 		// Nach cleanHtml(), damit dessen Aufräumen die data-media-*-Attribute
 		// nicht anfasst; vor Step 12, damit das Hero-Bild davor landet. Der
 		// Marker trägt bei stabilen Quellen (Datei/Embed) die URL selbst, bei
@@ -815,6 +841,7 @@ class ContentExtractorService {
 		// GET /api/articles/{id}/media auf (siehe MediaResolverService).
 		// Medienseiten ohne deklarierte Quelle (z. B. vimeo.com) bekommen
 		// weiterhin nur den Fallback-Link, wie vor Einführung von <media>.
+		$content = $this->inlineMedia->injectMarkers($content, $inlineMedia);
 		if ($media !== null) {
 			$content = MediaResolverService::buildMarkerHtml($media['kind'], $media['result'], $url) . $content;
 		} elseif ($this->isMediaCategory($domainMeta['category'])) {
@@ -861,6 +888,12 @@ class ContentExtractorService {
 				$heroCaption = $heroImageData['caption'];
 			}
 
+			// Ist das Hero-Bild zugleich das Vorschaubild eines Inline-Videos
+			// (rbb24: Aufmacher ist ein ARD-Player, og:image dessen Standbild),
+			// übernimmt das Video die Rolle des Hero-Bilds - sonst stünde
+			// dasselbe Bild doppelt da, einmal als vermeintliches Foto.
+			$heroIsInlineVideo = $this->inlineMediaPosterMatches($content, $normalizedImageUrl, $url);
+
 			// Zweite, gezielte Dedup-Runde gegen die tatsächlich gewählte
 			// Hero-Bild-URL - auch für Bilder, die stripLeadingImages() oben
 			// bewusst stehen ließ, weil sie nicht am Content-Anfang stehen
@@ -868,11 +901,13 @@ class ContentExtractorService {
 			// Feature-Grafik). Siehe removeDuplicateHeroImage()-Docblock.
 			$content = $this->removeDuplicateHeroImage($content, $normalizedImageUrl, $url);
 
-			$escapedUrl = htmlspecialchars($normalizedImageUrl, ENT_QUOTES, 'UTF-8');
-			$figcaption = $heroCaption !== null
-				? '<figcaption>' . htmlspecialchars($heroCaption, ENT_QUOTES, 'UTF-8') . '</figcaption>'
-				: '';
-			$content = '<figure class="merlin-hero-image"><img src="' . $escapedUrl . '" alt="">' . $figcaption . '</figure>' . $content;
+			if (!$heroIsInlineVideo) {
+				$escapedUrl = htmlspecialchars($normalizedImageUrl, ENT_QUOTES, 'UTF-8');
+				$figcaption = $heroCaption !== null
+					? '<figcaption>' . htmlspecialchars($heroCaption, ENT_QUOTES, 'UTF-8') . '</figcaption>'
+					: '';
+				$content = '<figure class="merlin-hero-image"><img src="' . $escapedUrl . '" alt="">' . $figcaption . '</figure>' . $content;
+			}
 		}
 
 		$content = $this->stripDuplicateMetadata($content, $title, $excerpt);
@@ -1438,6 +1473,11 @@ class ContentExtractorService {
 			if ($src === '' || !$this->imagesMatchForDedup($this->normalizeUrl($src, $baseUrl), $normalizedImageUrl)) {
 				continue;
 			}
+			// Vorschaubild eines Inline-Videos: Step 12 lässt in dem Fall das
+			// Hero-Bild weg statt das Video zu entfernen.
+			if ($img->parentNode !== null && $this->isInlineMediaFigure($img->parentNode)) {
+				continue;
+			}
 
 			// Umschließende <figure> (falls vorhanden) komplett entfernen, sonst
 			// nur das <img> selbst - eine evtl. Caption wurde bereits über
@@ -1460,6 +1500,45 @@ class ContentExtractorService {
 		}
 
 		return $out;
+	}
+
+	/**
+	 * true, wenn $node die Figure eines Inline-Videos ist (siehe
+	 * InlineMediaService).
+	 */
+	private function isInlineMediaFigure(\DOMNode $node): bool {
+		return $node instanceof \DOMElement
+			&& strtolower($node->nodeName) === 'figure'
+			&& in_array(InlineMediaService::FIGURE_CLASS, preg_split('/\s+/', $node->getAttribute('class')) ?: [], true);
+	}
+
+	/**
+	 * true, wenn ein Inline-Video im Content $normalizedImageUrl als
+	 * Vorschaubild hat.
+	 */
+	private function inlineMediaPosterMatches(string $content, string $normalizedImageUrl, string $baseUrl): bool {
+		if (!str_contains($content, InlineMediaService::FIGURE_CLASS)) {
+			return false;
+		}
+
+		$prevLibxmlErrors = libxml_use_internal_errors(true);
+		$dom = new \DOMDocument();
+		$dom->loadHTML('<?xml encoding="UTF-8"><body>' . $content . '</body>', LIBXML_NOERROR | LIBXML_NOWARNING);
+		libxml_clear_errors();
+		libxml_use_internal_errors($prevLibxmlErrors);
+
+		foreach ($dom->getElementsByTagName('figure') as $figure) {
+			if (!$this->isInlineMediaFigure($figure)) {
+				continue;
+			}
+			foreach ($figure->getElementsByTagName('img') as $img) {
+				$src = $img->getAttribute('src');
+				if ($src !== '' && $this->imagesMatchForDedup($this->normalizeUrl($src, $baseUrl), $normalizedImageUrl)) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -1521,6 +1600,15 @@ class ContentExtractorService {
 			}
 
 			if (!$node instanceof \DOMElement) {
+				$node = $next;
+				continue;
+			}
+
+			// Inline-Video (siehe InlineMediaService): kein Leitbild, sondern
+			// ein Player mit Vorschaubild - bleibt stehen, der Scan läuft
+			// dahinter weiter wie bei einem überspringbaren Lead-in.
+			if ($this->isInlineMediaFigure($node)) {
+				$inspected++;
 				$node = $next;
 				continue;
 			}

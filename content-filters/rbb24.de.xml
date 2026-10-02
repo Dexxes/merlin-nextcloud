@@ -68,6 +68,15 @@
   <media>
     <source type="json-ld" kind="video"
             host-allow="ard-mcdn.de rbbmediapmdp-a.akamaihd.net" />
+
+    <!-- Videos mitten im Artikel: ARD-Player in figure.component-video,
+         die Medien-JSON steht in data-player-config ("media"). Merlin legt
+         beim Lesen einen Player auf das Vorschaubild. Bildunterschrift =
+         Videotitel + rbb-Bildzeile (eigenes div hinter der figure). -->
+    <inline type="ard-player"
+            container-xpath="//figure[contains(@class,'component-video')]"
+            caption-xpath=".//figcaption//span[contains(@class,'headline')] | following-sibling::div[contains(@class,'component-video-caption')][1]"
+            host-allow="ard-mcdn.de" />
   </media>
 
 </domain>
