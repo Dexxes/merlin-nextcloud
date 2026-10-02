@@ -100,6 +100,7 @@
         "Enjoying this article from {site}?": "Dir gefällt der Artikel von {site}?",
         "Enter the URL of the article you want to save:": "Gib die URL des Artikels ein, den du speichern möchtest:",
         "Excluded tags": "Ausgeschlossene Tags",
+        "Exit fullscreen": "Vollbild beenden",
         "Export article": "Artikel exportieren",
         "Export as HTML": "Als HTML exportieren",
         "Failed to add article: {error}": "Artikel konnte nicht hinzugefügt werden: {error}",
@@ -114,6 +115,7 @@
         "Font family": "Schriftart",
         "Font size": "Schriftgröße",
         "Forward 30 seconds": "30 Sekunden vor",
+        "Fullscreen": "Vollbild",
         "Green": "Grün",
         "HTML exported successfully": "HTML erfolgreich exportiert",
         "HTTP headers for fetching the page (e.g. consent cookie)": "HTTP-Header zum Abrufen der Seite (z. B. Consent-Cookie)",
@@ -152,6 +154,7 @@
         "Mono": "Mono",
         "More options": "Weitere Optionen",
         "Most never do. The list grows; guilt accrues. The trick, it turns out, isn't discipline. It's design: a place that doesn't shout, type that breathes, a margin wide enough to think in.": "Die meisten tun es nie. Die Liste wächst, das schlechte Gewissen wächst mit. Der Trick ist nicht Disziplin, sondern Gestaltung: ein Ort, der nicht schreit, eine Schrift, die atmet, ein Rand, der breit genug zum Nachdenken ist.",
+        "Mute": "Stumm schalten",
         "My content filters": "Meine Content-Filter",
         "Named JSON sources that metadata fields can reference": "Benannte JSON-Quellen, auf die Metadatenfelder verweisen können",
         "New tag…": "Neuer Tag…",
@@ -272,6 +275,7 @@
         "Try a different search term": "Versuche einen anderen Suchbegriff",
         "Typography and layout for the article reader.": "Typografie und Layout für den Artikel-Reader.",
         "URL of your merlin-reports installation, e.g. https://cloud.example.com/merlin-reports/": "URL deiner merlin-reports-Installation, z.B. https://cloud.example.com/merlin-reports/",
+        "Unmute": "Ton einschalten",
         "Unpin": "Lösen",
         "Unread": "Ungelesen",
         "Unwatched": "Ungesehen",
@@ -308,11 +312,7 @@
         "your own rules present": "deine eigenen Regeln vorhanden",
         "yours": "deine",
         "{minutes} min": "{minutes} Min.",
-        "— empty —": "— leer —",
-        "Mute": "Stumm schalten",
-        "Unmute": "Ton einschalten",
-        "Fullscreen": "Vollbild",
-        "Exit fullscreen": "Vollbild beenden"
+        "— empty —": "— leer —"
     },
     "pluralForm": "nplurals=2; plural=(n != 1);"
 }
