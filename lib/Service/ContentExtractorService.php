@@ -1016,7 +1016,8 @@ class ContentExtractorService {
 	 * Länge des Mediums in Minuten (aufgerundet, min. 1) aus dem Roh-HTML, oder
 	 * null wenn keine Dauer gefunden wurde. Quellen: Meta-Tags (og:video:duration,
 	 * video:duration, itemprop=duration → Sekunden bzw. ISO 8601), JSON-LD/
-	 * Microdata "duration" (ISO 8601, z. B. PT1H2M3S) YouTubes
+	 * Microdata "duration" (ISO 8601, z. B. PT1H2M3S; auch als in Next.js-Strings
+	 * escapte Variante \"duration\":\"PT3596S\" wie bei Arte) YouTubes
 	 * "lengthSeconds" und das ARD-Mediathek-Seiten-JSON ("duration" in Sekunden).
 	 */
 	private function extractMediaDurationMinutes(string $html): ?int {
@@ -1024,7 +1025,7 @@ class ContentExtractorService {
 
 		if (preg_match('/<meta[^>]+(?:property|name|itemprop)=["\'](?:og:video:duration|og:audio:duration|video:duration|duration)["\'][^>]*content=["\']([^"\']+)["\']/i', $html, $m)
 			|| preg_match('/<meta[^>]+content=["\']([^"\']+)["\'][^>]*(?:property|name|itemprop)=["\'](?:og:video:duration|og:audio:duration|video:duration|duration)["\']/i', $html, $m)
-			|| preg_match('/"duration"\s*:\s*"(P[^"]+)"/', $html, $m)
+			|| preg_match('/\\\\?"duration\\\\?"\s*:\s*\\\\?"(P[^"\\\\]+)/', $html, $m)
 			|| preg_match('/"lengthSeconds"\s*:\s*"?(\d+)"?/', $html, $m)
 			// ARD Mediathek: Sekunden im Seiten-JSON; Trailer/Extras (EXTRA_*) ignorieren.
 			|| preg_match('/"coreAssetType"\s*:\s*"(?!EXTRA_)[A-Z_]+"\s*,\s*"duration"\s*:\s*(\d+)/', $html, $m)) {
