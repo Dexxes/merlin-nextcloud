@@ -54,13 +54,13 @@ echo "\n\033[1mBildunterschriften: Umbrüche werden zu \"•\"\033[0m\n";
 $check(
 	'<br> wird zum Trenner',
 	'<figure><img src="https://x/y.jpg" alt=""><figcaption>Ein Bild<br>Foto: dpa</figcaption></figure>',
-	'Ein Bild • Foto: dpa'
+	'Ein Bild • <cite>Foto: dpa</cite>'
 );
 
 $check(
 	'Block-Elemente werden zum Trenner',
 	'<figcaption><p>Titel des Bildes</p><p>Foto: dpa</p></figcaption>',
-	'Titel des Bildes • Foto: dpa'
+	'Titel des Bildes • <cite>Foto: dpa</cite>'
 );
 
 $check(
@@ -72,43 +72,61 @@ $check(
 $check(
 	'Kein Trenner am Ende',
 	'<figcaption>Foto: dpa<br></figcaption>',
-	'Foto: dpa'
+	'<cite>Foto: dpa</cite>'
 );
 
 $check(
 	'Kein Trenner am Anfang',
 	'<figcaption><br>Foto: dpa</figcaption>',
-	'Foto: dpa'
+	'<cite>Foto: dpa</cite>'
 );
 
 $check(
 	'Mehrere <br> ergeben einen Trenner',
 	'<figcaption>A<br><br>B</figcaption>',
-	'A • B'
+	'A • <cite>B</cite>'
 );
 
 $check(
 	'Leerer Block erzeugt keinen doppelten Trenner',
 	'<figcaption><p>A</p><p>   </p><p>B</p></figcaption>',
-	'A • B'
+	'A • <cite>B</cite>'
 );
 
 $check(
 	'Verschachtelte Blöcke',
 	'<figcaption><div><p>A</p><span>B</span></div><p>C</p></figcaption>',
-	'A • <span>B</span> • C'
+	'A • <span>B</span> • <cite>C</cite>'
 );
 
 $check(
 	'Inline-Auszeichnung bleibt erhalten',
 	'<figcaption>Foto: <a href="https://example.org">dpa</a><br><em>Mehr</em> dazu</figcaption>',
-	'Foto: <a href="https://example.org">dpa</a> • <em>Mehr</em> dazu'
+	'Foto: <a href="https://example.org">dpa</a> • <cite><em>Mehr</em> dazu</cite>'
 );
 
 $check(
 	'Einzeilige Caption bleibt unverändert',
 	'<figcaption>dpa</figcaption>',
 	'dpa'
+);
+
+$check(
+	'Caption mit Quellen-Präfix ohne Trenner: ganze Caption ist Quelle',
+	'<figcaption>Foto: <a href="https://example.org">dpa</a></figcaption>',
+	'<cite>Foto: <a href="https://example.org">dpa</a></cite>'
+);
+
+$check(
+	'Copyright-Zeichen ohne Trenner: ganze Caption ist Quelle',
+	'<figcaption>© nomadnes/adobe</figcaption>',
+	'<cite>© nomadnes/adobe</cite>'
+);
+
+$check(
+	'Trenner am Ende ergibt keine leere <cite>',
+	'<figcaption>Ein Bild<br></figcaption>',
+	'Ein Bild'
 );
 
 $check(
