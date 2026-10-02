@@ -338,11 +338,21 @@ export default {
 
 <style scoped>
 .sidebar-new-article {
+	display: flex;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 100%;
 	padding: 8px 12px 4px;
+	list-style: none;
 }
 
 .new-article-btn {
 	width: 100%;
+	max-width: 100%;
+	justify-content: center;
+}
+
+.new-article-btn :deep(.button-vue__wrapper) {
 	justify-content: center;
 }
 

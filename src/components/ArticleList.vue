@@ -171,6 +171,9 @@ export default {
 
 .article-search {
 	margin-bottom: 16px;
+	/* Reserve room for the NcAppNavigationToggle, which floats over the
+	   top-start corner of the content area. */
+	padding-inline-start: 44px;
 }
 
 .article-search-field {
