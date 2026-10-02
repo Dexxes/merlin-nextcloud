@@ -690,7 +690,10 @@ figure.media-player.media-player--hero {
 	border-radius: 0;
 }
 
-.media-stage--fullscreen .media-stage-video {
+/* Gleiche Spezifität wie die Regel oben plus Vollbild-Klasse - sonst
+   gewann deren object-fit: cover und schnitt z. B. Hochkant-Videos auf
+   Bildschirmbreite zu. */
+.media-player .media-stage.media-stage--fullscreen .media-stage-video {
 	object-fit: contain;
 }
 
