@@ -37,6 +37,7 @@
     <remove id="Kommentarbereich" />
     <remove xpath="//section[contains(@class, 'has-insta')]" /> <!-- Insta embeds -->
     <remove xpath='//*[@data-for="html"]' /> <!-- Web embeds, zB Wahlgrafik-Module -->
+    <remove xpath='//aside[contains(@class, "tzi-bottom-container")]' />
   </pre-filter>
 
   <quotes>
