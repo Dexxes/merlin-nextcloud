@@ -478,6 +478,20 @@ class ContentFilterValidator {
 			return;
 		}
 
+		if ($tag === 'inline' && $attrName === 'type') {
+			if (!in_array($value, ContentFilterSchema::MEDIA_INLINE_TYPES, true)) {
+				$errors[] = [
+					'message' => sprintf(
+						'Unbekannter Inline-Medien-Typ %s. Erlaubt sind: %s.',
+						$value,
+						implode(', ', ContentFilterSchema::MEDIA_INLINE_TYPES)
+					),
+					'line' => $rule->getLineNo(),
+				];
+			}
+			return;
+		}
+
 		if ($tag === 'source' && $attrName === 'kind') {
 			if (!in_array($value, ContentFilterSchema::MEDIA_KINDS, true)) {
 				$errors[] = [
@@ -492,7 +506,7 @@ class ContentFilterValidator {
 			return;
 		}
 
-		if ($tag === 'source' && $attrName === 'host-allow') {
+		if (in_array($tag, ['source', 'inline'], true) && $attrName === 'host-allow') {
 			foreach (preg_split('/[\s,]+/', $value) ?: [] as $host) {
 				if ($host !== '' && preg_match('/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i', $host) !== 1) {
 					$errors[] = [

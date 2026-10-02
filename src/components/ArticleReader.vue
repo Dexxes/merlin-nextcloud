@@ -501,6 +501,7 @@ import { HighlightEngine } from '../highlight-engine'
 import ShareLinkDialog from './ShareLinkDialog.vue'
 import MediaPlayer from './MediaPlayer.vue'
 import { hideBrokenSupportBoxIcons, insertSupportBox } from '../support-box'
+import { mountInlineMedia, unmountInlineMedia } from '../inline-media'
 import PdfViewer from './PdfViewer.vue'
 import { generateUrl } from '@nextcloud/router'
 
@@ -820,6 +821,7 @@ export default {
 				this._initHighlights()
 				this._addImageErrorHandlers()
 				this._executeEmbedScripts()
+				this._mountInlineMedia()
 			})
 		},
 	},
@@ -855,6 +857,7 @@ export default {
 			this._initHighlights()
 			this._addImageErrorHandlers()
 			this._executeEmbedScripts()
+			this._mountInlineMedia()
 			if (this.$refs.readerContent) {
 				this._onScroll = this._handleScroll.bind(this)
 				this.$refs.readerContent.addEventListener('scroll', this._onScroll, { passive: true })
@@ -862,7 +865,14 @@ export default {
 		})
 	},
 
+	// Der Content (v-html) wird bei jeder Änderung komplett ersetzt, z. B.
+	// wenn die Support-Box nachlädt - Inline-Player danach neu anhängen.
+	updated() {
+		this._mountInlineMedia()
+	},
+
 	beforeUnmount() {
+		unmountInlineMedia(this._inlinePlayers ??= new Set())
 		window.removeEventListener('resize', this._checkMobile)
 		window.removeEventListener('keydown', this._onKeydown)
 		if (this._onScroll && this.$refs.readerContent) {
@@ -1244,6 +1254,14 @@ export default {
 				}
 				oldScript.replaceWith(newScript)
 			})
+		},
+
+		// ── Inline-Videos ───────────────────────────────────────────────────
+
+		// Player auf die Vorschaubilder von Videos mitten im Text legen, siehe
+		// inline-media.js.
+		_mountInlineMedia() {
+			mountInlineMedia(this.$el?.querySelector?.('.article-body'), this.$.appContext, this._inlinePlayers ??= new Set())
 		},
 
 		// ── Image error placeholders ────────────────────────────────────────

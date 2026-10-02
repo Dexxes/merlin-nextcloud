@@ -1,0 +1,21 @@
+/* Inline-Videos im Artikeltext, siehe inline-media.js. Global statt scoped:
+   die Figures stammen aus v-html-Content. */
+
+/* Sobald der Player abspielbereit ist, ersetzt er das Vorschaubild; der
+   "Zum Video"-Link wird dann ebenfalls überflüssig. Scheitert die
+   Wiedergabe, fällt die Klasse weg und beides ist wieder sichtbar. */
+figure.merlin-inline-media.merlin-inline-media--playable > img,
+figure.merlin-inline-media.merlin-inline-media--playable > .merlin-inline-media-source {
+	display: none;
+}
+
+figure.merlin-inline-media > .merlin-inline-media-source {
+	margin: -1em 0 1em;
+	text-align: center;
+}
+
+/* Player an der Stelle des Bilds: gleicher Abstand nach oben wie ein
+   Artikelbild, die Bildunterschrift folgt direkt darunter. */
+figure.merlin-inline-media > .merlin-inline-media__player figure.media-player {
+	margin: 2em auto 0.5em;
+}

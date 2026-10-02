@@ -83,6 +83,7 @@ import { loadState } from '@nextcloud/initial-state'
 import { renderHighlightsReadOnly } from '../highlight-engine'
 import MediaPlayer from './MediaPlayer.vue'
 import { hideBrokenSupportBoxIcons, insertSupportBox } from '../support-box'
+import { mountInlineMedia, unmountInlineMedia } from '../inline-media'
 import PdfViewer from './PdfViewer.vue'
 
 export default {
@@ -154,6 +155,14 @@ export default {
 		this.fetchData()
 	},
 
+	updated() {
+		this._mountInlineMedia()
+	},
+
+	beforeUnmount() {
+		unmountInlineMedia(this._inlinePlayers ??= new Set())
+	},
+
 	methods: {
 		async fetchData() {
 			this.state = 'loading'
@@ -167,6 +176,7 @@ export default {
 						renderHighlightsReadOnly(this.$refs.bodyEl, this.article.highlights || [])
 						this._executeEmbedScripts()
 						hideBrokenSupportBoxIcons(this.$refs.bodyEl)
+						this._mountInlineMedia()
 					}
 				})
 			} catch (error) {
@@ -181,6 +191,12 @@ export default {
 					this.state = 'error'
 				}
 			}
+		},
+
+		// Player auf die Vorschaubilder von Videos mitten im Text legen, siehe
+		// inline-media.js.
+		_mountInlineMedia() {
+			mountInlineMedia(this.$refs.bodyEl, this.$.appContext, this._inlinePlayers ??= new Set())
 		},
 
 		// v-html setzt den Inhalt über .innerHTML – <script>-Tags, die dabei ins

@@ -42,6 +42,7 @@ merlin-nextcloud/
 │   │   │   ├── MediaProviderRegistry.php      # type → Provider (einzige Registrierungsstelle)
 │   │   │   ├── MediaSourceProviderInterface.php / DescriptionProviderInterface.php
 │   │   │   ├── MediaContext.php / MediaResult.php / MediaHttpClient.php / VariantHelper.php
+│   │   │   ├── InlineMediaService.php         # <media><inline>: Videos mitten im Text (ARD-Player) → Figure mit Vorschaubild + Quellen-Marker
 │   │   │   └── Provider/                      # ard-mediathek, zdf, arte, youtube-embed, xpath, json-ld
 │   │   └── Login/                        # 🔜 geplant: Paywall-Abo-Login (siehe PLATFORMS.md)
 │   │       ├── LoginProviderInterface.php     # login(username, password): Cookie-Bundle
@@ -69,6 +70,7 @@ merlin-nextcloud/
     ├── test-content-filter-merge.php  # Testharness (pures PHP, ohne Composer)
     ├── test-caption-flatten.php       # Testharness: Bildunterschriften einzeilig ("•")
     ├── test-media-providers.php       # Testharness Medien-Provider (--live: gegen echte Sender)
+    ├── test-inline-media.php          # Testharness Inline-Videos (rbb24-ARD-Player, ganze Extraktion; braucht composer install)
     ├── test-pdf-proxy.php             # Testharness PdfProxyService (lokaler Quellserver: Range, Redirect, Nicht-PDF, Größe, SSRF)
     ├── test-pdf-article.php           # Testharness PDF-Artikel (URL-Erkennung, Marker, SSRF, Sanitizer)
     ├── test-support-box.php           # Testharness SupportBoxService (URL-Auswahl, Login-Ausblendung, Share, Seiten-Icon))
@@ -235,6 +237,7 @@ src/
 ├── admin-main.js            # Einstiegspunkt Verwaltungseinstellungen
 ├── personal-main.js         # Einstiegspunkt persönliche Einstellungen
 ├── support-box.js / .css    # Support-Infobox (Abo-/Spendenlink, Seiten-Icon als eigene Spalte über die volle Boxhöhe) zur Lesezeit zwischen zwei Absätze setzen (data-hl-exclude); hideBrokenSupportBoxIcons() entfernt nicht ladbare Icons nach dem Rendern
+├── inline-media.js / .css  # Legt auf jede figure.merlin-inline-media (Video mitten im Text) einen MediaPlayer (data-hl-exclude), idempotent nach jedem Rendern
 ├── highlight-engine.js      # Framework-unabhängige Logik zum Setzen/Wiederfinden von Textmarkierungen im DOM
 ├── App.vue                  # Hauptkomponente
 ├── store/

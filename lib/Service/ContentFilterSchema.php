@@ -58,6 +58,12 @@ final class ContentFilterSchema {
 	 */
 	public const MEDIA_SOURCE_TYPES = ['ard-mediathek', 'zdf', 'arte', 'xpath', 'json-ld', 'youtube-embed'];
 
+	/**
+	 * Erlaubte Werte für <media><inline type="…"> (Videos mitten im
+	 * Artikeltext, siehe Media\InlineMediaService).
+	 */
+	public const MEDIA_INLINE_TYPES = ['ard-player'];
+
 	/** Erlaubte Werte für <media><source kind="…">. */
 	public const MEDIA_KINDS = ['video', 'audio'];
 
@@ -253,6 +259,14 @@ final class ContentFilterSchema {
 				// Lesetext reiner Medienseiten (Kategorie Video/Audio). Ohne
 				// eigene Regel liefert ggf. der Provider selbst eine (zdf).
 				'description' => ['oneOf' => ['xpath', 'json']],
+				// Videos mitten im Artikeltext (zusätzlich zum Aufmacher), siehe
+				// Media\InlineMediaService. container-xpath trifft je Video den
+				// Player-Block, caption-xpath (relativ zum Container) liefert die
+				// Bildunterschrift, host-allow die erlaubten Stream-Domains.
+				'inline' => [
+					'required' => ['type', 'container-xpath', 'host-allow'],
+					'optional' => ['caption-xpath'],
+				],
 			],
 		],
 		'paywall' => [

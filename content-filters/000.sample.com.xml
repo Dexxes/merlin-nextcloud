@@ -320,6 +320,17 @@
       Lesetext reiner Medienseiten (Kategorie Video/Audio); Absätze werden an
       Leerzeilen getrennt. Erste nicht-leere Regel gewinnt.
 
+    <inline type="ard-player" container-xpath="..." host-allow="..." [caption-xpath="..."] />
+      Videos MITTEN im Artikeltext (zusätzlich zum Aufmacher). Jeder Treffer
+      von container-xpath wird durch eine Figure mit Vorschaubild ersetzt, auf
+      die der Reader einen Player legt (lib/Service/Media/InlineMediaService.php).
+      type="ard-player"     – ARD-Player: Medien-JSON aus data-player-config
+                              ("media"), bevorzugt die beste mp4-Qualität.
+      host-allow            – Pflicht: Domains, auf denen der Stream liegen darf.
+      caption-xpath         – relativ zum Container; mehrere Treffer werden mit
+                              " • " verbunden. Treffer außerhalb des Containers
+                              (z. B. eine Bildzeile dahinter) werden entfernt.
+
   Neuer Sender: reicht xpath oder json-ld, genügt ein Eintrag hier. Sonst einen
   Provider unter lib/Service/Media/Provider/ anlegen und in
   MediaProviderRegistry sowie ContentFilterSchema::MEDIA_SOURCE_TYPES eintragen.

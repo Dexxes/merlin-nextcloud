@@ -74,11 +74,11 @@
 				preload="metadata"
 				@click="togglePlay"
 				@error="handlePlaybackError"
-				@loadedmetadata="syncTime"
+				@loadedmetadata="syncVideoMetadata"
 				@durationchange="syncTime"
 				@timeupdate="syncTime"
 				@volumechange="syncVolume"
-				@play="paused = false"
+				@play="paused = false; started = true"
 				@pause="paused = true"
 				@ended="paused = true" />
 
@@ -263,6 +263,12 @@ export default {
 			overControls: false,
 			// Seitenverhältnis des Cover-Bilds (Breite / Höhe), 0 = unbekannt
 			posterRatio: 0,
+			// Seitenverhältnis des Videos selbst, 0 = unbekannt. Kann vom
+			// Cover abweichen: rbb24 liefert z. B. Hochkant-Videos (9:16)
+			// mit 16:9-Standbild.
+			videoRatio: 0,
+			// Wurde schon einmal abgespielt? Erst dann gilt videoRatio.
+			started: false,
 			fullscreen: false,
 		}
 	},
@@ -272,12 +278,22 @@ export default {
 			return this.variants[this.selectedIndex] || { url: '' }
 		},
 
-		// Video-Bühne hat das Seitenverhältnis des Cover-Bilds (sonst 16:9),
-		// damit nie schwarze Balken entstehen; im Vollbild passt sie sich dem
-		// Bildschirm an.
+		// Video-Bühne hat vor dem Abspielen das Seitenverhältnis des
+		// Cover-Bilds (sonst 16:9), damit das Standbild ohne Balken erscheint;
+		// ab dem Abspielen das des Videos, damit ein Hochkant-Video nicht auf
+		// Querformat beschnitten wird. Hochkant höchstens 80 % der
+		// Fensterhöhe, die Breite folgt daraus. Im Vollbild passt sich die
+		// Bühne dem Bildschirm an.
 		stageStyle() {
 			if (this.kind !== 'video' || this.fullscreen) return null
-			return { aspectRatio: this.posterRatio > 0 ? String(this.posterRatio) : '16 / 9' }
+			const ratio = (this.started && this.videoRatio > 0) ? this.videoRatio : this.posterRatio
+			if (!(ratio > 0)) return { aspectRatio: '16 / 9' }
+			const style = { aspectRatio: String(ratio) }
+			if (ratio < 1) {
+				style.width = `min(100%, calc(80vh * ${ratio}))`
+				style.marginInline = 'auto'
+			}
+			return style
 		},
 	},
 
@@ -332,6 +348,16 @@ export default {
 			this.currentTime = 0
 			this.duration = 0
 			this.fullscreen = false
+			this.videoRatio = 0
+			this.started = false
+		},
+
+		syncVideoMetadata() {
+			const media = this.$refs.mediaEl
+			if (media?.videoWidth && media.videoHeight) {
+				this.videoRatio = media.videoWidth / media.videoHeight
+			}
+			this.syncTime()
 		},
 
 		syncTime() {
@@ -650,7 +676,8 @@ figure.media-player.media-player--hero {
 	height: 100%;
 	margin: 0;
 	border-radius: 0;
-	/* Füllt die Bühne (Seitenverhältnis des Covers) ohne Balken. */
+	/* Füllt die Bühne (Seitenverhältnis des Covers bzw. ab dem Abspielen
+	   des Videos) ohne Balken. */
 	object-fit: cover;
 	background: transparent;
 	cursor: pointer;
@@ -663,7 +690,10 @@ figure.media-player.media-player--hero {
 	border-radius: 0;
 }
 
-.media-stage--fullscreen .media-stage-video {
+/* Gleiche Spezifität wie die Regel oben plus Vollbild-Klasse - sonst
+   gewann deren object-fit: cover und schnitt z. B. Hochkant-Videos auf
+   Bildschirmbreite zu. */
+.media-player .media-stage.media-stage--fullscreen .media-stage-video {
 	object-fit: contain;
 }
 
