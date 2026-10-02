@@ -3019,13 +3019,19 @@ class ContentExtractorService {
 					$trace?->record('quotes', $rule, count($containers));
 
 					foreach ($containers as $container) {
+						// Alle Treffer des text-xpath werden je ein Absatz (Mehrabsatz-Zitate).
+						$textEls = [];
 						if ($textXpath !== '') {
 							$textResult = $xpath->query($textXpath, $container);
-							$textEl = ($textResult !== false) ? $textResult->item(0) : null;
-						} else {
-							$textEl = $container;
+							if ($textResult !== false) {
+								foreach ($textResult as $node) {
+									if ($node instanceof \DOMElement) $textEls[] = $node;
+								}
+							}
+						} elseif ($container instanceof \DOMElement) {
+							$textEls[] = $container;
 						}
-						if (!$textEl instanceof \DOMElement) continue;
+						if ($textEls === []) continue;
 
 						$authorEl = null;
 						if ($authorXpath !== '') {
@@ -3035,7 +3041,7 @@ class ContentExtractorService {
 
 						$bq = $this->buildReaderQuoteNode(
 							$dom,
-							$textEl,
+							$textEls,
 							$authorEl instanceof \DOMElement ? $authorEl : null
 						);
 						$container->parentNode->replaceChild($bq, $container);
@@ -3051,28 +3057,7 @@ class ContentExtractorService {
 				if (str_contains($class, 'merlin-quote')) continue; // already processed
 
 				$bq->setAttribute('class', trim('merlin-quote ' . $class));
-
-				// Wrap bare inline content in <p class="merlin-quote__text">
-				// only when the blockquote has no block-level children yet.
-				$hasBlock = false;
-				foreach ($bq->childNodes as $child) {
-					if ($child instanceof \DOMElement && in_array(
-						strtolower($child->nodeName),
-						['p', 'div', 'ul', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
-						true
-					)) {
-						$hasBlock = true;
-						break;
-					}
-				}
-				if (!$hasBlock) {
-					$p = $dom->createElement('p');
-					$p->setAttribute('class', 'merlin-quote__text');
-					foreach (iterator_to_array($bq->childNodes) as $child) {
-						$p->appendChild($child);
-					}
-					$bq->appendChild($p);
-				}
+				$this->normalizeBlockquoteAttribution($dom, $bq);
 			}
 
 			// ── Pass 3: <q> inline quotes ──────────────────────────────────────
@@ -3102,32 +3087,193 @@ class ContentExtractorService {
 
 	/**
 	 * Build a <blockquote class="merlin-quote"> node from extracted quote elements.
+	 *
+	 * @param \DOMElement[] $textEls one <p class="merlin-quote__text"> per element
 	 */
 	private function buildReaderQuoteNode(
 		\DOMDocument $dom,
-		\DOMElement  $quoteEl,
+		array        $textEls,
 		?\DOMElement $authorEl
 	): \DOMElement {
 		$blockquote = $dom->createElement('blockquote');
 		$blockquote->setAttribute('class', 'merlin-quote');
 
-		// Inner quote text wrapped in <p>
-		$p = $dom->createElement('p');
-		$p->setAttribute('class', 'merlin-quote__text');
-		foreach (iterator_to_array($quoteEl->childNodes) as $child) {
-			$p->appendChild($child->cloneNode(true));
-		}
-		$blockquote->appendChild($p);
-
-		// Author as <cite> if present
+		// Autor vorab auslesen und - falls er im Zitattext steckt (kein
+		// text-xpath) - aus dem DOM lösen, damit er nicht doppelt erscheint.
+		$authorText = null;
 		if ($authorEl !== null) {
+			$authorText = trim((string) preg_replace('/\s+/u', ' ', $authorEl->textContent));
+			foreach ($textEls as $textEl) {
+				if ($authorEl !== $textEl && $authorEl->parentNode !== null && $this->isDescendantOf($authorEl, $textEl)) {
+					$authorEl->parentNode->removeChild($authorEl);
+					break;
+				}
+			}
+		}
+
+		foreach ($textEls as $textEl) {
+			if ($textEl === $authorEl) continue;
+			// Enthält der Text schon Absätze (Container ohne text-xpath), diese direkt übernehmen.
+			if ($textEl->getElementsByTagName('p')->length > 0) {
+				foreach (iterator_to_array($textEl->childNodes) as $child) {
+					$blockquote->appendChild($child->cloneNode(true));
+				}
+				continue;
+			}
+			$p = $dom->createElement('p');
+			$p->setAttribute('class', 'merlin-quote__text');
+			foreach (iterator_to_array($textEl->childNodes) as $child) {
+				$p->appendChild($child->cloneNode(true));
+			}
+			$blockquote->appendChild($p);
+		}
+
+		if ($authorText !== null && $authorText !== '') {
 			$cite = $dom->createElement('cite');
-			$cite->setAttribute('class', 'merlin-quote__author');
-			$cite->textContent = trim(strip_tags($dom->saveHTML($authorEl)));
+			$cite->setAttribute('class', 'merlin-quote__source');
+			$cite->appendChild($dom->createTextNode($authorText));
 			$blockquote->appendChild($cite);
 		}
 
 		return $blockquote;
+	}
+
+	private function isDescendantOf(\DOMNode $node, \DOMNode $ancestor): bool {
+		for ($n = $node->parentNode; $n !== null; $n = $n->parentNode) {
+			if ($n === $ancestor) return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Bringt die Quellenangabe eines Standard-<blockquote> in die Form
+	 * <blockquote><p class="merlin-quote__text">…</p><cite class="merlin-quote__source">…</cite></blockquote>.
+	 *
+	 * Erkannt werden:
+	 *   - <cite>/<footer>/<address> als Kind (wird zur Quelle)
+	 *   - loser Text bzw. Inline-Elemente NACH dem letzten Block-Kind
+	 *     (z. B. WordPress-Pullquote: <p>Zitat</p>Name&emsp;<em>Funktion</em>)
+	 *   - ein direkt folgendes <p>, das ausschließlich ein <cite> enthält
+	 * Reiner Inline-Inhalt wird in <p class="merlin-quote__text"> gewickelt.
+	 * Ein folgender normaler Absatz bleibt unberührt.
+	 */
+	private function normalizeBlockquoteAttribution(\DOMDocument $dom, \DOMElement $bq): void {
+		// Social-Embeds (Instagram, X, Bluesky, TikTok) behalten ihr Original-Markup.
+		if (preg_match('/\b(instagram-media|twitter-tweet|bluesky-embed|tiktok-embed)\b/', $bq->getAttribute('class'))) {
+			return;
+		}
+		$blockTags  = ['p', 'div', 'ul', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+		$sourceTags = ['cite', 'footer', 'address'];
+
+		// <p><cite>…</cite></p> direkt hinter dem blockquote hereinholen.
+		$next = $bq->nextSibling;
+		while ($next instanceof \DOMText && trim($next->textContent) === '') {
+			$next = $next->nextSibling;
+		}
+		if ($next instanceof \DOMElement && strtolower($next->nodeName) === 'p') {
+			$els = [];
+			$hasText = false;
+			foreach ($next->childNodes as $c) {
+				if ($c instanceof \DOMElement) $els[] = $c;
+				elseif (trim($c->textContent) !== '') $hasText = true;
+			}
+			if (!$hasText && count($els) === 1 && strtolower($els[0]->nodeName) === 'cite') {
+				$bq->appendChild($els[0]);
+				$next->parentNode->removeChild($next);
+			}
+		}
+
+		$sources   = [];
+		$lastBlock = null;
+		foreach (iterator_to_array($bq->childNodes) as $child) {
+			if (!$child instanceof \DOMElement) continue;
+			$name = strtolower($child->nodeName);
+			if (in_array($name, $sourceTags, true)) {
+				$sources[] = $child;
+			} elseif (in_array($name, $blockTags, true)) {
+				$lastBlock = $child;
+			}
+		}
+
+		if ($lastBlock === null) {
+			// Nur Inline-Inhalt: Quellen-Elemente beiseite, Rest in <p> wickeln.
+			foreach ($sources as $src) {
+				$bq->removeChild($src);
+			}
+			$p = $dom->createElement('p');
+			$p->setAttribute('class', 'merlin-quote__text');
+			foreach (iterator_to_array($bq->childNodes) as $child) {
+				$p->appendChild($child);
+			}
+			$bq->appendChild($p);
+			foreach ($sources as $src) {
+				$this->markQuoteSource($dom, $bq, $src);
+			}
+			return;
+		}
+
+		foreach ($sources as $src) {
+			$this->markQuoteSource($dom, $bq, $src);
+		}
+
+		// Loser Inhalt nach dem letzten Block-Kind -> Quelle (nur wenn noch keine existiert).
+		if ($sources !== []) return;
+		$tail = [];
+		for ($n = $lastBlock->nextSibling; $n !== null; $n = $n->nextSibling) {
+			if ($n instanceof \DOMElement && in_array(strtolower($n->nodeName), $blockTags, true)) return;
+			$tail[] = $n;
+		}
+		$hasContent = false;
+		foreach ($tail as $n) {
+			if (trim(str_replace("\u{00A0}", ' ', $n->textContent)) !== '') $hasContent = true;
+		}
+		if (!$hasContent) return;
+
+		$cite = $dom->createElement('cite');
+		$cite->setAttribute('class', 'merlin-quote__source');
+		foreach ($tail as $n) {
+			$cite->appendChild($n);
+		}
+		$bq->appendChild($cite);
+		$this->tidyQuoteSource($cite);
+	}
+
+	/** Setzt Tag/Klasse eines vorhandenen Quellen-Elements auf <cite class="merlin-quote__source">. */
+	private function markQuoteSource(\DOMDocument $dom, \DOMElement $bq, \DOMElement $src): void {
+		if (strtolower($src->nodeName) !== 'cite') {
+			$cite = $dom->createElement('cite');
+			while ($src->firstChild) {
+				$cite->appendChild($src->firstChild);
+			}
+			if ($src->parentNode !== null) {
+				$src->parentNode->removeChild($src);
+			}
+			$src = $cite;
+		}
+		$src->setAttribute('class', trim('merlin-quote__source ' . $src->getAttribute('class')));
+		$bq->appendChild($src);
+		$this->tidyQuoteSource($src);
+	}
+
+	/**
+	 * Entfernt führende Trenner (—, –, -, Komma, Leerräume inkl. Geviert/NBSP) und
+	 * ersetzt Geviert-Abstände zwischen Name und Funktion durch ", ".
+	 */
+	private function tidyQuoteSource(\DOMElement $cite): void {
+		$sep   = '[\s\x{00A0}\x{2002}\x{2003}\x{2009}\x{2013}\x{2014}\x{2015}\-,:|~]+';
+		$first = true;
+		foreach (iterator_to_array($cite->childNodes) as $n) {
+			if (!$n instanceof \DOMText) { $first = false; continue; }
+			$t = $n->data;
+			if ($first) {
+				$t = (string) preg_replace('/^' . $sep . '/u', '', $t);
+			}
+			if ($n->nextSibling instanceof \DOMElement) {
+				$t = (string) preg_replace('/\s*[\x{00A0}\x{2002}\x{2003}]+\s*$/u', ', ', $t);
+			}
+			$n->data = $t;
+			if (trim($t) !== '') $first = false;
+		}
 	}
 
 	// ──────────────────────────────────────────────────────────────────────────

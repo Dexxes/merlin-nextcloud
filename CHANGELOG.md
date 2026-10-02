@@ -53,6 +53,16 @@ All notable changes to Merlin are documented here. Format based on
   their site until they are extracted again, and an icon that fails to load is
   simply left out.
 
+### Fixed
+- Quotes: attribution is now recognised for standard blockquotes (trailing
+  text/`<em>` after the quote paragraph, `<footer>`/`<address>`, a following
+  `<p><cite>`) and rendered as `<cite class="merlin-quote__source">`. Author
+  names no longer get double-escaped or duplicated inside the quote,
+  multi-paragraph quotes from content-filter rules keep all paragraphs, and the
+  reader CSS now matches the `merlin-quote*` classes the server emits. The
+  author class no longer contains "author", so Readability does not drop it as
+  a byline.
+
 ## [1.0.11]
 
 ### Added
