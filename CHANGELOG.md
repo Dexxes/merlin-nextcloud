@@ -62,6 +62,10 @@ All notable changes to Merlin are documented here. Format based on
   reader CSS now matches the `merlin-quote*` classes the server emits. The
   author class no longer contains "author", so Readability does not drop it as
   a byline.
+- Hero captions on WordPress sites whose image resizer appends a crop suffix
+  (`foto-1440x720-1160x580-c-default.jpg`, e.g. juedische-allgemeine.de) are no
+  longer dropped: `imagesMatchForDedup()` now strips the `-WxH…-c-<position>`
+  suffix, so the captioned header figure matches the og:image again.
 
 ## [1.0.11]
 

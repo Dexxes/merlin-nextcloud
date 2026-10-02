@@ -381,6 +381,9 @@ class ContentExtractorService {
 			}
 			$mediaDetailParagraphs = $mediaDescription['paragraphs'];
 		}
+		// Videolänge für die Lesezeit: vor dem Script-Strip (Step 2d) aus dem
+		// unveränderten HTML lesen, JSON-LD/Player-Payloads stehen in <script>.
+		$mediaDurationMinutes = $this->extractMediaDurationMinutes($rawHtml);
 
 		//When the excerpt is too long, short it
 		if(isset($domainMeta) && key_exists("excerpt", $domainMeta) && strlen($domainMeta['excerpt']) > 300)
@@ -785,6 +788,10 @@ class ContentExtractorService {
 		// ── Step 11: Cleanup pipeline ──────────────────────────────────────────
 		$wordCount   = str_word_count(strip_tags($content));
 		$readingTime = max(1, (int) ceil($wordCount / 200));
+		// Reine Video-/Audioseiten haben kaum Text: dort ist die Medienlänge die Lesezeit.
+		if ($mediaDurationMinutes !== null && $this->isMediaCategory($domainMeta['category'])) {
+			$readingTime = $mediaDurationMinutes;
+		}
 
 		// "Mixed" nur, wenn neben dem Medium auch wirklich Text da ist: Seiten
 		// wie Deutschlandfunk-Kommentare bestehen oft nur aus Audio plus
@@ -1003,6 +1010,37 @@ class ContentExtractorService {
 	private function usesReadability(?string $category): bool {
 		return !$this->isMediaCategory($category)
 			&& !in_array($category, ['Thread', 'XPost', 'Mastodon', 'InstagramPost', 'TikTokPost'], true);
+	}
+
+	/**
+	 * Länge des Mediums in Minuten (aufgerundet, min. 1) aus dem Roh-HTML, oder
+	 * null wenn keine Dauer gefunden wurde. Quellen: Meta-Tags (og:video:duration,
+	 * video:duration, itemprop=duration → Sekunden bzw. ISO 8601), JSON-LD/
+	 * Microdata "duration" (ISO 8601, z. B. PT1H2M3S; auch als in Next.js-Strings
+	 * escapte Variante \"duration\":\"PT3596S\" wie bei Arte) YouTubes
+	 * "lengthSeconds" und das ARD-Mediathek-Seiten-JSON ("duration" in Sekunden).
+	 */
+	private function extractMediaDurationMinutes(string $html): ?int {
+		$seconds = null;
+
+		if (preg_match('/<meta[^>]+(?:property|name|itemprop)=["\'](?:og:video:duration|og:audio:duration|video:duration|duration)["\'][^>]*content=["\']([^"\']+)["\']/i', $html, $m)
+			|| preg_match('/<meta[^>]+content=["\']([^"\']+)["\'][^>]*(?:property|name|itemprop)=["\'](?:og:video:duration|og:audio:duration|video:duration|duration)["\']/i', $html, $m)
+			|| preg_match('/\\\\?"duration\\\\?"\s*:\s*\\\\?"(P[^"\\\\]+)/', $html, $m)
+			|| preg_match('/"lengthSeconds"\s*:\s*"?(\d+)"?/', $html, $m)
+			// ARD Mediathek: Sekunden im Seiten-JSON; Trailer/Extras (EXTRA_*) ignorieren.
+			|| preg_match('/"coreAssetType"\s*:\s*"(?!EXTRA_)[A-Z_]+"\s*,\s*"duration"\s*:\s*(\d+)/', $html, $m)) {
+			$value = trim($m[1]);
+			if (ctype_digit($value)) {
+				$seconds = (int) $value;
+			} elseif (preg_match('/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/i', $value, $p)) {
+				$seconds = (int) ($p[1] ?? 0) * 86400
+					+ (int) ($p[2] ?? 0) * 3600
+					+ (int) ($p[3] ?? 0) * 60
+					+ (int) ceil((float) ($p[4] ?? 0));
+			}
+		}
+
+		return $seconds !== null && $seconds > 0 ? max(1, (int) ceil($seconds / 60)) : null;
 	}
 
 	/** Reine Medienseite (Video/Audio)? */
@@ -1710,6 +1748,15 @@ class ContentExtractorService {
 
 		$stripVariantMarkers = static function (string $url): string {
 			$url = explode('?', $url, 2)[0];
+
+			// Crop-Renditions von WordPress-Resizer-Plugins (u. a.
+			// juedische-allgemeine.de): eine oder mehrere "-BxH"-Größenangaben
+			// gefolgt von "-c-<position>" vor der Endung, z. B.
+			// "foto-1440x720-1440x720-c-default.jpg" (og:image) vs.
+			// "foto-1440x720-1160x580-c-default.jpg" (Hero-<figure> mit
+			// <figcaption>). Die WordPress-Regel direkt darunter greift dort
+			// nicht, weil "-c-default" zwischen Größenangabe und Endung steht.
+			$url = preg_replace('/(?:-\d+x\d+)+-c-[a-z]+(?=\.\w+$)/i', '', $url) ?? $url;
 			$url = preg_replace('/-\d+x\d+(?=\.\w+$)/i', '', $url) ?? $url;
 
 			// spiegel.de-Bildserver: Dateiname trägt Breite, Seitenverhältnis und
