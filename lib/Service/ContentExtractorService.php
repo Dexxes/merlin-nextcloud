@@ -1748,6 +1748,15 @@ class ContentExtractorService {
 
 		$stripVariantMarkers = static function (string $url): string {
 			$url = explode('?', $url, 2)[0];
+
+			// Crop-Renditions von WordPress-Resizer-Plugins (u. a.
+			// juedische-allgemeine.de): eine oder mehrere "-BxH"-Größenangaben
+			// gefolgt von "-c-<position>" vor der Endung, z. B.
+			// "foto-1440x720-1440x720-c-default.jpg" (og:image) vs.
+			// "foto-1440x720-1160x580-c-default.jpg" (Hero-<figure> mit
+			// <figcaption>). Die WordPress-Regel direkt darunter greift dort
+			// nicht, weil "-c-default" zwischen Größenangabe und Endung steht.
+			$url = preg_replace('/(?:-\d+x\d+)+-c-[a-z]+(?=\.\w+$)/i', '', $url) ?? $url;
 			$url = preg_replace('/-\d+x\d+(?=\.\w+$)/i', '', $url) ?? $url;
 
 			// spiegel.de-Bildserver: Dateiname trägt Breite, Seitenverhältnis und

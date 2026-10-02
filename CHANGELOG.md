@@ -53,6 +53,12 @@ All notable changes to Merlin are documented here. Format based on
   their site until they are extracted again, and an icon that fails to load is
   simply left out.
 
+### Fixed
+- Hero captions on WordPress sites whose image resizer appends a crop suffix
+  (`foto-1440x720-1160x580-c-default.jpg`, e.g. juedische-allgemeine.de) are no
+  longer dropped: `imagesMatchForDedup()` now strips the `-WxH…-c-<position>`
+  suffix, so the captioned header figure matches the og:image again.
+
 ## [1.0.11]
 
 ### Added
