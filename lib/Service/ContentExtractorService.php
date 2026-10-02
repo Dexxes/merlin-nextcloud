@@ -4569,7 +4569,71 @@ class ContentExtractorService {
 			}
 
 			$this->flattenCaptionElement($caption);
+			$this->markCaptionCredit($caption);
 		}
+	}
+
+	/**
+	 * Markiert die Bildquelle einer (bereits geglätteten) <figcaption> als
+	 * <cite>, damit Clients sie getrennt vom Bildtext darstellen können
+	 * (z. B. kursiv/abgeblendet). Als Quelle gilt der Teil nach dem letzten
+	 * CAPTION_BULLET auf oberster Ebene ("Ein Bild • Foto: dpa"); ohne Trenner
+	 * die ganze Caption, wenn sie mit einem Quellen-Präfix beginnt
+	 * ("Foto: dpa", "© dpa"). Alles andere bleibt unverändert.
+	 */
+	private function markCaptionCredit(\DOMElement $caption): void {
+		$dom = $caption->ownerDocument;
+		if ($dom === null || $caption->getElementsByTagName('cite')->length > 0) {
+			return;
+		}
+
+		$topLevelSplit = null;
+		$topLevelCount = 0;
+		foreach ($caption->childNodes as $child) {
+			if ($child instanceof \DOMText && str_contains((string) $child->nodeValue, self::CAPTION_BULLET)) {
+				$topLevelSplit = $child;
+				$topLevelCount++;
+			}
+		}
+
+		$cite = $dom->createElement('cite');
+
+		if ($topLevelSplit !== null) {
+			// Trenner in verschachtelter Auszeichnung: Quelle nicht eindeutig.
+			$total = 0;
+			foreach ((new \DOMXPath($dom))->query('.//text()', $caption) as $text) {
+				if (str_contains((string) $text->nodeValue, self::CAPTION_BULLET)) {
+					$total++;
+				}
+			}
+			if ($total !== $topLevelCount) {
+				return;
+			}
+
+			$value = (string) $topLevelSplit->nodeValue;
+			$pos   = mb_strrpos($value, self::CAPTION_BULLET);
+			$tail  = ltrim(mb_substr($value, $pos + 1));
+			$topLevelSplit->nodeValue = mb_substr($value, 0, $pos + 1) . ' ';
+			if ($tail !== '') {
+				$cite->appendChild($dom->createTextNode($tail));
+			}
+			while (($next = $topLevelSplit->nextSibling) !== null) {
+				$cite->appendChild($next);
+			}
+			if (!$cite->hasChildNodes()) {
+				return;
+			}
+			$caption->appendChild($cite);
+			return;
+		}
+
+		if (preg_match('/^\s*(?:©|(?:Fotos?|Bilder?|Quellen?|Credits?|Copyright|Grafik|Illustration)\s*:)/iu', $caption->textContent) !== 1) {
+			return;
+		}
+		while ($caption->firstChild !== null) {
+			$cite->appendChild($caption->firstChild);
+		}
+		$caption->appendChild($cite);
 	}
 
 	/**
