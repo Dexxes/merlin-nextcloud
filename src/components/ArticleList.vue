@@ -170,10 +170,13 @@ export default {
 }
 
 .article-search {
+	/* The NcAppNavigationToggle floats over the top-start corner of the
+	   content area: 4px padding + 44px button, so its centre sits 26px from
+	   the top. Pull the 36px search field up (list padding is 20px) so both
+	   share that centre line, and leave room for the button at its side. */
+	margin-top: -12px;
 	margin-bottom: 16px;
-	/* Reserve room for the NcAppNavigationToggle, which floats over the
-	   top-start corner of the content area. */
-	padding-inline-start: 44px;
+	padding-inline-start: 48px;
 }
 
 .article-search-field {
