@@ -35,6 +35,7 @@
     <remove xpath="//*[contains(@class,'article__title')]" />
     <remove xpath="//*[contains(@class,'ardplayer-show-posterframe')]" />
     <infobox xpath="//article[contains(@class,'infobox')]" />
+    <remove xpath="//div[@class='component-snippet']/.." />
   </pre-filter>
 
   <post-filter>
