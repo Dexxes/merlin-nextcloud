@@ -90,6 +90,7 @@ final class ContentFilterSchema {
 		'xpath',
 		'container-xpath',
 		'caption-xpath',
+		'credits-xpath',
 		'text-xpath',
 		'author-xpath',
 	];
@@ -193,7 +194,10 @@ final class ContentFilterSchema {
 		'images' => [
 			'kind'     => 'list',
 			'children' => [
-				'caption' => ['required' => ['container-xpath', 'caption-xpath']],
+				'caption' => [
+					'required' => ['container-xpath', 'caption-xpath'],
+					'optional' => ['credits-xpath'],
+				],
 			],
 		],
 		'quotes' => [

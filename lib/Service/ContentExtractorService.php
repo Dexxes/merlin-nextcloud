@@ -1969,6 +1969,15 @@ class ContentExtractorService {
 			// beide auf Artikel- und Original-ID normalisieren.
 			$url = preg_replace('#(/\d{4}/\d+)-\d+-(\d+)(?:_[a-z]{1,3})?(\.\w+)$#i', '$1-$2$3', $url) ?? $url;
 
+			// zeit.de-Bildserver (img.zeit.de): jede Rendition derselben
+			// Aufnahme ist ein eigenes letztes Pfadsegment
+			// "<variante>__<B>x<H>[__<zusatz>...]", z. B. ".../bild/wide__1300x731"
+			// (og:image) vs. ".../bild/super__767x511" (Fullwidth-Kopfbild mit
+			// Caption) oder ".../bild/wide__1000x562" (Kopf-<figure>), in
+			// srcsets auch "wide__820x461__desktop__scale_2". Das Segment
+			// entfernen, damit alle Varianten auf den Bildordner normalisieren.
+			$url = preg_replace('#/[a-z]+(?:__\d+)*__\d+x\d+(?:__[a-z0-9_]+)*$#i', '', $url) ?? $url;
+
 			// Drupal-Bildstile ("image styles", verbreitet u. a. bei
 			// beck-aktuell.de): das Original liegt unter
 			// "/sites/default/files/<pfad>", jede Rendition zusätzlich unter
@@ -2885,12 +2894,13 @@ class ContentExtractorService {
 	/**
 	 * Normalise image+caption structures in raw HTML before Readability parses it.
 	 *
-	 * Domain-specific rules from <images><caption container-xpath="..." caption-xpath="..."/>
+	 * Domain-specific rules from <images><caption container-xpath="..." caption-xpath="..." [credits-xpath="..."]/>
 	 * in the per-domain content-filter XML are applied.
 	 *
 	 * For each matched container:
 	 *   1. The <img> inside the container is found.
-	 *   2. The caption text is extracted via caption-xpath (relative to container).
+	 *   2. The caption text is extracted via caption-xpath (relative to container),
+	 *      the optional image credit via credits-xpath (wrapped in <cite>).
 	 *   3. The whole container is replaced with a <figure><img><figcaption>…</figcaption></figure>.
 	 *
 	 * This ensures Readability sees and preserves proper figure+figcaption structures,
@@ -2917,6 +2927,7 @@ class ContentExtractorService {
 			foreach ($config->images->caption as $rule) {
 				$containerXpath = trim((string) ($rule['container-xpath'] ?? ''));
 				$captionXpath   = trim((string) ($rule['caption-xpath'] ?? ''));
+				$creditsXpath   = trim((string) ($rule['credits-xpath'] ?? ''));
 				if ($containerXpath === '' || $captionXpath === '') continue;
 
 				$containerResult = @$xpath->query($containerXpath);
@@ -2977,31 +2988,48 @@ class ContentExtractorService {
 
 					$img->setAttribute('src', $imgSrc);
 
-					// Extract caption text
-					$captionResult = @$xpath->query($captionXpath, $container);
-					if ($captionResult === false) {
-						$this->logger->warning('content-filters: invalid images caption-xpath skipped', [
-							'xpath'  => $captionXpath,
-							'domain' => $domain,
-						]);
-						continue;
-					}
 					// caption-xpath kann ein Union-Ausdruck sein (z.B.
 					// ".//p/text()[not(parent::b)] | .//p/b[@class='credit']"),
 					// der mehrere Knoten in Dokumentreihenfolge liefert – etwa
 					// Fließtext-Textknoten UND ein separates Credit-Element.
 					// item(0) allein hätte hier nur den ersten Treffer genommen
 					// und den Rest (inkl. Credit) stillschweigend verworfen.
-					$captionText = '';
-					if ($captionResult->length > 0) {
+					// Dasselbe gilt für credits-xpath.
+					$queryText = function (string $query, string $attribute) use ($xpath, $container, $domain): ?string {
+						$result = @$xpath->query($query, $container);
+						if ($result === false) {
+							$this->logger->warning('content-filters: invalid images ' . $attribute . ' skipped', [
+								'xpath'  => $query,
+								'domain' => $domain,
+							]);
+							return null;
+						}
 						$parts = [];
-						foreach ($captionResult as $node) {
+						foreach ($result as $node) {
 							$text = trim($node->textContent);
 							if ($text !== '') {
 								$parts[] = $text;
 							}
 						}
-						$captionText = trim(implode(' ', $parts));
+						return trim(implode(' ', $parts));
+					};
+
+					$captionText = $queryText($captionXpath, 'caption-xpath');
+					if ($captionText === null) {
+						continue;
+					}
+					// Optionale Bildquelle (credits-xpath): landet als <cite> hinter
+					// CAPTION_SEPARATOR in der <figcaption> - dieselbe Form, die
+					// markCaptionCredit() heuristisch erzeugt, nur hier aus einer
+					// expliziten Regel statt aus dem Text erraten. Die Hero-Caption
+					// (Step 12) übernimmt nur den Text; markCaptionCredit() trennt die
+					// Quelle dort wieder am letzten CAPTION_BULLET ab. Ein ungültiger
+					// credits-xpath kostet nur die Quelle, nicht die ganze Caption.
+					$creditText = $creditsXpath !== '' ? ($queryText($creditsXpath, 'credits-xpath') ?? '') : '';
+					// Liefert caption-xpath die Quelle bereits mit (z. B. weil er den
+					// ganzen Caption-Block trifft), sie nicht doppelt anhängen.
+					if ($creditText !== '' && $captionText !== '' && str_ends_with($captionText, $creditText)) {
+						$captionText = rtrim(mb_substr($captionText, 0, mb_strlen($captionText) - mb_strlen($creditText)));
 					}
 
 					// Build <figure><img ...><figcaption>…</figcaption></figure>
@@ -3010,10 +3038,19 @@ class ContentExtractorService {
 					$figure = $dom->createElement('figure');
 					$figure->setAttribute('class', 'merlin-content-figure');
 					$figure->appendChild($img->cloneNode(true));
-					if ($captionText !== '') {
+					if ($captionText !== '' || $creditText !== '') {
 						$figcaption = $dom->createElement('figcaption');
 						$figcaption->setAttribute('class', 'merlin-content-figcaption');
-						$figcaption->textContent = $captionText;
+						if ($captionText !== '') {
+							$figcaption->appendChild($dom->createTextNode(
+								$captionText . ($creditText !== '' ? self::CAPTION_SEPARATOR : '')
+							));
+						}
+						if ($creditText !== '') {
+							$cite = $dom->createElement('cite');
+							$cite->appendChild($dom->createTextNode($creditText));
+							$figcaption->appendChild($cite);
+						}
 						$figure->appendChild($figcaption);
 					}
 

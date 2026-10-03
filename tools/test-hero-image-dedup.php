@@ -507,6 +507,27 @@ $checkMatch(
 	true
 );
 
+$checkMatch(
+	'zeit.de-Bildserver: Fullwidth-Kopfbild "super__767x511" vs. og:image "wide__1300x731" derselben Aufnahme',
+	'https://img.zeit.de/feuilleton/2026-07/uwe-steimler-afd-diskursverchiebung-bild/super__767x511',
+	'https://img.zeit.de/feuilleton/2026-07/uwe-steimler-afd-diskursverchiebung-bild/wide__1300x731',
+	true
+);
+
+$checkMatch(
+	'zeit.de-Bildserver: srcset-Variante mit "__desktop__scale_2"-Zusatz matcht og:image',
+	'https://img.zeit.de/digital/2026-10/openai-entlassung-experten-hacking-ki-sicherheit-foto-1/wide__820x461__desktop__scale_2',
+	'https://img.zeit.de/digital/2026-10/openai-entlassung-experten-hacking-ki-sicherheit-foto-1/wide__1300x731',
+	true
+);
+
+$checkMatch(
+	'zeit.de-Bildserver: Rendition eines ANDEREN Bildordners (Autorenporträt) matcht nicht',
+	'https://img.zeit.de/autoren/R/Anne_Rabe/anne-rabe/square__999999__110x110',
+	'https://img.zeit.de/feuilleton/2026-07/uwe-steimler-afd-diskursverchiebung-bild/wide__1300x731',
+	false
+);
+
 echo "\n\033[1mremoveDuplicateHeroImage(): Duplikat HINTER substantiellem Text wird entfernt\033[0m\n";
 
 $checkRemoveDuplicate = function (

@@ -68,6 +68,7 @@ merlin-nextcloud/
 │   └── $unsupported.xml      # Domains, die grundsätzlich nicht gescrapt werden (siehe UnsupportedSiteException)
 └── tools/
     ├── test-content-filter-merge.php  # Testharness (pures PHP, ohne Composer)
+    ├── test-caption-credits.php       # Testharness: <images><caption credits-xpath> → <cite>
     ├── test-caption-flatten.php       # Testharness: Bildunterschriften einzeilig ("•")
     ├── test-media-providers.php       # Testharness Medien-Provider (--live: gegen echte Sender)
     ├── test-inline-media.php          # Testharness Inline-Videos (rbb24-ARD-Player, ganze Extraktion; braucht composer install)
