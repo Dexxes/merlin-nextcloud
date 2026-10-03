@@ -7,6 +7,19 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- Authors: name and profile link are now detected across sites without a
+  per-domain rule. New generic signals, used when no domain rule, `article:author`
+  or JSON-LD gives a name: WordPress block themes (`wp-block-post-author-name`,
+  `wp-block-post-author-name__link`, `wp-block-post-author__name`), schema.org
+  microdata (`itemprop="author"`), hCard (`.author.vcard .fn`) and
+  `<a rel="author">`; byline prefixes like "Von"/"By" are stripped. JSON-LD authors
+  given only as an `@id` reference (Yoast `@graph`) are resolved. `article:author`
+  holding a URL is no longer taken as the author name. For a single author the
+  profile link (from the matched link, JSON-LD `author.url`, a generic signal with
+  the same name, or `article:author`) is stored in the new column
+  `merlin_articles.author_url` (migration 26), returned as `authorUrl` in the
+  article API and public shares, and the author name links to it in the reader
+  and the share view. Covered by `tools/test-author-detection.php`.
 - Video/audio articles: the player now takes the place of the hero image in
   the reader, like in Merlin iOS. Video and embeds use the full article width
   with the hero image as poster; audio shows the hero image as cover with an
