@@ -32,6 +32,13 @@
     <!-- Hier post-Readability-Remove-Regeln eintragen -->
   </post-filter>
 
+  <images>
+    <caption
+      container-xpath="//div[@class='header-fullwidth__container']"
+      caption-xpath=".//div[@class='figure__caption']/text()"
+    />
+  </images>
+
   <metadata>
     <author   xpath="//a[@rel='author']/span" />
     <!-- Beispiele:
