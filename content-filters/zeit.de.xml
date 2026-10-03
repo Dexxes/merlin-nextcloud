@@ -28,6 +28,25 @@
     <remove xpath="//p[@class='symbols']" />
   </pre-filter>
 
+  <!-- Das Aufmacherbild steht bei zeit.de im <header class="article-header">,
+       den der Pre-Filter oben komplett entfernt. normalizeImageCaptions()
+       läuft vorher und zieht die Figure per Hoist-Logik aus dem <header>
+       heraus, sonst gingen Bild UND Caption verloren (wie landeszeitung.de).
+       Zwei Kopf-Layouts:
+       - Standard: <figure class="article__media"> mit <figcaption>
+       - Fullwidth (z. B. Feuilleton): <picture> ohne <figure>, die Caption
+         steht in einem Geschwister-<div class="header-fullwidth__caption">. -->
+  <images>
+    <caption
+      container-xpath="//header[contains(@class,'article-header')]//figure[contains(@class,'article__media')]"
+      caption-xpath=".//span[contains(@class,'figure__text')] | .//span[contains(@class,'figure__copyright')]"
+    />
+    <caption
+      container-xpath="//div[contains(@class,'header-fullwidth__container')]"
+      caption-xpath=".//div[contains(@class,'header-fullwidth__caption')]//span[contains(@class,'figure__text')] | .//div[contains(@class,'header-fullwidth__caption')]//span[contains(@class,'figure__copyright')]"
+    />
+  </images>
+
   <post-filter>
     <!-- Hier post-Readability-Remove-Regeln eintragen -->
   </post-filter>

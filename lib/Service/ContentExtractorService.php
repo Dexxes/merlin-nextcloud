@@ -1969,6 +1969,15 @@ class ContentExtractorService {
 			// beide auf Artikel- und Original-ID normalisieren.
 			$url = preg_replace('#(/\d{4}/\d+)-\d+-(\d+)(?:_[a-z]{1,3})?(\.\w+)$#i', '$1-$2$3', $url) ?? $url;
 
+			// zeit.de-Bildserver (img.zeit.de): jede Rendition derselben
+			// Aufnahme ist ein eigenes letztes Pfadsegment
+			// "<variante>__<B>x<H>[__<zusatz>...]", z. B. ".../bild/wide__1300x731"
+			// (og:image) vs. ".../bild/super__767x511" (Fullwidth-Kopfbild mit
+			// Caption) oder ".../bild/wide__1000x562" (Kopf-<figure>), in
+			// srcsets auch "wide__820x461__desktop__scale_2". Das Segment
+			// entfernen, damit alle Varianten auf den Bildordner normalisieren.
+			$url = preg_replace('#/[a-z]+(?:__\d+)*__\d+x\d+(?:__[a-z0-9_]+)*$#i', '', $url) ?? $url;
+
 			// Drupal-Bildstile ("image styles", verbreitet u. a. bei
 			// beck-aktuell.de): das Original liegt unter
 			// "/sites/default/files/<pfad>", jede Rendition zusätzlich unter

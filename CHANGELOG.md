@@ -78,6 +78,12 @@ All notable changes to Merlin are documented here. Format based on
   simply left out.
 
 ### Fixed
+- zeit.de: the lead image caption (text and copyright) is shown again. The lead
+  image sits in the article header, which the zeit.de pre-filter removes; new
+  `<images><caption>` rules rescue it for both header layouts (`<figure
+  class="article__media">` and the fullwidth `<picture>` with a sibling
+  `header-fullwidth__caption`). `imagesMatchForDedup()` now treats img.zeit.de
+  renditions (`.../wide__1300x731` vs. `.../super__767x511`) as the same photo.
 - Audio/video descriptions (`<media><description>`, e.g. ardsounds.de) keep
   their line breaks: paragraphs are also split at `\r\n\r\n` and blank lines
   with trailing spaces, single line breaks become `<br>`, and HTML entities in
