@@ -124,6 +124,48 @@ $check(
 );
 
 $check(
+	'Klammerzusatz "(Foto: …)" am Ende wird Quelle, Klammern entfallen',
+	'<figcaption>Uwe Steimle in Pasewalk (Foto: Andy Bünning/imago)</figcaption>',
+	'Uwe Steimle in Pasewalk • <cite>Foto: Andy Bünning/imago</cite>'
+);
+
+$check(
+	'Klammerzusatz "(Quelle: …)" am Ende wird Quelle, auch mit Leerraum dahinter',
+	"<figcaption>Ein Diagramm. (Quelle: Statistisches Bundesamt) \n </figcaption>",
+	'Ein Diagramm. • <cite>Quelle: Statistisches Bundesamt</cite>'
+);
+
+$check(
+	'Klammerzusatz nach Trenner: nur der Zusatz wird Quelle, nicht der ganze letzte Abschnitt',
+	'<figcaption>Titel<br>Beschreibung des Bildes (Foto: dpa)</figcaption>',
+	'Titel • Beschreibung des Bildes • <cite>Foto: dpa</cite>'
+);
+
+$check(
+	'Klammerzusatz hinter Auszeichnung: Text davor bleibt erhalten',
+	'<figcaption><em>Kunstwerk</em> von Anna (Foto: privat)</figcaption>',
+	'<em>Kunstwerk</em> von Anna • <cite>Foto: privat</cite>'
+);
+
+$check(
+	'Nur Klammerzusatz: ganze Caption ist Quelle',
+	'<figcaption>(Foto: dpa)</figcaption>',
+	'<cite>Foto: dpa</cite>'
+);
+
+$check(
+	'Klammer ohne Quellen-Präfix bleibt Text',
+	'<figcaption>Angela Merkel (CDU) im Bundestag</figcaption>',
+	'Angela Merkel (CDU) im Bundestag'
+);
+
+$check(
+	'Klammerzusatz nicht am Ende bleibt Text',
+	'<figcaption>Ein Bild (Foto: dpa) aus dem Archiv</figcaption>',
+	'Ein Bild (Foto: dpa) aus dem Archiv'
+);
+
+$check(
 	'Trenner am Ende ergibt keine leere <cite>',
 	'<figcaption>Ein Bild<br></figcaption>',
 	'Ein Bild'

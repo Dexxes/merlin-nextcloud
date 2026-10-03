@@ -7,6 +7,10 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- Captions: a trailing "(Quelle: …)" or "(Foto: …)" (also Bild, Credit,
+  Copyright, Grafik, Illustration) is recognized as the image credit. The
+  parentheses are dropped and the credit is shown as `<cite>` after " • ",
+  e.g. "Ein Bild (Foto: dpa)" becomes "Ein Bild • <cite>Foto: dpa</cite>".
 - Content filters: `<images><caption>` takes an optional `credits-xpath` for the
   image credit (photographer, agency, ©). It is appended to the caption as
   `<cite>` after " • ", so clients can show it apart from the caption text,

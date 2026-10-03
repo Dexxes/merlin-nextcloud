@@ -5602,6 +5602,32 @@ class ContentExtractorService {
 			return;
 		}
 
+		// Quelle als Klammerzusatz am Ende: "Ein Bild (Foto: dpa)". Vor der
+		// Trenner-Logik unten, sonst würde bei "A • B (Foto: dpa)" der ganze
+		// Teil "B (Foto: dpa)" zur Quelle. Die Klammern fallen weg, das Präfix
+		// bleibt ("Ein Bild • <cite>Foto: dpa</cite>"). Nur wenn der Zusatz
+		// komplett im letzten Textknoten auf oberster Ebene steht - verteilt
+		// über Auszeichnung ist er nicht sauber abtrennbar.
+		$last = $caption->lastChild;
+		while ($last instanceof \DOMText && trim((string) $last->nodeValue) === '' && $last->previousSibling !== null) {
+			$last = $last->previousSibling;
+		}
+		if ($last instanceof \DOMText && preg_match(
+			'/^(.*?)\s*\(\s*((?:Fotos?|Bilder?|Quellen?|Credits?|Copyright|Grafik|Illustration)\s*:[^()]*?)\s*\)\s*$/isu',
+			(string) $last->nodeValue,
+			$m
+		) === 1) {
+			$before = preg_replace('/[\s' . self::CAPTION_BULLET . ']+$/u', '', $m[1]) ?? $m[1];
+			while ($last->nextSibling !== null) {
+				$caption->removeChild($last->nextSibling);
+			}
+			$last->nodeValue = ($before !== '' || $last->previousSibling !== null) ? $before . self::CAPTION_SEPARATOR : '';
+			$cite = $dom->createElement('cite');
+			$cite->appendChild($dom->createTextNode(trim($m[2])));
+			$caption->appendChild($cite);
+			return;
+		}
+
 		$topLevelSplit = null;
 		$topLevelCount = 0;
 		foreach ($caption->childNodes as $child) {
