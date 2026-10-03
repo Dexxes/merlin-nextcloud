@@ -896,6 +896,16 @@ class ContentExtractorService {
 				&& $this->imagesMatchForDedup($this->normalizeUrl($heroImageData['src'], $url), $normalizedImageUrl)) {
 				$heroCaption = $heroImageData['caption'];
 			}
+			// Zweiter Rohscan-Fallback: extractHeroImageFromHtml() liefert die
+			// ERSTE <figure> im Dokument - steht davor eine andere (z. B.
+			// netzpolitik.org: Autoren-Avatar im Block-Theme-Header vor dem
+			// Beitragsbild), passt deren Bild nicht und die Caption der
+			// eigentlichen Hero-Figure (von Readability verworfen) ginge verloren.
+			// Deshalb gezielt nach der <figure> suchen, deren Bild zur gewählten
+			// imageUrl passt.
+			if ($heroCaption === null) {
+				$heroCaption = $this->findFigcaptionForImage($rawHtml, $normalizedImageUrl, $url);
+			}
 
 			// Ist das Hero-Bild zugleich das Vorschaubild eines Inline-Videos
 			// (rbb24: Aufmacher ist ein ARD-Player, og:image dessen Standbild),
@@ -2664,6 +2674,65 @@ class ContentExtractorService {
 					'src'     => $this->normalizeUrl($src, $baseUrl),
 					'caption' => $caption,
 				];
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Sucht im rohen HTML die <figure>, deren <img> (src, data-src,
+	 * data-orig-src oder eine srcset-Variante) per imagesMatchForDedup() zu
+	 * $normalizedImageUrl passt, und liefert deren <figcaption>-Text.
+	 *
+	 * Ergänzt extractHeroImageFromHtml(), das nur die erste <figure> im
+	 * Dokument betrachtet und deshalb an vorangestellten Figures mit anderem
+	 * Bild (Autoren-Avatar, Logo) hängen bleibt.
+	 */
+	private function findFigcaptionForImage(string $html, string $normalizedImageUrl, string $baseUrl): ?string {
+		$prev = libxml_use_internal_errors(true);
+		$dom  = new \DOMDocument('1.0', 'UTF-8');
+		$dom->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING);
+		libxml_clear_errors();
+		libxml_use_internal_errors($prev);
+		$xpath = new \DOMXPath($dom);
+
+		$figures = $xpath->query('//figure[.//figcaption]');
+		if (!$figures) {
+			return null;
+		}
+
+		foreach ($figures as $figure) {
+			if (!$figure instanceof \DOMElement) {
+				continue;
+			}
+			$imgs = $xpath->query('.//img', $figure);
+			if (!$imgs) {
+				continue;
+			}
+			foreach ($imgs as $img) {
+				if (!$img instanceof \DOMElement) {
+					continue;
+				}
+				$sources = [$img->getAttribute('src'), $img->getAttribute('data-src'), $img->getAttribute('data-orig-src')];
+				foreach (explode(',', $img->getAttribute('srcset')) as $candidate) {
+					$sources[] = preg_split('/\s+/', trim($candidate))[0] ?? '';
+				}
+				foreach ($sources as $src) {
+					$src = trim($src);
+					if ($src === '' || str_starts_with($src, 'data:')
+						|| !$this->imagesMatchForDedup($this->normalizeUrl($src, $baseUrl), $normalizedImageUrl)) {
+						continue;
+					}
+					$captionNode = $xpath->query('.//figcaption', $figure)?->item(0);
+					if (!$captionNode instanceof \DOMElement) {
+						return null;
+					}
+					// Siehe findFigcaption()/extractHeroImageFromHtml().
+					$this->flattenCaptionElement($captionNode);
+					$text = trim($captionNode->textContent);
+					return $text !== '' ? $text : null;
+				}
 			}
 		}
 
