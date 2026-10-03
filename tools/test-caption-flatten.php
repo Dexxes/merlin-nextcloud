@@ -154,6 +154,18 @@ $check(
 );
 
 $check(
+	'Englischer Klammerzusatz "(Photo: …)" (Präfix aus resources/caption-credit-prefixes.json)',
+	'<figcaption>Protesters in Paris (Photo: Reuters)</figcaption>',
+	'Protesters in Paris • <cite>Photo: Reuters</cite>'
+);
+
+$check(
+	'Englisches Präfix "Source:" ohne Trenner: ganze Caption ist Quelle',
+	'<figcaption>Source: Federal Statistical Office</figcaption>',
+	'<cite>Source: Federal Statistical Office</cite>'
+);
+
+$check(
 	'Klammer ohne Quellen-Präfix bleibt Text',
 	'<figcaption>Angela Merkel (CDU) im Bundestag</figcaption>',
 	'Angela Merkel (CDU) im Bundestag'

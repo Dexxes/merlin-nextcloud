@@ -25,6 +25,7 @@ class ContentExtractorService {
 
 	/** @var list<string>|null Gecachte Regex-Patterns aus url-shorteners.json */
 	private ?array $shortenerPatterns = null;
+	private ?string $captionCreditPrefixPattern = null;
 
 	/**
 	 * Maximale Anzahl an HTTP-Redirects, denen manuell gefolgt wird (fetchUrl()
@@ -5613,7 +5614,7 @@ class ContentExtractorService {
 			$last = $last->previousSibling;
 		}
 		if ($last instanceof \DOMText && preg_match(
-			'/^(.*?)\s*\(\s*((?:Fotos?|Bilder?|Quellen?|Credits?|Copyright|Grafik|Illustration)\s*:[^()]*?)\s*\)\s*$/isu',
+			'/^(.*?)\s*\(\s*((?:' . $this->captionCreditPrefixPattern() . ')\s*:[^()]*?)\s*\)\s*$/isu',
 			(string) $last->nodeValue,
 			$m
 		) === 1) {
@@ -5668,13 +5669,53 @@ class ContentExtractorService {
 			return;
 		}
 
-		if (preg_match('/^\s*(?:©|(?:Fotos?|Bilder?|Quellen?|Credits?|Copyright|Grafik|Illustration)\s*:)/iu', $caption->textContent) !== 1) {
+		if (preg_match('/^\s*(?:©|(?:' . $this->captionCreditPrefixPattern() . ')\s*:)/iu', $caption->textContent) !== 1) {
 			return;
 		}
 		while ($caption->firstChild !== null) {
 			$cite->appendChild($caption->firstChild);
 		}
 		$caption->appendChild($cite);
+	}
+
+	/**
+	 * Regex-Alternation der Wörter, an denen markCaptionCredit() eine
+	 * Bildquelle erkennt ("Foto", "Quelle", "Photo", "Source", …). Kommt aus
+	 * resources/caption-credit-prefixes.json, die merlin-translations
+	 * (export.py --platform nextcloud, Namespace captionCreditPrefixes.*)
+	 * für ALLE Sprachen gemeinsam erzeugt: die Sprache eines Artikels hängt
+	 * nicht an der UI-Sprache des Nutzers. Fehlt die Datei oder ist sie
+	 * ungültig, greift die frühere deutsche Liste als Fallback.
+	 */
+	private function captionCreditPrefixPattern(): string {
+		if ($this->captionCreditPrefixPattern !== null) {
+			return $this->captionCreditPrefixPattern;
+		}
+
+		$words = [];
+		$json = @file_get_contents(__DIR__ . '/../../resources/caption-credit-prefixes.json');
+		$byLang = $json !== false ? json_decode($json, true) : null;
+		if (is_array($byLang)) {
+			foreach ($byLang as $list) {
+				foreach (is_array($list) ? $list : [] as $word) {
+					if (is_string($word) && trim($word) !== '') {
+						$words[mb_strtolower(trim($word))] = trim($word);
+					}
+				}
+			}
+		}
+		if ($words === []) {
+			$this->logger->warning('caption-credit-prefixes.json fehlt oder ist ungültig, nutze eingebaute Liste');
+			return $this->captionCreditPrefixPattern = 'Fotos?|Bilder?|Quellen?|Credits?|Copyright|Grafik|Illustration';
+		}
+
+		// Längere Wörter zuerst, damit "Fotos" nicht schon an "Foto" hängen bleibt.
+		$words = array_values($words);
+		usort($words, static fn(string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
+		return $this->captionCreditPrefixPattern = implode('|', array_map(
+			static fn(string $word): string => preg_quote($word, '/'),
+			$words
+		));
 	}
 
 	/**
