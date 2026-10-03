@@ -219,8 +219,10 @@
                                  (…/@href), einen Link oder ein Element mit Link
                                  darin. Nur absolute oder relative http(s)-Links.
                                  Ohne Regel nimmt Merlin den Link der <author>-
-                                 Regel bzw. JSON-LD/generische Signale; gespeichert
-                                 wird er nur bei genau einem Autor.
+                                 Regel bzw. JSON-LD/generische Signale. Bei mehreren
+                                 Autoren liefert die Regel je Treffer bzw. je [*]-Wert
+                                 einen Link; passt die Anzahl zur Zahl der Autoren,
+                                 werden sie der Reihe nach zugeordnet.
     <excerpt  xpath="..." />   – Teaser / Zusammenfassung
     <image    xpath="..." />   – Bild-URL
     <published xpath="..." />  – Veröffentlichungsdatum (ISO 8601 oder deutsches Format)
@@ -262,6 +264,10 @@
     $.key              – Top-Level-Schlüssel
     $.key.subkey       – verschachtelter Schlüssel
     $.array[0].key     – Array-Index + Schlüssel
+    $.array[*].key     – ALLE Elemente des Arrays (z. B. alle Autoren); ein
+                         einzelnes Objekt statt Array zählt als ein Element.
+                         Bei title/author/excerpt werden mehrere Werte mit ", "
+                         verbunden, bei image/published gilt der erste.
     $[0].key           – Top-Level-Array-Index
 
   Bei Attribut-XPaths (z. B. //meta[...]/@content) wird der Attributwert zurückgegeben;
@@ -493,12 +499,12 @@
     <!-- Autor: erst XPath, dann JSON-LD, dann og:-Fallback -->
     <author   xpath="//a[@rel='author']" />
     <!-- <author   json="$.author.name" /> -->
-    <!-- <author   json="ld:$.author[0].name" /> -->
+    <!-- <author   json="ld:$.author[*].name" /> -->
     <!-- <author   json="next:$.pageProps.article.author" /> -->
 
     <!-- Autorenprofil-Link (optional, sonst automatisch) -->
     <!-- <author-link xpath="//a[@rel='author']/@href" /> -->
-    <!-- <author-link json="ld:$.author[0].url" /> -->
+    <!-- <author-link json="ld:$.author[*].url" /> -->
 
     <excerpt  xpath="//p[contains(@class,'article-intro')]" />
     <image    xpath="//meta[@property='og:image']/@content" />

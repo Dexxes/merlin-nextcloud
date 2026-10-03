@@ -49,7 +49,14 @@
 				<h1>{{ article.title }}</h1>
 				<p v-if="article.excerpt" class="pav-excerpt">{{ article.excerpt }}</p>
 				<div class="pav-meta">
-					<a v-if="article.author && safeAuthorUrl" :href="safeAuthorUrl" target="_blank" rel="noopener noreferrer">{{ article.author }}</a>
+					<span v-if="authorLinks">
+						<template v-for="(a, i) in authorLinks" :key="i">
+							<a v-if="a.url" :href="a.url" target="_blank" rel="noopener noreferrer">{{ a.name }}</a>
+							<template v-else>{{ a.name }}</template>
+							<template v-if="i < authorLinks.length - 1">, </template>
+						</template>
+					</span>
+					<a v-else-if="article.author && safeAuthorUrl" :href="safeAuthorUrl" target="_blank" rel="noopener noreferrer">{{ article.author }}</a>
 					<span v-else-if="article.author">{{ article.author }}</span>
 					<a v-if="article.siteName && safeArticleUrl" :href="safeArticleUrl" target="_blank" rel="noopener noreferrer">{{ article.siteName }}</a>
 					<span v-else-if="article.siteName">{{ article.siteName }}</span>
@@ -139,6 +146,20 @@ export default {
 		// Nur http(s)/relative/Anker-URLs im href zulassen. article.url wird vom
 		// Share-Owner kontrolliert; ein javascript:-Schema wuerde sonst beim Klick
 		// eines Share-Besuchers ausgefuehrt (Vue sanitisiert v-bind:href NICHT).
+		// Autoren mit eigenem Profil-Link (Co-Autoren einzeln), nur absolute
+		// http(s)-URLs. null, wenn keiner einen Link hat - dann greift die
+		// einfache Darstellung über author/authorUrl.
+		authorLinks() {
+			const list = Array.isArray(this.article?.authors) ? this.article.authors : []
+			const entries = list
+				.filter(a => a && typeof a.name === 'string' && a.name !== '')
+				.map(a => ({
+					name: a.name,
+					url: typeof a.url === 'string' && /^https?:\/\//i.test(a.url.trim()) ? a.url.trim() : null,
+				}))
+			return entries.length > 1 && entries.some(a => a.url) ? entries : null
+		},
+
 		// Link zum Autorenprofil der Quelle, nur absolute http(s)-URLs.
 		safeAuthorUrl() {
 			const url = this.article?.authorUrl

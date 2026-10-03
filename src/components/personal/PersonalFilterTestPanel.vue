@@ -99,7 +99,7 @@ export default {
 			const r = this.report.result
 			return [
 				{ key: 'title', label: this.t('merlin', 'Title'), value: r.title },
-				{ key: 'author', label: this.t('merlin', 'Author'), value: r.author && r.authorUrl ? `${r.author} (${r.authorUrl})` : r.author },
+				{ key: 'author', label: this.t('merlin', 'Author'), value: this.authorWithLinks(r) },
 				{ key: 'publishedAt', label: this.t('merlin', 'Date'), value: r.publishedAt },
 				{ key: 'excerpt', label: this.t('merlin', 'Teaser'), value: r.excerpt },
 				{ key: 'category', label: this.t('merlin', 'Category'), value: r.category },
@@ -117,6 +117,13 @@ export default {
 	},
 
 	methods: {
+		// Autor(en) samt erkanntem Profil-Link je Autor für die Ergebnisliste.
+		authorWithLinks(r) {
+			if (Array.isArray(r.authors) && r.authors.length > 0) {
+				return r.authors.map(a => (a.url ? `${a.name} (${a.url})` : a.name)).join(', ')
+			}
+			return r.author && r.authorUrl ? `${r.author} (${r.authorUrl})` : r.author
+		},
 		/** Drei mögliche Herkünfte (statt der zwei in der Admin-Oberfläche). */
 		originLabel(origin) {
 			if (origin === 'user') {

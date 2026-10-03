@@ -61,7 +61,7 @@ merlin-nextcloud/
 │   │   ├── Highlight.php / HighlightMapper.php         # Textmarkierungen je Artikel
 │   │   ├── Tag.php / TagMapper.php
 │   │   └── SiteCredential.php / SiteCredentialMapper.php  # 🔜 geplant: verschlüsselte Paywall-Zugangsdaten je Nutzer/Domain
-│   └── Migration/            # Datenbank-Migrationen (Version1000Date20240101000000 … 000026)
+│   └── Migration/            # Datenbank-Migrationen (Version1000Date20240101000000 … 000027)
 ├── content-filters/          # Mitgelieferte Filter, eine Datei je Domain (~55 Domains, z. B. spiegel.de, zeit.de, taz.de, youtube.com)
 │   ├── 000.sample.com.xml    # Kommentierte Referenz aller Regeltypen
 │   ├── 000dead.xml           # Parkliste toter Domains (kein gültiges XML)
@@ -154,20 +154,24 @@ laden das Icon direkt von der Quellseite (`referrerpolicy=no-referrer`, wie Arti
 blenden es bei einem Ladefehler aus.
 ### Autor und Autorenprofil
 
-`extractDomainMetadata()` ermittelt den Namen wie gehabt (Domain-`<author>`-Regel >
+`extractDomainMetadata()` ermittelt die Namen wie gehabt (Domain-`<author>`-Regel >
 `article:author` > JSON-LD); `resolveAuthorMetadata()` ergänzt danach domainübergreifend:
-Fehlt der Name, greifen `GENERIC_AUTHOR_XPATHS` (WordPress-Blöcke
+Fehlen sie, greifen `GENERIC_AUTHOR_XPATHS` (WordPress-Blöcke
 `wp-block-post-author-name`/`__link`/`wp-block-post-author__name`, schema.org-Microdata
 `itemprop="author"`, hCard `.author.vcard .fn`, `a[rel=author]`; erster Ausdruck mit
 höchstens vier verschiedenen Namen gewinnt, "Von"/"By"-Präfixe werden entfernt). Werte, die
-URLs sind (typisch `article:author` = Facebook-Profil), gelten nie als Name. Bei genau einem
-Autor wird ein Profil-Link als `authorUrl` gespeichert (`merlin_articles.author_url`,
-Migration `…000026`): `<a href>` der gewinnenden Domain-Regel (Knoten, Vorfahre oder Link
-darin) > JSON-LD `author.url` (auch über `@id`-Verweise im `@graph`) > generisches Signal mit
-gleichem Namen > URL aus `article:author`. Eine Domain-Regel
-`<metadata><author-link xpath="…" | json="…"/>` (Fallback-Kette wie bei den übrigen Feldern,
-`extractConfiguredAuthorLink()`) hat Vorrang vor allen automatischen Quellen. Nur absolute http(s)-Links, nie die Artikel-URL
-selbst. Bei Co-Autoren bleibt `authorUrl` leer. Tests: `tools/test-author-detection.php`.
+URLs sind (typisch `article:author` = Facebook-Profil), gelten nie als Name. JSON-Pfade
+kennen `[*]` (alle Elemente, `resolveJsonPathValues()`).
+
+Profil-Links werden **je Autor** bestimmt: `<author-link>`-Regel (`extractConfiguredAuthorLinks()`;
+gleich viele Links wie Autoren → der Reihe nach, bei einem Autor der erste) > `<a href>` am
+Treffer der `<author>`-Regel (Knoten, Vorfahre oder Link darin) > JSON-LD `author[].url`
+(auch über `@id`-Verweise im `@graph`) mit gleichem Namen > generisches Signal mit gleichem
+Namen > bei genau einem Autor eine URL aus `article:author`. Nur http(s)-Links, nie die
+Artikel-URL selbst. Gespeichert als JSON-Liste `[{name, url}]` in `merlin_articles.authors`
+(Migration `…000027`, nur wenn mindestens ein Link gefunden wurde) und bei genau einem Autor
+zusätzlich in `merlin_articles.author_url` (Migration `…000026`). Tests:
+`tools/test-author-detection.php`.
 
 ### PDF-Artikel
 

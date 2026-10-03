@@ -7,6 +7,15 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- Authors: each co-author now gets their own profile link. JSON paths in content
+  filters accept `[*]` for all array elements (`<author json="ld:$.author[*].name"/>`,
+  `<author-link json="ld:$.author[*].url"/>`); `<author-link>` returns one link per
+  match and assigns them in order when the count matches the authors. Links also
+  come per author from the matched `<author>` elements, JSON-LD `author[].url` and
+  the generic signals. Stored as a JSON list in the new column
+  `merlin_articles.authors` (migration 27), returned as `authors` (`[{name, url}]`)
+  in the article API and public shares; the reader and share view link each name.
+  `authorUrl` keeps the single-author link.
 - Authors: name and profile link are now detected across sites without a
   per-domain rule. New generic signals, used when no domain rule, `article:author`
   or JSON-LD gives a name: WordPress block themes (`wp-block-post-author-name`,
