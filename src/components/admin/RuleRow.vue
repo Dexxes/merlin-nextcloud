@@ -112,6 +112,7 @@ export default {
 			case 'xpath': return "//div[@data-ad]"
 			case 'container-xpath': return "//figure[contains(@class,'img')]"
 			case 'caption-xpath': return './/figcaption'
+			case 'credits-xpath': return ".//span[contains(@class,'copyright')]"
 			case 'text-xpath': return './/p'
 			case 'author-xpath': return './/cite'
 			case 'json': return '$.author.name'

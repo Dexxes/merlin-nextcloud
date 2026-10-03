@@ -283,6 +283,10 @@
   Attribute:
     container-xpath  – Pflicht. Wählt das Wrapper-Element aus, das Bild UND Caption enthält.
     caption-xpath    – Pflicht. Relativer XPath (ausgehend vom Container) für den Caption-Text.
+    credits-xpath    – Optional. Relativer XPath (ausgehend vom Container) für die
+                       Bildquelle (Fotograf, Agentur, ©). Wird als <cite> hinter
+                       " • " an die Caption gehängt, damit Clients sie getrennt
+                       darstellen können. Nicht zusätzlich in caption-xpath aufnehmen.
 
   Mehrere Regeln pro Domain möglich.
 
@@ -460,6 +464,7 @@
     <caption
       container-xpath="//div[contains(@class,'article-image')]"
       caption-xpath=".//span[contains(@class,'image-caption')]"
+      credits-xpath=".//span[contains(@class,'image-credit')]"
     />
     -->
 

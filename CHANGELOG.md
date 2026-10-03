@@ -7,6 +7,10 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- Content filters: `<images><caption>` takes an optional `credits-xpath` for the
+  image credit (photographer, agency, ©). It is appended to the caption as
+  `<cite>` after " • ", so clients can show it apart from the caption text,
+  instead of being guessed from the text. zeit.de uses it for `figure__copyright`.
 - Authors: each co-author now gets their own profile link. JSON paths in content
   filters accept `[*]` for all array elements (`<author json="ld:$.author[*].name"/>`,
   `<author-link json="ld:$.author[*].url"/>`); `<author-link>` returns one link per

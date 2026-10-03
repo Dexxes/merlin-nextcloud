@@ -39,11 +39,13 @@
   <images>
     <caption
       container-xpath="//header[contains(@class,'article-header')]//figure[contains(@class,'article__media')]"
-      caption-xpath=".//span[contains(@class,'figure__text')] | .//span[contains(@class,'figure__copyright')]"
+      caption-xpath=".//span[contains(@class,'figure__text')]"
+      credits-xpath=".//span[contains(@class,'figure__copyright')]"
     />
     <caption
       container-xpath="//div[contains(@class,'header-fullwidth__container')]"
-      caption-xpath=".//div[contains(@class,'header-fullwidth__caption')]//span[contains(@class,'figure__text')] | .//div[contains(@class,'header-fullwidth__caption')]//span[contains(@class,'figure__copyright')]"
+      caption-xpath=".//div[contains(@class,'header-fullwidth__caption')]//span[contains(@class,'figure__text')]"
+      credits-xpath=".//div[contains(@class,'header-fullwidth__caption')]//span[contains(@class,'figure__copyright')]"
     />
   </images>
 
