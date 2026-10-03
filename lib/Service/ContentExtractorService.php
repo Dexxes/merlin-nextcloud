@@ -3037,7 +3037,18 @@ class ContentExtractorService {
 					// okMaybeItsACandidate-Regex → Element überlebt den unlikelyCandidates-Pass.
 					$figure = $dom->createElement('figure');
 					$figure->setAttribute('class', 'merlin-content-figure');
-					$figure->appendChild($img->cloneNode(true));
+					// class/id des Quell-<img> nicht übernehmen: Readability prüft jedes
+					// Element einzeln gegen seine unlikelyCandidates-Regex und hätte
+					// z. B. zeit.de's <img class="header-fullwidth__media-item">
+					// ("header") gelöscht - übrig blieb eine <figure> nur mit Caption,
+					// die removeDuplicateHeroImage() mangels <img> nicht mehr fand und
+					// die deshalb mitten im Text als doppelte Bildunterschrift stand.
+					$figureImg = $img->cloneNode(true);
+					if ($figureImg instanceof \DOMElement) {
+						$figureImg->removeAttribute('class');
+						$figureImg->removeAttribute('id');
+					}
+					$figure->appendChild($figureImg);
 					if ($captionText !== '' || $creditText !== '') {
 						$figcaption = $dom->createElement('figcaption');
 						$figcaption->setAttribute('class', 'merlin-content-figcaption');

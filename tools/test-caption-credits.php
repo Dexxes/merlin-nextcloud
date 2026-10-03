@@ -132,6 +132,18 @@ $check(
 	'Text • <cite>Foto: Anna / dpa</cite>'
 );
 
+echo "\n\033[1mnormalizeImageCaptions(): <img> ohne class/id\033[0m\n";
+
+$contentFiltersProp->setValue($service, new ($repoStubClass::class)(new \SimpleXMLElement(
+	'<domain name="example.com"><images><caption container-xpath="//div[@class=\'c\']" caption-xpath=".//span" /></images></domain>'
+)));
+$out = (string) $normalize->invoke($service, '<html><body><div class="c"><picture><img class="header-fullwidth__media-item" id="hero" src="https://x/y.jpg" alt=""></picture><span>Text</span></div></body></html>', 'example.com', null);
+$report(
+	'zeit.de-Regression: class "header-fullwidth__media-item" (Readability: unlikelyCandidate "header") wird nicht übernommen',
+	'<img src="https://x/y.jpg" alt="">',
+	preg_match('#<img[^>]*>#', $out, $m) === 1 ? $m[0] : '(kein img)'
+);
+
 echo "\n\033[1mHero-Pfad: Caption-Text \"… • Quelle\" wird wieder zu <cite>\033[0m\n";
 
 $out = (string) $sanitize->invoke($service, '<figure class="merlin-hero-image"><img src="https://x/y.jpg" alt=""><figcaption>Ein Bild. • © Agentur</figcaption></figure>');

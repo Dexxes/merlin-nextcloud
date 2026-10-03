@@ -82,6 +82,12 @@ All notable changes to Merlin are documented here. Format based on
   simply left out.
 
 ### Fixed
+- Image captions from `<images><caption>` rules no longer show up a second time
+  in the middle of the text. The rebuilt `<figure>` copied the source image's
+  class, and Readability drops elements whose class matches its "unlikely"
+  pattern (zeit.de: `header-fullwidth__media-item`). That left a caption-only
+  figure that the hero dedup could not match. The image is now copied without
+  `class`/`id`.
 - zeit.de: the lead image caption (text and copyright) is shown again. The lead
   image sits in the article header, which the zeit.de pre-filter removes; new
   `<images><caption>` rules rescue it for both header layouts (`<figure
