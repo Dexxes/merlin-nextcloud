@@ -47,6 +47,8 @@ namespace Merlin\MediaTest {
 	// Vor der Unterklasse unten nötig – der Autoloader wird erst im
 	// Test-Block registriert.
 	require_once __DIR__ . '/../lib/Service/ContentFilterRepository.php';
+	require_once __DIR__ . '/../lib/Service/Http/SsrfSafeResolver.php';
+	require_once __DIR__ . '/../lib/Service/Media/MediaHttpClient.php';
 
 	final class NullLogger implements LoggerInterface {
 		public function emergency($message, array $context = []) {}
@@ -58,6 +60,26 @@ namespace Merlin\MediaTest {
 		public function info($message, array $context = []) {}
 		public function debug($message, array $context = []) {}
 		public function log($level, $message, array $context = []) {}
+	}
+
+	/** Antwortet mit festen JSON-Daten je URL-Präfix, sonst wie bei einem 404 mit null. */
+	final class FakeMediaHttpClient extends \OCA\Merlin\Service\Media\MediaHttpClient {
+		/** @var list<string> */
+		public array $requested = [];
+
+		/** @param array<string, array<mixed>> $responses */
+		public function __construct(private array $responses) {
+		}
+
+		public function getJson(string $url, array $extraHeaders = []): ?array {
+			$this->requested[] = $url;
+			foreach ($this->responses as $prefix => $json) {
+				if (str_starts_with($url, $prefix)) {
+					return $json;
+				}
+			}
+			return null;
+		}
 	}
 
 	/** Liefert die Bundle-Dateien aus content-filters/ ohne Datenbank. */
@@ -119,6 +141,7 @@ namespace Merlin\MediaTest {
 namespace {
 
 	use Merlin\MediaTest\BundleOnlyRepository;
+	use Merlin\MediaTest\FakeMediaHttpClient;
 	use Merlin\MediaTest\NullLogger;
 	use Merlin\MediaTest\TestRunner;
 	use OCA\Merlin\Service\ContentFilterSchema;
@@ -296,6 +319,50 @@ namespace {
 	$t->eq($description['paragraphs'] ?? null, ['Erster Absatz', 'Zweiter "zitiert"'], 'Absätze inkl. doppelt escapter Anführungszeichen');
 
 	// ══════════════════════════════════════════════════════════════════════════
+	$t->group('6b. ARD: Übersichtsseite (/film/) bietet ihre Videos zur Auswahl an');
+
+	$api = 'https://api.ardmediathek.de/page-gateway/pages/ard/';
+	$ardItem = static fn (array $streams): array => ['widgets' => [['type' => 'player_ondemand', 'mediaCollection' => ['embedded' => ['streams' => $streams]]]]];
+	$fakeHttp = new FakeMediaHttpClient([
+		$api . 'grouping/R3JvdXBpbmdJZA' => ['widgets' => [
+			['type' => 'gridlist', 'teasers' => [
+				['type' => 'ondemand', 'mediumTitle' => 'Der Film', 'links' => ['target' => ['id' => 'RmlsbUlk']]],
+				['type' => 'ondemand', 'shortTitle' => 'Trailer', 'id' => 'VHJhaWxlcklk'],
+				['type' => 'ondemand', 'mediumTitle' => 'Doppelt', 'id' => 'RmlsbUlk'],
+				['type' => 'live', 'mediumTitle' => 'Livestream', 'id' => 'TGl2ZUlk'],
+			]],
+		]],
+		$api . 'item/RmlsbUlk' => $ardItem([
+			['kind' => 'main', 'kindName' => 'Normal', 'media' => [['url' => 'https://example.akamaized.net/film.m3u8']]],
+			['kind' => 'sign_language', 'kindName' => 'DGS', 'media' => [['url' => 'https://example.akamaized.net/film-dgs.m3u8']]],
+		]),
+		$api . 'item/VHJhaWxlcklk' => $ardItem([
+			['kind' => 'main', 'kindName' => 'Normal', 'media' => [['url' => 'https://example.akamaized.net/trailer.mp4'], ['url' => 'https://example.akamaized.net/trailer.m3u8']]],
+		]),
+	]);
+	$ardProvider = new ArdMediathekProvider($fakeHttp);
+	$ardSource = $source('type="ard-mediathek" kind="video"');
+	$grouping = $ardProvider->resolve(new MediaContext('https://www.ardmediathek.de/film/der-film/R3JvdXBpbmdJZA', $ardSource));
+	$t->eq(
+		array_map(static fn (array $v): string => $v['label'] . ' ' . $v['url'], $grouping?->variants ?? []),
+		[
+			'Der Film https://example.akamaized.net/film.m3u8',
+			'Der Film · DGS https://example.akamaized.net/film-dgs.m3u8',
+			'Trailer https://example.akamaized.net/trailer.m3u8',
+		],
+		'Videos der Übersichtsseite als Varianten, ohne Doppelte und Livestreams'
+	);
+	$t->eq($grouping?->defaultIndex, 0, 'Vorauswahl ist das erste Video');
+	$t->ok(!in_array($api . 'item/TGl2ZUlk?embedded=false&mcV6=true', $fakeHttp->requested, true), 'Live-Teaser wird nicht abgefragt');
+
+	$single = new FakeMediaHttpClient([$api . 'item/RmlsbUlk' => $ardItem([
+		['kind' => 'main', 'kindName' => 'Normal', 'media' => [['url' => 'https://example.akamaized.net/film.m3u8']]],
+	])]);
+	$singleResult = (new ArdMediathekProvider($single))->resolve(new MediaContext('https://www.ardmediathek.de/video/x/der-film/ndr/RmlsbUlk', $ardSource));
+	$t->eq($singleResult?->variants, [['label' => 'Normal', 'url' => 'https://example.akamaized.net/film.m3u8']], 'Einzelvideo: Label bleibt die Fassung');
+	$t->eq(count($single->requested), 1, 'Einzelvideo: keine Grouping-Abfrage');
+
+	// ══════════════════════════════════════════════════════════════════════════
 	if ($live) {
 		$t->group('7. Live gegen die Beispiel-URLs');
 
@@ -314,6 +381,7 @@ namespace {
 
 		$liveCases = [
 			['https://www.ardmediathek.de/video/babylon-berlin/babylon-berlin-die-doku-wie-die-demokratie-unterging-s05-e09/swr/Y3JpZDovL3N3ci5kZS9hZXgvbzIzNDkyMDY', 'ardmediathek.de', 'video', 'hls'],
+			['https://www.ardmediathek.de/film/sommer-auf-asphalt-oder-komoedie/Y3JpZDovL25kci5kZS81MDQzIGM4ZDUyNDkxLTk5ODUtNGJjZi05ZjlhLTc4MWM0MmE4ZDM1Mw', 'ardmediathek.de', 'video', 'hls'],
 			['https://www.zdf.de/video/reportagen/37-grad-leben-102/marcant--auf-tiktok-gegen-rechts-102', 'zdf.de', 'video', 'hls'],
 			['https://www.arte.tv/de/videos/113630-007-A/country-music-7-9/', 'arte.tv', 'video', 'hls'],
 			['https://www.youtube.com/watch?v=ECbCbaGCpIQ', 'youtube.com', 'video', 'embed'],

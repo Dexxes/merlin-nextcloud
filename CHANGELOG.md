@@ -7,6 +7,10 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- ARD Mediathek: overview pages (e.g. `/film/…` links, whose ID the player API
+  does not know as a video) now play too. The player offers the page's videos
+  (up to six, e.g. the film and its trailer) in its variant dropdown in the web
+  reader and on iOS.
 - Captions: a trailing "(Quelle: …)" or "(Foto: …)" (also Bild, Credit,
   Copyright, Grafik, Illustration) is recognized as the image credit. The
   parentheses are dropped and the credit is shown as `<cite>` after " • ",
