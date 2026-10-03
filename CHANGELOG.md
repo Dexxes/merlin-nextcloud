@@ -69,6 +69,14 @@ All notable changes to Merlin are documented here. Format based on
   simply left out.
 
 ### Fixed
+- Quotes: attribution is now recognised for standard blockquotes (trailing
+  text/`<em>` after the quote paragraph, `<footer>`/`<address>`, a following
+  `<p><cite>`) and rendered as `<cite class="merlin-quote__source">`. Author
+  names no longer get double-escaped or duplicated inside the quote,
+  multi-paragraph quotes from content-filter rules keep all paragraphs, and the
+  reader CSS now matches the `merlin-quote*` classes the server emits. The
+  author class no longer contains "author", so Readability does not drop it as
+  a byline.
 - Hero captions on WordPress sites whose image resizer appends a crop suffix
   (`foto-1440x720-1160x580-c-default.jpg`, e.g. juedische-allgemeine.de) are no
   longer dropped: `imagesMatchForDedup()` now strips the `-WxH…-c-<position>`
