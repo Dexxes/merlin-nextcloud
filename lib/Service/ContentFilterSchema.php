@@ -56,7 +56,7 @@ final class ContentFilterSchema {
 	 * (tools/test-media-providers.php prüft das) – hier als Konstante, damit
 	 * Validator und Regel-Builder die Liste ohne DI-Container kennen.
 	 */
-	public const MEDIA_SOURCE_TYPES = ['ard-mediathek', 'zdf', 'arte', 'xpath', 'json-ld', 'youtube-embed'];
+	public const MEDIA_SOURCE_TYPES = ['ard-mediathek', 'zdf', 'arte', '3sat', 'xpath', 'json-ld', 'youtube-embed'];
 
 	/**
 	 * Erlaubte Werte für <media><inline type="…"> (Videos mitten im

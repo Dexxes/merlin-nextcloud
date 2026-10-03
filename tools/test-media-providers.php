@@ -67,8 +67,16 @@ namespace Merlin\MediaTest {
 		/** @var list<string> */
 		public array $requested = [];
 
-		/** @param array<string, array<mixed>> $responses */
-		public function __construct(private array $responses) {
+		/**
+		 * @param array<string, array<mixed>> $responses
+		 * @param array<string, string> $pages
+		 */
+		public function __construct(private array $responses, private array $pages = []) {
+		}
+
+		public function getText(string $url): ?string {
+			$this->requested[] = $url;
+			return $this->pages[$url] ?? null;
 		}
 
 		public function getJson(string $url, array $extraHeaders = []): ?array {
@@ -152,6 +160,7 @@ namespace {
 	use OCA\Merlin\Service\Media\MediaResult;
 	use OCA\Merlin\Service\Media\Provider\ArdMediathekProvider;
 	use OCA\Merlin\Service\Media\Provider\ArteProvider;
+	use OCA\Merlin\Service\Media\Provider\DreiSatProvider;
 	use OCA\Merlin\Service\Media\Provider\JsonLdMediaProvider;
 	use OCA\Merlin\Service\Media\Provider\XPathMediaProvider;
 	use OCA\Merlin\Service\Media\Provider\YoutubeEmbedProvider;
@@ -175,6 +184,7 @@ namespace {
 		new ArdMediathekProvider($http),
 		new ZdfProvider($http),
 		new ArteProvider($http),
+		new DreiSatProvider($http),
 		new XPathMediaProvider(),
 		new JsonLdMediaProvider(),
 		new YoutubeEmbedProvider(),
@@ -364,6 +374,29 @@ namespace {
 	$t->eq(count($single->requested), 1, 'Einzelvideo: keine Grouping-Abfrage');
 
 	// ══════════════════════════════════════════════════════════════════════════
+	$t->group('6c. 3sat: Stream über data-zdfplayer-jsb und api.3sat.de');
+
+	$dreiSatUrl = 'https://www.3sat.de/kultur/kulturdoku/one-night-at-kitkat-104.html';
+	$contentUrl = 'https://api.3sat.de/content/documents/zdf/kultur/kulturdoku/one-night-at-kitkat-104.json?profile=player2';
+	$jsb = htmlspecialchars(json_encode(['content' => $contentUrl, 'apiToken' => 'tok123'], JSON_UNESCAPED_SLASHES), ENT_QUOTES);
+	$dreiSatHttp = new FakeMediaHttpClient([
+		$contentUrl => [
+			'http://zdf.de/rels/next-video-page' => ['mainVideoContent' => ['http://zdf.de/rels/target' => ['http://zdf.de/rels/streams/ptmd-template' => '/tmd/2/{playerId}/vod/ptmd/3sat/falsch/1']]],
+			'mainVideoContent' => ['http://zdf.de/rels/target' => ['http://zdf.de/rels/streams/ptmd-template' => '/tmd/2/{playerId}/vod/ptmd/3sat/kitkat/2']],
+		],
+		'https://api.3sat.de/tmd/2/ngplayer_2_4/vod/ptmd/3sat/kitkat/2' => ['priorityList' => [
+			['formitaeten' => [['qualities' => [['audio' => ['tracks' => [['uri' => 'https://nrodlzdf-a.akamaihd.net/kitkat.webm']]]]]]]],
+			['formitaeten' => [['qualities' => [['audio' => ['tracks' => [['uri' => 'https://zdfvod.akamaized.net/kitkat.mp4.csmil/master.m3u8']]]]]]]],
+		]],
+	], [$dreiSatUrl => '<div class="b-playerbox" data-zdfplayer-jsb="' . $jsb . '"></div>']);
+	$dreiSat = (new DreiSatProvider($dreiSatHttp))->resolve(new MediaContext($dreiSatUrl, $source('type="3sat" kind="video"')));
+	$t->eq($dreiSat?->defaultUrl(), 'https://zdfvod.akamaized.net/kitkat.mp4.csmil/master.m3u8', 'm3u8 aus der PTMD des Hauptvideos');
+	$t->eq($dreiSat?->delivery, MediaResult::DELIVERY_HLS, 'delivery=hls');
+	$t->eq(DreiSatProvider::parsePlayerConfig('<div data-zdfplayer-jsb=\'{"content":"https://evil.example/x.json","apiToken":"t"}\'></div>'), null, 'Content-URL auf fremdem Host wird verworfen');
+	$t->eq((new DreiSatProvider($dreiSatHttp))->resolve(new MediaContext('https://evil.example/x.html', $source('type="3sat" kind="video"'))), null, 'Artikel-URL außerhalb von 3sat.de → keine Abfrage');
+	$t->eq((string) ($bundleConfig('3sat.de')?->media->source['type'] ?? ''), '3sat', '3sat.de.xml deklariert die 3sat-Quelle');
+
+	// ══════════════════════════════════════════════════════════════════════════
 	if ($live) {
 		$t->group('7. Live gegen die Beispiel-URLs');
 
@@ -384,6 +417,7 @@ namespace {
 			['https://www.ardmediathek.de/video/babylon-berlin/babylon-berlin-die-doku-wie-die-demokratie-unterging-s05-e09/swr/Y3JpZDovL3N3ci5kZS9hZXgvbzIzNDkyMDY', 'ardmediathek.de', 'video', 'hls'],
 			['https://www.ardmediathek.de/film/sommer-auf-asphalt-oder-komoedie/Y3JpZDovL25kci5kZS81MDQzIGM4ZDUyNDkxLTk5ODUtNGJjZi05ZjlhLTc4MWM0MmE4ZDM1Mw', 'ardmediathek.de', 'video', 'hls'],
 			['https://www.zdf.de/video/reportagen/37-grad-leben-102/marcant--auf-tiktok-gegen-rechts-102', 'zdf.de', 'video', 'hls'],
+			['https://www.3sat.de/kultur/kulturdoku/one-night-at-kitkat-104.html', '3sat.de', 'video', 'hls'],
 			['https://www.arte.tv/de/videos/113630-007-A/country-music-7-9/', 'arte.tv', 'video', 'hls'],
 			['https://www.youtube.com/watch?v=ECbCbaGCpIQ', 'youtube.com', 'video', 'embed'],
 			['https://www.deutschlandfunkkultur.de/elektrotech-wer-auf-strom-setzt-spart-kuenftig-viel-geld-100.html', 'deutschlandfunkkultur.de', 'audio', 'file'],

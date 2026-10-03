@@ -31,6 +31,13 @@ class MediaHttpClient {
 	}
 
 	/**
+	 * Roher Antworttext (z. B. eine HTML-Seite), null bei Fehler/Nicht-2xx.
+	 */
+	public function getText(string $url): ?string {
+		return $this->send($url, 'GET', null, ['Accept: text/html,*/*']);
+	}
+
+	/**
 	 * @param array<string, mixed> $body
 	 * @param list<string> $extraHeaders
 	 * @return array<mixed>|null
@@ -44,6 +51,24 @@ class MediaHttpClient {
 	 * @return array<mixed>|null
 	 */
 	private function request(string $url, string $method, ?string $body, array $extraHeaders): ?array {
+		$response = $this->send($url, $method, $body, array_merge(['Accept: application/json'], $extraHeaders));
+		if ($response === null) {
+			return null;
+		}
+
+		try {
+			$decoded = json_decode($response, true, 512, JSON_THROW_ON_ERROR);
+		} catch (\JsonException) {
+			return null;
+		}
+
+		return is_array($decoded) ? $decoded : null;
+	}
+
+	/**
+	 * @param list<string> $headers
+	 */
+	private function send(string $url, string $method, ?string $body, array $headers): ?string {
 		$parsed = parse_url($url);
 		$host   = $parsed['host'] ?? '';
 		$scheme = strtolower($parsed['scheme'] ?? '');
@@ -53,7 +78,6 @@ class MediaHttpClient {
 		$pins = $this->buildResolvePin($host, $port, $ips);
 
 		$ch = curl_init($url);
-		$headers = array_merge(['Accept: application/json'], $extraHeaders);
 		if ($body !== null) {
 			$headers[] = 'Content-Type: application/json';
 		}
@@ -85,12 +109,6 @@ class MediaHttpClient {
 			return null;
 		}
 
-		try {
-			$decoded = json_decode((string) $response, true, 512, JSON_THROW_ON_ERROR);
-		} catch (\JsonException) {
-			return null;
-		}
-
-		return is_array($decoded) ? $decoded : null;
+		return (string) $response;
 	}
 }

@@ -129,7 +129,7 @@ class ZdfProvider implements MediaSourceProviderInterface, DescriptionProviderIn
 			if ($ptmd === null) {
 				continue;
 			}
-			$url = $this->findFirstHlsUrlInPtmd($ptmd);
+			$url = self::findFirstHlsUrlInPtmd($ptmd);
 			if ($url === null) {
 				continue;
 			}
@@ -219,9 +219,10 @@ class ZdfProvider implements MediaSourceProviderInterface, DescriptionProviderIn
 
 	/**
 	 * Durchsucht eine ZDF-PTMD-Antwort nach der ersten m3u8-URL
-	 * (priorityList[].formitaeten[].qualities[].audio.tracks[].uri).
+	 * (priorityList[].formitaeten[].qualities[].audio.tracks[].uri). 3sat
+	 * liefert dasselbe Format (DreiSatProvider).
 	 */
-	private function findFirstHlsUrlInPtmd(array $ptmd): ?string {
+	public static function findFirstHlsUrlInPtmd(array $ptmd): ?string {
 		$priorityList = $ptmd['priorityList'] ?? null;
 		if (!is_array($priorityList)) {
 			return null;
