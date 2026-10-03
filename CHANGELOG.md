@@ -54,6 +54,10 @@ All notable changes to Merlin are documented here. Format based on
   simply left out.
 
 ### Fixed
+- Audio/video descriptions (`<media><description>`, e.g. ardsounds.de) keep
+  their line breaks: paragraphs are also split at `\r\n\r\n` and blank lines
+  with trailing spaces, single line breaks become `<br>`, and HTML entities in
+  JSON-LD strings (`&quot;`) are decoded instead of shown literally.
 - Hero captions on WordPress sites whose image resizer appends a crop suffix
   (`foto-1440x720-1160x580-c-default.jpg`, e.g. juedische-allgemeine.de) are no
   longer dropped: `imagesMatchForDedup()` now strips the `-WxH…-c-<position>`
