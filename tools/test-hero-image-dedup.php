@@ -570,6 +570,57 @@ $checkRemoveDuplicate(
 	'<img'
 );
 
+echo "\n\033[1mfindFigcaptionForImage(): Caption der zur imageUrl passenden Figure im Roh-HTML\033[0m\n";
+
+$findFigcaptionForImage = new ReflectionMethod(ContentExtractorService::class, 'findFigcaptionForImage');
+$findFigcaptionForImage->setAccessible(true);
+
+$checkFigcaption = function (string $label, string $html, string $imageUrl, ?string $expected) use (
+	$service, $findFigcaptionForImage, &$passed, &$failures
+): void {
+	$actual = $findFigcaptionForImage->invoke($service, $html, $imageUrl, 'https://example.com/');
+	if ($actual === $expected) {
+		$passed++;
+		echo "  \033[32m✓\033[0m " . $label . "\n";
+		return;
+	}
+	$failures[] = $label;
+	echo "  \033[31m✗ " . $label . "\033[0m\n";
+	echo '      erwartet: ' . var_export($expected, true) . "\n";
+	echo '      erhalten: ' . var_export($actual, true) . "\n";
+};
+
+// netzpolitik.org (WordPress-Block-Theme): Autoren-Avatar-Figure steht vor
+// dem Beitragsbild, extractHeroImageFromHtml() greift deshalb die falsche
+// Figure und die Caption des Beitragsbilds ging verloren.
+$netzpolitikHtml = '<html><head><meta charset="utf-8"></head><body><main>'
+	. '<figure class="author-avatar"><img src="https://cdn.netzpolitik.org/wp-upload/2024/01/Leonard_Pitz_rund-484x484.jpg" alt="Leonhard Pitz"><figcaption>Leonhard Pitz</figcaption></figure>'
+	. '<figure class="alignwide wp-block-post-featured-image"><img width="2560" height="1700" src="https://cdn.netzpolitik.org/wp-upload/2026/09/imago0061783399h-scaled.jpg" srcset="https://cdn.netzpolitik.org/wp-upload/2026/09/imago0061783399h-scaled.jpg 2560w, https://cdn.netzpolitik.org/wp-upload/2026/09/imago0061783399h-729x484.jpg 729w">'
+	. '<figcaption class="wp-element-caption">Auch die Deutsche Nationalbibliothek archiviert deutsche Websites. <span class="media-license-caption"> – Alle Rechte vorbehalten: IMAGO / Stefan Noebel-Heise</span></figcaption></figure>'
+	. '<div class="entry-content"><p>' . str_repeat('Fließtext. ', 20) . '</p></div>'
+	. '</main></body></html>';
+
+$checkFigcaption(
+	'Vorangestellte Avatar-Figure wird übersprungen, Caption des passenden Beitragsbilds gefunden (netzpolitik.org)',
+	$netzpolitikHtml,
+	'https://cdn.netzpolitik.org/wp-upload/2026/09/imago0061783399h-scaled.jpg',
+	'Auch die Deutsche Nationalbibliothek archiviert deutsche Websites.  – Alle Rechte vorbehalten: IMAGO / Stefan Noebel-Heise'
+);
+
+$checkFigcaption(
+	'Treffer über srcset-Variante, wenn src ein Lazy-Load-Platzhalter ist',
+	'<html><body><figure><img src="data:image/gif;base64,R0lGOD" srcset="https://example.com/foto-800x450.jpg 800w"><figcaption>Foto: Jane Doe</figcaption></figure></body></html>',
+	'https://example.com/foto.jpg',
+	'Foto: Jane Doe'
+);
+
+$checkFigcaption(
+	'Keine passende Figure → keine Caption',
+	$netzpolitikHtml,
+	'https://example.com/ganz-anderes-bild.jpg',
+	null
+);
+
 echo "\n" . str_repeat('─', 72) . "\n";
 if ($failures === []) {
 	echo "\033[32mAlle " . $passed . " Prüfungen bestanden.\033[0m\n";

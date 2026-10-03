@@ -69,6 +69,10 @@ All notable changes to Merlin are documented here. Format based on
   simply left out.
 
 ### Fixed
+- Hero image: the caption is now also found when another figure (e.g. an
+  author avatar on netzpolitik.org) precedes the hero figure in the page and
+  Readability dropped the hero figure itself. The raw HTML is searched for the
+  figure whose image (src or srcset) matches the chosen hero image.
 - Hero image: the caption is now also assigned when og:image points to a
   WordPress "big image" file (`-scaled`/`-rotated` suffix, e.g. netzpolitik.org)
   while the article's figure uses a regular size variant of the original.
