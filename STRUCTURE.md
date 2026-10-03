@@ -61,7 +61,7 @@ merlin-nextcloud/
 │   │   ├── Highlight.php / HighlightMapper.php         # Textmarkierungen je Artikel
 │   │   ├── Tag.php / TagMapper.php
 │   │   └── SiteCredential.php / SiteCredentialMapper.php  # 🔜 geplant: verschlüsselte Paywall-Zugangsdaten je Nutzer/Domain
-│   └── Migration/            # Datenbank-Migrationen (Version1000Date20240101000000 … 000020)
+│   └── Migration/            # Datenbank-Migrationen (Version1000Date20240101000000 … 000026)
 ├── content-filters/          # Mitgelieferte Filter, eine Datei je Domain (~55 Domains, z. B. spiegel.de, zeit.de, taz.de, youtube.com)
 │   ├── 000.sample.com.xml    # Kommentierte Referenz aller Regeltypen
 │   ├── 000dead.xml           # Parkliste toter Domains (kein gültiges XML)
@@ -152,6 +152,23 @@ Artikelbanner). Es findet kein zusätzlicher Request statt. Das Ergebnis liegt i
 Origin zurück; ein erneutes Extrahieren (`retryExtraction`) setzt das echte Icon. Die Clients
 laden das Icon direkt von der Quellseite (`referrerpolicy=no-referrer`, wie Artikelbilder) und
 blenden es bei einem Ladefehler aus.
+### Autor und Autorenprofil
+
+`extractDomainMetadata()` ermittelt den Namen wie gehabt (Domain-`<author>`-Regel >
+`article:author` > JSON-LD); `resolveAuthorMetadata()` ergänzt danach domainübergreifend:
+Fehlt der Name, greifen `GENERIC_AUTHOR_XPATHS` (WordPress-Blöcke
+`wp-block-post-author-name`/`__link`/`wp-block-post-author__name`, schema.org-Microdata
+`itemprop="author"`, hCard `.author.vcard .fn`, `a[rel=author]`; erster Ausdruck mit
+höchstens vier verschiedenen Namen gewinnt, "Von"/"By"-Präfixe werden entfernt). Werte, die
+URLs sind (typisch `article:author` = Facebook-Profil), gelten nie als Name. Bei genau einem
+Autor wird ein Profil-Link als `authorUrl` gespeichert (`merlin_articles.author_url`,
+Migration `…000026`): `<a href>` der gewinnenden Domain-Regel (Knoten, Vorfahre oder Link
+darin) > JSON-LD `author.url` (auch über `@id`-Verweise im `@graph`) > generisches Signal mit
+gleichem Namen > URL aus `article:author`. Eine Domain-Regel
+`<metadata><author-link xpath="…" | json="…"/>` (Fallback-Kette wie bei den übrigen Feldern,
+`extractConfiguredAuthorLink()`) hat Vorrang vor allen automatischen Quellen. Nur absolute http(s)-Links, nie die Artikel-URL
+selbst. Bei Co-Autoren bleibt `authorUrl` leer. Tests: `tools/test-author-detection.php`.
+
 ### PDF-Artikel
 
 Eine URL, die auf eine PDF zeigt, wird als Artikel mit `category='PDF'` gespeichert,

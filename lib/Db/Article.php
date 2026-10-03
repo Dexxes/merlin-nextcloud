@@ -20,6 +20,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setExcerpt(?string $excerpt)
  * @method string|null getAuthor()
  * @method void setAuthor(?string $author)
+ * @method string|null getAuthorUrl()
+ * @method void setAuthorUrl(?string $authorUrl)
  * @method string|null getSiteName()
  * @method void setSiteName(?string $siteName)
  * @method string|null getImageUrl()
@@ -68,6 +70,10 @@ class Article extends Entity implements JsonSerializable {
 	protected $content;
 	protected $excerpt;
 	protected $author;
+	// Link zum Autorenprofil der Quelle (ContentExtractorService::
+	// resolveAuthorMetadata()). null, wenn keiner erkennbar war, bei
+	// mehreren Autoren und bei Artikeln aus der Zeit vor der Spalte.
+	protected $authorUrl;
 	protected $siteName;
 	protected $imageUrl;
 	protected $isRead;
@@ -117,6 +123,7 @@ class Article extends Entity implements JsonSerializable {
 		$this->addType('content', 'string');
 		$this->addType('excerpt', 'string');
 		$this->addType('author', 'string');
+		$this->addType('authorUrl', 'string');
 		$this->addType('siteName', 'string');
 		$this->addType('imageUrl', 'string');
 		$this->addType('isRead', 'integer');
@@ -153,6 +160,7 @@ class Article extends Entity implements JsonSerializable {
 			'content' => $this->getContent(),
 			'excerpt' => $this->getExcerpt(),
 			'author' => $this->getAuthor(),
+			'authorUrl' => $this->getAuthorUrl(),
 			'siteName' => $this->getSiteName(),
 			'imageUrl' => $this->getImageUrl(),
 			'isRead' => (bool) $this->getIsRead(),

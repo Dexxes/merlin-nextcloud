@@ -197,6 +197,7 @@ class PublicShareController extends Controller {
 			'title'       => $article->getTitle(),
 			'excerpt'     => $article->getExcerpt(),
 			'author'      => $article->getAuthor(),
+			'authorUrl'   => $article->getAuthorUrl(),
 			'siteName'    => $article->getSiteName(),
 			'content'     => $article->getContent(),
 			'url'         => $article->getUrl(),

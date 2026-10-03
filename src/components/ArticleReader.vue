@@ -307,7 +307,16 @@
 					<p v-if="article.excerpt" class="article-excerpt">{{ article.excerpt }}</p>
 
 					<div class="article-metadata">
-						<span v-if="article.author" class="meta-author">
+						<a
+							v-if="article.author && safeAuthorUrl"
+							class="meta-author meta-author--link"
+							:href="safeAuthorUrl"
+							target="_blank"
+							rel="noopener noreferrer">
+							<Account :size="16" />
+							{{ article.author }}
+						</a>
+						<span v-else-if="article.author" class="meta-author">
 							<Account :size="16" />
 							{{ article.author }}
 						</span>
@@ -715,6 +724,12 @@ export default {
 		// ausgeführt werden kann. Vue sanitisiert v-bind:href NICHT.
 		safeArticleUrl() {
 			return this.sanitizeHref(this.article?.url)
+		},
+
+		// Link zum Autorenprofil der Quelle, nur absolute http(s)-URLs.
+		safeAuthorUrl() {
+			const url = this.article?.authorUrl
+			return typeof url === 'string' && /^https?:\/\//i.test(url.trim()) ? url.trim() : null
 		},
 
 		articleStyles() {
@@ -1540,13 +1555,15 @@ article {
 	gap: 6px;
 }
 
-.meta-site {
+.meta-site,
+.meta-author--link {
 	color: inherit;
 	text-decoration: none;
 	cursor: pointer;
 }
 
-.meta-site:hover {
+.meta-site:hover,
+.meta-author--link:hover {
 	text-decoration: underline;
 	color: var(--color-primary);
 }

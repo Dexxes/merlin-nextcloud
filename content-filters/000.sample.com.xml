@@ -215,6 +215,12 @@
   Felder:
     <title    xpath="..." />   – Seitentitel
     <author   xpath="..." />   – Autorenname
+    <author-link xpath="..." /> – Link zum Autorenprofil. XPath auf ein Attribut
+                                 (…/@href), einen Link oder ein Element mit Link
+                                 darin. Nur absolute oder relative http(s)-Links.
+                                 Ohne Regel nimmt Merlin den Link der <author>-
+                                 Regel bzw. JSON-LD/generische Signale; gespeichert
+                                 wird er nur bei genau einem Autor.
     <excerpt  xpath="..." />   – Teaser / Zusammenfassung
     <image    xpath="..." />   – Bild-URL
     <published xpath="..." />  – Veröffentlichungsdatum (ISO 8601 oder deutsches Format)
@@ -489,6 +495,10 @@
     <!-- <author   json="$.author.name" /> -->
     <!-- <author   json="ld:$.author[0].name" /> -->
     <!-- <author   json="next:$.pageProps.article.author" /> -->
+
+    <!-- Autorenprofil-Link (optional, sonst automatisch) -->
+    <!-- <author-link xpath="//a[@rel='author']/@href" /> -->
+    <!-- <author-link json="ld:$.author[0].url" /> -->
 
     <excerpt  xpath="//p[contains(@class,'article-intro')]" />
     <image    xpath="//meta[@property='og:image']/@content" />
