@@ -23,6 +23,13 @@
 
 <category>Video</category>
 
+  <!-- Video der Beitragsseite: VideoObject im JSON-LD, contentUrl ist eine
+       Akamai-Sammel-URL (rbbvod.akamaized.net/i/…_,hd1080-avc360,…,.mp4), die
+       als HLS-Manifest abgespielt wird (VariantHelper::akamaiSetToHls()). -->
+  <media>
+    <source type="json-ld" kind="video" host-allow="rbbvod.akamaized.net ard-mcdn.de" />
+  </media>
+
   <pre-filter>
     <remove xpath="//section[contains(@class,'layoutrelated_content')]" />
     <remove xpath="//div[contains(@class,'logo-sendung')]" />

@@ -165,6 +165,7 @@ namespace {
 	use OCA\Merlin\Service\Media\Provider\XPathMediaProvider;
 	use OCA\Merlin\Service\Media\Provider\YoutubeEmbedProvider;
 	use OCA\Merlin\Service\Media\Provider\ZdfProvider;
+	use OCA\Merlin\Service\Media\VariantHelper;
 
 	spl_autoload_register(static function (string $class): void {
 		$prefix = 'OCA\\Merlin\\';
@@ -397,6 +398,16 @@ namespace {
 	$t->eq((string) ($bundleConfig('3sat.de')?->media->source['type'] ?? ''), '3sat', '3sat.de.xml deklariert die 3sat-Quelle');
 
 	// ══════════════════════════════════════════════════════════════════════════
+	$t->group('6d. rbb-online.de: Akamai-Sammel-URL aus dem JSON-LD als HLS');
+
+	$rbbSet = 'https://rbbvod.akamaized.net/i/content/85/3e/853e/853e_,hd1080-avc360,hd1080-avc270,hd1080-avc1080,.mp4';
+	$rbbOnlineHtml = '<script type="application/ld+json">{"@type":"VideoObject","contentUrl":"' . $rbbSet . '"}</script>';
+	$save = $resolver->resolveOnSave('https://www.rbb-online.de/der-tag/videos/-video-beitraege/x.html', $bundleConfig('rbb-online.de'), $rbbOnlineHtml);
+	$t->eq([$save['kind'] ?? null, $save['result']?->delivery, $save['result']?->defaultUrl()], ['video', 'hls', $rbbSet . '.csmil/master.m3u8'], 'VideoObject → HLS-Manifest');
+	$t->eq(VariantHelper::akamaiSetToHls('https://rbb-progressive.ard-mcdn.de/content/62/3a/x_hd1080-avc1080.mp4'), 'https://rbb-progressive.ard-mcdn.de/content/62/3a/x_hd1080-avc1080.mp4', 'Einzeldatei bleibt unverändert');
+	$t->eq(VariantHelper::akamaiSetToHls('https://zdfvod.akamaized.net/i/x_,a,b,.mp4.csmil/master.m3u8'), 'https://zdfvod.akamaized.net/i/x_,a,b,.mp4.csmil/master.m3u8', 'fertiges Manifest bleibt unverändert');
+
+	// ══════════════════════════════════════════════════════════════════════════
 	if ($live) {
 		$t->group('7. Live gegen die Beispiel-URLs');
 
@@ -418,6 +429,7 @@ namespace {
 			['https://www.ardmediathek.de/film/sommer-auf-asphalt-oder-komoedie/Y3JpZDovL25kci5kZS81MDQzIGM4ZDUyNDkxLTk5ODUtNGJjZi05ZjlhLTc4MWM0MmE4ZDM1Mw', 'ardmediathek.de', 'video', 'hls'],
 			['https://www.zdf.de/video/reportagen/37-grad-leben-102/marcant--auf-tiktok-gegen-rechts-102', 'zdf.de', 'video', 'hls'],
 			['https://www.3sat.de/kultur/kulturdoku/one-night-at-kitkat-104.html', '3sat.de', 'video', 'hls'],
+			['https://www.rbb-online.de/der-tag/videos/-video-beitraege/urban-gardening-auf-parkdeck-schoeneberg.html', 'rbb-online.de', 'video', 'hls'],
 			['https://www.arte.tv/de/videos/113630-007-A/country-music-7-9/', 'arte.tv', 'video', 'hls'],
 			['https://www.youtube.com/watch?v=ECbCbaGCpIQ', 'youtube.com', 'video', 'embed'],
 			['https://www.deutschlandfunkkultur.de/elektrotech-wer-auf-strom-setzt-spart-kuenftig-viel-geld-100.html', 'deutschlandfunkkultur.de', 'audio', 'file'],
