@@ -1938,6 +1938,16 @@ class ContentExtractorService {
 			// alle Renditions auf denselben Basispfad normalisieren.
 			$url = preg_replace('#/content/images/size/w\d+(?:/format/[a-z0-9]+)?(?=/)#i', '', $url) ?? $url;
 
+			// golem.de-Bildserver: Dateinamen nach dem Schema
+			// "/<JJMM>/<artikel-id>-<rendition-id>-<original-id>[_<crop>].<ext>",
+			// jede Rendition derselben Aufnahme hat eine eigene ID in der Mitte
+			// und optional ein Crop-Kürzel, z. B.
+			// ".../2609/213534-600747-600744.jpg" (og:image) vs.
+			// ".../2609/213534-600745-600744_rc.jpg" (Hero-<figure> mit
+			// <figcaption>). Rendition-ID und Crop-Kürzel entfernen, damit
+			// beide auf Artikel- und Original-ID normalisieren.
+			$url = preg_replace('#(/\d{4}/\d+)-\d+-(\d+)(?:_[a-z]{1,3})?(\.\w+)$#i', '$1-$2$3', $url) ?? $url;
+
 			// Drupal-Bildstile ("image styles", verbreitet u. a. bei
 			// beck-aktuell.de): das Original liegt unter
 			// "/sites/default/files/<pfad>", jede Rendition zusätzlich unter
