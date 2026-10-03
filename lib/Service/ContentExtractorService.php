@@ -3977,6 +3977,9 @@ class ContentExtractorService {
 			}
 		}
 
+		// ── <author-link>: explizite Regel für den Profil-Link ──────────────────
+		$authorLinkFromConfig = $this->extractConfiguredAuthorLink($meta, $xpath, $jsonSources, $baseUrl, $trace);
+
 		// ── Generic JSON-LD fallback (schema.org Article/@graph) ────────────────
 		// Greift domainübergreifend, ganz ohne Domain-Config: viele CMS (Drupal,
 		// WordPress/Yoast, …) betten Autor/Headline/Bild nur noch strukturiert per
@@ -4002,6 +4005,11 @@ class ContentExtractorService {
 			$result, $xpath, $baseUrl, $authorNodes, $authorUrlFromRule,
 			isset($genericLd['author']) && ($result['author'] ?? null) === $genericLd['author'] ? ($genericLd['authorUrl'] ?? null) : null
 		);
+		// Eine konfigurierte <author-link>-Regel hat Vorrang vor jedem
+		// automatisch ermittelten Profil-Link.
+		if ($authorLinkFromConfig !== null) {
+			$result['authorUrl'] = $authorLinkFromConfig;
+		}
 
 		// ── Static category declaration ──────────────────────────────────────────
 		// <category>Video</category> in the domain config assigns a fixed category
@@ -4537,6 +4545,74 @@ class ContentExtractorService {
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Wertet die <metadata><author-link xpath="…" | json="…"/>-Regeln der
+	 * Domain-Config aus (Fallback-Kette in Dokumentreihenfolge, wie bei den
+	 * übrigen Feldern). Ein XPath darf auf ein Attribut (…/@href), einen
+	 * Textknoten oder ein Element zeigen; bei einem Element zählt dessen
+	 * href (bzw. der Link darin/drumherum), sonst sein Text. Erste gültige
+	 * http(s)-URL gewinnt.
+	 *
+	 * @param array<string, mixed> $jsonSources
+	 */
+	private function extractConfiguredAuthorLink(
+		?\SimpleXMLElement $meta,
+		\DOMXPath $xpath,
+		array $jsonSources,
+		?string $baseUrl,
+		?ContentFilterTrace $trace
+	): ?string {
+		if ($meta === null || !isset($meta->{'author-link'})) {
+			return null;
+		}
+
+		foreach ($meta->{'author-link'} as $rule) {
+			$expr = trim((string) ($rule['xpath'] ?? ''));
+			if ($expr !== '') {
+				$nodes = @$xpath->query($expr);
+				if ($nodes === false) {
+					$trace?->record('metadata', $rule, 0, 'Ungültiger XPath-Ausdruck');
+				} else {
+					$url = null;
+					foreach ($nodes as $node) {
+						$url = match (true) {
+							$node instanceof \DOMAttr => $this->normalizeAuthorUrl($node->value, $baseUrl),
+							default => $this->authorUrlFromNode($node, $baseUrl)
+								?? $this->normalizeAuthorUrl(trim($node->textContent ?? ''), $baseUrl),
+						};
+						if ($url !== null) {
+							break;
+						}
+					}
+					$trace?->record('metadata', $rule, $nodes->length,
+						($nodes->length > 0 && $url === null) ? 'Kein gültiger http(s)-Link im Treffer' : null);
+					if ($url !== null) {
+						return $url;
+					}
+				}
+			}
+
+			$jsonPath = trim((string) ($rule['json'] ?? ''));
+			if ($jsonPath !== '') {
+				if (!str_starts_with($jsonPath, '$') && str_contains($jsonPath, ':')) {
+					[$sourceId, $actualPath] = array_map('trim', explode(':', $jsonPath, 2));
+				} else {
+					[$sourceId, $actualPath] = ['default', $jsonPath];
+				}
+				$sourceData = $jsonSources[$sourceId] ?? null;
+				$resolved   = $sourceData !== null ? $this->resolveJsonPath($sourceData, $actualPath) : null;
+				$url        = is_string($resolved) ? $this->normalizeAuthorUrl($resolved, $baseUrl) : null;
+				$trace?->record('metadata', $rule, $url !== null ? 1 : 0,
+					$sourceData === null ? 'JSON-Quelle "' . $sourceId . '" nicht gefunden' : null);
+				if ($url !== null) {
+					return $url;
+				}
+			}
+		}
+
+		return null;
 	}
 
 	/**

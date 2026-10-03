@@ -19,7 +19,9 @@ All notable changes to Merlin are documented here. Format based on
   the same name, or `article:author`) is stored in the new column
   `merlin_articles.author_url` (migration 26), returned as `authorUrl` in the
   article API and public shares, and the author name links to it in the reader
-  and the share view. Covered by `tools/test-author-detection.php`.
+  and the share view. Content filters can set the link explicitly with
+  `<metadata><author-link xpath="…" | json="…"/>`, which takes precedence over
+  the automatic detection. Covered by `tools/test-author-detection.php`.
 - Video/audio articles: the player now takes the place of the hero image in
   the reader, like in Merlin iOS. Video and embeds use the full article width
   with the hero image as poster; audio shows the hero image as cover with an

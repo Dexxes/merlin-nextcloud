@@ -164,7 +164,9 @@ URLs sind (typisch `article:author` = Facebook-Profil), gelten nie als Name. Bei
 Autor wird ein Profil-Link als `authorUrl` gespeichert (`merlin_articles.author_url`,
 Migration `…000026`): `<a href>` der gewinnenden Domain-Regel (Knoten, Vorfahre oder Link
 darin) > JSON-LD `author.url` (auch über `@id`-Verweise im `@graph`) > generisches Signal mit
-gleichem Namen > URL aus `article:author`. Nur absolute http(s)-Links, nie die Artikel-URL
+gleichem Namen > URL aus `article:author`. Eine Domain-Regel
+`<metadata><author-link xpath="…" | json="…"/>` (Fallback-Kette wie bei den übrigen Feldern,
+`extractConfiguredAuthorLink()`) hat Vorrang vor allen automatischen Quellen. Nur absolute http(s)-Links, nie die Artikel-URL
 selbst. Bei Co-Autoren bleibt `authorUrl` leer. Tests: `tools/test-author-detection.php`.
 
 ### PDF-Artikel

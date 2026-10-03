@@ -255,6 +255,40 @@ $check(
 	$a('Sven Seite')
 );
 
+echo "\n\033[1m<author-link>-Regeln\033[0m\n";
+
+$check(
+	'<author-link> per Attribut-XPath hat Vorrang vor dem automatisch gefundenen Link',
+	'<html><body><a class="wp-block-post-author-name__link" href="/author/tom/">Tom Text</a>'
+		. '<a class="profil" href="/team/tom-text">Profil</a></body></html>',
+	'<domain name="example.com"><metadata><author-link xpath="//a[@class=\'profil\']/@href" /></metadata></domain>',
+	$a('Tom Text', 'https://example.com/team/tom-text')
+);
+
+$check(
+	'<author-link> auf ein Element -> dessen href; Fallback-Kette über zwei Regeln',
+	'<html><body><span class="author-name">Ute Umbruch</span><div class="box"><a href="https://example.com/ute">Mehr</a></div></body></html>',
+	'<domain name="example.com"><metadata><author xpath="//span[@class=\'author-name\']" />'
+		. '<author-link xpath="//a[@class=\'gibtsnicht\']" /><author-link xpath="//div[@class=\'box\']" /></metadata></domain>',
+	$a('Ute Umbruch', 'https://example.com/ute')
+);
+
+$check(
+	'<author-link> per JSON-Pfad',
+	'<html><head><script type="application/ld+json">{"@type":"Person","profile":"https://example.com/vera"}</script></head>'
+		. '<body><span class="author-name">Vera Vorspann</span></body></html>',
+	'<domain name="example.com"><json id="ld" xpath="//script[@type=\'application/ld+json\']" />'
+		. '<metadata><author xpath="//span[@class=\'author-name\']" /><author-link json="ld:$.profile" /></metadata></domain>',
+	$a('Vera Vorspann', 'https://example.com/vera')
+);
+
+$check(
+	'<author-link> mit javascript:-Wert wird ignoriert, automatischer Link bleibt',
+	'<html><body><a rel="author" href="/autor/willi">Willi Wort</a><a id="x" href="javascript:alert(1)">x</a></body></html>',
+	'<domain name="example.com"><metadata><author-link xpath="//a[@id=\'x\']/@href" /></metadata></domain>',
+	$a('Willi Wort', 'https://example.com/autor/willi')
+);
+
 echo "\n" . str_repeat('─', 72) . "\n";
 if ($failures === []) {
 	echo "\033[32mAlle " . $passed . " Prüfungen bestanden.\033[0m\n";
