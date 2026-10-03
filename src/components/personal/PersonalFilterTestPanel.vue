@@ -99,7 +99,7 @@ export default {
 			const r = this.report.result
 			return [
 				{ key: 'title', label: this.t('merlin', 'Title'), value: r.title },
-				{ key: 'author', label: this.t('merlin', 'Author'), value: r.author },
+				{ key: 'author', label: this.t('merlin', 'Author'), value: r.author && r.authorUrl ? `${r.author} (${r.authorUrl})` : r.author },
 				{ key: 'publishedAt', label: this.t('merlin', 'Date'), value: r.publishedAt },
 				{ key: 'excerpt', label: this.t('merlin', 'Teaser'), value: r.excerpt },
 				{ key: 'category', label: this.t('merlin', 'Category'), value: r.category },

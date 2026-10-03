@@ -7,6 +7,21 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- Authors: name and profile link are now detected across sites without a
+  per-domain rule. New generic signals, used when no domain rule, `article:author`
+  or JSON-LD gives a name: WordPress block themes (`wp-block-post-author-name`,
+  `wp-block-post-author-name__link`, `wp-block-post-author__name`), schema.org
+  microdata (`itemprop="author"`), hCard (`.author.vcard .fn`) and
+  `<a rel="author">`; byline prefixes like "Von"/"By" are stripped. JSON-LD authors
+  given only as an `@id` reference (Yoast `@graph`) are resolved. `article:author`
+  holding a URL is no longer taken as the author name. For a single author the
+  profile link (from the matched link, JSON-LD `author.url`, a generic signal with
+  the same name, or `article:author`) is stored in the new column
+  `merlin_articles.author_url` (migration 26), returned as `authorUrl` in the
+  article API and public shares, and the author name links to it in the reader
+  and the share view. Content filters can set the link explicitly with
+  `<metadata><author-link xpath="…" | json="…"/>`, which takes precedence over
+  the automatic detection. Covered by `tools/test-author-detection.php`.
 - Video/audio articles: the player now takes the place of the hero image in
   the reader, like in Merlin iOS. Video and embeds use the full article width
   with the hero image as poster; audio shows the hero image as cover with an
@@ -58,6 +73,21 @@ All notable changes to Merlin are documented here. Format based on
   their line breaks: paragraphs are also split at `\r\n\r\n` and blank lines
   with trailing spaces, single line breaks become `<br>`, and HTML entities in
   JSON-LD strings (`&quot;`) are decoded instead of shown literally.
+- Hero image: the caption is now also found when another figure (e.g. an
+  author avatar on netzpolitik.org) precedes the hero figure in the page and
+  Readability dropped the hero figure itself. The raw HTML is searched for the
+  figure whose image (src or srcset) matches the chosen hero image.
+- Hero image: the caption is now also assigned when og:image points to a
+  WordPress "big image" file (`-scaled`/`-rotated` suffix, e.g. netzpolitik.org)
+  while the article's figure uses a regular size variant of the original.
+- Quotes: attribution is now recognised for standard blockquotes (trailing
+  text/`<em>` after the quote paragraph, `<footer>`/`<address>`, a following
+  `<p><cite>`) and rendered as `<cite class="merlin-quote__source">`. Author
+  names no longer get double-escaped or duplicated inside the quote,
+  multi-paragraph quotes from content-filter rules keep all paragraphs, and the
+  reader CSS now matches the `merlin-quote*` classes the server emits. The
+  author class no longer contains "author", so Readability does not drop it as
+  a byline.
 - Hero captions on WordPress sites whose image resizer appends a crop suffix
   (`foto-1440x720-1160x580-c-default.jpg`, e.g. juedische-allgemeine.de) are no
   longer dropped: `imagesMatchForDedup()` now strips the `-WxH…-c-<position>`

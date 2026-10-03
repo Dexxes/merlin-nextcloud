@@ -226,6 +226,9 @@ final class ContentFilterSchema {
 			'children' => [
 				'title'     => ['optional' => ['xpath', 'json']],
 				'author'    => ['optional' => ['xpath', 'json']],
+				// Link zum Autorenprofil. Ohne Regel ermittelt der Extractor ihn
+				// selbst (Link der <author>-Regel, JSON-LD, generische Signale).
+				'author-link' => ['optional' => ['xpath', 'json']],
 				'excerpt'   => ['optional' => ['xpath', 'json']],
 				'image'     => ['optional' => ['xpath', 'json']],
 				'published' => ['optional' => ['xpath', 'json']],

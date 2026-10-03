@@ -153,6 +153,7 @@ class ContentExtractorService {
 	 *   content: string,
 	 *   excerpt: ?string,
 	 *   author: ?string,
+	 *   authorUrl: ?string,
 	 *   siteName: ?string,
 	 *   imageUrl: ?string,
 	 *   siteIconUrl: ?string,
@@ -244,6 +245,7 @@ class ContentExtractorService {
 	 *   content: string,
 	 *   excerpt: ?string,
 	 *   author: ?string,
+	 *   authorUrl: ?string,
 	 *   siteName: ?string,
 	 *   imageUrl: ?string,
 	 *   siteIconUrl: ?string,
@@ -355,7 +357,7 @@ class ContentExtractorService {
 		// Must run on the ORIGINAL HTML before any pre-filter stripping,
 		// because applyRemoveRules() removes all <script> tags — which would
 		// destroy JSON-LD and other embedded JSON sources before they can be read.
-		$domainMeta = $this->extractDomainMetadata($rawHtml, $domain, $trace);
+		$domainMeta = $this->extractDomainMetadata($rawHtml, $domain, $trace, $url);
 		// extractDomainMetadata() setzt category nur, wenn eine gefunden wurde –
 		// die Prüfungen unten (Medien, Mastodon, Readability-Zweig) erwarten
 		// aber einen vorhandenen Schlüssel.
@@ -803,6 +805,13 @@ class ContentExtractorService {
 		// ── Step 9: Apply domain metadata overrides ───────────────────────────
 		if (!empty($domainMeta['title']))     { $title     = $domainMeta['title']; }
 		if (!empty($domainMeta['author']))    { $author    = $domainMeta['author']; }
+		// Profil-Link des Autors (siehe extractDomainMetadata()): nur
+		// übernehmen, wenn es überhaupt einen Autorennamen gibt, an dem der
+		// Link im Reader hängen kann - ein Link ohne Namen wäre unsichtbar.
+		$authorUrl = (!empty($domainMeta['authorUrl']) && $author !== null && $author !== ''
+				&& $this->countAuthors($author) === 1)
+			? $domainMeta['authorUrl']
+			: null;
 		if (!empty($domainMeta['excerpt']))   { $excerpt   = $domainMeta['excerpt']; }
 		if (!empty($domainMeta['image']))     { $imageUrl  = $domainMeta['image']; }
 		if (!empty($domainMeta['published'])) { $publishedAt = $this->parseDateString($domainMeta['published']); }
@@ -889,6 +898,16 @@ class ContentExtractorService {
 				&& $this->imagesMatchForDedup($this->normalizeUrl($heroImageData['src'], $url), $normalizedImageUrl)) {
 				$heroCaption = $heroImageData['caption'];
 			}
+			// Zweiter Rohscan-Fallback: extractHeroImageFromHtml() liefert die
+			// ERSTE <figure> im Dokument - steht davor eine andere (z. B.
+			// netzpolitik.org: Autoren-Avatar im Block-Theme-Header vor dem
+			// Beitragsbild), passt deren Bild nicht und die Caption der
+			// eigentlichen Hero-Figure (von Readability verworfen) ginge verloren.
+			// Deshalb gezielt nach der <figure> suchen, deren Bild zur gewählten
+			// imageUrl passt.
+			if ($heroCaption === null) {
+				$heroCaption = $this->findFigcaptionForImage($rawHtml, $normalizedImageUrl, $url);
+			}
 
 			// Ist das Hero-Bild zugleich das Vorschaubild eines Inline-Videos
 			// (rbb24: Aufmacher ist ein ARD-Player, og:image dessen Standbild),
@@ -942,6 +961,7 @@ class ContentExtractorService {
 			'content'             => $content,
 			'excerpt'             => $excerpt,
 			'author'              => $author,
+			'authorUrl'           => $authorUrl,
 			'siteName'            => $siteName,
 			'imageUrl'            => $normalizedImageUrl,
 			'siteIconUrl'         => $siteIconUrl,
@@ -1856,6 +1876,16 @@ class ContentExtractorService {
 			$url = preg_replace('/(?:-\d+x\d+)+-c-[a-z]+(?=\.\w+$)/i', '', $url) ?? $url;
 			$url = preg_replace('/-\d+x\d+(?=\.\w+$)/i', '', $url) ?? $url;
 
+			// WordPress "big image"-Handling (seit WP 5.3): Uploads über 2560 px
+			// werden verkleinert und als "<name>-scaled.<ext>" abgelegt (bzw. nach
+			// EXIF-Drehung als "<name>-rotated.<ext>"). og:image zeigt dann auf
+			// diese Datei, die Größenvarianten im Content aber weiterhin auf den
+			// Originalnamen ("<name>-860x484.<ext>"), z. B. netzpolitik.org:
+			// "imago0061783399h-scaled.jpg" (og:image) vs.
+			// "imago0061783399h-860x484.jpg" (Content-<figure> mit <figcaption>).
+			// Das Suffix entfernen, damit beide auf "<name>.<ext>" normalisieren.
+			$url = preg_replace('/-(?:scaled|rotated)(?=\.\w+$)/i', '', $url) ?? $url;
+
 			// spiegel.de-Bildserver: Dateiname trägt Breite, Seitenverhältnis und
 			// Fokuspunkt als "_w<Breite>_r<Verhältnis>_fpx<x>_fpy<y>"-Suffix vor
 			// der Endung, z. B. "<uuid>_w1200_r1.778_fpx29_fpy41.jpg" (og:image)
@@ -1916,6 +1946,16 @@ class ContentExtractorService {
 			// an dem im DOM die <figcaption> hängt). Das Segment entfernen, damit
 			// alle Renditions auf denselben Basispfad normalisieren.
 			$url = preg_replace('#/content/images/size/w\d+(?:/format/[a-z0-9]+)?(?=/)#i', '', $url) ?? $url;
+
+			// golem.de-Bildserver: Dateinamen nach dem Schema
+			// "/<JJMM>/<artikel-id>-<rendition-id>-<original-id>[_<crop>].<ext>",
+			// jede Rendition derselben Aufnahme hat eine eigene ID in der Mitte
+			// und optional ein Crop-Kürzel, z. B.
+			// ".../2609/213534-600747-600744.jpg" (og:image) vs.
+			// ".../2609/213534-600745-600744_rc.jpg" (Hero-<figure> mit
+			// <figcaption>). Rendition-ID und Crop-Kürzel entfernen, damit
+			// beide auf Artikel- und Original-ID normalisieren.
+			$url = preg_replace('#(/\d{4}/\d+)-\d+-(\d+)(?:_[a-z]{1,3})?(\.\w+)$#i', '$1-$2$3', $url) ?? $url;
 
 			// Drupal-Bildstile ("image styles", verbreitet u. a. bei
 			// beck-aktuell.de): das Original liegt unter
@@ -2085,6 +2125,7 @@ class ContentExtractorService {
 			'content'             => $content,
 			'excerpt'             => 'PDF · ' . $host,
 			'author'              => null,
+			'authorUrl'           => null,
 			'siteName'            => $host,
 			'imageUrl'            => null,
 			'readingTime'         => 0,
@@ -2659,6 +2700,65 @@ class ContentExtractorService {
 	}
 
 	/**
+	 * Sucht im rohen HTML die <figure>, deren <img> (src, data-src,
+	 * data-orig-src oder eine srcset-Variante) per imagesMatchForDedup() zu
+	 * $normalizedImageUrl passt, und liefert deren <figcaption>-Text.
+	 *
+	 * Ergänzt extractHeroImageFromHtml(), das nur die erste <figure> im
+	 * Dokument betrachtet und deshalb an vorangestellten Figures mit anderem
+	 * Bild (Autoren-Avatar, Logo) hängen bleibt.
+	 */
+	private function findFigcaptionForImage(string $html, string $normalizedImageUrl, string $baseUrl): ?string {
+		$prev = libxml_use_internal_errors(true);
+		$dom  = new \DOMDocument('1.0', 'UTF-8');
+		$dom->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING);
+		libxml_clear_errors();
+		libxml_use_internal_errors($prev);
+		$xpath = new \DOMXPath($dom);
+
+		$figures = $xpath->query('//figure[.//figcaption]');
+		if (!$figures) {
+			return null;
+		}
+
+		foreach ($figures as $figure) {
+			if (!$figure instanceof \DOMElement) {
+				continue;
+			}
+			$imgs = $xpath->query('.//img', $figure);
+			if (!$imgs) {
+				continue;
+			}
+			foreach ($imgs as $img) {
+				if (!$img instanceof \DOMElement) {
+					continue;
+				}
+				$sources = [$img->getAttribute('src'), $img->getAttribute('data-src'), $img->getAttribute('data-orig-src')];
+				foreach (explode(',', $img->getAttribute('srcset')) as $candidate) {
+					$sources[] = preg_split('/\s+/', trim($candidate))[0] ?? '';
+				}
+				foreach ($sources as $src) {
+					$src = trim($src);
+					if ($src === '' || str_starts_with($src, 'data:')
+						|| !$this->imagesMatchForDedup($this->normalizeUrl($src, $baseUrl), $normalizedImageUrl)) {
+						continue;
+					}
+					$captionNode = $xpath->query('.//figcaption', $figure)?->item(0);
+					if (!$captionNode instanceof \DOMElement) {
+						return null;
+					}
+					// Siehe findFigcaption()/extractHeroImageFromHtml().
+					$this->flattenCaptionElement($captionNode);
+					$text = trim($captionNode->textContent);
+					return $text !== '' ? $text : null;
+				}
+			}
+		}
+
+		return null;
+	}
+
+	/**
 	 * Bestes Icon der konkreten Seite aus den <link>-/<meta>-Tags des <head>
 	 * (Support-Infobox, siehe Service\SupportBoxService): apple-touch-icon
 	 * (größtes per sizes) vor <link rel="icon"> (SVG vor PNG vor ICO, jeweils
@@ -3163,13 +3263,19 @@ class ContentExtractorService {
 					$trace?->record('quotes', $rule, count($containers));
 
 					foreach ($containers as $container) {
+						// Alle Treffer des text-xpath werden je ein Absatz (Mehrabsatz-Zitate).
+						$textEls = [];
 						if ($textXpath !== '') {
 							$textResult = $xpath->query($textXpath, $container);
-							$textEl = ($textResult !== false) ? $textResult->item(0) : null;
-						} else {
-							$textEl = $container;
+							if ($textResult !== false) {
+								foreach ($textResult as $node) {
+									if ($node instanceof \DOMElement) $textEls[] = $node;
+								}
+							}
+						} elseif ($container instanceof \DOMElement) {
+							$textEls[] = $container;
 						}
-						if (!$textEl instanceof \DOMElement) continue;
+						if ($textEls === []) continue;
 
 						$authorEl = null;
 						if ($authorXpath !== '') {
@@ -3179,7 +3285,7 @@ class ContentExtractorService {
 
 						$bq = $this->buildReaderQuoteNode(
 							$dom,
-							$textEl,
+							$textEls,
 							$authorEl instanceof \DOMElement ? $authorEl : null
 						);
 						$container->parentNode->replaceChild($bq, $container);
@@ -3195,28 +3301,7 @@ class ContentExtractorService {
 				if (str_contains($class, 'merlin-quote')) continue; // already processed
 
 				$bq->setAttribute('class', trim('merlin-quote ' . $class));
-
-				// Wrap bare inline content in <p class="merlin-quote__text">
-				// only when the blockquote has no block-level children yet.
-				$hasBlock = false;
-				foreach ($bq->childNodes as $child) {
-					if ($child instanceof \DOMElement && in_array(
-						strtolower($child->nodeName),
-						['p', 'div', 'ul', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
-						true
-					)) {
-						$hasBlock = true;
-						break;
-					}
-				}
-				if (!$hasBlock) {
-					$p = $dom->createElement('p');
-					$p->setAttribute('class', 'merlin-quote__text');
-					foreach (iterator_to_array($bq->childNodes) as $child) {
-						$p->appendChild($child);
-					}
-					$bq->appendChild($p);
-				}
+				$this->normalizeBlockquoteAttribution($dom, $bq);
 			}
 
 			// ── Pass 3: <q> inline quotes ──────────────────────────────────────
@@ -3246,32 +3331,193 @@ class ContentExtractorService {
 
 	/**
 	 * Build a <blockquote class="merlin-quote"> node from extracted quote elements.
+	 *
+	 * @param \DOMElement[] $textEls one <p class="merlin-quote__text"> per element
 	 */
 	private function buildReaderQuoteNode(
 		\DOMDocument $dom,
-		\DOMElement  $quoteEl,
+		array        $textEls,
 		?\DOMElement $authorEl
 	): \DOMElement {
 		$blockquote = $dom->createElement('blockquote');
 		$blockquote->setAttribute('class', 'merlin-quote');
 
-		// Inner quote text wrapped in <p>
-		$p = $dom->createElement('p');
-		$p->setAttribute('class', 'merlin-quote__text');
-		foreach (iterator_to_array($quoteEl->childNodes) as $child) {
-			$p->appendChild($child->cloneNode(true));
-		}
-		$blockquote->appendChild($p);
-
-		// Author as <cite> if present
+		// Autor vorab auslesen und - falls er im Zitattext steckt (kein
+		// text-xpath) - aus dem DOM lösen, damit er nicht doppelt erscheint.
+		$authorText = null;
 		if ($authorEl !== null) {
+			$authorText = trim((string) preg_replace('/\s+/u', ' ', $authorEl->textContent));
+			foreach ($textEls as $textEl) {
+				if ($authorEl !== $textEl && $authorEl->parentNode !== null && $this->isDescendantOf($authorEl, $textEl)) {
+					$authorEl->parentNode->removeChild($authorEl);
+					break;
+				}
+			}
+		}
+
+		foreach ($textEls as $textEl) {
+			if ($textEl === $authorEl) continue;
+			// Enthält der Text schon Absätze (Container ohne text-xpath), diese direkt übernehmen.
+			if ($textEl->getElementsByTagName('p')->length > 0) {
+				foreach (iterator_to_array($textEl->childNodes) as $child) {
+					$blockquote->appendChild($child->cloneNode(true));
+				}
+				continue;
+			}
+			$p = $dom->createElement('p');
+			$p->setAttribute('class', 'merlin-quote__text');
+			foreach (iterator_to_array($textEl->childNodes) as $child) {
+				$p->appendChild($child->cloneNode(true));
+			}
+			$blockquote->appendChild($p);
+		}
+
+		if ($authorText !== null && $authorText !== '') {
 			$cite = $dom->createElement('cite');
-			$cite->setAttribute('class', 'merlin-quote__author');
-			$cite->textContent = trim(strip_tags($dom->saveHTML($authorEl)));
+			$cite->setAttribute('class', 'merlin-quote__source');
+			$cite->appendChild($dom->createTextNode($authorText));
 			$blockquote->appendChild($cite);
 		}
 
 		return $blockquote;
+	}
+
+	private function isDescendantOf(\DOMNode $node, \DOMNode $ancestor): bool {
+		for ($n = $node->parentNode; $n !== null; $n = $n->parentNode) {
+			if ($n === $ancestor) return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Bringt die Quellenangabe eines Standard-<blockquote> in die Form
+	 * <blockquote><p class="merlin-quote__text">…</p><cite class="merlin-quote__source">…</cite></blockquote>.
+	 *
+	 * Erkannt werden:
+	 *   - <cite>/<footer>/<address> als Kind (wird zur Quelle)
+	 *   - loser Text bzw. Inline-Elemente NACH dem letzten Block-Kind
+	 *     (z. B. WordPress-Pullquote: <p>Zitat</p>Name&emsp;<em>Funktion</em>)
+	 *   - ein direkt folgendes <p>, das ausschließlich ein <cite> enthält
+	 * Reiner Inline-Inhalt wird in <p class="merlin-quote__text"> gewickelt.
+	 * Ein folgender normaler Absatz bleibt unberührt.
+	 */
+	private function normalizeBlockquoteAttribution(\DOMDocument $dom, \DOMElement $bq): void {
+		// Social-Embeds (Instagram, X, Bluesky, TikTok) behalten ihr Original-Markup.
+		if (preg_match('/\b(instagram-media|twitter-tweet|bluesky-embed|tiktok-embed)\b/', $bq->getAttribute('class'))) {
+			return;
+		}
+		$blockTags  = ['p', 'div', 'ul', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+		$sourceTags = ['cite', 'footer', 'address'];
+
+		// <p><cite>…</cite></p> direkt hinter dem blockquote hereinholen.
+		$next = $bq->nextSibling;
+		while ($next instanceof \DOMText && trim($next->textContent) === '') {
+			$next = $next->nextSibling;
+		}
+		if ($next instanceof \DOMElement && strtolower($next->nodeName) === 'p') {
+			$els = [];
+			$hasText = false;
+			foreach ($next->childNodes as $c) {
+				if ($c instanceof \DOMElement) $els[] = $c;
+				elseif (trim($c->textContent) !== '') $hasText = true;
+			}
+			if (!$hasText && count($els) === 1 && strtolower($els[0]->nodeName) === 'cite') {
+				$bq->appendChild($els[0]);
+				$next->parentNode->removeChild($next);
+			}
+		}
+
+		$sources   = [];
+		$lastBlock = null;
+		foreach (iterator_to_array($bq->childNodes) as $child) {
+			if (!$child instanceof \DOMElement) continue;
+			$name = strtolower($child->nodeName);
+			if (in_array($name, $sourceTags, true)) {
+				$sources[] = $child;
+			} elseif (in_array($name, $blockTags, true)) {
+				$lastBlock = $child;
+			}
+		}
+
+		if ($lastBlock === null) {
+			// Nur Inline-Inhalt: Quellen-Elemente beiseite, Rest in <p> wickeln.
+			foreach ($sources as $src) {
+				$bq->removeChild($src);
+			}
+			$p = $dom->createElement('p');
+			$p->setAttribute('class', 'merlin-quote__text');
+			foreach (iterator_to_array($bq->childNodes) as $child) {
+				$p->appendChild($child);
+			}
+			$bq->appendChild($p);
+			foreach ($sources as $src) {
+				$this->markQuoteSource($dom, $bq, $src);
+			}
+			return;
+		}
+
+		foreach ($sources as $src) {
+			$this->markQuoteSource($dom, $bq, $src);
+		}
+
+		// Loser Inhalt nach dem letzten Block-Kind -> Quelle (nur wenn noch keine existiert).
+		if ($sources !== []) return;
+		$tail = [];
+		for ($n = $lastBlock->nextSibling; $n !== null; $n = $n->nextSibling) {
+			if ($n instanceof \DOMElement && in_array(strtolower($n->nodeName), $blockTags, true)) return;
+			$tail[] = $n;
+		}
+		$hasContent = false;
+		foreach ($tail as $n) {
+			if (trim(str_replace("\u{00A0}", ' ', $n->textContent)) !== '') $hasContent = true;
+		}
+		if (!$hasContent) return;
+
+		$cite = $dom->createElement('cite');
+		$cite->setAttribute('class', 'merlin-quote__source');
+		foreach ($tail as $n) {
+			$cite->appendChild($n);
+		}
+		$bq->appendChild($cite);
+		$this->tidyQuoteSource($cite);
+	}
+
+	/** Setzt Tag/Klasse eines vorhandenen Quellen-Elements auf <cite class="merlin-quote__source">. */
+	private function markQuoteSource(\DOMDocument $dom, \DOMElement $bq, \DOMElement $src): void {
+		if (strtolower($src->nodeName) !== 'cite') {
+			$cite = $dom->createElement('cite');
+			while ($src->firstChild) {
+				$cite->appendChild($src->firstChild);
+			}
+			if ($src->parentNode !== null) {
+				$src->parentNode->removeChild($src);
+			}
+			$src = $cite;
+		}
+		$src->setAttribute('class', trim('merlin-quote__source ' . $src->getAttribute('class')));
+		$bq->appendChild($src);
+		$this->tidyQuoteSource($src);
+	}
+
+	/**
+	 * Entfernt führende Trenner (—, –, -, Komma, Leerräume inkl. Geviert/NBSP) und
+	 * ersetzt Geviert-Abstände zwischen Name und Funktion durch ", ".
+	 */
+	private function tidyQuoteSource(\DOMElement $cite): void {
+		$sep   = '[\s\x{00A0}\x{2002}\x{2003}\x{2009}\x{2013}\x{2014}\x{2015}\-,:|~]+';
+		$first = true;
+		foreach (iterator_to_array($cite->childNodes) as $n) {
+			if (!$n instanceof \DOMText) { $first = false; continue; }
+			$t = $n->data;
+			if ($first) {
+				$t = (string) preg_replace('/^' . $sep . '/u', '', $t);
+			}
+			if ($n->nextSibling instanceof \DOMElement) {
+				$t = (string) preg_replace('/\s*[\x{00A0}\x{2002}\x{2003}]+\s*$/u', ', ', $t);
+			}
+			$n->data = $t;
+			if (trim($t) !== '') $first = false;
+		}
 	}
 
 	// ──────────────────────────────────────────────────────────────────────────
@@ -3782,9 +4028,14 @@ class ContentExtractorService {
 	 * For attribute XPaths (e.g. //meta[...]/@content) the attribute value is
 	 * returned; for element XPaths the trimmed textContent.
 	 *
-	 * @return array{title?: string, author?: string, excerpt?: string, image?: string, published?: string}
+	 * Zusätzlich zum Namen wird - wo erkennbar - ein Link zum Autorenprofil
+	 * als "authorUrl" geliefert (siehe resolveAuthorMetadata()).
+	 *
+	 * @param string|null $baseUrl Artikel-URL, gegen die relative Profil-Links
+	 *        aufgelöst werden. Ohne sie werden nur absolute Links übernommen.
+	 * @return array{title?: string, author?: string, authorUrl?: string, excerpt?: string, image?: string, published?: string}
 	 */
-	private function extractDomainMetadata(string $html, string $domain, ?ContentFilterTrace $trace = null): array {
+	private function extractDomainMetadata(string $html, string $domain, ?ContentFilterTrace $trace = null, ?string $baseUrl = null): array {
 		$config = $this->loadDomainConfig($domain);
 		$meta   = ($config !== null && isset($config->metadata)) ? $config->metadata : null;
 
@@ -3803,6 +4054,13 @@ class ContentExtractorService {
 		$xpath       = new \DOMXPath($dom);
 		$jsonSources = $this->extractJsonSources($html, $config, $domain, $trace);
 		$result      = [];
+
+		// Autor-Sonderfälle (siehe resolveAuthorMetadata()): die DOM-Knoten
+		// der gewinnenden <author>-Regel (für den Profil-Link) und eine URL,
+		// die eine Regel statt eines Namens geliefert hat (article:author ist
+		// laut OpenGraph-Spec eine Profil-URL, kein Name).
+		$authorNodes       = [];
+		$authorUrlFromRule = null;
 
 		foreach (array_keys(self::OG_FALLBACK_XPATHS) as $field) {
 			// 1. Build ordered list of XPath expressions and JSON paths to try.
@@ -3865,6 +4123,27 @@ class ContentExtractorService {
 					};
 				}
 
+				if ($field === 'author') {
+					// URLs sind keine Autorennamen (typisch: <meta property=
+					// "article:author" content="https://facebook.com/…">) -
+					// als Profil-Link merken und, wenn die Regel NUR URLs
+					// geliefert hat, mit der nächsten Regel weitersuchen.
+					$names = [];
+					foreach ($value as $v) {
+						if ($this->looksLikeUrl($v)) {
+							$authorUrlFromRule ??= $this->normalizeAuthorUrl($v, $baseUrl);
+						} elseif ($v !== '') {
+							$names[] = $v;
+						}
+					}
+					if ($names === []) {
+						$value = '';
+						continue;
+					}
+					$value       = $names;
+					$authorNodes = iterator_to_array($nodes);
+				}
+
 				if ($value !== []) {
 					break; // first hit wins
 				}
@@ -3898,6 +4177,10 @@ class ContentExtractorService {
 					}
 
 					$resolved = $this->resolveJsonPath($sourceData, $actualPath);
+					if ($field === 'author' && is_string($resolved) && $this->looksLikeUrl($resolved)) {
+						$authorUrlFromRule ??= $this->normalizeAuthorUrl($resolved, $baseUrl);
+						$resolved = null;
+					}
 					if ($trace !== null && $jsonRule !== null) {
 						$trace->record('metadata', $jsonRule, ($resolved !== null && $resolved !== '') ? 1 : 0);
 					}
@@ -3938,6 +4221,9 @@ class ContentExtractorService {
 			}
 		}
 
+		// ── <author-link>: explizite Regel für den Profil-Link ──────────────────
+		$authorLinkFromConfig = $this->extractConfiguredAuthorLink($meta, $xpath, $jsonSources, $baseUrl, $trace);
+
 		// ── Generic JSON-LD fallback (schema.org Article/@graph) ────────────────
 		// Greift domainübergreifend, ganz ohne Domain-Config: viele CMS (Drupal,
 		// WordPress/Yoast, …) betten Autor/Headline/Bild nur noch strukturiert per
@@ -3947,13 +4233,26 @@ class ContentExtractorService {
 		// eine Domain-Regel noch der og:/article:-Fallback treffen konnte - Domain-
 		// Configs und OG-Tags behalten also unverändert Vorrang.
 		$missingFields = array_diff(array_keys(self::OG_FALLBACK_XPATHS), array_keys($result));
-		if ($missingFields !== []) {
+		// Für den Autor wird JSON-LD auch dann gelesen, wenn der Name schon
+		// feststeht: es kann noch den Profil-Link beisteuern.
+		$genericLd = [];
+		if ($missingFields !== [] || isset($result['author'])) {
 			$genericLd = $this->extractGenericJsonLdMetadata($html);
 			foreach ($missingFields as $field) {
 				if (!empty($genericLd[$field])) {
 					$result[$field] = $genericLd[$field];
 				}
 			}
+		}
+
+		$result = $this->resolveAuthorMetadata(
+			$result, $xpath, $baseUrl, $authorNodes, $authorUrlFromRule,
+			isset($genericLd['author']) && ($result['author'] ?? null) === $genericLd['author'] ? ($genericLd['authorUrl'] ?? null) : null
+		);
+		// Eine konfigurierte <author-link>-Regel hat Vorrang vor jedem
+		// automatisch ermittelten Profil-Link.
+		if ($authorLinkFromConfig !== null) {
+			$result['authorUrl'] = $authorLinkFromConfig;
 		}
 
 		// ── Static category declaration ──────────────────────────────────────────
@@ -4165,7 +4464,7 @@ class ContentExtractorService {
 	 * Bild/Headline inzwischen NUR noch strukturiert per JSON-LD, ohne
 	 * (zusätzliche) og:/article:-Meta-Tags.
 	 *
-	 * @return array{title?: string, author?: string, excerpt?: string, image?: string, published?: string}
+	 * @return array{title?: string, author?: string, authorUrl?: string, excerpt?: string, image?: string, published?: string}
 	 */
 	private function extractGenericJsonLdMetadata(string $html): array {
 		if (!preg_match_all(
@@ -4182,7 +4481,18 @@ class ContentExtractorService {
 				continue;
 			}
 
-			foreach ($this->flattenJsonLdNodes($decoded) as $node) {
+			$nodes = $this->flattenJsonLdNodes($decoded);
+			// Yoast & Co. verweisen im Article-Knoten oft nur per
+			// {"@id": "…#/schema/person/…"} auf einen Person-Knoten an anderer
+			// Stelle im @graph - für die Auflösung nach @id indizieren.
+			$nodesById = [];
+			foreach ($nodes as $n) {
+				if (isset($n['@id']) && is_string($n['@id'])) {
+					$nodesById[$n['@id']] ??= $n;
+				}
+			}
+
+			foreach ($nodes as $node) {
 				if (!$this->isJsonLdArticleNode($node)) {
 					continue;
 				}
@@ -4201,9 +4511,14 @@ class ContentExtractorService {
 					$result['excerpt'] = $excerpt;
 				}
 
-				$author = $this->jsonLdAuthorNames($node['author'] ?? null);
+				$authorEntries = $this->jsonLdAuthorEntries($node['author'] ?? null, $nodesById);
+				$author = $this->jsonLdAuthorNames($authorEntries);
 				if ($author !== null) {
 					$result['author'] = $author;
+					$authorUrl = count($authorEntries) === 1 ? $this->jsonLdAuthorUrl($authorEntries[0]) : null;
+					if ($authorUrl !== null) {
+						$result['authorUrl'] = $authorUrl;
+					}
 				}
 
 				$image = $this->jsonLdImageUrl($node['image'] ?? null);
@@ -4284,21 +4599,60 @@ class ContentExtractorService {
 	 * Namen werden wie bei den domainkonfigurierten <author xpath="…">-Regeln
 	 * mit ", " verbunden.
 	 */
-	private function jsonLdAuthorNames(mixed $author): ?string {
-		if ($author === null) {
-			return null;
-		}
-
-		$entries = (is_array($author) && array_is_list($author)) ? $author : [$author];
-		$names   = [];
+	private function jsonLdAuthorNames(array $entries): ?string {
+		$names = [];
 		foreach ($entries as $entry) {
 			$name = $this->jsonLdScalarValue($entry);
-			if ($name !== null) {
+			if ($name !== null && !$this->looksLikeUrl($name)) {
 				$names[] = $name;
 			}
 		}
 
-		return $names !== [] ? implode(', ', $names) : null;
+		return $names !== [] ? implode(', ', array_values(array_unique($names))) : null;
+	}
+
+	/**
+	 * Normalisiert "author" zu einer Liste von Einträgen (String oder
+	 * Objekt) und löst reine {"@id": …}-Verweise über den @graph auf.
+	 *
+	 * @param array<string, array<string, mixed>> $nodesById
+	 * @return list<mixed>
+	 */
+	private function jsonLdAuthorEntries(mixed $author, array $nodesById): array {
+		if ($author === null) {
+			return [];
+		}
+
+		$entries = (is_array($author) && array_is_list($author)) ? $author : [$author];
+		$result  = [];
+		foreach ($entries as $entry) {
+			if (is_array($entry) && !isset($entry['name']) && isset($entry['@id'])
+				&& is_string($entry['@id']) && isset($nodesById[$entry['@id']])) {
+				$entry = $nodesById[$entry['@id']];
+			}
+			if ($entry !== null && $entry !== '') {
+				$result[] = $entry;
+			}
+		}
+		return $result;
+	}
+
+	/**
+	 * Profil-Link eines JSON-LD-Autors: "url" des Person-Objekts, sonst ein
+	 * als Name eingetragener String, der in Wahrheit eine URL ist.
+	 */
+	private function jsonLdAuthorUrl(mixed $entry): ?string {
+		if (is_string($entry)) {
+			return $this->looksLikeUrl($entry) ? trim($entry) : null;
+		}
+		if (!is_array($entry)) {
+			return null;
+		}
+		$url = $entry['url'] ?? null;
+		if (is_array($url)) {
+			$url = $url[0] ?? null;
+		}
+		return (is_string($url) && $this->looksLikeUrl($url)) ? trim($url) : null;
 	}
 
 	/**
@@ -4325,6 +4679,361 @@ class ContentExtractorService {
 		}
 
 		return null;
+	}
+
+	// ──────────────────────────────────────────────────────────────────────────
+	// Autor & Autorenprofil
+	// ──────────────────────────────────────────────────────────────────────────
+
+	/**
+	 * Domainübergreifende HTML-Signale für Autorenname und Profil-Link, in
+	 * absteigender Verlässlichkeit. Greifen nur, wenn weder eine Domain-Regel,
+	 * noch article:author, noch JSON-LD einen Namen geliefert haben (bzw. um
+	 * zu einem bereits bekannten Namen den Profil-Link zu finden). Der erste
+	 * Ausdruck mit mindestens einem brauchbaren Namen gewinnt.
+	 */
+	private const GENERIC_AUTHOR_XPATHS = [
+		// WordPress-Block-Themes: "Post Author Name"-Block
+		// (<div class="wp-block-post-author-name"><a class="wp-block-post-author-name__link" href="…">Name</a></div>)
+		"//*[contains(concat(' ', normalize-space(@class), ' '), ' wp-block-post-author-name ')]",
+		"//a[contains(concat(' ', normalize-space(@class), ' '), ' wp-block-post-author-name__link ')]",
+		// Älterer WordPress-"Post Author"-Block
+		"//*[contains(concat(' ', normalize-space(@class), ' '), ' wp-block-post-author__name ')]",
+		// schema.org-Microdata (<span itemprop="author" itemscope itemtype="…/Person"><span itemprop="name">…</span></span>)
+		"//*[@itemprop='author']",
+		// hCard/hAtom, u. a. klassische WordPress-Themes
+		// (<span class="author vcard"><a class="url fn n" href="…">Name</a></span>)
+		"//*[contains(concat(' ', normalize-space(@class), ' '), ' author ')][contains(concat(' ', normalize-space(@class), ' '), ' vcard ')]",
+		// HTML-Link-Relation rel="author"
+		"//a[contains(concat(' ', normalize-space(@rel), ' '), ' author ')]",
+	];
+
+	/** Mehr verschiedene Namen pro Treffer-Ausdruck = eher Autorenliste/Sidebar als Byline. */
+	private const GENERIC_AUTHOR_MAX_NAMES = 4;
+
+	/** Längere "Namen" sind fast immer eine ganze Bio-/Infobox statt einer Byline. */
+	private const AUTHOR_NAME_MAX_LENGTH = 80;
+
+	/**
+	 * Vervollständigt Autorenname und Profil-Link im Metadaten-Ergebnis.
+	 *
+	 * Name: Domain-Regel / article:author / JSON-LD wie bisher; fehlt er,
+	 * greifen die generischen HTML-Signale (GENERIC_AUTHOR_XPATHS).
+	 *
+	 * Profil-Link (nur bei genau EINEM Autor - bei Co-Autoren ließe sich ein
+	 * einzelner Link keinem Namen zuordnen), erste Quelle gewinnt:
+	 *   1. <a href> der gewinnenden Domain-<author>-Regel (Knoten selbst,
+	 *      Vorfahre oder einziger Link darin)
+	 *   2. JSON-LD author.url (wenn der JSON-LD-Name zum Ergebnis passt)
+	 *   3. generisches HTML-Signal mit demselben Namen
+	 *   4. eine URL, die eine Regel statt eines Namens geliefert hat
+	 *      (typisch article:author)
+	 *
+	 * @param array<string, string> $result
+	 * @param list<\DOMNode>        $authorNodes
+	 * @return array<string, string>
+	 */
+	private function resolveAuthorMetadata(
+		array $result,
+		\DOMXPath $xpath,
+		?string $baseUrl,
+		array $authorNodes,
+		?string $authorUrlFromRule,
+		?string $jsonLdAuthorUrl
+	): array {
+		$generic = null;
+		if (!isset($result['author'])) {
+			$generic = $this->extractGenericAuthor($xpath, $baseUrl);
+			if ($generic !== null) {
+				$result['author'] = $generic['name'];
+			}
+		}
+
+		if (!isset($result['author'])) {
+			// Nur eine Profil-URL (article:author), kein Name: extract() kann
+			// sie noch mit dem von Readability gefundenen Namen paaren.
+			if ($authorUrlFromRule !== null) {
+				$result['authorUrl'] = $authorUrlFromRule;
+			}
+			return $result;
+		}
+		if ($this->countAuthors($result['author']) !== 1) {
+			return $result;
+		}
+
+		$url = null;
+		if ($generic !== null) {
+			$url = $generic['url'];
+		} else {
+			foreach ($authorNodes as $node) {
+				$url = $this->authorUrlFromNode($node, $baseUrl);
+				if ($url !== null) {
+					break;
+				}
+			}
+			if ($url === null && $jsonLdAuthorUrl !== null) {
+				$url = $this->normalizeAuthorUrl($jsonLdAuthorUrl, $baseUrl);
+			}
+			if ($url === null) {
+				$generic = $this->extractGenericAuthor($xpath, $baseUrl);
+				if ($generic !== null && $generic['url'] !== null
+					&& mb_strtolower($generic['name']) === mb_strtolower($result['author'])) {
+					$url = $generic['url'];
+				}
+			}
+		}
+		$url ??= $authorUrlFromRule;
+
+		if ($url !== null) {
+			$result['authorUrl'] = $url;
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Wertet die <metadata><author-link xpath="…" | json="…"/>-Regeln der
+	 * Domain-Config aus (Fallback-Kette in Dokumentreihenfolge, wie bei den
+	 * übrigen Feldern). Ein XPath darf auf ein Attribut (…/@href), einen
+	 * Textknoten oder ein Element zeigen; bei einem Element zählt dessen
+	 * href (bzw. der Link darin/drumherum), sonst sein Text. Erste gültige
+	 * http(s)-URL gewinnt.
+	 *
+	 * @param array<string, mixed> $jsonSources
+	 */
+	private function extractConfiguredAuthorLink(
+		?\SimpleXMLElement $meta,
+		\DOMXPath $xpath,
+		array $jsonSources,
+		?string $baseUrl,
+		?ContentFilterTrace $trace
+	): ?string {
+		if ($meta === null || !isset($meta->{'author-link'})) {
+			return null;
+		}
+
+		foreach ($meta->{'author-link'} as $rule) {
+			$expr = trim((string) ($rule['xpath'] ?? ''));
+			if ($expr !== '') {
+				$nodes = @$xpath->query($expr);
+				if ($nodes === false) {
+					$trace?->record('metadata', $rule, 0, 'Ungültiger XPath-Ausdruck');
+				} else {
+					$url = null;
+					foreach ($nodes as $node) {
+						$url = match (true) {
+							$node instanceof \DOMAttr => $this->normalizeAuthorUrl($node->value, $baseUrl),
+							default => $this->authorUrlFromNode($node, $baseUrl)
+								?? $this->normalizeAuthorUrl(trim($node->textContent ?? ''), $baseUrl),
+						};
+						if ($url !== null) {
+							break;
+						}
+					}
+					$trace?->record('metadata', $rule, $nodes->length,
+						($nodes->length > 0 && $url === null) ? 'Kein gültiger http(s)-Link im Treffer' : null);
+					if ($url !== null) {
+						return $url;
+					}
+				}
+			}
+
+			$jsonPath = trim((string) ($rule['json'] ?? ''));
+			if ($jsonPath !== '') {
+				if (!str_starts_with($jsonPath, '$') && str_contains($jsonPath, ':')) {
+					[$sourceId, $actualPath] = array_map('trim', explode(':', $jsonPath, 2));
+				} else {
+					[$sourceId, $actualPath] = ['default', $jsonPath];
+				}
+				$sourceData = $jsonSources[$sourceId] ?? null;
+				$resolved   = $sourceData !== null ? $this->resolveJsonPath($sourceData, $actualPath) : null;
+				$url        = is_string($resolved) ? $this->normalizeAuthorUrl($resolved, $baseUrl) : null;
+				$trace?->record('metadata', $rule, $url !== null ? 1 : 0,
+					$sourceData === null ? 'JSON-Quelle "' . $sourceId . '" nicht gefunden' : null);
+				if ($url !== null) {
+					return $url;
+				}
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Wertet GENERIC_AUTHOR_XPATHS aus.
+	 *
+	 * @return array{name: string, url: ?string}|null
+	 */
+	private function extractGenericAuthor(\DOMXPath $xpath, ?string $baseUrl): ?array {
+		foreach (self::GENERIC_AUTHOR_XPATHS as $expr) {
+			$nodes = @$xpath->query($expr);
+			if ($nodes === false || $nodes->length === 0) {
+				continue;
+			}
+
+			// Name (kleingeschrieben als Schlüssel für die Deduplizierung) =>
+			// [Anzeigename, erster gefundener Profil-Link]
+			$found = [];
+			foreach ($nodes as $node) {
+				if (!$node instanceof \DOMElement) {
+					continue;
+				}
+				$name = $this->authorNameFromElement($node, $xpath);
+				if ($name === null) {
+					continue;
+				}
+				$key = mb_strtolower($name);
+				$url = $this->authorUrlFromNode($node, $baseUrl);
+				if (!isset($found[$key])) {
+					$found[$key] = ['name' => $name, 'url' => $url];
+				} elseif ($found[$key]['url'] === null) {
+					$found[$key]['url'] = $url;
+				}
+			}
+
+			if ($found === [] || count($found) > self::GENERIC_AUTHOR_MAX_NAMES) {
+				continue;
+			}
+
+			if (count($found) === 1) {
+				return array_values($found)[0];
+			}
+			return [
+				'name' => implode(', ', array_column($found, 'name')),
+				'url'  => null,
+			];
+		}
+
+		return null;
+	}
+
+	/**
+	 * Liest den Autorennamen aus einem Treffer-Element: bei schema.org-
+	 * Microdata bevorzugt aus [itemprop=name], bei hCard aus .fn, sonst aus
+	 * content-Attribut (<meta itemprop="author" content="…">) bzw. Text.
+	 */
+	private function authorNameFromElement(\DOMElement $el, \DOMXPath $xpath): ?string {
+		$raw = null;
+
+		if ($el->getAttribute('itemprop') === 'author') {
+			$nameNode = $xpath->query(".//*[@itemprop='name']", $el)->item(0);
+			if ($nameNode instanceof \DOMElement) {
+				$raw = $nameNode->hasAttribute('content') ? $nameNode->getAttribute('content') : $nameNode->textContent;
+			} elseif ($el->hasAttribute('content')) {
+				$raw = $el->getAttribute('content');
+			} elseif (strtolower($el->nodeName) === 'link') {
+				return null; // <link itemprop="author" href="…"> trägt nur eine URL
+			}
+		} elseif (str_contains(' ' . $el->getAttribute('class') . ' ', ' vcard ')) {
+			$fn = $xpath->query(".//*[contains(concat(' ', normalize-space(@class), ' '), ' fn ')]", $el)->item(0);
+			if ($fn !== null) {
+				$raw = $fn->textContent;
+			}
+		}
+
+		return $this->cleanAuthorName($raw ?? $el->textContent);
+	}
+
+	/**
+	 * Normalisiert einen gefundenen Autorennamen: Whitespace zusammenfassen,
+	 * Byline-Präfixe ("Von", "By", "Autor:", …) abschneiden. null, wenn das
+	 * Ergebnis leer, eine URL oder unplausibel lang ist.
+	 */
+	private function cleanAuthorName(string $raw): ?string {
+		$name = trim((string) preg_replace('/\s+/u', ' ', $raw));
+		$name = (string) preg_replace('/^(?:von|by|text|autor(?:in)?|author)\s*:?\s+/iu', '', $name);
+		$name = trim($name, " \t\n\r\0\x0B,;:|·–-");
+
+		if ($name === '' || mb_strlen($name) > self::AUTHOR_NAME_MAX_LENGTH || $this->looksLikeUrl($name)) {
+			return null;
+		}
+		return $name;
+	}
+
+	/**
+	 * Profil-Link zu einem Autor-Treffer: das Element selbst, wenn es ein
+	 * Link ist, sonst ein umschließender Link, sonst [itemprop=url] bzw. der
+	 * erste Link im Element. Text-/Attributknoten (z. B. aus einer Domain-
+	 * Regel wie //a[@rel='author']/text()) werden über ihr Elternelement
+	 * aufgelöst; <meta …/@content>-Treffer liefern keinen Link.
+	 */
+	private function authorUrlFromNode(\DOMNode $node, ?string $baseUrl): ?string {
+		if ($node instanceof \DOMAttr) {
+			return null;
+		}
+		$el = $node instanceof \DOMElement ? $node : $node->parentNode;
+		if (!$el instanceof \DOMElement) {
+			return null;
+		}
+
+		$tag = strtolower($el->nodeName);
+		if (($tag === 'a' || $tag === 'link') && $el->hasAttribute('href')) {
+			return $this->normalizeAuthorUrl($el->getAttribute('href'), $baseUrl);
+		}
+
+		for ($p = $el->parentNode; $p instanceof \DOMElement; $p = $p->parentNode) {
+			if (strtolower($p->nodeName) === 'a' && $p->hasAttribute('href')) {
+				return $this->normalizeAuthorUrl($p->getAttribute('href'), $baseUrl);
+			}
+		}
+
+		$xpath = new \DOMXPath($el->ownerDocument);
+		$urlNode = $xpath->query(".//*[@itemprop='url'][@href or @content]", $el)->item(0);
+		if ($urlNode instanceof \DOMElement) {
+			$href = $urlNode->getAttribute('href') ?: $urlNode->getAttribute('content');
+			return $this->normalizeAuthorUrl($href, $baseUrl);
+		}
+
+		$link = $xpath->query('.//a[@href]', $el)->item(0);
+		if ($link instanceof \DOMElement) {
+			return $this->normalizeAuthorUrl($link->getAttribute('href'), $baseUrl);
+		}
+
+		return null;
+	}
+
+	/**
+	 * Macht einen Profil-Link absolut und lässt nur http(s) durch - kein
+	 * javascript:/mailto:/reiner Anker, die im Reader als Link nichts taugen.
+	 */
+	private function normalizeAuthorUrl(string $href, ?string $baseUrl): ?string {
+		$href = trim(html_entity_decode($href, ENT_QUOTES, 'UTF-8'));
+		if ($href === '' || str_starts_with($href, '#')) {
+			return null;
+		}
+		if (preg_match('/^[a-z][a-z0-9+.\-]*:/i', $href) && !preg_match('/^https?:/i', $href)) {
+			return null;
+		}
+		if (!preg_match('/^https?:\/\//i', $href)) {
+			if ($baseUrl === null || $baseUrl === '') {
+				return null;
+			}
+			$href = $this->normalizeUrl($href, $baseUrl);
+		}
+		if (filter_var($href, FILTER_VALIDATE_URL) === false) {
+			return null;
+		}
+		// Ein "Profil-Link" auf den Artikel selbst (z. B. eine Byline, die
+		// in einem Link auf die Seite steckt) ist keiner.
+		if ($baseUrl !== null && $this->stripUrlForCompare($href) === $this->stripUrlForCompare($baseUrl)) {
+			return null;
+		}
+		return $href;
+	}
+
+	private function stripUrlForCompare(string $url): string {
+		$url = preg_replace('/#.*$/', '', $url) ?? $url;
+		$url = preg_replace('/^https?:\/\/(www\.)?/i', '', $url) ?? $url;
+		return rtrim(strtolower($url), '/');
+	}
+
+	private function looksLikeUrl(string $value): bool {
+		return preg_match('/^(?:https?:)?\/\/\S+$/i', trim($value)) === 1;
+	}
+
+	/** Anzahl Autoren in einem per ", " zusammengeführten Autorenfeld. */
+	private function countAuthors(string $author): int {
+		return count(array_filter(array_map('trim', explode(', ', $author)), fn ($a) => $a !== ''));
 	}
 
 	// ──────────────────────────────────────────────────────────────────────────

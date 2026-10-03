@@ -49,7 +49,8 @@
 				<h1>{{ article.title }}</h1>
 				<p v-if="article.excerpt" class="pav-excerpt">{{ article.excerpt }}</p>
 				<div class="pav-meta">
-					<span v-if="article.author">{{ article.author }}</span>
+					<a v-if="article.author && safeAuthorUrl" :href="safeAuthorUrl" target="_blank" rel="noopener noreferrer">{{ article.author }}</a>
+					<span v-else-if="article.author">{{ article.author }}</span>
 					<a v-if="article.siteName && safeArticleUrl" :href="safeArticleUrl" target="_blank" rel="noopener noreferrer">{{ article.siteName }}</a>
 					<span v-else-if="article.siteName">{{ article.siteName }}</span>
 					<span v-if="article.readingTime">{{ t('merlin', '{minutes} min', { minutes: article.readingTime }) }}</span>
@@ -138,6 +139,12 @@ export default {
 		// Nur http(s)/relative/Anker-URLs im href zulassen. article.url wird vom
 		// Share-Owner kontrolliert; ein javascript:-Schema wuerde sonst beim Klick
 		// eines Share-Besuchers ausgefuehrt (Vue sanitisiert v-bind:href NICHT).
+		// Link zum Autorenprofil der Quelle, nur absolute http(s)-URLs.
+		safeAuthorUrl() {
+			const url = this.article?.authorUrl
+			return typeof url === 'string' && /^https?:\/\//i.test(url.trim()) ? url.trim() : null
+		},
+
 		safeArticleUrl() {
 			const url = this.article?.url
 			if (typeof url !== 'string') return null

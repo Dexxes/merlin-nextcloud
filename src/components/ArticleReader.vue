@@ -307,7 +307,16 @@
 					<p v-if="article.excerpt" class="article-excerpt">{{ article.excerpt }}</p>
 
 					<div class="article-metadata">
-						<span v-if="article.author" class="meta-author">
+						<a
+							v-if="article.author && safeAuthorUrl"
+							class="meta-author meta-author--link"
+							:href="safeAuthorUrl"
+							target="_blank"
+							rel="noopener noreferrer">
+							<Account :size="16" />
+							{{ article.author }}
+						</a>
+						<span v-else-if="article.author" class="meta-author">
 							<Account :size="16" />
 							{{ article.author }}
 						</span>
@@ -715,6 +724,12 @@ export default {
 		// ausgeführt werden kann. Vue sanitisiert v-bind:href NICHT.
 		safeArticleUrl() {
 			return this.sanitizeHref(this.article?.url)
+		},
+
+		// Link zum Autorenprofil der Quelle, nur absolute http(s)-URLs.
+		safeAuthorUrl() {
+			const url = this.article?.authorUrl
+			return typeof url === 'string' && /^https?:\/\//i.test(url.trim()) ? url.trim() : null
 		},
 
 		articleStyles() {
@@ -1540,13 +1555,15 @@ article {
 	gap: 6px;
 }
 
-.meta-site {
+.meta-site,
+.meta-author--link {
 	color: inherit;
 	text-decoration: none;
 	cursor: pointer;
 }
 
-.meta-site:hover {
+.meta-site:hover,
+.meta-author--link:hover {
 	text-decoration: underline;
 	color: var(--color-primary);
 }
@@ -1829,13 +1846,13 @@ article {
 }
 
 /* -------------------------------------------------------
-   reader-quote: Blockquotes, die von normalizeQuotes() vor
+   merlin-quote: Blockquotes, die von normalizeQuotes() vor
    Readability als Zitate erkannt und normalisiert wurden.
    Gilt für seitenspezifische Strukturen (via content-filter
    <quotes>-Regeln) sowie Standard-<blockquote>-Elemente.
    ------------------------------------------------------- */
 
-.article-body :deep(blockquote.reader-quote) {
+.article-body :deep(blockquote.merlin-quote) {
 	border-left: 4px solid var(--color-primary, #0082c9);
 	background: var(--color-background-hover);
 	border-radius: 0 var(--border-radius-large) var(--border-radius-large) 0;
@@ -1845,14 +1862,14 @@ article {
 }
 
 /* Zitat-Text: <p> ohne Block-Abstände */
-.article-body :deep(blockquote.reader-quote p) {
+.article-body :deep(blockquote.merlin-quote p) {
 	margin: 0;
 	line-height: 1.65;
 	font-size: 1.05em;
 }
 
 /* Autor als <cite> */
-.article-body :deep(blockquote.reader-quote cite.reader-quote__author) {
+.article-body :deep(blockquote.merlin-quote cite.merlin-quote__source) {
 	display: block;
 	margin-top: 0.6em;
 	font-size: 0.875em;
@@ -1861,30 +1878,30 @@ article {
 	color: var(--color-text-lighter, #666);
 }
 
-.article-body :deep(blockquote.reader-quote cite.reader-quote__author::before) {
+.article-body :deep(blockquote.merlin-quote cite.merlin-quote__source::before) {
 	content: '— ';
 }
 
 /* Dark mode */
-.dark-mode .article-body :deep(blockquote.reader-quote) {
+.dark-mode .article-body :deep(blockquote.merlin-quote) {
 	background: rgba(255, 255, 255, 0.05);
 	border-left-color: #58a6ff;
 }
 
-.dark-mode .article-body :deep(blockquote.reader-quote cite.reader-quote__author) {
+.dark-mode .article-body :deep(blockquote.merlin-quote cite.merlin-quote__source) {
 	color: #aaa;
 }
 
-/* <q>-Elemente: inline-Zitate (reader-quote-inline) */
-.article-body :deep(q.reader-quote-inline) {
+/* <q>-Elemente: inline-Zitate (merlin-quote-inline) */
+.article-body :deep(q.merlin-quote-inline) {
 	font-style: italic;
 	color: var(--color-text-lighter, #555);
 }
 
-.article-body :deep(q.reader-quote-inline::before) { content: '\201E'; } /* „ */
-.article-body :deep(q.reader-quote-inline::after)  { content: '\201C'; } /* " */
+.article-body :deep(q.merlin-quote-inline::before) { content: '\201E'; } /* „ */
+.article-body :deep(q.merlin-quote-inline::after)  { content: '\201C'; } /* " */
 
-.dark-mode .article-body :deep(q.reader-quote-inline) {
+.dark-mode .article-body :deep(q.merlin-quote-inline) {
 	color: #bbb;
 }
 

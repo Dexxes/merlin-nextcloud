@@ -31,9 +31,11 @@
 
   <metadata>
     <donations url="https://netzpolitik.org/spenden/" />
+    <author   xpath="//div[@class='np-intro-author-name-list']/a/text()" />
+    <author-link xpath="//div[@class='np-intro-author-name-list']/a/@href" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
-    <author   xpath="//span[@class='author-name']" />
+    
     <excerpt  xpath="//p[@class='article-intro']" />
     <image    xpath="//meta[@property='og:image']/@content" />
     <published xpath="//time[@itemprop='datePublished']/@datetime" />

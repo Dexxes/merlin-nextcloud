@@ -281,6 +281,7 @@ class ArticleController extends Controller {
 				$article->setContent($extracted['content']);
 				$article->setExcerpt($extracted['excerpt']);
 				$article->setAuthor($extracted['author']);
+				$article->setAuthorUrl($extracted['authorUrl'] ?? null);
 				$article->setSiteName($extracted['siteName']);
 				$article->setImageUrl($extracted['imageUrl']);
 				$article->setReadingTime($extracted['readingTime']);
