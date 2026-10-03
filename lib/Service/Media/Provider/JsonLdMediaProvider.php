@@ -74,6 +74,7 @@ class JsonLdMediaProvider implements MediaSourceProviderInterface {
 			$found = $this->findContentUrl($data, $allowed, 0);
 			if ($found !== null) {
 				[$url, $kind] = $found;
+				$url = VariantHelper::akamaiSetToHls($url);
 				return MediaResult::single($kind ?? $context->kind(), VariantHelper::deliveryForUrl($url), $url);
 			}
 		}

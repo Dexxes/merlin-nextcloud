@@ -4,6 +4,12 @@
 -->
 <domain name="3sat.de">
   <category>Video</category>
+
+  <!-- HLS-Stream über die ZDF-Player-API von 3sat (Service/Media/Provider/DreiSatProvider). -->
+  <media>
+    <source type="3sat" kind="video" />
+  </media>
+
   <pre-filter />
   <post-filter />
   <metadata>

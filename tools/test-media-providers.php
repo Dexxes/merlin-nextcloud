@@ -47,6 +47,8 @@ namespace Merlin\MediaTest {
 	// Vor der Unterklasse unten nötig – der Autoloader wird erst im
 	// Test-Block registriert.
 	require_once __DIR__ . '/../lib/Service/ContentFilterRepository.php';
+	require_once __DIR__ . '/../lib/Service/Http/SsrfSafeResolver.php';
+	require_once __DIR__ . '/../lib/Service/Media/MediaHttpClient.php';
 
 	final class NullLogger implements LoggerInterface {
 		public function emergency($message, array $context = []) {}
@@ -58,6 +60,34 @@ namespace Merlin\MediaTest {
 		public function info($message, array $context = []) {}
 		public function debug($message, array $context = []) {}
 		public function log($level, $message, array $context = []) {}
+	}
+
+	/** Antwortet mit festen JSON-Daten je URL-Präfix, sonst wie bei einem 404 mit null. */
+	final class FakeMediaHttpClient extends \OCA\Merlin\Service\Media\MediaHttpClient {
+		/** @var list<string> */
+		public array $requested = [];
+
+		/**
+		 * @param array<string, array<mixed>> $responses
+		 * @param array<string, string> $pages
+		 */
+		public function __construct(private array $responses, private array $pages = []) {
+		}
+
+		public function getText(string $url): ?string {
+			$this->requested[] = $url;
+			return $this->pages[$url] ?? null;
+		}
+
+		public function getJson(string $url, array $extraHeaders = []): ?array {
+			$this->requested[] = $url;
+			foreach ($this->responses as $prefix => $json) {
+				if (str_starts_with($url, $prefix)) {
+					return $json;
+				}
+			}
+			return null;
+		}
 	}
 
 	/** Liefert die Bundle-Dateien aus content-filters/ ohne Datenbank. */
@@ -119,6 +149,7 @@ namespace Merlin\MediaTest {
 namespace {
 
 	use Merlin\MediaTest\BundleOnlyRepository;
+	use Merlin\MediaTest\FakeMediaHttpClient;
 	use Merlin\MediaTest\NullLogger;
 	use Merlin\MediaTest\TestRunner;
 	use OCA\Merlin\Service\ContentFilterSchema;
@@ -129,10 +160,12 @@ namespace {
 	use OCA\Merlin\Service\Media\MediaResult;
 	use OCA\Merlin\Service\Media\Provider\ArdMediathekProvider;
 	use OCA\Merlin\Service\Media\Provider\ArteProvider;
+	use OCA\Merlin\Service\Media\Provider\DreiSatProvider;
 	use OCA\Merlin\Service\Media\Provider\JsonLdMediaProvider;
 	use OCA\Merlin\Service\Media\Provider\XPathMediaProvider;
 	use OCA\Merlin\Service\Media\Provider\YoutubeEmbedProvider;
 	use OCA\Merlin\Service\Media\Provider\ZdfProvider;
+	use OCA\Merlin\Service\Media\VariantHelper;
 
 	spl_autoload_register(static function (string $class): void {
 		$prefix = 'OCA\\Merlin\\';
@@ -152,6 +185,7 @@ namespace {
 		new ArdMediathekProvider($http),
 		new ZdfProvider($http),
 		new ArteProvider($http),
+		new DreiSatProvider($http),
 		new XPathMediaProvider(),
 		new JsonLdMediaProvider(),
 		new YoutubeEmbedProvider(),
@@ -296,6 +330,84 @@ namespace {
 	$t->eq($description['paragraphs'] ?? null, ['Erster Absatz', 'Zweiter "zitiert"'], 'Absätze inkl. doppelt escapter Anführungszeichen');
 
 	// ══════════════════════════════════════════════════════════════════════════
+	$t->group('6b. ARD: Übersichtsseite (/film/) bietet ihre Videos zur Auswahl an');
+
+	$api = 'https://api.ardmediathek.de/page-gateway/pages/ard/';
+	$ardItem = static fn (array $streams): array => ['widgets' => [['type' => 'player_ondemand', 'mediaCollection' => ['embedded' => ['streams' => $streams]]]]];
+	$fakeHttp = new FakeMediaHttpClient([
+		$api . 'grouping/R3JvdXBpbmdJZA' => ['widgets' => [
+			['type' => 'gridlist', 'teasers' => [
+				['type' => 'ondemand', 'mediumTitle' => 'Der Film', 'links' => ['target' => ['id' => 'RmlsbUlk']]],
+				['type' => 'ondemand', 'shortTitle' => 'Trailer', 'id' => 'VHJhaWxlcklk'],
+				['type' => 'ondemand', 'mediumTitle' => 'Doppelt', 'id' => 'RmlsbUlk'],
+				['type' => 'live', 'mediumTitle' => 'Livestream', 'id' => 'TGl2ZUlk'],
+			]],
+		]],
+		$api . 'item/RmlsbUlk' => $ardItem([
+			['kind' => 'main', 'kindName' => 'Normal', 'media' => [['url' => 'https://example.akamaized.net/film.m3u8']]],
+			['kind' => 'sign_language', 'kindName' => 'DGS', 'media' => [['url' => 'https://example.akamaized.net/film-dgs.m3u8']]],
+		]),
+		$api . 'item/VHJhaWxlcklk' => $ardItem([
+			['kind' => 'main', 'kindName' => 'Normal', 'media' => [['url' => 'https://example.akamaized.net/trailer.mp4'], ['url' => 'https://example.akamaized.net/trailer.m3u8']]],
+		]),
+	]);
+	$ardProvider = new ArdMediathekProvider($fakeHttp);
+	$ardSource = $source('type="ard-mediathek" kind="video"');
+	$grouping = $ardProvider->resolve(new MediaContext('https://www.ardmediathek.de/film/der-film/R3JvdXBpbmdJZA', $ardSource));
+	$t->eq(
+		array_map(static fn (array $v): string => $v['label'] . ' ' . $v['url'], $grouping?->variants ?? []),
+		[
+			'Der Film https://example.akamaized.net/film.m3u8',
+			'Der Film · DGS https://example.akamaized.net/film-dgs.m3u8',
+			'Trailer https://example.akamaized.net/trailer.m3u8',
+		],
+		'Videos der Übersichtsseite als Varianten, ohne Doppelte und Livestreams'
+	);
+	$t->eq($grouping?->defaultIndex, 0, 'Vorauswahl ist das erste Video');
+	$t->ok(in_array($api . 'grouping/R3JvdXBpbmdJZA', $fakeHttp->requested, true), 'Grouping ohne embedded=false abgefragt (sonst liefert die API keine Teaser)');
+	$t->ok(!in_array($api . 'item/TGl2ZUlk?embedded=false&mcV6=true', $fakeHttp->requested, true), 'Live-Teaser wird nicht abgefragt');
+
+	$single = new FakeMediaHttpClient([$api . 'item/RmlsbUlk' => $ardItem([
+		['kind' => 'main', 'kindName' => 'Normal', 'media' => [['url' => 'https://example.akamaized.net/film.m3u8']]],
+	])]);
+	$singleResult = (new ArdMediathekProvider($single))->resolve(new MediaContext('https://www.ardmediathek.de/video/x/der-film/ndr/RmlsbUlk', $ardSource));
+	$t->eq($singleResult?->variants, [['label' => 'Normal', 'url' => 'https://example.akamaized.net/film.m3u8']], 'Einzelvideo: Label bleibt die Fassung');
+	$t->eq(count($single->requested), 1, 'Einzelvideo: keine Grouping-Abfrage');
+
+	// ══════════════════════════════════════════════════════════════════════════
+	$t->group('6c. 3sat: Stream über data-zdfplayer-jsb und api.3sat.de');
+
+	$dreiSatUrl = 'https://www.3sat.de/kultur/kulturdoku/one-night-at-kitkat-104.html';
+	$contentUrl = 'https://api.3sat.de/content/documents/zdf/kultur/kulturdoku/one-night-at-kitkat-104.json?profile=player2';
+	$jsb = htmlspecialchars(json_encode(['content' => $contentUrl, 'apiToken' => 'tok123'], JSON_UNESCAPED_SLASHES), ENT_QUOTES);
+	$dreiSatHttp = new FakeMediaHttpClient([
+		$contentUrl => [
+			'http://zdf.de/rels/next-video-page' => ['mainVideoContent' => ['http://zdf.de/rels/target' => ['http://zdf.de/rels/streams/ptmd-template' => '/tmd/2/{playerId}/vod/ptmd/3sat/falsch/1']]],
+			'mainVideoContent' => ['http://zdf.de/rels/target' => ['http://zdf.de/rels/streams/ptmd-template' => '/tmd/2/{playerId}/vod/ptmd/3sat/kitkat/2']],
+		],
+		'https://api.3sat.de/tmd/2/ngplayer_2_4/vod/ptmd/3sat/kitkat/2' => ['priorityList' => [
+			['formitaeten' => [['qualities' => [['audio' => ['tracks' => [['uri' => 'https://nrodlzdf-a.akamaihd.net/kitkat.webm']]]]]]]],
+			['formitaeten' => [['qualities' => [['audio' => ['tracks' => [['uri' => 'https://zdfvod.akamaized.net/kitkat.mp4.csmil/master.m3u8']]]]]]]],
+		]],
+	], [$dreiSatUrl => '<div class="b-playerbox" data-zdfplayer-jsb="' . $jsb . '"></div>']);
+	$dreiSat = (new DreiSatProvider($dreiSatHttp))->resolve(new MediaContext($dreiSatUrl, $source('type="3sat" kind="video"')));
+	$t->eq($dreiSat?->defaultUrl(), 'https://zdfvod.akamaized.net/kitkat.mp4.csmil/master.m3u8', 'm3u8 aus der PTMD des Hauptvideos');
+	$t->eq($dreiSat?->delivery, MediaResult::DELIVERY_HLS, 'delivery=hls');
+	$t->eq(DreiSatProvider::parsePlayerConfig('<div data-zdfplayer-jsb=\'{"content":"https://evil.example/x.json","apiToken":"t"}\'></div>'), null, 'Content-URL auf fremdem Host wird verworfen');
+	$t->eq((new DreiSatProvider($dreiSatHttp))->resolve(new MediaContext('https://evil.example/x.html', $source('type="3sat" kind="video"'))), null, 'Artikel-URL außerhalb von 3sat.de → keine Abfrage');
+	$t->eq((string) ($bundleConfig('3sat.de')?->media->source['type'] ?? ''), '3sat', '3sat.de.xml deklariert die 3sat-Quelle');
+
+	// ══════════════════════════════════════════════════════════════════════════
+	$t->group('6d. rbb-online.de: Akamai-Sammel-URL aus dem JSON-LD als HLS');
+
+	$rbbSet = 'https://rbbvod.akamaized.net/i/content/85/3e/853e/853e_,hd1080-avc360,hd1080-avc270,hd1080-avc1080,.mp4';
+	$rbbOnlineHtml = '<script type="application/ld+json">{"@type":"VideoObject","contentUrl":"' . $rbbSet . '"}</script>';
+	$save = $resolver->resolveOnSave('https://www.rbb-online.de/der-tag/videos/-video-beitraege/x.html', $bundleConfig('rbb-online.de'), $rbbOnlineHtml);
+	$t->eq([$save['kind'] ?? null, $save['result']?->delivery, $save['result']?->defaultUrl()], ['video', 'hls', $rbbSet . '.csmil/master.m3u8'], 'VideoObject → HLS-Manifest');
+	$t->eq(VariantHelper::akamaiSetToHls('https://rbb-progressive.ard-mcdn.de/content/62/3a/x_hd1080-avc1080.mp4'), 'https://rbb-progressive.ard-mcdn.de/content/62/3a/x_hd1080-avc1080.mp4', 'Einzeldatei bleibt unverändert');
+	$t->eq(VariantHelper::akamaiSetToHls('https://zdfvod.akamaized.net/i/x_,a,b,.mp4.csmil/master.m3u8'), 'https://zdfvod.akamaized.net/i/x_,a,b,.mp4.csmil/master.m3u8', 'fertiges Manifest bleibt unverändert');
+
+	// ══════════════════════════════════════════════════════════════════════════
 	if ($live) {
 		$t->group('7. Live gegen die Beispiel-URLs');
 
@@ -314,7 +426,10 @@ namespace {
 
 		$liveCases = [
 			['https://www.ardmediathek.de/video/babylon-berlin/babylon-berlin-die-doku-wie-die-demokratie-unterging-s05-e09/swr/Y3JpZDovL3N3ci5kZS9hZXgvbzIzNDkyMDY', 'ardmediathek.de', 'video', 'hls'],
+			['https://www.ardmediathek.de/film/sommer-auf-asphalt-oder-komoedie/Y3JpZDovL25kci5kZS81MDQzIGM4ZDUyNDkxLTk5ODUtNGJjZi05ZjlhLTc4MWM0MmE4ZDM1Mw', 'ardmediathek.de', 'video', 'hls'],
 			['https://www.zdf.de/video/reportagen/37-grad-leben-102/marcant--auf-tiktok-gegen-rechts-102', 'zdf.de', 'video', 'hls'],
+			['https://www.3sat.de/kultur/kulturdoku/one-night-at-kitkat-104.html', '3sat.de', 'video', 'hls'],
+			['https://www.rbb-online.de/der-tag/videos/-video-beitraege/urban-gardening-auf-parkdeck-schoeneberg.html', 'rbb-online.de', 'video', 'hls'],
 			['https://www.arte.tv/de/videos/113630-007-A/country-music-7-9/', 'arte.tv', 'video', 'hls'],
 			['https://www.youtube.com/watch?v=ECbCbaGCpIQ', 'youtube.com', 'video', 'embed'],
 			['https://www.deutschlandfunkkultur.de/elektrotech-wer-auf-strom-setzt-spart-kuenftig-viel-geld-100.html', 'deutschlandfunkkultur.de', 'audio', 'file'],

@@ -43,7 +43,7 @@ merlin-nextcloud/
 │   │   │   ├── MediaSourceProviderInterface.php / DescriptionProviderInterface.php
 │   │   │   ├── MediaContext.php / MediaResult.php / MediaHttpClient.php / VariantHelper.php
 │   │   │   ├── InlineMediaService.php         # <media><inline>: Videos mitten im Text (ARD-Player) → Figure mit Vorschaubild + Quellen-Marker
-│   │   │   └── Provider/                      # ard-mediathek, zdf, arte, youtube-embed, xpath, json-ld
+│   │   │   └── Provider/                      # ard-mediathek, zdf, arte, 3sat, youtube-embed, xpath, json-ld
 │   │   └── Login/                        # 🔜 geplant: Paywall-Abo-Login (siehe PLATFORMS.md)
 │   │       ├── LoginProviderInterface.php     # login(username, password): Cookie-Bundle
 │   │       └── PianoJsonFormLoginProvider.php # type="piano-json-form" (z. B. tagesspiegel.de)

@@ -6,6 +6,7 @@ namespace OCA\Merlin\Service\Media;
 
 use OCA\Merlin\Service\Media\Provider\ArdMediathekProvider;
 use OCA\Merlin\Service\Media\Provider\ArteProvider;
+use OCA\Merlin\Service\Media\Provider\DreiSatProvider;
 use OCA\Merlin\Service\Media\Provider\JsonLdMediaProvider;
 use OCA\Merlin\Service\Media\Provider\XPathMediaProvider;
 use OCA\Merlin\Service\Media\Provider\YoutubeEmbedProvider;
@@ -25,11 +26,12 @@ class MediaProviderRegistry {
 		ArdMediathekProvider $ard,
 		ZdfProvider $zdf,
 		ArteProvider $arte,
+		DreiSatProvider $dreiSat,
 		XPathMediaProvider $xpath,
 		JsonLdMediaProvider $jsonLd,
 		YoutubeEmbedProvider $youtube,
 	) {
-		foreach ([$ard, $zdf, $arte, $xpath, $jsonLd, $youtube] as $provider) {
+		foreach ([$ard, $zdf, $arte, $dreiSat, $xpath, $jsonLd, $youtube] as $provider) {
 			$this->providers[$provider->type()] = $provider;
 		}
 	}

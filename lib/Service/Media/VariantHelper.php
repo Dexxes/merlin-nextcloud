@@ -70,6 +70,23 @@ final class VariantHelper {
 	}
 
 	/**
+	 * Akamai-Sammel-URL mehrerer Auflösungen ("/i/…/datei_,a,b,c,.mp4", z. B.
+	 * rbbvod.akamaized.net im JSON-LD von rbb-online.de) ist selbst keine
+	 * abspielbare Datei; Akamai liefert dieselbe Menge als HLS-Manifest unter
+	 * "….mp4.csmil/master.m3u8". Andere URLs bleiben unverändert.
+	 */
+	public static function akamaiSetToHls(string $url): string {
+		$parts = parse_url($url);
+		$path = $parts['path'] ?? '';
+		if (!isset($parts['host']) || !str_ends_with(strtolower($parts['host']), '.akamaized.net')
+			|| isset($parts['query']) || isset($parts['fragment'])
+			|| preg_match('#^/i/.+_(?:,[^,/]+)+,\.mp4$#', $path) !== 1) {
+			return $url;
+		}
+		return $url . '.csmil/master.m3u8';
+	}
+
+	/**
 	 * Auslieferungsart anhand der URL: ein .m3u8-Manifest ist HLS, alles
 	 * andere wird als direkte Mediendatei behandelt.
 	 */

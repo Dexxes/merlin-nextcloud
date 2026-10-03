@@ -7,6 +7,15 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- rbb-online.de: video pages play in the reader. The JSON-LD `contentUrl` is an
+  Akamai multi-bitrate URL (`/i/…_,a,b,.mp4`), which is played as its HLS
+  manifest (`….mp4.csmil/master.m3u8`). Takes effect for newly saved articles.
+- 3sat: videos on 3sat.de pages now play in the reader (HLS via the ZDF player
+  API that the 3sat page itself uses, content filter source `type="3sat"`).
+- ARD Mediathek: overview pages (e.g. `/film/…` links, whose ID the player API
+  does not know as a video) now play too. The player offers the page's videos
+  (up to six, e.g. the film and its trailer) in its variant dropdown in the web
+  reader and on iOS.
 - Captions: a trailing "(Quelle: …)" or "(Foto: …)" (also Bild, Credit,
   Copyright, Grafik, Illustration) is recognized as the image credit. The
   parentheses are dropped and the credit is shown as `<cite>` after " • ",
