@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\Merlin\Controller;
 
 use OCA\Merlin\AppInfo\Application;
+use OCA\Merlin\Db\Article;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Db\ArticleShare;
 use OCA\Merlin\Db\ArticleShareMapper;
@@ -198,6 +199,7 @@ class PublicShareController extends Controller {
 			'excerpt'     => $article->getExcerpt(),
 			'author'      => $article->getAuthor(),
 			'authorUrl'   => $article->getAuthorUrl(),
+			'authors'     => Article::decodeAuthors($article->getAuthors()),
 			'siteName'    => $article->getSiteName(),
 			'content'     => $article->getContent(),
 			'url'         => $article->getUrl(),

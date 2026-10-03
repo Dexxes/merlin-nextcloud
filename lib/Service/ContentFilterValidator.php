@@ -730,7 +730,7 @@ class ContentFilterValidator {
 	/**
 	 * Spiegelt die von ContentExtractorService::resolveJsonPath() unterstützte
 	 * Teilmenge von JSONPath: optionaler "quelle:"-Präfix, dann $ mit
-	 * punktgetrennten Schlüsseln und optionalen [n]-Indizes.
+	 * punktgetrennten Schlüsseln und optionalen [n]- bzw. [*]-Indizes.
 	 */
 	private function isValidJsonPath(string $value): bool {
 		$path = $value;
@@ -760,8 +760,8 @@ class ContentFilterValidator {
 			if ($token === '') {
 				return false;
 			}
-			// "key[0]" oder "[0]"
-			if (preg_match('/^[^\[\]]*(\[\d+\])+$/', $token) === 1) {
+			// "key[0]", "[0]" oder "key[*]" (alle Elemente)
+			if (preg_match('/^[^\[\]]*(\[(\d+|\*)\])+$/', $token) === 1) {
 				continue;
 			}
 			// einfacher Schlüssel (JSON-LD nutzt u. a. "@type")

@@ -307,8 +307,23 @@
 					<p v-if="article.excerpt" class="article-excerpt">{{ article.excerpt }}</p>
 
 					<div class="article-metadata">
+						<span v-if="authorLinks" class="meta-author">
+							<Account :size="16" />
+							<span class="meta-author__list">
+								<template v-for="(a, i) in authorLinks" :key="i">
+									<a
+										v-if="a.url"
+										class="meta-author--link"
+										:href="a.url"
+										target="_blank"
+										rel="noopener noreferrer">{{ a.name }}</a>
+									<template v-else>{{ a.name }}</template>
+									<template v-if="i < authorLinks.length - 1">, </template>
+								</template>
+							</span>
+						</span>
 						<a
-							v-if="article.author && safeAuthorUrl"
+							v-else-if="article.author && safeAuthorUrl"
 							class="meta-author meta-author--link"
 							:href="safeAuthorUrl"
 							target="_blank"
@@ -724,6 +739,20 @@ export default {
 		// ausgeführt werden kann. Vue sanitisiert v-bind:href NICHT.
 		safeArticleUrl() {
 			return this.sanitizeHref(this.article?.url)
+		},
+
+		// Autoren mit eigenem Profil-Link (Co-Autoren einzeln), nur absolute
+		// http(s)-URLs. null, wenn keiner einen Link hat - dann greift die
+		// einfache Darstellung über author/authorUrl.
+		authorLinks() {
+			const list = Array.isArray(this.article?.authors) ? this.article.authors : []
+			const entries = list
+				.filter(a => a && typeof a.name === 'string' && a.name !== '')
+				.map(a => ({
+					name: a.name,
+					url: typeof a.url === 'string' && /^https?:\/\//i.test(a.url.trim()) ? a.url.trim() : null,
+				}))
+			return entries.length > 1 && entries.some(a => a.url) ? entries : null
 		},
 
 		// Link zum Autorenprofil der Quelle, nur absolute http(s)-URLs.
@@ -1553,6 +1582,12 @@ article {
 	display: flex;
 	align-items: center;
 	gap: 6px;
+}
+
+/* Co-Autoren: Namen als Fließtext, nicht als Flex-Kacheln */
+.article-metadata .meta-author__list,
+.article-metadata .meta-author__list a {
+	display: inline;
 }
 
 .meta-site,

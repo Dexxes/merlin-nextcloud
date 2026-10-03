@@ -72,6 +72,10 @@ $check = function (
 		'author'    => $result['author'] ?? null,
 		'authorUrl' => $result['authorUrl'] ?? null,
 	];
+	// "authors" (Name + Link je Autor) nur prüfen, wo der Testfall es erwartet.
+	if (array_key_exists('authors', $expected)) {
+		$actual['authors'] = $result['authors'] ?? null;
+	}
 
 	if ($actual === $expected) {
 		$passed++;
@@ -144,10 +148,13 @@ $check(
 );
 
 $check(
-	'Zwei verschiedene rel=author-Links -> Co-Autoren, kein Profil-Link',
+	'Zwei verschiedene rel=author-Links -> Co-Autoren, je Autor ein Profil-Link, kein einzelner authorUrl',
 	'<html><body><a rel="author" href="/a/g">Gina Glosse</a> und <a rel="author" href="/a/h">Hans Hintergrund</a></body></html>',
 	null,
-	$a('Gina Glosse, Hans Hintergrund')
+	$a('Gina Glosse, Hans Hintergrund') + ['authors' => [
+		['name' => 'Gina Glosse', 'url' => 'https://example.com/a/g'],
+		['name' => 'Hans Hintergrund', 'url' => 'https://example.com/a/h'],
+	]]
 );
 
 $check(
@@ -221,7 +228,10 @@ $check(
 		]])
 		. '</script></head><body></body></html>',
 	null,
-	$a('Nina Notiz, Olaf Online')
+	$a('Nina Notiz, Olaf Online') + ['authors' => [
+		['name' => 'Nina Notiz', 'url' => 'https://example.com/n'],
+		['name' => 'Olaf Online', 'url' => 'https://example.com/o'],
+	]]
 );
 
 echo "\n\033[1mDomain-Regeln\033[0m\n";
@@ -287,6 +297,71 @@ $check(
 	'<html><body><a rel="author" href="/autor/willi">Willi Wort</a><a id="x" href="javascript:alert(1)">x</a></body></html>',
 	'<domain name="example.com"><metadata><author-link xpath="//a[@id=\'x\']/@href" /></metadata></domain>',
 	$a('Willi Wort', 'https://example.com/autor/willi')
+);
+
+echo "\n\033[1mMehrere Autoren über [*]-JSON-Pfade und <author-link>\033[0m\n";
+
+$ldTwo = '<script type="application/ld+json">' . json_encode(['@type' => 'Article', 'author' => [
+	['@type' => 'Person', 'name' => 'Xaver Xylo', 'url' => 'https://example.com/x'],
+	['@type' => 'Person', 'name' => 'Yvonne Yacht', 'url' => 'https://example.com/y'],
+	['@type' => 'Person', 'name' => 'Zora Zeile', 'url' => 'https://example.com/z'],
+]]) . '</script>';
+$ldSource = '<json id="ld" xpath="//script[@type=\'application/ld+json\']" />';
+
+$check(
+	'author json="ld:$.author[*].name" + author-link json="ld:$.author[*].url" -> alle drei Autoren mit Link',
+	'<html><head>' . $ldTwo . '</head><body></body></html>',
+	'<domain name="example.com">' . $ldSource . '<metadata><author json="ld:$.author[*].name" />'
+		. '<author-link json="ld:$.author[*].url" /></metadata></domain>',
+	$a('Xaver Xylo, Yvonne Yacht, Zora Zeile') + ['authors' => [
+		['name' => 'Xaver Xylo', 'url' => 'https://example.com/x'],
+		['name' => 'Yvonne Yacht', 'url' => 'https://example.com/y'],
+		['name' => 'Zora Zeile', 'url' => 'https://example.com/z'],
+	]]
+);
+
+$check(
+	'author json="ld:$.author[0].name" (Altform) -> weiterhin nur der erste Autor',
+	'<html><head>' . $ldTwo . '</head><body></body></html>',
+	'<domain name="example.com">' . $ldSource . '<metadata><author json="ld:$.author[0].name" />'
+		. '<author-link json="ld:$.author[0].url" /></metadata></domain>',
+	$a('Xaver Xylo', 'https://example.com/x')
+);
+
+$check(
+	'[*] auf einem einzelnen author-Objekt (kein Array) -> wie ein Element',
+	'<html><head><script type="application/ld+json">{"@type":"Article","author":{"@type":"Person","name":"Anton Abend","url":"https://example.com/anton"}}</script></head><body></body></html>',
+	'<domain name="example.com">' . $ldSource . '<metadata><author json="ld:$.author[*].name" />'
+		. '<author-link json="ld:$.author[*].url" /></metadata></domain>',
+	$a('Anton Abend', 'https://example.com/anton')
+);
+
+$check(
+	'Zwei <author>-Treffer ohne Link + <author-link>-XPath mit zwei Treffern -> der Reihe nach zugeordnet',
+	'<html><body><p class="by"><span class="n">Bea Bild</span><span class="n">Carl Cut</span></p>'
+		. '<footer><a class="p" href="/autor/bea">Bea</a><a class="p" href="/autor/carl">Carl</a></footer></body></html>',
+	'<domain name="example.com"><metadata><author xpath="//span[@class=\'n\']" /><author-link xpath="//a[@class=\'p\']/@href" /></metadata></domain>',
+	$a('Bea Bild, Carl Cut') + ['authors' => [
+		['name' => 'Bea Bild', 'url' => 'https://example.com/autor/bea'],
+		['name' => 'Carl Cut', 'url' => 'https://example.com/autor/carl'],
+	]]
+);
+
+$check(
+	'Anzahl Links passt nicht zur Anzahl Autoren -> keine Zuordnung per Reihenfolge',
+	'<html><body><span class="n">Bea Bild</span><span class="n">Carl Cut</span><a class="p" href="/autor/bea">Bea</a></body></html>',
+	'<domain name="example.com"><metadata><author xpath="//span[@class=\'n\']" /><author-link xpath="//a[@class=\'p\']/@href" /></metadata></domain>',
+	$a('Bea Bild, Carl Cut') + ['authors' => null]
+);
+
+$check(
+	'Co-Autoren per Domain-Regel auf <a> -> Link je Treffer',
+	'<html><body><a class="au" href="/autor/dana">Dana Druck</a>, <a class="au" href="/autor/emil">Emil Eilmeldung</a></body></html>',
+	'<domain name="example.com"><metadata><author xpath="//a[@class=\'au\']" /></metadata></domain>',
+	$a('Dana Druck, Emil Eilmeldung') + ['authors' => [
+		['name' => 'Dana Druck', 'url' => 'https://example.com/autor/dana'],
+		['name' => 'Emil Eilmeldung', 'url' => 'https://example.com/autor/emil'],
+	]]
 );
 
 echo "\n" . str_repeat('─', 72) . "\n";

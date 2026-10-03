@@ -333,6 +333,7 @@ class ContentFilterController extends Controller {
 				'title'       => $article['title'] ?? '',
 				'author'      => $article['author'] ?? null,
 				'authorUrl'   => $article['authorUrl'] ?? null,
+				'authors'     => $article['authors'] ?? null,
 				'excerpt'     => $article['excerpt'] ?? null,
 				'siteName'    => $article['siteName'] ?? null,
 				'imageUrl'    => $article['imageUrl'] ?? null,

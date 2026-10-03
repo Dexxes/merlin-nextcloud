@@ -22,6 +22,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setAuthor(?string $author)
  * @method string|null getAuthorUrl()
  * @method void setAuthorUrl(?string $authorUrl)
+ * @method string|null getAuthors()
+ * @method void setAuthors(?string $authors)
  * @method string|null getSiteName()
  * @method void setSiteName(?string $siteName)
  * @method string|null getImageUrl()
@@ -74,6 +76,10 @@ class Article extends Entity implements JsonSerializable {
 	// resolveAuthorMetadata()). null, wenn keiner erkennbar war, bei
 	// mehreren Autoren und bei Artikeln aus der Zeit vor der Spalte.
 	protected $authorUrl;
+	// JSON-Liste [{"name": …, "url": …|null}] je Autor, damit auch Co-Autoren
+	// einzeln verlinkt werden können. null, wenn kein Profil-Link erkannt
+	// wurde. In der API als Array "authors" (siehe jsonSerialize()).
+	protected $authors;
 	protected $siteName;
 	protected $imageUrl;
 	protected $isRead;
@@ -124,6 +130,7 @@ class Article extends Entity implements JsonSerializable {
 		$this->addType('excerpt', 'string');
 		$this->addType('author', 'string');
 		$this->addType('authorUrl', 'string');
+		$this->addType('authors', 'string');
 		$this->addType('siteName', 'string');
 		$this->addType('imageUrl', 'string');
 		$this->addType('isRead', 'integer');
@@ -151,6 +158,42 @@ class Article extends Entity implements JsonSerializable {
 		$this->addType('siteIconUrl', 'string');
 	}
 
+	/**
+	 * Speicherform für setAuthors(): JSON oder null bei leerer Liste.
+	 *
+	 * @param list<array{name: string, url: ?string}>|null $authors
+	 */
+	public static function encodeAuthors(?array $authors): ?string {
+		if ($authors === null || $authors === []) {
+			return null;
+		}
+		$json = json_encode(array_values($authors), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+		return $json === false ? null : $json;
+	}
+
+	/**
+	 * @return list<array{name: string, url: ?string}>|null
+	 */
+	public static function decodeAuthors(?string $json): ?array {
+		if ($json === null || $json === '') {
+			return null;
+		}
+		$decoded = json_decode($json, true);
+		if (!is_array($decoded)) {
+			return null;
+		}
+		$authors = [];
+		foreach ($decoded as $entry) {
+			if (is_array($entry) && is_string($entry['name'] ?? null) && $entry['name'] !== '') {
+				$authors[] = [
+					'name' => $entry['name'],
+					'url'  => is_string($entry['url'] ?? null) ? $entry['url'] : null,
+				];
+			}
+		}
+		return $authors !== [] ? $authors : null;
+	}
+
 	public function jsonSerialize(): array {
 		return [
 			'id' => $this->getId(),
@@ -161,6 +204,7 @@ class Article extends Entity implements JsonSerializable {
 			'excerpt' => $this->getExcerpt(),
 			'author' => $this->getAuthor(),
 			'authorUrl' => $this->getAuthorUrl(),
+			'authors' => self::decodeAuthors($this->getAuthors()),
 			'siteName' => $this->getSiteName(),
 			'imageUrl' => $this->getImageUrl(),
 			'isRead' => (bool) $this->getIsRead(),

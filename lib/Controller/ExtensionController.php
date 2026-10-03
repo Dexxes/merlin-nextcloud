@@ -141,6 +141,7 @@ class ExtensionController extends Controller {
 						// Der erkannte Profil-Link gehört zum erkannten, nicht
 						// zum mitgegebenen Autor.
 						$extracted['authorUrl'] = null;
+						$extracted['authors']   = null;
 					}
 					$article   = $mapper->find($articleId, $userId);
 					$article->setUrl($extracted['url'] ?? $url);
@@ -149,6 +150,7 @@ class ExtensionController extends Controller {
 					$article->setExcerpt($extracted['excerpt']);
 					$article->setAuthor($extracted['author']);
 					$article->setAuthorUrl($extracted['authorUrl'] ?? null);
+					$article->setAuthors(Article::encodeAuthors($extracted['authors'] ?? null));
 					$article->setSiteName($extracted['siteName']);
 					$article->setImageUrl($extracted['imageUrl']);
 					$article->setCategory($extracted['category']);
