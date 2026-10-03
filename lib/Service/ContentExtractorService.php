@@ -1857,6 +1857,16 @@ class ContentExtractorService {
 			$url = preg_replace('/(?:-\d+x\d+)+-c-[a-z]+(?=\.\w+$)/i', '', $url) ?? $url;
 			$url = preg_replace('/-\d+x\d+(?=\.\w+$)/i', '', $url) ?? $url;
 
+			// WordPress "big image"-Handling (seit WP 5.3): Uploads über 2560 px
+			// werden verkleinert und als "<name>-scaled.<ext>" abgelegt (bzw. nach
+			// EXIF-Drehung als "<name>-rotated.<ext>"). og:image zeigt dann auf
+			// diese Datei, die Größenvarianten im Content aber weiterhin auf den
+			// Originalnamen ("<name>-860x484.<ext>"), z. B. netzpolitik.org:
+			// "imago0061783399h-scaled.jpg" (og:image) vs.
+			// "imago0061783399h-860x484.jpg" (Content-<figure> mit <figcaption>).
+			// Das Suffix entfernen, damit beide auf "<name>.<ext>" normalisieren.
+			$url = preg_replace('/-(?:scaled|rotated)(?=\.\w+$)/i', '', $url) ?? $url;
+
 			// spiegel.de-Bildserver: Dateiname trägt Breite, Seitenverhältnis und
 			// Fokuspunkt als "_w<Breite>_r<Verhältnis>_fpx<x>_fpy<y>"-Suffix vor
 			// der Endung, z. B. "<uuid>_w1200_r1.778_fpx29_fpy41.jpg" (og:image)

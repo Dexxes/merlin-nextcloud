@@ -69,6 +69,9 @@ All notable changes to Merlin are documented here. Format based on
   simply left out.
 
 ### Fixed
+- Hero image: the caption is now also assigned when og:image points to a
+  WordPress "big image" file (`-scaled`/`-rotated` suffix, e.g. netzpolitik.org)
+  while the article's figure uses a regular size variant of the original.
 - Quotes: attribution is now recognised for standard blockquotes (trailing
   text/`<em>` after the quote paragraph, `<footer>`/`<address>`, a following
   `<p><cite>`) and rendered as `<cite class="merlin-quote__source">`. Author
