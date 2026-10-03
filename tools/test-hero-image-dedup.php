@@ -319,6 +319,20 @@ $checkMatch(
 );
 
 $checkMatch(
+	'WordPress-"-scaled"-Datei als og:image (netzpolitik.org) vs. Größenvariante des Originals im Content',
+	'https://cdn.netzpolitik.org/wp-upload/2026/09/imago0061783399h-860x484.jpg',
+	'https://cdn.netzpolitik.org/wp-upload/2026/09/imago0061783399h-scaled.jpg',
+	true
+);
+
+$checkMatch(
+	'WordPress-"-rotated"-Datei als og:image vs. Größenvariante des Originals im Content',
+	'https://example.com/wp-content/uploads/2024/foto-1024x576.jpg',
+	'https://example.com/wp-content/uploads/2024/foto-rotated.jpg',
+	true
+);
+
+$checkMatch(
 	'CDN-Resize-Query-String (Jetpack-Photon-Stil) unterscheidet sich nur per "?"',
 	'https://example.com/wp-content/uploads/2024/foto.jpg?resize=780%2C439&ssl=1',
 	'https://example.com/wp-content/uploads/2024/foto.jpg',
