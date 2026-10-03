@@ -134,12 +134,13 @@ class ArdMediathekProvider implements MediaSourceProviderInterface {
 	}
 
 	/**
-	 * Videos einer Übersichtsseite (Grouping), in Seitenreihenfolge.
+	 * Videos einer Übersichtsseite (Grouping), in Seitenreihenfolge. Ohne
+	 * embedded=false: damit liefert die API die gridlist ohne Teaser.
 	 *
 	 * @return list<array{label: string, url: string}>
 	 */
 	private function groupingVariants(string $id): array {
-		$json = $this->http->getJson(self::API_BASE . 'grouping/' . rawurlencode($id) . '?embedded=false');
+		$json = $this->http->getJson(self::API_BASE . 'grouping/' . rawurlencode($id));
 		$widgets = $json['widgets'] ?? null;
 		if (!is_array($widgets)) {
 			return [];

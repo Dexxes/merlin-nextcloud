@@ -353,6 +353,7 @@ namespace {
 		'Videos der Übersichtsseite als Varianten, ohne Doppelte und Livestreams'
 	);
 	$t->eq($grouping?->defaultIndex, 0, 'Vorauswahl ist das erste Video');
+	$t->ok(in_array($api . 'grouping/R3JvdXBpbmdJZA', $fakeHttp->requested, true), 'Grouping ohne embedded=false abgefragt (sonst liefert die API keine Teaser)');
 	$t->ok(!in_array($api . 'item/TGl2ZUlk?embedded=false&mcV6=true', $fakeHttp->requested, true), 'Live-Teaser wird nicht abgefragt');
 
 	$single = new FakeMediaHttpClient([$api . 'item/RmlsbUlk' => $ardItem([
