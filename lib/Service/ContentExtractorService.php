@@ -796,7 +796,9 @@ class ContentExtractorService {
 			$imageUrl    = null;
 			$publishedAt = null;
 			foreach ($mediaDetailParagraphs as $paragraph) {
-				$content .= '<p>' . htmlspecialchars($paragraph, ENT_QUOTES, 'UTF-8') . '</p>';
+				// Zeilenumbrüche im Absatz (z. B. "Host: …\nAutor: …") sichtbar
+				// halten - als rohes \n würde der Browser sie zu Leerzeichen machen.
+				$content .= '<p>' . nl2br(htmlspecialchars($paragraph, ENT_QUOTES, 'UTF-8'), false) . '</p>';
 			}
 		}
 
@@ -1155,7 +1157,9 @@ class ContentExtractorService {
 					? array_map('trim', explode(':', $json, 2))
 					: ['default', $json];
 				$resolved = isset($jsonSources[$sourceId]) ? $this->resolveJsonPath($jsonSources[$sourceId], $path) : null;
-				$text     = is_string($resolved) ? trim($resolved) : '';
+				// JSON-LD-Strings tragen oft HTML-Entities (ardsounds.de:
+				// "The Fame&quot;"); unten escapt htmlspecialchars() erneut.
+				$text     = is_string($resolved) ? trim(html_entity_decode($resolved, ENT_QUOTES | ENT_HTML5, 'UTF-8')) : '';
 				$trace?->record('media', $rule, $text !== '' ? 1 : 0);
 			}
 			if ($text !== '') {
@@ -1163,9 +1167,14 @@ class ContentExtractorService {
 			}
 		}
 
+		// Absätze an Leerzeilen trennen, auch bei Windows-Zeilenenden und
+		// Leerzeichen am Zeilenende ("…P3.  \r\n\r\nHost: …"). Einfache
+		// Zeilenumbrüche bleiben im Absatz und werden beim Rendern zu <br>.
+		$text       = str_replace(["\r\n", "\r"], "\n", $text);
 		$paragraphs = [];
-		foreach (preg_split('/\n{2,}/', $text) ?: [] as $paragraph) {
-			$paragraph = trim($paragraph);
+		foreach (preg_split('/\n[ \t]*\n\s*/', $text) ?: [] as $paragraph) {
+			$lines     = array_filter(array_map('trim', explode("\n", $paragraph)), static fn (string $line): bool => $line !== '');
+			$paragraph = implode("\n", $lines);
 			if ($paragraph !== '') {
 				$paragraphs[] = $paragraph;
 			}

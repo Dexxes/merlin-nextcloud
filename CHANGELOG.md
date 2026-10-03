@@ -69,6 +69,10 @@ All notable changes to Merlin are documented here. Format based on
   simply left out.
 
 ### Fixed
+- Audio/video descriptions (`<media><description>`, e.g. ardsounds.de) keep
+  their line breaks: paragraphs are also split at `\r\n\r\n` and blank lines
+  with trailing spaces, single line breaks become `<br>`, and HTML entities in
+  JSON-LD strings (`&quot;`) are decoded instead of shown literally.
 - Hero image: the caption is now also found when another figure (e.g. an
   author avatar on netzpolitik.org) precedes the hero figure in the page and
   Readability dropped the hero figure itself. The raw HTML is searched for the
