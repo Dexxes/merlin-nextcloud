@@ -18,7 +18,7 @@ Merlin is a powerful read-it-later application for Nextcloud that allows you to:
 Perfect for keeping track of interesting articles, research materials, or any web content you want to read later.
     ]]></description>
 
-    <version>1.0.13</version>
+    <version>1.0.14</version>
     <licence>agpl</licence>
 
     <author>Julian von Bülow</author>
@@ -40,7 +40,16 @@ Perfect for keeping track of interesting articles, research materials, or any we
         <nextcloud min-version="30" max-version="35"/>
     </dependencies>
 
+    <background-jobs>
+        <job>OCA\Merlin\BackgroundJob\RetentionCleanupJob</job>
+    </background-jobs>
+
+    <commands>
+        <command>OCA\Merlin\Command\RetentionRun</command>
+    </commands>
+
     <settings>
+        <admin>OCA\Merlin\Settings\RetentionAdminSettings</admin>
         <admin>OCA\Merlin\Settings\AdminSettings</admin>
         <admin-section>OCA\Merlin\Settings\AdminSection</admin-section>
         <personal>OCA\Merlin\Settings\PersonalSettings</personal>

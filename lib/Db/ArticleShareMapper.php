@@ -47,6 +47,21 @@ class ArticleShareMapper extends QBMapper {
 		return $this->findEntity($qb);
 	}
 
+	/**
+	 * Löscht Share-Links, die vor $cutoff abgelaufen sind. Abgelaufene Links
+	 * liefern ohnehin 410 (PublicShareController); nach einer Karenzzeit
+	 * räumt der Löschfrist-Job sie weg.
+	 *
+	 * @return int Anzahl gelöschter Links
+	 */
+	public function deleteExpiredBefore(\DateTimeImmutable $cutoff): int {
+		$qb = $this->db->getQueryBuilder();
+		return $qb->delete($this->getTableName())
+			->where($qb->expr()->isNotNull('expires_at'))
+			->andWhere($qb->expr()->lt('expires_at', $qb->createNamedParameter($cutoff->format('Y-m-d H:i:s'))))
+			->executeStatement();
+	}
+
 	public function deleteByArticleId(int $articleId, string $userId): void {
 		$qb = $this->db->getQueryBuilder();
 

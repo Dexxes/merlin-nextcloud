@@ -194,6 +194,24 @@ class Article extends Entity implements JsonSerializable {
 		return $authors !== [] ? $authors : null;
 	}
 
+	/**
+	 * Archivstatus setzen und archived_at mitführen – die Löschfrist zählt ab
+	 * archived_at (RetentionPolicy). Erneutes Archivieren eines bereits
+	 * archivierten Artikels behält das ursprüngliche Datum; Herausholen aus dem
+	 * Archiv leert es. Alle Archivierungswege (Toggle, update(), Pocket-API)
+	 * gehen hierüber, damit kein archivierter Artikel ohne Datum entsteht.
+	 */
+	public function applyArchived(bool $archived): void {
+		if ($archived) {
+			if (!$this->getIsArchived() || $this->getArchivedAt() === null) {
+				$this->setArchivedAt(new \DateTime());
+			}
+		} else {
+			$this->setArchivedAt(null);
+		}
+		$this->setIsArchived($archived);
+	}
+
 	public function jsonSerialize(): array {
 		return [
 			'id' => $this->getId(),

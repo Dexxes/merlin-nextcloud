@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
+use OCA\Merlin\Service\RetentionPolicy;
+use OCA\Merlin\Service\RetentionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
@@ -43,6 +45,11 @@ class SettingsController extends Controller {
 		'reportBackendUrl' => '', // URL des merlin-reports-Backends (z.B. https://cloud.example.com/merlin-reports/)
 		'accentColor' => '#FF3B30', // Akzentfarbe für Fortschrittsbalken (iOS/Android), siehe PreferencesStore
 		'excludedTagIds' => '[]', // JSON-Array von Tag-IDs, die aus der Artikelliste ausgeblendet werden (Pendant zu iOS/Android TagFilterSheet)
+		// Löschfrist archivierter Artikel in Tagen, 0 = so lange wie der Admin erlaubt
+		// (siehe RetentionService). Der Admin-Wert begrenzt nach oben; ein höherer
+		// Nutzerwert wird gespeichert, wirkt aber als Admin-Maximum.
+		'retentionDays' => '0',
+		'retentionFavoritesDays' => '0',
 	];
 
 	// IConfig kann nur Strings persistieren. Ohne diese Typ-Tabelle liefert get()
@@ -65,12 +72,18 @@ class SettingsController extends Controller {
 		'reportBackendUrl' => 'string',
 		'accentColor' => 'string',
 		'excludedTagIds' => 'string', // bleibt JSON-Array-String; wird clientseitig geparst
+		'retentionDays' => 'int',
+		'retentionFavoritesDays' => 'int',
 	];
+
+	/** Tage-Werte, die auf den gültigen Bereich der Löschfrist begrenzt werden. */
+	private const RETENTION_KEYS = ['retentionDays', 'retentionFavoritesDays'];
 
 	public function __construct(
 		string $appName,
 		IRequest $request,
 		IConfig $config,
+		private RetentionService $retentionService,
 		?string $userId
 	) {
 		parent::__construct($appName, $request);
@@ -98,6 +111,11 @@ class SettingsController extends Controller {
 			);
 			$settings[$key] = $this->castForResponse($key, $raw);
 		}
+
+		// Nur lesend: Admin-Maximum, effektive Fristen und ob der einmalige
+		// Löschfrist-Hinweis fällig ist. Werden beim PUT ignoriert, da sie nicht
+		// in DEFAULT_SETTINGS stehen.
+		$settings += $this->retentionService->getSettingsInfo($this->userId);
 
 		return new DataResponse($settings);
 	}
@@ -129,6 +147,10 @@ class SettingsController extends Controller {
 				$saved[$key] = $this->castForResponse($key, $stored);
 			}
 		}
+
+		// Effektive Fristen hängen von retentionDays/retentionFavoritesDays ab;
+		// mitliefern, damit der Web-Client sie ohne weiteren GET aktualisiert.
+		$saved += $this->retentionService->getSettingsInfo($this->userId);
 
 		return new DataResponse(['success' => true, 'settings' => $saved]);
 	}
@@ -164,7 +186,11 @@ class SettingsController extends Controller {
 					: (bool) $value;
 				return $bool ? '1' : '0';
 			case 'int':
-				return (string) (int) $value;
+				$int = (int) $value;
+				if (in_array($key, self::RETENTION_KEYS, true)) {
+					$int = RetentionPolicy::normalizeDays($int);
+				}
+				return (string) $int;
 			case 'float':
 				return (string) (float) $value;
 			default:

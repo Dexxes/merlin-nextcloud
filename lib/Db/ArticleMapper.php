@@ -250,6 +250,93 @@ class ArticleMapper extends QBMapper {
 	}
 
 	/**
+	 * Nutzer mit mindestens einem archivierten Artikel – nur für die kann die
+	 * Löschfrist greifen (RetentionService).
+	 *
+	 * @return string[]
+	 */
+	public function findUserIdsWithArchived(): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->selectDistinct('user_id')
+			->from($this->getTableName())
+			->where($qb->expr()->eq('is_archived', $qb->createNamedParameter(1, IQueryBuilder::PARAM_INT)));
+
+		$result = $qb->executeQuery();
+		$userIds = [];
+		while (($userId = $result->fetchOne()) !== false) {
+			$userIds[] = (string) $userId;
+		}
+		$result->closeCursor();
+		return $userIds;
+	}
+
+	/**
+	 * IDs archivierter Artikel, deren Archivierung vor $cutoff liegt, getrennt
+	 * nach Favoriten und Nicht-Favoriten (eigene Frist je Gruppe). Artikel in
+	 * Verarbeitung bleiben unberührt.
+	 *
+	 * @return int[]
+	 */
+	public function findExpiredArchivedIds(string $userId, \DateTimeImmutable $cutoff, bool $favorites, int $limit = 500): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id')
+			->from($this->getTableName())
+			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+			->andWhere($qb->expr()->eq('is_archived', $qb->createNamedParameter(1, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->isNotNull('archived_at'))
+			->andWhere($qb->expr()->lt('archived_at', $qb->createNamedParameter($cutoff->format('Y-m-d H:i:s'))))
+			->andWhere($qb->expr()->eq('is_processing', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)))
+			->andWhere($favorites ? $qb->expr()->isNotNull('is_favorite') : $qb->expr()->isNull('is_favorite'))
+			->orderBy('id', 'ASC')
+			->setMaxResults($limit);
+
+		$result = $qb->executeQuery();
+		$ids = [];
+		while (($id = $result->fetchOne()) !== false) {
+			$ids[] = (int) $id;
+		}
+		$result->closeCursor();
+		return $ids;
+	}
+
+	/**
+	 * Anzahl der Artikel, die findExpiredArchivedIds() ohne Limit liefern würde
+	 * (Vorschau in den Admin-Einstellungen).
+	 */
+	public function countExpiredArchived(string $userId, \DateTimeImmutable $cutoff, bool $favorites): int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select($qb->func()->count('id'))
+			->from($this->getTableName())
+			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+			->andWhere($qb->expr()->eq('is_archived', $qb->createNamedParameter(1, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->isNotNull('archived_at'))
+			->andWhere($qb->expr()->lt('archived_at', $qb->createNamedParameter($cutoff->format('Y-m-d H:i:s'))))
+			->andWhere($qb->expr()->eq('is_processing', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)))
+			->andWhere($favorites ? $qb->expr()->isNotNull('is_favorite') : $qb->expr()->isNull('is_favorite'));
+
+		$result = $qb->executeQuery();
+		$count = (int) $result->fetchOne();
+		$result->closeCursor();
+		return $count;
+	}
+
+	/**
+	 * Archivierte Artikel ohne Archivierungsdatum (vor dem Fix in update() und
+	 * der Pocket-API entstanden) bekommen $now. Ihre Löschfrist beginnt damit
+	 * erst jetzt, statt sie beim ersten Lauf sofort zu löschen.
+	 *
+	 * @return int Anzahl nachgetragener Zeilen
+	 */
+	public function backfillArchivedAt(\DateTimeImmutable $now): int {
+		$qb = $this->db->getQueryBuilder();
+		return $qb->update($this->getTableName())
+			->set('archived_at', $qb->createNamedParameter($now->format('Y-m-d H:i:s')))
+			->where($qb->expr()->eq('is_archived', $qb->createNamedParameter(1, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->isNull('archived_at'))
+			->executeStatement();
+	}
+
+	/**
 	 * Delete all articles for a user
 	 */
 	public function deleteByUserId(string $userId): void {

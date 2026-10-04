@@ -21,7 +21,9 @@ merlin-nextcloud/
 │   │   ├── YoutubeEmbedController.php          # Proxy für eingebettete YouTube-Player (CSP)
 │   │   ├── MediaController.php                 # GET /api/articles/{id}/media: Audio-/Video-Quelle eines Artikels
 │   │   ├── VideoStreamController.php           # Veraltet: /video-stream im alten Format (nur HLS-Video)
-│   │   ├── SettingsController.php
+│   │   ├── SettingsController.php             # GET/PUT /api/settings (inkl. Löschfrist des Nutzers, nur lesend: Admin-Maximum/effektive Frist)
+│   │   ├── RetentionController.php            # POST /api/retention/notice: Löschfrist-Hinweis bestätigen
+│   │   ├── RetentionAdminController.php       # Admin-API der Löschfrist (Maximum, Vorschau)
 │   │   ├── ContentFilterController.php        # Admin-API für Content-Filter
 │   │   ├── UserContentFilterController.php    # Personal-API: eigener Override
 │   │   └── PageController.php
@@ -37,6 +39,9 @@ merlin-nextcloud/
 │   │   ├── PdfProxyService.php           # PDF-Durchreichung für PdfController und öffentlichen Share-Endpunkt (SSRF-Guard je Hop, %PDF-Prüfung, Range, 100-MB-Limit)
 │   │   ├── TtsStreamService.php          # Ausgelagert aus TtsController: gemeinsamer Stream-Pfad für authentifizierten und öffentlichen (Share-)Endpunkt
 │   │   ├── ExportService.php
+│   │   ├── ArticleDeletionService.php    # Einziger Löschweg für Artikel: mit Highlights, Tag-Zuordnungen, Shares; Nutzerlöschung; Waisen
+│   │   ├── RetentionService.php          # Löschfrist: Admin-/Nutzerwerte, Lauf, Vorschau, Hinweis
+│   │   ├── RetentionPolicy.php           # Reine Rechenregeln der Löschfrist (Minimum, Stichtag, Hinweis fällig?)
 │   │   ├── Media/                        # Audio/Video, siehe Abschnitt "Medien-Provider" unten
 │   │   │   ├── MediaResolverService.php       # <media>-Sektion lesen, Provider aufrufen, Marker bauen/lesen
 │   │   │   ├── MediaProviderRegistry.php      # type → Provider (einzige Registrierungsstelle)
@@ -50,18 +55,23 @@ merlin-nextcloud/
 │   ├── Settings/             # Verwaltungs- und persönliche Einstellungen
 │   │   ├── AdminSection.php
 │   │   ├── AdminSettings.php
+│   │   ├── RetentionAdminSettings.php    # Admin: Löschfrist (eigener Abschnitt vor den Content-Filtern)
 │   │   ├── PersonalSection.php
 │   │   └── PersonalSettings.php
 │   ├── Listener/
 │   │   ├── AddContentSecurityPolicyListener.php
-│   │   └── UserDeletedListener.php   # Räumt private Content-Filter-Overrides auf
+│   │   └── UserDeletedListener.php   # Räumt alle Merlin-Daten eines gelöschten Nutzers auf
+│   ├── BackgroundJob/
+│   │   └── RetentionCleanupJob.php   # Täglich: abgelaufene archivierte Artikel und alte Share-Links löschen
+│   ├── Command/
+│   │   └── RetentionRun.php          # occ merlin:retention:run [--user] [--dry-run]
 │   ├── Db/                   # Datenbankschicht
 │   │   ├── Article.php / ArticleMapper.php
 │   │   ├── ArticleShare.php / ArticleShareMapper.php   # Öffentliche Share-Links (Token, Passwort, Ablauf)
 │   │   ├── Highlight.php / HighlightMapper.php         # Textmarkierungen je Artikel
 │   │   ├── Tag.php / TagMapper.php
 │   │   └── SiteCredential.php / SiteCredentialMapper.php  # 🔜 geplant: verschlüsselte Paywall-Zugangsdaten je Nutzer/Domain
-│   └── Migration/            # Datenbank-Migrationen (Version1000Date20240101000000 … 000027)
+│   └── Migration/            # Datenbank-Migrationen (Version1000Date20240101000000 … 000028)
 ├── content-filters/          # Mitgelieferte Filter, eine Datei je Domain (~55 Domains, z. B. spiegel.de, zeit.de, taz.de, youtube.com)
 │   ├── 000.sample.com.xml    # Kommentierte Referenz aller Regeltypen
 │   ├── 000dead.xml           # Parkliste toter Domains (kein gültiges XML)
@@ -75,6 +85,7 @@ merlin-nextcloud/
     ├── test-pdf-proxy.php             # Testharness PdfProxyService (lokaler Quellserver: Range, Redirect, Nicht-PDF, Größe, SSRF)
     ├── test-pdf-article.php           # Testharness PDF-Artikel (URL-Erkennung, Marker, SSRF, Sanitizer)
     ├── test-support-box.php           # Testharness SupportBoxService (URL-Auswahl, Login-Ausblendung, Share, Seiten-Icon))
+    ├── test-retention.php             # Testharness RetentionPolicy (effektive Frist, Stichtag, Hinweis)
     └── test-site-icon.php             # Testharness ContentExtractorService::extractSiteIconUrl() (Apple > SVG > Bitmap > ICO, <base>, data:/javascript:, kein og:image)
 ```
 

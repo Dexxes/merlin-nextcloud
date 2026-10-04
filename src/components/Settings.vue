@@ -282,6 +282,42 @@
 				</div>
 			</section>
 
+			<!-- ── Retention ───────────────────────────────────── -->
+			<section class="section">
+				<header class="section__head">
+					<span class="section__icon"><ArchiveClockOutline :size="18" /></span>
+					<div>
+						<h2 class="section__title">{{ t('merlin', 'Retention') }}</h2>
+						<p class="section__desc">{{ t('merlin', 'Archived articles can be deleted automatically. The period counts from the day you archive an article; articles that are not archived are kept.') }}</p>
+					</div>
+				</header>
+
+				<div v-for="field in retentionFields" :key="field.key" class="field">
+					<div class="field__label">
+						{{ field.label }}
+						<div class="field__hint">{{ retentionHint(field) }}</div>
+					</div>
+					<div class="field__control">
+						<div
+							class="segmented segmented--wrap"
+							role="radiogroup"
+							:aria-label="field.label">
+							<button
+								v-for="opt in retentionOptions(field)"
+								:key="opt.value"
+								type="button"
+								role="radio"
+								:disabled="opt.disabled"
+								:aria-checked="localSettings[field.key] === opt.value"
+								:class="['segmented__item', { 'is-active': localSettings[field.key] === opt.value }]"
+								@click="setSetting(field.key, opt.value)">
+								{{ opt.label }}
+							</button>
+						</div>
+					</div>
+				</div>
+			</section>
+
 			<!-- ── Tags ────────────────────────────────────────── -->
 			<section v-if="tags.length" class="section">
 				<header class="section__head">
@@ -501,6 +537,7 @@ import { loadState } from '@nextcloud/initial-state'
 import BookOpen from 'vue-material-design-icons/BookOpen.vue'
 import Clock from 'vue-material-design-icons/Clock.vue'
 import ViewGrid from 'vue-material-design-icons/ViewGrid.vue'
+import ArchiveClockOutline from 'vue-material-design-icons/ArchiveClockOutline.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
 import Check from 'vue-material-design-icons/Check.vue'
 import Inbox from 'vue-material-design-icons/Inbox.vue'
@@ -580,13 +617,18 @@ const DEFAULTS = {
 	reportBackendUrl: '',
 	accentColor: '#FF3B30',
 	excludedTagIds: [],
+	retentionDays: 0,
+	retentionFavoritesDays: 0,
 }
+
+// Auswahl der Löschfrist in Tagen; 0 = so lange wie der Admin erlaubt.
+const RETENTION_CHOICES = [7, 30, 90, 180, 365]
 
 export default {
 	name: 'Settings',
 
 	components: {
-		BookOpen, Clock, ViewGrid, Refresh, Check,
+		BookOpen, Clock, ViewGrid, ArchiveClockOutline, Refresh, Check,
 		Inbox, Star, AlertCircleOutline, TagOutline, Close,
 		InformationOutline, LockOutline, SettingsPreview
 	},
@@ -657,6 +699,15 @@ export default {
 
 	computed: {
 		...mapState(['settings', 'tags']),
+
+		// Zwei Fristen mit derselben Logik: normale Artikel und Favoriten. maxKey/
+		// effectiveKey sind die nur lesenden Werte aus GET /api/settings.
+		retentionFields() {
+			return [
+				{ key: 'retentionDays', maxKey: 'retentionMaxDays', effectiveKey: 'retentionEffectiveDays', label: this.t('merlin', 'Delete archived articles after') },
+				{ key: 'retentionFavoritesDays', maxKey: 'retentionFavoritesMaxDays', effectiveKey: 'retentionFavoritesEffectiveDays', label: this.t('merlin', 'Delete archived favorites after') },
+			]
+		},
 
 		lineHeightPct() {
 			const min = 1.2; const max = 2.0
@@ -814,6 +865,38 @@ export default {
 			this.$nextTick(() => {
 				event.currentTarget.querySelectorAll('[role="radio"]')[nextIndex]?.focus()
 			})
+		},
+
+		retentionOptions(field) {
+			const max = Number(this.settings[field.maxKey]) || 0
+			const current = Number(this.localSettings[field.key]) || 0
+			// Ein anderswo (z. B. iOS) gesetzter Wert außerhalb der Auswahl bleibt sichtbar.
+			const values = [...new Set([...RETENTION_CHOICES, ...(current > 0 ? [current] : [])])].sort((a, b) => a - b)
+			return [
+				{
+					value: 0,
+					label: max > 0
+						? this.n('merlin', 'Maximum (%n day)', 'Maximum (%n days)', max)
+						: this.t('merlin', 'Never'),
+					disabled: false,
+				},
+				...values.map(days => ({
+					value: days,
+					label: this.n('merlin', '%n day', '%n days', days),
+					disabled: max > 0 && days > max,
+				})),
+			]
+		},
+
+		retentionHint(field) {
+			const effective = Number(this.settings[field.effectiveKey]) || 0
+			if (effective === 0) {
+				return this.t('merlin', 'Nothing is deleted automatically.')
+			}
+			return this.n('merlin',
+				'Deleted %n day after archiving. Takes effect with the next daily cleanup.',
+				'Deleted %n days after archiving. Takes effect with the next daily cleanup.',
+				effective)
 		},
 
 		isTagExcluded(tagId) {
@@ -1398,6 +1481,18 @@ export default {
 	border-radius: 999px;
 	padding: 3px;
 	gap: 2px;
+}
+
+/* Löschfrist: sechs Optionen, auf schmalen Bildschirmen umbrechen statt die
+   Seite seitlich scrollen zu lassen. */
+.segmented--wrap {
+	flex-wrap: wrap;
+	border-radius: 16px;
+}
+
+.segmented__item:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
 }
 
 .segmented__item {
