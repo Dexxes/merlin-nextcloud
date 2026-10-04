@@ -5586,6 +5586,7 @@ class ContentExtractorService {
 
 			$this->flattenCaptionElement($caption);
 			$this->markCaptionCredit($caption);
+			$this->removeSeparatorBeforeCredit($caption);
 		}
 	}
 
@@ -5606,7 +5607,8 @@ class ContentExtractorService {
 		// Quelle als Klammerzusatz am Ende: "Ein Bild (Foto: dpa)". Vor der
 		// Trenner-Logik unten, sonst würde bei "A • B (Foto: dpa)" der ganze
 		// Teil "B (Foto: dpa)" zur Quelle. Die Klammern fallen weg, das Präfix
-		// bleibt ("Ein Bild • <cite>Foto: dpa</cite>"). Nur wenn der Zusatz
+		// bleibt ("Ein Bild <cite>Foto: dpa</cite>", den Trenner davor entfernt
+		// removeSeparatorBeforeCredit()). Nur wenn der Zusatz
 		// komplett im letzten Textknoten auf oberster Ebene steht - verteilt
 		// über Auszeichnung ist er nicht sauber abtrennbar.
 		$last = $caption->lastChild;
@@ -5676,6 +5678,36 @@ class ContentExtractorService {
 			$cite->appendChild($caption->firstChild);
 		}
 		$caption->appendChild($cite);
+	}
+
+	/**
+	 * Entfernt den CAPTION_BULLET-Trenner direkt vor der Bildquelle
+	 * (<cite> auf oberster Ebene der <figcaption>): "Ein Bild. <cite>Foto: dpa</cite>"
+	 * statt "Ein Bild. • <cite>Foto: dpa</cite>". Die Quelle ist als <cite>
+	 * schon getrennt ausgezeichnet. Intern bleibt der Trenner bis hierher
+	 * stehen, weil die Hero-Caption (Step 12) nur als Text übernommen wird und
+	 * markCaptionCredit() die Quelle dort am letzten Trenner wieder abtrennt.
+	 * Satzzeichen am Ende der Caption bleiben unverändert.
+	 */
+	private function removeSeparatorBeforeCredit(\DOMElement $caption): void {
+		foreach (iterator_to_array($caption->childNodes) as $child) {
+			if (!$child instanceof \DOMElement || strtolower($child->nodeName) !== 'cite') {
+				continue;
+			}
+			$prev = $child->previousSibling;
+			if (!$prev instanceof \DOMText) {
+				continue;
+			}
+			$value = preg_replace('/\s*' . self::CAPTION_BULLET . '\s*$/u', '', (string) $prev->nodeValue, 1, $count) ?? '';
+			if ($count === 0) {
+				continue;
+			}
+			if (trim($value) === '' && $prev->previousSibling === null) {
+				$caption->removeChild($prev);
+			} else {
+				$prev->nodeValue = $value . ' ';
+			}
+		}
 	}
 
 	/**

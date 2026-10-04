@@ -54,13 +54,13 @@ echo "\n\033[1mBildunterschriften: Umbrüche werden zu \"•\"\033[0m\n";
 $check(
 	'<br> wird zum Trenner',
 	'<figure><img src="https://x/y.jpg" alt=""><figcaption>Ein Bild<br>Foto: dpa</figcaption></figure>',
-	'Ein Bild • <cite>Foto: dpa</cite>'
+	'Ein Bild <cite>Foto: dpa</cite>'
 );
 
 $check(
 	'Block-Elemente werden zum Trenner',
 	'<figcaption><p>Titel des Bildes</p><p>Foto: dpa</p></figcaption>',
-	'Titel des Bildes • <cite>Foto: dpa</cite>'
+	'Titel des Bildes <cite>Foto: dpa</cite>'
 );
 
 $check(
@@ -84,25 +84,25 @@ $check(
 $check(
 	'Mehrere <br> ergeben einen Trenner',
 	'<figcaption>A<br><br>B</figcaption>',
-	'A • <cite>B</cite>'
+	'A <cite>B</cite>'
 );
 
 $check(
 	'Leerer Block erzeugt keinen doppelten Trenner',
 	'<figcaption><p>A</p><p>   </p><p>B</p></figcaption>',
-	'A • <cite>B</cite>'
+	'A <cite>B</cite>'
 );
 
 $check(
 	'Verschachtelte Blöcke',
 	'<figcaption><div><p>A</p><span>B</span></div><p>C</p></figcaption>',
-	'A • <span>B</span> • <cite>C</cite>'
+	'A • <span>B</span> <cite>C</cite>'
 );
 
 $check(
 	'Inline-Auszeichnung bleibt erhalten',
 	'<figcaption>Foto: <a href="https://example.org">dpa</a><br><em>Mehr</em> dazu</figcaption>',
-	'Foto: <a href="https://example.org">dpa</a> • <cite><em>Mehr</em> dazu</cite>'
+	'Foto: <a href="https://example.org">dpa</a> <cite><em>Mehr</em> dazu</cite>'
 );
 
 $check(
@@ -126,25 +126,25 @@ $check(
 $check(
 	'Klammerzusatz "(Foto: …)" am Ende wird Quelle, Klammern entfallen',
 	'<figcaption>Uwe Steimle in Pasewalk (Foto: Andy Bünning/imago)</figcaption>',
-	'Uwe Steimle in Pasewalk • <cite>Foto: Andy Bünning/imago</cite>'
+	'Uwe Steimle in Pasewalk <cite>Foto: Andy Bünning/imago</cite>'
 );
 
 $check(
 	'Klammerzusatz "(Quelle: …)" am Ende wird Quelle, auch mit Leerraum dahinter',
 	"<figcaption>Ein Diagramm. (Quelle: Statistisches Bundesamt) \n </figcaption>",
-	'Ein Diagramm. • <cite>Quelle: Statistisches Bundesamt</cite>'
+	'Ein Diagramm. <cite>Quelle: Statistisches Bundesamt</cite>'
 );
 
 $check(
 	'Klammerzusatz nach Trenner: nur der Zusatz wird Quelle, nicht der ganze letzte Abschnitt',
 	'<figcaption>Titel<br>Beschreibung des Bildes (Foto: dpa)</figcaption>',
-	'Titel • Beschreibung des Bildes • <cite>Foto: dpa</cite>'
+	'Titel • Beschreibung des Bildes <cite>Foto: dpa</cite>'
 );
 
 $check(
 	'Klammerzusatz hinter Auszeichnung: Text davor bleibt erhalten',
 	'<figcaption><em>Kunstwerk</em> von Anna (Foto: privat)</figcaption>',
-	'<em>Kunstwerk</em> von Anna • <cite>Foto: privat</cite>'
+	'<em>Kunstwerk</em> von Anna <cite>Foto: privat</cite>'
 );
 
 $check(
@@ -156,13 +156,19 @@ $check(
 $check(
 	'Englischer Klammerzusatz "(Photo: …)" (Präfix aus resources/caption-credit-prefixes.json)',
 	'<figcaption>Protesters in Paris (Photo: Reuters)</figcaption>',
-	'Protesters in Paris • <cite>Photo: Reuters</cite>'
+	'Protesters in Paris <cite>Photo: Reuters</cite>'
 );
 
 $check(
 	'Englisches Präfix "Source:" ohne Trenner: ganze Caption ist Quelle',
 	'<figcaption>Source: Federal Statistical Office</figcaption>',
 	'<cite>Source: Federal Statistical Office</cite>'
+);
+
+$check(
+	'Schlusspunkt der Caption bleibt vor der Quelle stehen',
+	'<figcaption><div>Der Saal ist voll.</div><div>© Agentur</div></figcaption>',
+	'Der Saal ist voll. <cite>© Agentur</cite>'
 );
 
 $check(

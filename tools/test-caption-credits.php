@@ -148,8 +148,8 @@ echo "\n\033[1mHero-Pfad: Caption-Text \"… • Quelle\" wird wieder zu <cite>\
 
 $out = (string) $sanitize->invoke($service, '<figure class="merlin-hero-image"><img src="https://x/y.jpg" alt=""><figcaption>Ein Bild. • © Agentur</figcaption></figure>');
 $report(
-	'Hero-<figcaption> aus Text: Quelle hinter dem letzten " • " wird <cite>',
-	'Ein Bild. • <cite>© Agentur</cite>',
+	'Hero-<figcaption> aus Text: Quelle hinter dem letzten " • " wird <cite>, der Trenner entfällt, der Punkt bleibt',
+	'Ein Bild. <cite>© Agentur</cite>',
 	preg_match('#<figcaption[^>]*>(.*?)</figcaption>#is', $out, $m) === 1 ? html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8') : $out
 );
 

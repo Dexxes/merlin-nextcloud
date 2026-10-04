@@ -6,6 +6,11 @@ All notable changes to Merlin are documented here. Format based on
 
 ## [Unreleased]
 
+### Changed
+- Captions: the image credit (`<cite>`) is no longer separated from the
+  caption by " • ", only by a space ("Ein Bild. <cite>Foto: dpa</cite>").
+  The caption's own final punctuation stays as it is.
+
 ### Added
 - Retention: archived articles can be deleted automatically. The period counts
   from the day an article was archived; articles that are not archived are never
