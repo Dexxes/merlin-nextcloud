@@ -7,6 +7,7 @@ namespace OCA\Merlin\Controller;
 use OCA\Merlin\Db\Article;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Db\TagMapper;
+use OCA\Merlin\Service\ArticleDeletionService;
 use OCA\Merlin\Service\ContentExtractorService;
 use OCA\Merlin\Service\ContentFilterSchema;
 use OCA\Merlin\Service\ExportService;
@@ -56,6 +57,7 @@ class ArticleController extends Controller {
 		IURLGenerator $urlGenerator,
 		LoggerInterface $logger,
 		private SupportBoxService $supportBox,
+		private ArticleDeletionService $deletionService,
 		?string $userId
 	) {
 		parent::__construct($appName, $request);
@@ -411,7 +413,7 @@ class ArticleController extends Controller {
 				$article->setIsFavorite($isFavorite ? new \DateTime() : null);
 			}
 			if ($isArchived !== null) {
-				$article->setIsArchived($isArchived);
+				$article->applyArchived($isArchived);
 			}
 
 			$article->setUpdatedAt(new \DateTime());
@@ -438,7 +440,7 @@ class ArticleController extends Controller {
 	public function destroy(int $id): DataResponse {
 		try {
 			$article = $this->articleMapper->find($id, $this->userId);
-			$this->articleMapper->delete($article);
+			$this->deletionService->deleteArticles($this->userId, [$article->getId()]);
 
 			return new DataResponse(['success' => true]);
 		} catch (\Exception $e) {
@@ -502,8 +504,7 @@ class ArticleController extends Controller {
 		try {
 			$article = $this->articleMapper->find($id, $this->userId);
 			$isNowArchived = !$article->getIsArchived();
-			$article->setIsArchived($isNowArchived);
-			$article->setArchivedAt($isNowArchived ? new \DateTime() : null);
+			$article->applyArchived($isNowArchived);
 			$article->setUpdatedAt(new \DateTime());
 			$this->articleMapper->update($article);
 

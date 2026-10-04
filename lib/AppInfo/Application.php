@@ -34,7 +34,7 @@ class Application extends App implements IBootstrap {
 			AddContentSecurityPolicyEvent::class,
 			AddContentSecurityPolicyListener::class,
 		);
-		// Räumt private Content-Filter-Overrides (scope='user') auf, siehe
+		// Räumt die Merlin-Daten gelöschter Nutzer auf, siehe
 		// UserDeletedListener-Docblock.
 		$context->registerEventListener(
 			UserDeletedEvent::class,

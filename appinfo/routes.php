@@ -70,6 +70,13 @@ return [
         ['name' => 'settings#get', 'url' => '/api/settings', 'verb' => 'GET'],
         ['name' => 'settings#update', 'url' => '/api/settings', 'verb' => 'PUT'],
 
+        // Löschfrist archivierter Artikel: Hinweis bestätigen (Nutzer) und
+        // Admin-Maximum pflegen (nur Admins, siehe RetentionAdminController).
+        ['name' => 'retention#acknowledgeNotice', 'url' => '/api/retention/notice', 'verb' => 'POST'],
+        ['name' => 'retentionAdmin#show',    'url' => '/api/admin/retention',         'verb' => 'GET'],
+        ['name' => 'retentionAdmin#update',  'url' => '/api/admin/retention',         'verb' => 'PUT'],
+        ['name' => 'retentionAdmin#preview', 'url' => '/api/admin/retention/preview', 'verb' => 'GET'],
+
         // Speicherverbrauch (für iOS-Einstellungen: DB-Speicher pro Nutzer)
         ['name' => 'storage#get', 'url' => '/api/storage', 'verb' => 'GET'],
 

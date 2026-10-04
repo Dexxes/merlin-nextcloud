@@ -31,6 +31,12 @@
 			<Settings v-else-if="view === 'settings'" />
 		</NcAppContent>
 
+		<RetentionNoticeDialog
+			v-if="showRetentionNotice"
+			:days="settings.retentionEffectiveDays || 0"
+			:favorites-days="settings.retentionFavoritesEffectiveDays || 0"
+			@close="onRetentionNoticeClose" />
+
 		<AddArticleDialog
 			v-if="showAddArticleDialog"
 			:initial-url="addArticleUrl"
@@ -42,6 +48,7 @@
 <script>
 import { mapState, mapGetters, mapActions, mapMutations } from 'vuex'
 import { showSuccess } from '@nextcloud/dialogs'
+import { acknowledgeRetentionNotice } from './api/retention.js'
 import {
 	NcContent,
 	NcAppContent,
@@ -51,6 +58,7 @@ import ArticleList from './components/ArticleList.vue'
 import ArticleReader from './components/ArticleReader.vue'
 import AddArticleDialog from './components/AddArticleDialog.vue'
 import Settings from './components/Settings.vue'
+import RetentionNoticeDialog from './components/RetentionNoticeDialog.vue'
 import Sidebar from './components/Sidebar.vue'
 
 export default {
@@ -63,6 +71,7 @@ export default {
 		ArticleReader,
 		AddArticleDialog,
 		Settings,
+		RetentionNoticeDialog,
 		MerlinSidebar: Sidebar,
 	},
 
@@ -70,6 +79,8 @@ export default {
 		return {
 			showAddArticleDialog: false,
 			addArticleUrl: '',
+			// Einmaliger Löschfrist-Hinweis, siehe RetentionNoticeDialog.
+			showRetentionNotice: false,
 			currentFilter: 'pages-unread',
 			// Tracks whether we pushed a history entry when opening the reader.
 			// Needed so manual close can pop it, preventing a dangling back-entry.
@@ -114,6 +125,7 @@ export default {
 				this.setFilter(defaultView)
 			}
 			this._pollInterval = setInterval(() => this.pollForUpdates(), 15_000)
+			this.showRetentionNotice = Boolean(this.settings && this.settings.retentionNoticeRequired)
 		})
 		// Intercept the browser back button so it closes the reader instead of
 		// navigating away to the Files app (or the previous Nextcloud page).
@@ -135,7 +147,7 @@ export default {
 
 	methods: {
 		...mapActions(['fetchArticles', 'fetchCounts', 'fetchTags', 'fetchSettings', 'fetchLoginCapableDomains', 'deleteArticle', 'deleteTag', 'pollForUpdates']),
-		...mapMutations(['SET_FILTER', 'RESET_FILTER', 'SET_VIEW', 'SET_CURRENT_ARTICLE']),
+		...mapMutations(['SET_FILTER', 'RESET_FILTER', 'SET_VIEW', 'SET_CURRENT_ARTICLE', 'SET_SETTINGS']),
 
 		async loadData() {
 			await Promise.all([
@@ -223,6 +235,21 @@ export default {
 				// 'all' view was removed — fall back to the app's default (Pages/Unread)
 				// instead of a filter that no longer exists in the sidebar.
 				this.setFilter('pages-unread')
+			}
+		},
+
+		// Jedes Schließen bestätigt den Hinweis, damit er nicht bei jedem Aufruf
+		// wiederkommt; er erscheint erst wieder, wenn eine Frist kürzer wird.
+		async onRetentionNoticeClose(openSettings) {
+			this.showRetentionNotice = false
+			if (openSettings) {
+				this.openSettings()
+			}
+			try {
+				const info = await acknowledgeRetentionNotice()
+				this.SET_SETTINGS({ ...this.settings, ...info })
+			} catch (error) {
+				console.error('Failed to acknowledge retention notice:', error)
 			}
 		},
 

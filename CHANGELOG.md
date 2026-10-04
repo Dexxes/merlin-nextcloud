@@ -7,6 +7,24 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- Retention: archived articles can be deleted automatically. The period counts
+  from the day an article was archived; articles that are not archived are never
+  deleted. Admins set a maximum in days under Administration > Merlin >
+  Retention, separately for archived articles and archived favorites (0 = no
+  limit, the default, so nothing is deleted after the update). Users can choose
+  a shorter period in the app settings, either from the preset buttons or by
+  typing any number of days (values above the admin maximum are set to the
+  maximum) (`retentionDays`, `retentionFavoritesDays` in `/api/settings`); the
+  shorter value wins. Before
+  saving a lower maximum, the admin page shows how many articles the next run
+  would delete. A daily background job (`RetentionCleanupJob`) does the
+  deleting; `occ merlin:retention:run [--user=ID] [--dry-run]` runs it on
+  demand. `GET /api/settings` additionally returns `retentionMaxDays`,
+  `retentionFavoritesMaxDays`, `retentionEffectiveDays`,
+  `retentionFavoritesEffectiveDays` and `retentionNoticeRequired` (read-only).
+- Retention notice: when a period applies, the web app shows a one-time dialog
+  explaining it. It comes back only when a period gets shorter. Confirming it
+  (`POST /api/retention/notice`) also hides it in the iOS app.
 - rbb-online.de: video pages play in the reader. The JSON-LD `contentUrl` is an
   Akamai multi-bitrate URL (`/i/…_,a,b,.mp4`), which is played as its HLS
   manifest (`….mp4.csmil/master.m3u8`). Takes effect for newly saved articles.
@@ -100,6 +118,17 @@ All notable changes to Merlin are documented here. Format based on
   simply left out.
 
 ### Fixed
+- Deleting an article now also deletes its highlights, tag assignments and
+  public share link; before, they stayed in the database. Leftovers from
+  earlier deletions are removed by migration 28.
+- Deleting a Nextcloud user now removes their Merlin articles, tags,
+  highlights and share links, not only content filter overrides and paywall
+  logins.
+- Archiving via `PUT /api/articles/{id}` (`isArchived`) and the Pocket API
+  (`archive`/`readd`) now sets and clears the archive date like the archive
+  toggle does. Archived articles without a date get the time of the update
+  (migration 28), so their retention period starts then.
+- Expired public share links are deleted 30 days after they expired.
 - Image captions from `<images><caption>` rules no longer show up a second time
   in the middle of the text. The rebuilt `<figure>` copied the source image's
   class, and Readability drops elements whose class matches its "unlikely"

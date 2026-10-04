@@ -282,6 +282,59 @@
 				</div>
 			</section>
 
+			<!-- ── Retention ───────────────────────────────────── -->
+			<section class="section">
+				<header class="section__head">
+					<span class="section__icon"><ArchiveClockOutline :size="18" /></span>
+					<div>
+						<h2 class="section__title">{{ t('merlin', 'Retention') }}</h2>
+						<p class="section__desc">{{ t('merlin', 'Archived articles can be deleted automatically. The period counts from the day you archive an article; articles that are not archived are kept.') }}</p>
+					</div>
+				</header>
+
+				<div v-for="field in retentionFields" :key="field.key" class="field">
+					<div class="field__label">
+						{{ field.label }}
+						<div class="field__hint">{{ retentionHint(field) }}</div>
+					</div>
+					<div class="field__control">
+						<div
+							class="segmented segmented--wrap"
+							role="radiogroup"
+							:aria-label="field.label">
+							<button
+								v-for="opt in retentionOptions(field)"
+								:key="opt.value"
+								type="button"
+								role="radio"
+								:disabled="opt.disabled"
+								:aria-checked="localSettings[field.key] === opt.value"
+								:class="['segmented__item', { 'is-active': localSettings[field.key] === opt.value }]"
+								@click="setSetting(field.key, opt.value)">
+								{{ opt.label }}
+							</button>
+						</div>
+						<label class="retention-custom">
+							<span class="retention-custom__label">{{ t('merlin', 'Custom value in days') }}</span>
+							<input
+								type="number"
+								class="retention-custom__input"
+								min="1"
+								:max="retentionMax(field) || 36500"
+								step="1"
+								inputmode="numeric"
+								:value="localSettings[field.key] || ''"
+								:placeholder="t('merlin', 'e.g. 45')"
+								@change="setRetentionDays(field, $event)"
+								@keyup.enter="$event.target.blur()">
+						</label>
+						<div v-if="retentionMessages[field.key]" class="retention-custom__message" role="status">
+							{{ retentionMessages[field.key] }}
+						</div>
+					</div>
+				</div>
+			</section>
+
 			<!-- ── Tags ────────────────────────────────────────── -->
 			<section v-if="tags.length" class="section">
 				<header class="section__head">
@@ -501,6 +554,7 @@ import { loadState } from '@nextcloud/initial-state'
 import BookOpen from 'vue-material-design-icons/BookOpen.vue'
 import Clock from 'vue-material-design-icons/Clock.vue'
 import ViewGrid from 'vue-material-design-icons/ViewGrid.vue'
+import ArchiveClockOutline from 'vue-material-design-icons/ArchiveClockOutline.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
 import Check from 'vue-material-design-icons/Check.vue'
 import Inbox from 'vue-material-design-icons/Inbox.vue'
@@ -580,13 +634,20 @@ const DEFAULTS = {
 	reportBackendUrl: '',
 	accentColor: '#FF3B30',
 	excludedTagIds: [],
+	retentionDays: 0,
+	retentionFavoritesDays: 0,
 }
+
+// Auswahl der Löschfrist in Tagen; 0 = so lange wie der Admin erlaubt.
+const RETENTION_CHOICES = [7, 30, 90, 180, 365]
+// Obergrenze wie RetentionPolicy::MAX_DAYS auf dem Server.
+const RETENTION_MAX_DAYS = 36500
 
 export default {
 	name: 'Settings',
 
 	components: {
-		BookOpen, Clock, ViewGrid, Refresh, Check,
+		BookOpen, Clock, ViewGrid, ArchiveClockOutline, Refresh, Check,
 		Inbox, Star, AlertCircleOutline, TagOutline, Close,
 		InformationOutline, LockOutline, SettingsPreview
 	},
@@ -598,6 +659,8 @@ export default {
 			// leeres Objekt als Fallback, falls appInfo aus irgendeinem Grund fehlt.
 			appInfo: loadState('merlin', 'appInfo', {}),
 			savedFlash: false,
+			// Rückmeldung zur freien Tage-Eingabe, je Feld (retentionDays/retentionFavoritesDays).
+			retentionMessages: {},
 			// Paywall-Abo-Zugangsdaten (Tagesspiegel Plus & Co.) - kein Initial-State
 			// vom Server, da diese Seite (anders als die Nextcloud-Personal-Settings)
 			// Teil des normalen App-Ladens ist und den zusätzlichen Payload nicht auf
@@ -657,6 +720,15 @@ export default {
 
 	computed: {
 		...mapState(['settings', 'tags']),
+
+		// Zwei Fristen mit derselben Logik: normale Artikel und Favoriten. maxKey/
+		// effectiveKey sind die nur lesenden Werte aus GET /api/settings.
+		retentionFields() {
+			return [
+				{ key: 'retentionDays', maxKey: 'retentionMaxDays', effectiveKey: 'retentionEffectiveDays', label: this.t('merlin', 'Delete archived articles after') },
+				{ key: 'retentionFavoritesDays', maxKey: 'retentionFavoritesMaxDays', effectiveKey: 'retentionFavoritesEffectiveDays', label: this.t('merlin', 'Delete archived favorites after') },
+			]
+		},
 
 		lineHeightPct() {
 			const min = 1.2; const max = 2.0
@@ -814,6 +886,69 @@ export default {
 			this.$nextTick(() => {
 				event.currentTarget.querySelectorAll('[role="radio"]')[nextIndex]?.focus()
 			})
+		},
+
+		retentionMax(field) {
+			return Number(this.settings[field.maxKey]) || 0
+		},
+
+		/**
+		 * Freie Eingabe der Tage: leer oder 0 = keine eigene Frist, Werte über
+		 * dem Admin-Maximum werden auf das Maximum gesetzt (der Server würde
+		 * ohnehin nur das Minimum anwenden, so sieht der Nutzer, was gilt).
+		 */
+		setRetentionDays(field, event) {
+			const raw = String(event.target.value ?? '').trim()
+			this.retentionMessages = { ...this.retentionMessages, [field.key]: '' }
+			let days = raw === '' ? 0 : Number(raw)
+			if (!Number.isInteger(days) || days < 0) {
+				this.retentionMessages = { ...this.retentionMessages, [field.key]: this.t('merlin', 'Please enter a whole number of days. An empty field removes your own period.') }
+				event.target.value = this.localSettings[field.key] || ''
+				return
+			}
+			const max = this.retentionMax(field)
+			if (max > 0 && days > max) {
+				days = max
+				this.retentionMessages = {
+					...this.retentionMessages,
+					[field.key]: this.n('merlin', 'Your server allows at most %n day. That value was saved.', 'Your server allows at most %n days. That value was saved.', max),
+				}
+			}
+			days = Math.min(days, RETENTION_MAX_DAYS)
+			event.target.value = days || ''
+			this.setSetting(field.key, days)
+		},
+
+		retentionOptions(field) {
+			const max = this.retentionMax(field)
+			const current = Number(this.localSettings[field.key]) || 0
+			// Ein anderswo (z. B. iOS) gesetzter Wert außerhalb der Auswahl bleibt sichtbar.
+			const values = [...new Set([...RETENTION_CHOICES, ...(current > 0 ? [current] : [])])].sort((a, b) => a - b)
+			return [
+				{
+					value: 0,
+					label: max > 0
+						? this.n('merlin', 'Maximum (%n day)', 'Maximum (%n days)', max)
+						: this.t('merlin', 'Never'),
+					disabled: false,
+				},
+				...values.map(days => ({
+					value: days,
+					label: this.n('merlin', '%n day', '%n days', days),
+					disabled: max > 0 && days > max,
+				})),
+			]
+		},
+
+		retentionHint(field) {
+			const effective = Number(this.settings[field.effectiveKey]) || 0
+			if (effective === 0) {
+				return this.t('merlin', 'Nothing is deleted automatically.')
+			}
+			return this.n('merlin',
+				'Deleted %n day after archiving. Takes effect with the next daily cleanup.',
+				'Deleted %n days after archiving. Takes effect with the next daily cleanup.',
+				effective)
 		},
 
 		isTagExcluded(tagId) {
@@ -1398,6 +1533,49 @@ export default {
 	border-radius: 999px;
 	padding: 3px;
 	gap: 2px;
+}
+
+/* Löschfrist: sechs Optionen, auf schmalen Bildschirmen umbrechen statt die
+   Seite seitlich scrollen zu lassen. */
+.segmented--wrap {
+	flex-wrap: wrap;
+	border-radius: 16px;
+}
+
+.segmented__item:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+/* ── Löschfrist: freie Eingabe ───────────────────────────── */
+.retention-custom {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-top: 10px;
+	font-size: 13px;
+	color: var(--color-text-maxcontrast);
+}
+.retention-custom__input {
+	width: 110px;
+	padding: 6px 10px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+	font-size: 13px;
+	font-family: inherit;
+	box-sizing: border-box;
+	outline: none;
+	transition: border-color 0.15s;
+}
+.retention-custom__input:focus {
+	border-color: var(--color-primary, #0082c9);
+}
+.retention-custom__message {
+	margin-top: 6px;
+	font-size: 12px;
+	color: var(--color-text-maxcontrast);
 }
 
 .segmented__item {

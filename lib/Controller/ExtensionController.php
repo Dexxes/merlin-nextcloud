@@ -6,6 +6,7 @@ namespace OCA\Merlin\Controller;
 
 use OCA\Merlin\Db\Article;
 use OCA\Merlin\Db\ArticleMapper;
+use OCA\Merlin\Service\ArticleDeletionService;
 use OCA\Merlin\Service\ContentExtractorService;
 use OCA\Merlin\Service\UnsupportedSiteException;
 use OCP\AppFramework\Controller;
@@ -36,6 +37,7 @@ class ExtensionController extends Controller {
 		ArticleMapper $articleMapper,
 		ContentExtractorService $contentExtractor,
 		LoggerInterface $logger,
+		private ArticleDeletionService $deletionService,
 		?string $userId
 	) {
 		parent::__construct($appName, $request);
@@ -285,10 +287,10 @@ class ExtensionController extends Controller {
 
 				switch ($action['action']) {
 					case 'archive':
-						$article->setIsArchived(true);
+						$article->applyArchived(true);
 						break;
 					case 'readd':
-						$article->setIsArchived(false);
+						$article->applyArchived(false);
 						break;
 					case 'favorite':
 						$article->setIsFavorite(new \DateTime());
@@ -297,7 +299,7 @@ class ExtensionController extends Controller {
 						$article->setIsFavorite(null);
 						break;
 					case 'delete':
-						$this->articleMapper->delete($article);
+						$this->deletionService->deleteArticles($this->userId, [$article->getId()]);
 						$results[] = ['success' => true, 'item_id' => $itemId];
 						continue 2;
 				}
