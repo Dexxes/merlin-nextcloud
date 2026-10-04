@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<domain name="*.repubblica.it">
+
+<metadata>
+</metadata>
+
+    <paywall>
+        <marker xpath='//iframe[@src="https://shop.repubblica.it/repubblica_paywall_rt"]' />
+        <subscribe url="https://shop.repubblica.it/repubblica/sito_smart/anno/landing/ATP_SNODO25_LAN/REP_SMART_N36_1Y12" />
+  </paywall>
+
+</domain>
