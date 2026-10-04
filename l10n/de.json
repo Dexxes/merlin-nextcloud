@@ -64,6 +64,7 @@
         "Could not send report — please try again.": "Meldung konnte nicht gesendet werden — bitte versuche es erneut.",
         "Current value:": "Aktueller Wert:",
         "Custom": "Benutzerdefiniert",
+        "Custom value in days": "Eigener Wert in Tagen",
         "Customize how Merlin presents your reading list. Changes save automatically.": "Passe an, wie Merlin deine Leseliste darstellt. Änderungen werden automatisch gespeichert.",
         "Dark": "Dunkel",
         "Date": "Datum",
@@ -188,6 +189,7 @@
         "Pinned": "Angeheftet",
         "Play": "Wiedergabe",
         "Playback speed": "Wiedergabegeschwindigkeit",
+        "Please enter a whole number of days. An empty field removes your own period.": "Bitte eine ganze Zahl von Tagen eingeben. Ein leeres Feld entfernt die eigene Frist.",
         "Position": "Position",
         "Progress bar position": "Position des Fortschrittsbalkens",
         "Purple": "Lila",
@@ -338,10 +340,15 @@
             "Mit diesen Werten wird beim nächsten täglichen Durchlauf %n archivierter Artikel gelöscht.",
             "Mit diesen Werten werden beim nächsten täglichen Durchlauf %n archivierte Artikel gelöscht."
         ],
+        "_Your server allows at most %n day. That value was saved._::_Your server allows at most %n days. That value was saved._": [
+            "Dein Server erlaubt höchstens %n Tag. Dieser Wert wurde gespeichert.",
+            "Dein Server erlaubt höchstens %n Tage. Dieser Wert wurde gespeichert."
+        ],
         "admin default": "Admin-Standard",
         "built-in": "vordefiniert",
         "by Anya Mehra": "von Anya Mehra",
         "donation": "spenden",
+        "e.g. 45": "z. B. 45",
         "e.g. News": "z.B. Nachrichten",
         "https://example.com/article": "https://example.com/article",
         "https://…/merlin-reports/": "https://…/merlin-reports/",

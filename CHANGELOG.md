@@ -12,8 +12,10 @@ All notable changes to Merlin are documented here. Format based on
   deleted. Admins set a maximum in days under Administration > Merlin >
   Retention, separately for archived articles and archived favorites (0 = no
   limit, the default, so nothing is deleted after the update). Users can choose
-  a shorter period in the app settings (`retentionDays`,
-  `retentionFavoritesDays` in `/api/settings`); the shorter value wins. Before
+  a shorter period in the app settings, either from the preset buttons or by
+  typing any number of days (values above the admin maximum are set to the
+  maximum) (`retentionDays`, `retentionFavoritesDays` in `/api/settings`); the
+  shorter value wins. Before
   saving a lower maximum, the admin page shows how many articles the next run
   would delete. A daily background job (`RetentionCleanupJob`) does the
   deleting; `occ merlin:retention:run [--user=ID] [--dry-run]` runs it on

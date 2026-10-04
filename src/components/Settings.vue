@@ -314,6 +314,23 @@
 								{{ opt.label }}
 							</button>
 						</div>
+						<label class="retention-custom">
+							<span class="retention-custom__label">{{ t('merlin', 'Custom value in days') }}</span>
+							<input
+								type="number"
+								class="retention-custom__input"
+								min="1"
+								:max="retentionMax(field) || 36500"
+								step="1"
+								inputmode="numeric"
+								:value="localSettings[field.key] || ''"
+								:placeholder="t('merlin', 'e.g. 45')"
+								@change="setRetentionDays(field, $event)"
+								@keyup.enter="$event.target.blur()">
+						</label>
+						<div v-if="retentionMessages[field.key]" class="retention-custom__message" role="status">
+							{{ retentionMessages[field.key] }}
+						</div>
 					</div>
 				</div>
 			</section>
@@ -623,6 +640,8 @@ const DEFAULTS = {
 
 // Auswahl der Löschfrist in Tagen; 0 = so lange wie der Admin erlaubt.
 const RETENTION_CHOICES = [7, 30, 90, 180, 365]
+// Obergrenze wie RetentionPolicy::MAX_DAYS auf dem Server.
+const RETENTION_MAX_DAYS = 36500
 
 export default {
 	name: 'Settings',
@@ -640,6 +659,8 @@ export default {
 			// leeres Objekt als Fallback, falls appInfo aus irgendeinem Grund fehlt.
 			appInfo: loadState('merlin', 'appInfo', {}),
 			savedFlash: false,
+			// Rückmeldung zur freien Tage-Eingabe, je Feld (retentionDays/retentionFavoritesDays).
+			retentionMessages: {},
 			// Paywall-Abo-Zugangsdaten (Tagesspiegel Plus & Co.) - kein Initial-State
 			// vom Server, da diese Seite (anders als die Nextcloud-Personal-Settings)
 			// Teil des normalen App-Ladens ist und den zusätzlichen Payload nicht auf
@@ -867,8 +888,39 @@ export default {
 			})
 		},
 
+		retentionMax(field) {
+			return Number(this.settings[field.maxKey]) || 0
+		},
+
+		/**
+		 * Freie Eingabe der Tage: leer oder 0 = keine eigene Frist, Werte über
+		 * dem Admin-Maximum werden auf das Maximum gesetzt (der Server würde
+		 * ohnehin nur das Minimum anwenden, so sieht der Nutzer, was gilt).
+		 */
+		setRetentionDays(field, event) {
+			const raw = String(event.target.value ?? '').trim()
+			this.retentionMessages = { ...this.retentionMessages, [field.key]: '' }
+			let days = raw === '' ? 0 : Number(raw)
+			if (!Number.isInteger(days) || days < 0) {
+				this.retentionMessages = { ...this.retentionMessages, [field.key]: this.t('merlin', 'Please enter a whole number of days. An empty field removes your own period.') }
+				event.target.value = this.localSettings[field.key] || ''
+				return
+			}
+			const max = this.retentionMax(field)
+			if (max > 0 && days > max) {
+				days = max
+				this.retentionMessages = {
+					...this.retentionMessages,
+					[field.key]: this.n('merlin', 'Your server allows at most %n day. That value was saved.', 'Your server allows at most %n days. That value was saved.', max),
+				}
+			}
+			days = Math.min(days, RETENTION_MAX_DAYS)
+			event.target.value = days || ''
+			this.setSetting(field.key, days)
+		},
+
 		retentionOptions(field) {
-			const max = Number(this.settings[field.maxKey]) || 0
+			const max = this.retentionMax(field)
 			const current = Number(this.localSettings[field.key]) || 0
 			// Ein anderswo (z. B. iOS) gesetzter Wert außerhalb der Auswahl bleibt sichtbar.
 			const values = [...new Set([...RETENTION_CHOICES, ...(current > 0 ? [current] : [])])].sort((a, b) => a - b)
@@ -1493,6 +1545,37 @@ export default {
 .segmented__item:disabled {
 	opacity: 0.4;
 	cursor: not-allowed;
+}
+
+/* ── Löschfrist: freie Eingabe ───────────────────────────── */
+.retention-custom {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-top: 10px;
+	font-size: 13px;
+	color: var(--color-text-maxcontrast);
+}
+.retention-custom__input {
+	width: 110px;
+	padding: 6px 10px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+	font-size: 13px;
+	font-family: inherit;
+	box-sizing: border-box;
+	outline: none;
+	transition: border-color 0.15s;
+}
+.retention-custom__input:focus {
+	border-color: var(--color-primary, #0082c9);
+}
+.retention-custom__message {
+	margin-top: 6px;
+	font-size: 12px;
+	color: var(--color-text-maxcontrast);
 }
 
 .segmented__item {
