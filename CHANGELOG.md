@@ -12,6 +12,8 @@ All notable changes to Merlin are documented here. Format based on
   in the user's accent color (on share links the owner's) and linked to the
   original article. It replaces the site entry in the
   metadata row.
+- Public share links: the hint "Select text to highlight it or comment on it."
+  above the article is gone.
 - Captions: the image credit (`<cite>`) is no longer separated from the
   caption by " • ", only by a space ("Ein Bild. <cite>Foto: dpa</cite>").
   The caption's own final punctuation stays as it is.

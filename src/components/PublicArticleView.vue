@@ -46,9 +46,6 @@
 					{{ commentCount > 0 ? t('merlin', 'Comments ({count})', { count: commentCount }) : t('merlin', 'Comments') }}
 				</button>
 			</div>
-			<p v-if="allowComments" class="pav-comment-hint">
-				{{ t('merlin', 'Select text to highlight it or comment on it.') }}
-			</p>
 
 			<audio v-if="audioVisible" ref="audioEl" class="pav-audio" controls :src="ttsUrl" />
 
@@ -605,12 +602,6 @@ export default {
 
 .pav-btn--active {
 	border-color: var(--color-primary-element, #0082c9);
-}
-
-.pav-comment-hint {
-	margin: -12px 0 20px;
-	font-size: 0.85em;
-	color: var(--color-text-maxcontrast, #666);
 }
 
 /* Die öffentliche Seite hat keine Nextcloud-Kopfleiste. */
