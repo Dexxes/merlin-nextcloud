@@ -6,7 +6,7 @@ import { generateUrl } from '@nextcloud/router'
  * Besitzer (eingeloggt), einer für Gäste hinter dem Share-Link. CommentPanel
  * und createCommentSession() sprechen nur diese Schnittstelle an.
  *
- * Antwort von list() und vom Push-Kanal: { signature, comments, highlights },
+ * Antwort von list() und vom Push-Kanal: { signature, generatedAt, comments, highlights },
  * comments = Thread-Wurzeln mit `replies`.
  */
 

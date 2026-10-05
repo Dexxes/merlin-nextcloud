@@ -20,6 +20,7 @@ export function createCommentSession(client, { onUpdate = null } = {}) {
 		threads: [],
 		highlights: [],
 		signature: '',
+		generatedAt: 0,
 		loaded: false,
 	})
 	let source = null
@@ -28,6 +29,11 @@ export function createCommentSession(client, { onUpdate = null } = {}) {
 
 	function apply(payload) {
 		if (!payload) return
+		// Älterer Stand als der gezeigte (verspätetes Push-Ereignis oder eine
+		// überholte Antwort): verwerfen, sonst erscheint Gelöschtes kurz wieder.
+		const at = Number(payload.generatedAt) || 0
+		if (at && at < state.generatedAt) return
+		if (at) state.generatedAt = at
 		state.threads = payload.comments || []
 		state.highlights = payload.highlights || []
 		state.signature = payload.signature || ''

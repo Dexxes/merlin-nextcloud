@@ -49,9 +49,16 @@ class CommentService {
 	}
 
 	/**
-	 * @return array{signature: string, comments: array, highlights: array}
+	 * `generatedAt` (Mikrosekunden, vor dem Lesen genommen) ordnet die Stände:
+	 * Antwort auf ein Neuladen und Push-Ereignis können sich überholen, und
+	 * ein Proxy kann Ereignisse puffern und verspätet ausliefern. Clients
+	 * verwerfen deshalb jeden Stand, der älter ist als der zuletzt gezeigte –
+	 * sonst taucht z. B. ein gerade gelöschter Kommentar kurz wieder auf.
+	 *
+	 * @return array{signature: string, generatedAt: int, comments: array, highlights: array}
 	 */
 	public function payload(int $articleId, string $ownerId): array {
+		$generatedAt = (int)floor(microtime(true) * 1000000);
 		// Marke vor den Daten lesen: ändert sich dazwischen etwas, ist die
 		// Marke älter als die Daten und der nächste Push liefert nach.
 		$signature = $this->signature($articleId, $ownerId);
@@ -64,9 +71,10 @@ class CommentService {
 			$this->highlightMapper->findByArticleId($articleId, $ownerId)
 		);
 		return [
-			'signature'  => $signature,
-			'comments'   => CommentRules::nest($comments),
-			'highlights' => $highlights,
+			'signature'   => $signature,
+			'generatedAt' => $generatedAt,
+			'comments'    => CommentRules::nest($comments),
+			'highlights'  => $highlights,
 		];
 	}
 
