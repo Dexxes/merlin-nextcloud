@@ -20,7 +20,13 @@ All notable changes to Merlin are documented here. Format based on
   default). New comments and highlights reach every open reader right away via
   Server-Sent Events (`/api/articles/{id}/comments/stream`,
   `/s/{token}/events`) instead of polling. New table `merlin_comments`;
-  highlights store their author (`authorType`, `authorName`).
+  highlights store their author (`authorType`, `authorName`). All input is
+  cleaned before it is stored: invalid UTF-8 is repaired, text is normalized
+  to NFC, control and invisible format characters (bidi overrides,
+  zero-width characters) are removed, names lose `<`/`>`. Highlight positions
+  must be plain client XPaths with bounded offsets, colors come from a fixed
+  list (also for the owner's own highlights). Comments stay plain text and are
+  never rendered as HTML.
 - Retention: archived articles can be deleted automatically. The period counts
   from the day an article was archived; articles that are not archived are never
   deleted. Admins set a maximum in days under Administration > Merlin >

@@ -139,7 +139,7 @@ class CommentService {
 				throw new CommentException('highlight_not_found', 404);
 			}
 			$comment->setHighlightId($highlight->getId());
-			$comment->setQuotedText($highlight->getHighlightedText());
+			$comment->setQuotedText(CommentRules::normalizeHighlightText((string) $highlight->getHighlightedText()));
 		}
 
 		$now = new \DateTime();
@@ -216,27 +216,21 @@ class CommentService {
 		int $endOffset,
 		string $color,
 	): Highlight {
-		$text = trim($highlightedText);
-		if ($text === '' || mb_strlen($text, 'UTF-8') > CommentRules::HIGHLIGHT_TEXT_MAX) {
-			throw new CommentException('highlight_invalid');
-		}
-		if (strlen($startXpath) > CommentRules::XPATH_MAX || strlen($endXpath) > CommentRules::XPATH_MAX
-			|| $startOffset < 0 || $endOffset < 0) {
-			throw new CommentException('highlight_invalid');
-		}
-		if (!in_array($color, ['yellow', 'green', 'blue', 'pink', 'orange'], true)) {
-			$color = 'yellow';
+		$error = CommentRules::validateHighlight(
+			$highlightedText, $startXpath, $startOffset, $endXpath, $endOffset, CommentRules::HIGHLIGHT_TEXT_MAX);
+		if ($error !== null) {
+			throw new CommentException($error);
 		}
 
 		$highlight = new Highlight();
 		$highlight->setUserId($ownerId);
 		$highlight->setArticleId($articleId);
-		$highlight->setHighlightedText($highlightedText);
+		$highlight->setHighlightedText(CommentRules::normalizeHighlightText($highlightedText));
 		$highlight->setStartXpath($startXpath);
 		$highlight->setStartOffset($startOffset);
 		$highlight->setEndXpath($endXpath);
 		$highlight->setEndOffset($endOffset);
-		$highlight->setColor($color);
+		$highlight->setColor(CommentRules::sanitizeColor($color));
 		$highlight->setCreatedAt(new \DateTime());
 		$highlight->setAuthorType(Comment::AUTHOR_GUEST);
 		$highlight->setAuthorName($authorName);
@@ -293,7 +287,7 @@ class CommentService {
 		flush();
 
 		$deadline = time() + self::STREAM_SECONDS;
-		$last = $since;
+		$last = CommentRules::sanitizeSignature($since);
 		$beat = 0;
 
 		while (time() < $deadline) {

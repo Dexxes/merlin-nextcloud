@@ -390,7 +390,7 @@ export default {
 					const h = this._highlightById(highlightId)
 					if (!h) return null
 					const name = h.authorType === 'guest' ? h.authorName : this.article?.ownerName
-					return name ? this.t('merlin', 'Highlighted by {name}', { name }) : null
+					return name ? this.t('merlin', 'Highlighted by {name}', { name }, undefined, { escape: false }) : null
 				},
 				t: (text) => this.t('merlin', text),
 			})

@@ -1469,7 +1469,7 @@ export default {
 				describe: (highlightId) => {
 					const h = this.commentSession?.state.highlights.find(x => x.id === highlightId)
 					return h && h.authorType === 'guest' && h.authorName
-						? this.t('merlin', 'Highlighted by {name}', { name: h.authorName })
+						? this.t('merlin', 'Highlighted by {name}', { name: h.authorName }, undefined, { escape: false })
 						: null
 				},
 				t: (text) => this.t('merlin', text),

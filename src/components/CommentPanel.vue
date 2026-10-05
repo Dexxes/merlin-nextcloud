@@ -16,7 +16,7 @@
 		</header>
 
 		<div v-if="mode === 'guest' && currentName" class="cp-identity">
-			{{ t('merlin', 'You are writing as {name}.', { name: currentName }) }}
+			{{ t('merlin', 'You are writing as {name}.', { name: currentName }, undefined, { escape: false }) }}
 			<button type="button" class="cp-link" @click="$emit('change-name')">
 				{{ t('merlin', 'Change name') }}
 			</button>
@@ -78,7 +78,7 @@
 						class="cp-form cp-form--reply"
 						@submit.prevent="submitReply(thread)">
 						<p v-if="replyTarget.name" class="cp-reply-to">
-							{{ t('merlin', 'Reply to {name}', { name: replyTarget.name }) }}
+							{{ t('merlin', 'Reply to {name}', { name: replyTarget.name }, undefined, { escape: false }) }}
 						</p>
 						<textarea ref="replyInput"
 							v-model="replyBody"

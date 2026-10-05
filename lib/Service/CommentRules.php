@@ -17,18 +17,51 @@ final class CommentRules {
 	public const NAME_MAX = 50;
 	public const BODY_MAX = 5000;
 	public const HIGHLIGHT_TEXT_MAX = 2000;
+	/** Markierungen des Besitzers dürfen länger sein (ganze Absätze). */
+	public const OWNER_HIGHLIGHT_TEXT_MAX = 20000;
 	public const XPATH_MAX = 1000;
+	public const OFFSET_MAX = 1_000_000;
+	public const COLORS = ['yellow', 'green', 'blue', 'pink', 'orange'];
 	/** Höchstens so viele Gast-Kommentare bzw. -Markierungen je Artikel und Tag. */
 	public const GUEST_DAILY_CAP = 500;
 
-	/** Bidi-Steuerzeichen (können Namen und Text optisch umdrehen). */
-	private const BIDI = '\x{202A}-\x{202E}\x{2066}-\x{2069}';
+	/**
+	 * Bereinigt Text aus Nutzereingaben, bevor er gespeichert wird:
+	 * - ungültiges UTF-8 wird ersetzt (sonst scheitert json_encode und damit
+	 *   die Auslieferung an alle Leser),
+	 * - Unicode-NFC, damit gleich aussehende Namen gleich verglichen werden,
+	 * - Steuerzeichen (\p{Cc}) fallen weg, bei $multiline bleiben \n und \t,
+	 * - unsichtbare Formatzeichen (\p{Cf}: Bidi-Umkehr, Nullbreiten-Leerzeichen,
+	 *   BOM, Tag-Zeichen …) fallen weg; nur ZWNJ/ZWJ bleiben, die braucht
+	 *   Schrift (Persisch, Emoji-Sequenzen).
+	 *
+	 * HTML wird hier bewusst nicht entfernt: Kommentare sind Klartext, und
+	 * jede Ausgabe (Vue-Interpolation, textContent, SwiftUI Text, JSON)
+	 * maskiert ihn. So bleibt "a < b" lesbar.
+	 */
+	public static function sanitizeText(string $text, bool $multiline): string {
+		if (!mb_check_encoding($text, 'UTF-8')) {
+			$text = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+		}
+		if (class_exists(\Normalizer::class)) {
+			$text = \Normalizer::normalize($text, \Normalizer::FORM_C) ?: $text;
+		}
+		if ($multiline) {
+			$text = str_replace(["\r\n", "\r"], "\n", $text);
+			$text = preg_replace('/[^\P{Cc}\n\t]/u', '', $text) ?? '';
+		} else {
+			$text = preg_replace('/\p{Cc}/u', ' ', $text) ?? '';
+		}
+		return preg_replace('/[^\P{Cf}\x{200C}\x{200D}]/u', '', $text) ?? '';
+	}
 
 	/**
-	 * Steuerzeichen raus, Leerraum zu einem Leerzeichen, getrimmt.
+	 * Name bereinigt (sanitizeText), dazu ohne spitze Klammern – ein Name
+	 * braucht kein Markup-Zeichen –, Leerraum zu einem Leerzeichen, getrimmt.
 	 */
 	public static function normalizeName(string $name): string {
-		$name = preg_replace('/[\p{Cc}' . self::BIDI . ']+/u', ' ', $name) ?? '';
+		$name = self::sanitizeText($name, false);
+		$name = str_replace(['<', '>'], '', $name);
 		$name = preg_replace('/\s+/u', ' ', $name) ?? '';
 		return trim($name);
 	}
@@ -72,10 +105,60 @@ final class CommentRules {
 	 * als Klartext ausgegeben (nie als HTML).
 	 */
 	public static function normalizeBody(string $body): string {
-		$body = str_replace(["\r\n", "\r"], "\n", $body);
-		$body = preg_replace('/[^\P{Cc}\n\t]+|[' . self::BIDI . ']+/u', '', $body) ?? '';
+		$body = self::sanitizeText($body, true);
 		$body = preg_replace("/\n{3,}/", "\n\n", $body) ?? '';
 		return trim($body);
+	}
+
+	/**
+	 * Markierter Text: bereinigt wie ein Kommentar, Zeilenumbrüche bleiben.
+	 */
+	public static function normalizeHighlightText(string $text): string {
+		return trim(self::sanitizeText($text, true));
+	}
+
+	/**
+	 * Nur die Form, die die Clients erzeugen und auflösen: Schritte
+	 * `tag[n]` oder `text()[n]`, durch `/` getrennt (siehe getXPath() in
+	 * highlight-engine.js und im iOS-Reader).
+	 */
+	public static function isValidXpath(string $xpath): bool {
+		if ($xpath === '' || strlen($xpath) > self::XPATH_MAX) {
+			return false;
+		}
+		// Tag-Namen: Kleinbuchstaben wie von getXPath() erzeugt, inkl.
+		// Custom Elements (merlin-inline-player) und Namespaces (o:p).
+		$step = '(?:[a-z][a-z0-9:_.-]{0,40}|text\(\))\[[1-9][0-9]{0,5}\]';
+		return preg_match('~^' . $step . '(?:/' . $step . ')*$~', $xpath) === 1;
+	}
+
+	/**
+	 * @return string|null Fehlercode oder null, wenn die Markierung gültig ist
+	 */
+	public static function validateHighlight(string $text, string $startXpath, int $startOffset, string $endXpath, int $endOffset, int $maxText): ?string {
+		$text = self::normalizeHighlightText($text);
+		if ($text === '' || mb_strlen($text, 'UTF-8') > $maxText) {
+			return 'highlight_invalid';
+		}
+		if (!self::isValidXpath($startXpath) || !self::isValidXpath($endXpath)) {
+			return 'highlight_invalid';
+		}
+		foreach ([$startOffset, $endOffset] as $offset) {
+			if ($offset < 0 || $offset > self::OFFSET_MAX) {
+				return 'highlight_invalid';
+			}
+		}
+		return null;
+	}
+
+	/** Unbekannte Farben werden gelb (nur Namen aus der festen Liste). */
+	public static function sanitizeColor(string $color): string {
+		return in_array($color, self::COLORS, true) ? $color : 'yellow';
+	}
+
+	/** Änderungsmarke aus ?since= / Last-Event-ID: nur Hex, sonst leer. */
+	public static function sanitizeSignature(string $since): string {
+		return preg_match('/^[0-9a-f]{1,40}$/', $since) === 1 ? $since : '';
 	}
 
 	/**

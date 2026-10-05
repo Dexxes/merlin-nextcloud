@@ -7,6 +7,7 @@ namespace OCA\Merlin\Controller;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Db\Highlight;
 use OCA\Merlin\Db\HighlightMapper;
+use OCA\Merlin\Service\CommentRules;
 use OCA\Merlin\Service\CommentService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Db\DoesNotExistException;
@@ -97,15 +98,23 @@ class HighlightController extends Controller {
 			return new DataResponse(['error' => 'Article not found'], Http::STATUS_NOT_FOUND);
 		}
 
+		// Dieselben Regeln wie für Gäste (nur mit längerem Text): Markierungen
+		// des Besitzers sieht jetzt auch jeder Besucher des Share-Links.
+		$error = CommentRules::validateHighlight(
+			$highlightedText, $startXpath, $startOffset, $endXpath, $endOffset, CommentRules::OWNER_HIGHLIGHT_TEXT_MAX);
+		if ($error !== null) {
+			return new DataResponse(['error' => $error], Http::STATUS_BAD_REQUEST);
+		}
+
 		$highlight = new Highlight();
 		$highlight->setUserId($this->userId);
 		$highlight->setArticleId($articleId);
-		$highlight->setHighlightedText($highlightedText);
+		$highlight->setHighlightedText(CommentRules::normalizeHighlightText($highlightedText));
 		$highlight->setStartXpath($startXpath);
 		$highlight->setStartOffset($startOffset);
 		$highlight->setEndXpath($endXpath);
 		$highlight->setEndOffset($endOffset);
-		$highlight->setColor($color);
+		$highlight->setColor(CommentRules::sanitizeColor($color));
 		$highlight->setCreatedAt(new \DateTime());
 
 		$saved = $this->highlightMapper->insert($highlight);
