@@ -37,7 +37,8 @@
 		</div>
 
 		<article v-else-if="state === 'ready'" class="pav-article">
-			<div class="pav-toolbar">
+			<!-- Vorlese-Button vorerst ausgeblendet; Funktion bleibt erhalten (siehe SHOW_LISTEN_BUTTON). -->
+			<div v-if="showListenButton" class="pav-toolbar">
 				<button type="button" class="pav-btn" @click="toggleAudio">
 					{{ audioVisible ? t('merlin', 'Hide audio player') : t('merlin', 'Listen') }}
 				</button>
@@ -94,6 +95,10 @@ import { hideBrokenSupportBoxIcons, insertSupportBox } from '../support-box'
 import { mountInlineMedia, unmountInlineMedia } from '../inline-media'
 import PdfViewer from './PdfViewer.vue'
 
+// "Listen"-Button (Vorlesen per TTS) in der Public-Link-Ansicht. Vorerst aus;
+// auf true setzen, um ihn wieder anzuzeigen. Logik (toggleAudio, ttsUrl) bleibt.
+const SHOW_LISTEN_BUTTON = false
+
 export default {
 	name: 'PublicArticleView',
 
@@ -108,6 +113,7 @@ export default {
 			unlocking: false,
 			unlockError: '',
 			audioVisible: false,
+			showListenButton: SHOW_LISTEN_BUTTON,
 			mediaPlayable: false,
 		}
 	},
