@@ -26,6 +26,15 @@ use OCP\AppFramework\Db\Entity;
  * @method void setColor(string $color)
  * @method \DateTime getCreatedAt()
  * @method void setCreatedAt(\DateTime $createdAt)
+ * @method string getAuthorType()
+ * @method void setAuthorType(string $authorType)
+ * @method string|null getAuthorName()
+ * @method void setAuthorName(?string $authorName)
+ * @method string|null getAuthorNameKey()
+ * @method void setAuthorNameKey(?string $authorNameKey)
+ *
+ * userId ist immer der Besitzer des Artikels. Gäste markieren über den
+ * öffentlichen Link (authorType 'guest', authorName = gewählter Name).
  */
 class Highlight extends Entity implements JsonSerializable {
 	protected $userId;
@@ -37,6 +46,9 @@ class Highlight extends Entity implements JsonSerializable {
 	protected $endOffset;
 	protected $color;
 	protected $createdAt;
+	protected $authorType = 'owner';
+	protected $authorName;
+	protected $authorNameKey;
 
 	public function __construct() {
 		$this->addType('userId', 'string');
@@ -48,6 +60,9 @@ class Highlight extends Entity implements JsonSerializable {
 		$this->addType('endOffset', 'integer');
 		$this->addType('color', 'string');
 		$this->addType('createdAt', 'datetime');
+		$this->addType('authorType', 'string');
+		$this->addType('authorName', 'string');
+		$this->addType('authorNameKey', 'string');
 	}
 
 	public function jsonSerialize(): array {
@@ -61,6 +76,8 @@ class Highlight extends Entity implements JsonSerializable {
 			'endOffset'       => $this->getEndOffset(),
 			'color'           => $this->getColor(),
 			'createdAt'       => $this->getCreatedAt()->format('c'),
+			'authorType'      => $this->getAuthorType() ?? 'owner',
+			'authorName'      => $this->getAuthorName(),
 		];
 	}
 }

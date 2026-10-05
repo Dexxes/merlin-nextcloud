@@ -102,7 +102,7 @@ class ShareController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function create(int $articleId, ?string $password = null, ?string $expiresAt = null): DataResponse {
+	public function create(int $articleId, ?string $password = null, ?string $expiresAt = null, bool $allowComments = true): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
 		}
@@ -126,6 +126,7 @@ class ShareController extends Controller {
 		$share->setToken($this->newToken());
 		$share->setPasswordHash($password !== null && $password !== '' ? password_hash($password, PASSWORD_DEFAULT) : null);
 		$share->setExpiresAt($this->parseExpiresAt($expiresAt));
+		$share->setAllowComments($allowComments);
 		$share->setCreatedAt($now);
 		$share->setUpdatedAt($now);
 
@@ -134,7 +135,8 @@ class ShareController extends Controller {
 	}
 
 	/**
-	 * Passwort und/oder Ablaufdatum eines bestehenden Share-Links ändern.
+	 * Passwort, Ablaufdatum und/oder Kommentar-Schalter (`allowComments`) eines
+ * bestehenden Share-Links ändern.
 	 * `password: null`/leerer String entfernt den Passwortschutz,
 	 * `expiresAt: null`/leerer String entfernt das Ablaufdatum.
 	 * Beide Felder sind optional – wird ein Feld im Request-Body gar nicht
@@ -167,6 +169,12 @@ class ShareController extends Controller {
 		$expiresAt = $this->request->getParam('expiresAt', $unset);
 		if ($expiresAt !== $unset) {
 			$share->setExpiresAt($this->parseExpiresAt($expiresAt !== null ? (string) $expiresAt : null));
+		}
+
+		// Dürfen Gäste markieren und kommentieren? Lesen bleibt immer möglich.
+		$allowComments = $this->request->getParam('allowComments', $unset);
+		if ($allowComments !== $unset) {
+			$share->setAllowComments(filter_var($allowComments, FILTER_VALIDATE_BOOLEAN));
 		}
 
 		$share->setUpdatedAt(new \DateTime());

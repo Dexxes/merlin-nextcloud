@@ -12,6 +12,15 @@ All notable changes to Merlin are documented here. Format based on
   The caption's own final punctuation stays as it is.
 
 ### Added
+- Comments: in the reader and behind public share links, any text passage can
+  be highlighted and commented on. Comments form threads with replies. Guests
+  on a share link choose a name first; the name alone identifies them, and a
+  guest can edit or delete everything posted under that name. The owner can
+  delete any comment and disable comments per link (`allowComments`, on by
+  default). New comments and highlights reach every open reader right away via
+  Server-Sent Events (`/api/articles/{id}/comments/stream`,
+  `/s/{token}/events`) instead of polling. New table `merlin_comments`;
+  highlights store their author (`authorType`, `authorName`).
 - Retention: archived articles can be deleted automatically. The period counts
   from the day an article was archived; articles that are not archived are never
   deleted. Admins set a maximum in days under Administration > Merlin >

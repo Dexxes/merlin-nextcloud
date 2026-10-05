@@ -7,6 +7,7 @@ namespace OCA\Merlin\Controller;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Db\Highlight;
 use OCA\Merlin\Db\HighlightMapper;
+use OCA\Merlin\Service\CommentService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Http;
@@ -32,6 +33,7 @@ use OCP\IRequest;
 class HighlightController extends Controller {
 	private HighlightMapper $highlightMapper;
 	private ArticleMapper $articleMapper;
+	private CommentService $comments;
 	private ?string $userId;
 
 	public function __construct(
@@ -39,11 +41,13 @@ class HighlightController extends Controller {
 		IRequest $request,
 		HighlightMapper $highlightMapper,
 		ArticleMapper $articleMapper,
+		CommentService $comments,
 		?string $userId
 	) {
 		parent::__construct($appName, $request);
 		$this->highlightMapper = $highlightMapper;
 		$this->articleMapper = $articleMapper;
+		$this->comments = $comments;
 		$this->userId = $userId;
 	}
 
@@ -109,7 +113,9 @@ class HighlightController extends Controller {
 	}
 
 	/**
-	 * Delete a highlight.
+	 * Delete a highlight – also one a guest set via the public share link
+	 * (the owner moderates everything on their article). Comment threads on it
+	 * stay, keeping the quoted text (CommentService::deleteHighlight()).
 	 *
 	 * @NoAdminRequired
 	 * @NoCSRFRequired
@@ -121,11 +127,11 @@ class HighlightController extends Controller {
 			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
 		}
 		try {
-			$this->highlightMapper->findById($id, $this->userId);
+			$highlight = $this->highlightMapper->findById($id, $this->userId);
 		} catch (DoesNotExistException) {
 			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
 		}
-		$this->highlightMapper->deleteById($id, $this->userId);
+		$this->comments->deleteHighlight($highlight);
 		return new DataResponse([], Http::STATUS_NO_CONTENT);
 	}
 }

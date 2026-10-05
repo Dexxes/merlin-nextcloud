@@ -45,6 +45,27 @@ if (typeof document !== 'undefined' && !document.getElementById('merlin-hl-style
 		mark.merlin-highlight[data-highlight-color="blue"]   { background-color: #bfdbfe !important; color: #1c1c1e !important; }
 		mark.merlin-highlight[data-highlight-color="pink"]   { background-color: #fbcfe8 !important; color: #1c1c1e !important; }
 		mark.merlin-highlight[data-highlight-color="orange"] { background-color: #fed7aa !important; color: #1c1c1e !important; }
+		/* Kommentar-Hinweis: nur am letzten <mark> einer Markierung (data-comment-tail),
+		   damit eine über mehrere Absätze gehende Markierung ein Symbol trägt. */
+		mark.merlin-highlight[data-comment-tail]::after {
+			content: attr(data-comment-count);
+			display: inline-block;
+			margin-left: 3px;
+			padding: 0 5px;
+			min-width: 8px;
+			border-radius: 8px 8px 8px 2px;
+			background: #1c1c1e;
+			color: #fff;
+			font-size: 0.7em;
+			line-height: 1.5;
+			font-weight: 600;
+			vertical-align: super;
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+		}
+		mark.merlin-highlight.merlin-highlight--flash {
+			outline: 2px solid #1c1c1e !important;
+			outline-offset: 1px;
+		}
 	`
 	document.head.appendChild(style)
 }
@@ -237,35 +258,19 @@ function wrapRange(range, color, highlightId) {
 	return marks
 }
 
-// ─── Read-only rendering (öffentliche Share-Ansicht) ─────────────────────────
-
-/**
- * Rendert gespeicherte Highlights read-only in den Container – ohne
- * Mouseup/Contextmenu-Listener, damit anonyme Besucher der öffentlichen
- * Share-Ansicht keine neuen Highlights anlegen oder löschen können.
- * Nutzt dieselben XPath-/DOM-Wrap-Helfer wie HighlightEngine, damit
- * authentifizierte und öffentliche Ansicht garantiert identisch rendern.
- *
- * @param {HTMLElement} container
- * @param {Array} highlights
- */
-export function renderHighlightsReadOnly(container, highlights) {
-	for (const h of highlights) {
-		try {
-			const startNode = resolveXPath(h.startXpath, container)
-			const endNode = resolveXPath(h.endXpath, container)
-			if (!startNode || !endNode) continue
-
-			const range = document.createRange()
-			range.setStart(startNode, h.startOffset)
-			range.setEnd(endNode, h.endOffset)
-			if (!range.collapsed) {
-				wrapRange(range, h.color, h.id)
-			}
-		} catch {
-			// Stale highlight (Artikeltext hat sich geändert) — überspringen
-		}
-	}
+/** Entfernt alle <mark>-Elemente einer Markierung (oder alle) aus dem Container. */
+function unwrapMarks(container, highlightId = null) {
+	const selector = highlightId === null
+		? 'mark.merlin-highlight'
+		: `mark.merlin-highlight[data-highlight-id="${highlightId}"]`
+	const parents = new Set()
+	container.querySelectorAll(selector).forEach(el => {
+		const parent = el.parentNode
+		while (el.firstChild) parent.insertBefore(el.firstChild, el)
+		parent.removeChild(el)
+		parents.add(parent)
+	})
+	parents.forEach(p => p.normalize())
 }
 
 // ─── HighlightEngine class ────────────────────────────────────────────────────
@@ -273,12 +278,27 @@ export function renderHighlightsReadOnly(container, highlights) {
 export class HighlightEngine {
 	/**
 	 * @param {HTMLElement} container
-	 * @param {{ onCreate: Function, onDelete: Function }} callbacks
+	 * @param {object} callbacks
+	 * @param {Function} callbacks.onCreate neue Markierung ({ …, tempId, comment }),
+	 *        `comment: true` wenn der Nutzer „Kommentieren“ statt einer Farbe gewählt hat
+	 * @param {Function} callbacks.onDelete Markierung löschen (id)
+	 * @param {Function} [callbacks.onOpenComments] Thread einer Markierung öffnen (id)
+	 * @param {Function} [callbacks.canDelete] darf diese Markierung gelöscht werden? (id) => bool
+	 * @param {Function} [callbacks.describe] Zusatzzeile im Menü, z. B. „Markiert von Anna“ (id) => string|null
+	 * @param {Function} [callbacks.canCreate] darf gerade markiert werden? () => bool
+	 * @param {Function} [callbacks.t] Übersetzungsfunktion (Text) => Text
 	 */
-	constructor(container, { onCreate, onDelete }) {
+	constructor(container, { onCreate, onDelete, onOpenComments = null, canDelete = null, describe = null, canCreate = null, t = null }) {
 		this._container = container
 		this._onCreate = onCreate
 		this._onDelete = onDelete
+		this._onOpenComments = onOpenComments
+		this._canDelete = canDelete ?? (() => true)
+		this._describe = describe ?? (() => null)
+		this._canCreate = canCreate ?? (() => true)
+		this._t = t ?? (text => text)
+		this._highlights = []
+		this._commentCounts = {}
 
 		this._toolbar = null        // floating colour-picker element
 		this._pendingRange = null   // cloned selection range
@@ -306,12 +326,84 @@ export class HighlightEngine {
 		for (const h of highlights) {
 			this._restoreHighlight(h)
 		}
+		this._highlights = [...highlights]
+		this._paintCommentCounts()
+	}
+
+	/**
+	 * Ersetzt alle Markierungen durch den Stand vom Server (Push-Kanal). Alle
+	 * <mark> werden entfernt und in Erstellungsreihenfolge neu gesetzt – in
+	 * dieser Reihenfolge wurden auch ihre XPaths berechnet. Markierungen, die
+	 * hier gerade erst angelegt und noch nicht bestätigt sind (temporäre ID),
+	 * bleiben dabei unberührt im DOM.
+	 */
+	setHighlights(highlights) {
+		const known = new Set(highlights.map(h => String(h.id)))
+		const pending = Array.from(this._container.querySelectorAll('mark.merlin-highlight'))
+			.some(el => !known.has(el.dataset.highlightId) && !this._highlights.some(h => String(h.id) === el.dataset.highlightId))
+		if (pending) {
+			// Eine eigene Markierung wartet noch auf ihre Server-ID: nicht neu
+			// zeichnen, sonst ginge sie verloren. Der nächste Push holt es nach.
+			return false
+		}
+		const same = highlights.length === this._highlights.length
+			&& highlights.every((h, i) => String(h.id) === String(this._highlights[i]?.id))
+		if (!same) {
+			unwrapMarks(this._container)
+			for (const h of highlights) {
+				this._restoreHighlight(h)
+			}
+		}
+		this._highlights = [...highlights]
+		this._paintCommentCounts()
+		return true
+	}
+
+	/** Anzahl Kommentare je Markierung ({ [highlightId]: n }) als Hinweis anzeigen. */
+	setCommentCounts(counts) {
+		this._commentCounts = { ...counts }
+		this._paintCommentCounts()
+	}
+
+	/** Zur Markierung scrollen und sie kurz hervorheben. */
+	focusHighlight(highlightId) {
+		const marks = this._container.querySelectorAll(`mark.merlin-highlight[data-highlight-id="${highlightId}"]`)
+		if (!marks.length) return false
+		marks[0].scrollIntoView({ behavior: 'smooth', block: 'center' })
+		marks.forEach(el => el.classList.add('merlin-highlight--flash'))
+		setTimeout(() => marks.forEach(el => el.classList.remove('merlin-highlight--flash')), 1600)
+		return true
+	}
+
+	_paintCommentCounts() {
+		this._container.querySelectorAll('mark.merlin-highlight[data-comment-tail]').forEach(el => {
+			el.removeAttribute('data-comment-tail')
+			el.removeAttribute('data-comment-count')
+		})
+		for (const [id, count] of Object.entries(this._commentCounts)) {
+			if (!count) continue
+			const marks = this._container.querySelectorAll(`mark.merlin-highlight[data-highlight-id="${id}"]`)
+			const last = marks[marks.length - 1]
+			if (last) {
+				last.dataset.commentTail = ''
+				last.dataset.commentCount = String(count)
+			}
+		}
 	}
 
 	/** Swap a temp id written by wrapRange with the real server id. */
-	updateTempId(tempId, realId) {
+	updateTempId(tempId, realId, highlight = null) {
 		document.querySelectorAll(`mark.merlin-highlight[data-highlight-id="${tempId}"]`)
 			.forEach(el => { el.dataset.highlightId = String(realId) })
+		if (highlight && !this._highlights.some(h => String(h.id) === String(realId))) {
+			this._highlights.push(highlight)
+		}
+	}
+
+	/** Eine angelegte Markierung zurücknehmen, z. B. wenn der Server sie ablehnt. */
+	removeHighlight(highlightId) {
+		unwrapMarks(this._container, highlightId)
+		this._highlights = this._highlights.filter(h => String(h.id) !== String(highlightId))
 	}
 
 	// ── private ──────────────────────────────────────────────────────────────
@@ -326,13 +418,14 @@ export class HighlightEngine {
 
 		// Left-click on an existing highlight → show delete menu
 		const clickedMark = e.target.closest?.('mark.merlin-highlight')
-		if (clickedMark) {
+		const sel = window.getSelection()
+		if (clickedMark && this._container.contains(clickedMark) && (!sel || sel.isCollapsed)) {
 			this._removeToolbar()
 			this._showDeleteMenu(e.clientX, e.clientY, parseInt(clickedMark.dataset.highlightId, 10))
 			return
 		}
 
-		const sel = window.getSelection()
+		if (!this._canCreate()) return
 		if (!sel || sel.isCollapsed || sel.rangeCount === 0) return
 		const range = sel.getRangeAt(0)
 		if (!this._container.contains(range.commonAncestorContainer)) return
@@ -347,7 +440,7 @@ export class HighlightEngine {
 	_handleContextMenu(e) {
 		// Right-clicking an existing mark → show delete option
 		const clickedMark = e.target.closest?.('mark.merlin-highlight')
-		if (clickedMark) {
+		if (clickedMark && this._container.contains(clickedMark)) {
 			e.preventDefault()
 			this._removeToolbar()
 			this._showDeleteMenu(e.clientX, e.clientY, parseInt(clickedMark.dataset.highlightId, 10))
@@ -412,6 +505,33 @@ export class HighlightEngine {
 			toolbar.appendChild(btn)
 		}
 
+		if (this._onOpenComments) {
+			const divider = document.createElement('span')
+			divider.style.cssText = 'width:1px;height:18px;background:#e0e0e0;margin:0 2px;'
+			toolbar.appendChild(divider)
+
+			const commentBtn = document.createElement('button')
+			commentBtn.type = 'button'
+			commentBtn.textContent = this._t('Comment')
+			commentBtn.title = this._t('Highlight and comment')
+			commentBtn.style.cssText = `
+				border: none; background: none; cursor: pointer;
+				padding: 2px 6px; font-size: 13px; color: #1c1c1e;
+				white-space: nowrap; border-radius: 10px;
+			`
+			commentBtn.addEventListener('mouseenter', () => { commentBtn.style.background = '#f0f0f0' })
+			commentBtn.addEventListener('mouseleave', () => { commentBtn.style.background = 'none' })
+			commentBtn.addEventListener('mousedown', (ev) => {
+				ev.preventDefault()
+				ev.stopPropagation()
+			})
+			commentBtn.addEventListener('click', (ev) => {
+				ev.stopPropagation()
+				this._createHighlight('yellow', true)
+			})
+			toolbar.appendChild(commentBtn)
+		}
+
 		document.body.appendChild(toolbar)
 		this._toolbar = toolbar
 		this._positionToolbar(toolbar, range)
@@ -449,30 +569,55 @@ export class HighlightEngine {
 			animation: merlinHlMenuIn .1s ease;
 		`
 
-		const btn = document.createElement('button')
-		btn.type = 'button'
-		btn.textContent = 'Markierung entfernen'
-		btn.style.cssText = `
-			display: block; width: 100%; padding: 8px 14px;
-			border: none; background: none; cursor: pointer;
-			text-align: left; font-size: 14px; color: #c00;
-			white-space: nowrap;
-		`
-		btn.addEventListener('mouseenter', () => { btn.style.background = '#fee2e2' })
-		btn.addEventListener('mouseleave', () => { btn.style.background = 'none' })
-		btn.addEventListener('click', () => {
-			this._onDelete(highlightId)
-			document.querySelectorAll(`mark.merlin-highlight[data-highlight-id="${highlightId}"]`)
-				.forEach(el => {
-					const parent = el.parentNode
-					while (el.firstChild) parent.insertBefore(el.firstChild, el)
-					parent.removeChild(el)
-					parent.normalize()
-				})
-			this._removeToolbar()
-		})
+		const description = this._describe(highlightId)
+		if (description) {
+			const info = document.createElement('div')
+			info.textContent = description
+			info.style.cssText = `
+				padding: 8px 14px 4px; font-size: 12px; color: #666;
+				white-space: nowrap;
+			`
+			menu.appendChild(info)
+		}
 
-		menu.appendChild(btn)
+		const addItem = (label, color, hover, onClick) => {
+			const btn = document.createElement('button')
+			btn.type = 'button'
+			btn.textContent = label
+			btn.style.cssText = `
+				display: block; width: 100%; padding: 8px 14px;
+				border: none; background: none; cursor: pointer;
+				text-align: left; font-size: 14px; color: ${color};
+				white-space: nowrap;
+			`
+			btn.addEventListener('mouseenter', () => { btn.style.background = hover })
+			btn.addEventListener('mouseleave', () => { btn.style.background = 'none' })
+			btn.addEventListener('click', onClick)
+			menu.appendChild(btn)
+		}
+
+		if (this._onOpenComments) {
+			const count = this._commentCounts[highlightId] || 0
+			const label = count > 0
+				? this._t('Comments ({count})').replace('{count}', String(count))
+				: this._t('Comment')
+			addItem(label, '#1c1c1e', '#f0f0f0', () => {
+				this._removeToolbar()
+				this._onOpenComments(highlightId)
+			})
+		}
+
+		if (this._canDelete(highlightId)) {
+			addItem(this._t('Remove highlight'), '#c00', '#fee2e2', () => {
+				this._onDelete(highlightId)
+				unwrapMarks(this._container, highlightId)
+				this._highlights = this._highlights.filter(h => String(h.id) !== String(highlightId))
+				this._removeToolbar()
+			})
+		}
+
+		if (!menu.childElementCount) return
+
 		document.body.appendChild(menu)
 		this._toolbar = menu
 
@@ -494,7 +639,7 @@ export class HighlightEngine {
 
 	// ── create highlight ─────────────────────────────────────────────────────
 
-	_createHighlight(color) {
+	_createHighlight(color, comment = false) {
 		const range = this._pendingRange
 		this._removeToolbar()
 		if (!range || range.collapsed) return
@@ -523,6 +668,7 @@ export class HighlightEngine {
 			endOffset,
 			color,
 			tempId,
+			comment,
 		})
 	}
 

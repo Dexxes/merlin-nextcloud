@@ -86,6 +86,18 @@
 				</Teleport>
 			</div>
 
+			<!-- Kommentare: Threads an Markierungen und zum ganzen Artikel -->
+			<NcButton
+				class="dock-btn comment-dock-btn"
+				:title="t('merlin', 'Comments')"
+				:class="{ 'share-btn--active': commentsOpen }"
+				@click.stop="toggleComments">
+				<template #icon>
+					<CommentTextOutline :size="18" />
+				</template>
+			</NcButton>
+			<span v-if="commentCount > 0" class="comment-dock-count">{{ commentCount }}</span>
+
 			<div class="dock-divider" />
 
 			<!-- More: everything else (appearance, tags, export, delete) -->
@@ -203,6 +215,13 @@
 				:title="t('merlin', 'Archive and return to list')"
 				@click="archiveAndClose">
 				<template #icon><ArchiveArrowDown :size="20" /></template>
+			</NcButton>
+
+			<NcButton
+				:title="t('merlin', 'Comments')"
+				@click.stop="toggleComments">
+				<template #icon><CommentTextOutline :size="20" /></template>
+				<template v-if="commentCount > 0">{{ commentCount }}</template>
 			</NcButton>
 
 			<NcButton
@@ -483,7 +502,19 @@
 		<ShareLinkDialog
 			v-if="shareLinkDialogOpen"
 			:article-id="article.id"
-			@close="shareLinkDialogOpen = false" />
+			@close="onShareDialogClosed" />
+
+		<CommentPanel
+			v-if="commentsOpen && commentSession"
+			:session="commentSession"
+			:client="commentClient"
+			mode="owner"
+			:sheet="isMobile"
+			:focused-highlight-id="commentFocus"
+			:highlight-order="highlightOrder"
+			@close="commentsOpen = false; commentFocus = null"
+			@unfocus="commentFocus = null"
+			@focus-highlight="focusHighlight" />
 	</div>
 </template>
 
@@ -521,8 +552,13 @@ import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue
 import axios from '@nextcloud/axios'
 import * as articlesAPI from '../api/articles'
 import * as highlightsAPI from '../api/highlights'
+import { markRaw } from 'vue'
+import { ownerCommentsClient } from '../api/comments'
+import { createCommentSession } from '../comment-session'
 import { HighlightEngine } from '../highlight-engine'
 import ShareLinkDialog from './ShareLinkDialog.vue'
+import CommentPanel from './CommentPanel.vue'
+import CommentTextOutline from 'vue-material-design-icons/CommentTextOutline.vue'
 import MediaPlayer from './MediaPlayer.vue'
 import { hideBrokenSupportBoxIcons, insertSupportBox } from '../support-box'
 import { mountInlineMedia, unmountInlineMedia } from '../inline-media'
@@ -566,6 +602,8 @@ export default {
 		ShareVariant,
 		LinkVariant,
 		ShareLinkDialog,
+		CommentPanel,
+		CommentTextOutline,
 		MediaPlayer,
 		PdfViewer,
 		ContentCopy,
@@ -634,10 +672,23 @@ export default {
 			scrollPct: 0,
 			_scrollTimer: null,
 			_highlightEngine: null,
+			// Kommentare (createCommentSession): Threads + Markierungen, live per Push-Kanal
+			commentSession: null,
+			commentClient: null,
+			commentsOpen: false,
+			// Thread-Ansicht einer Markierung, null = alle Kommentare
+			commentFocus: null,
+			highlightOrder: [],
 		}
 	},
 
 	computed: {
+		commentCount() {
+			const threads = this.commentSession?.state.threads || []
+			return threads.reduce((sum, thread) => sum + (thread.deleted ? 0 : 1)
+				+ thread.replies.filter(r => !r.deleted).length, 0)
+		},
+
 		// "Autor, Medium" am Artikelende (z.B. "Max Muster, taz.de").
 		footerByline() {
 			return [this.article.author, this.article.siteName || this.articleDomain]
@@ -936,6 +987,7 @@ export default {
 			this._highlightEngine.destroy()
 			this._highlightEngine = null
 		}
+		this.commentSession?.stop()
 	},
 
 	methods: {
@@ -1374,14 +1426,19 @@ export default {
 				this._highlightEngine.destroy()
 				this._highlightEngine = null
 			}
+			this.commentSession?.stop()
+			this.commentSession = null
+			this.commentsOpen = false
+			this.commentFocus = null
 
 			const bodyEl = this.$el?.querySelector('.article-body')
 			if (!bodyEl) return
 
-			this._highlightEngine = new HighlightEngine(bodyEl, {
-				onCreate: async ({ highlightedText, startXpath, startOffset, endXpath, endOffset, color, tempId }) => {
+			const articleId = this.article.id
+			const engine = new HighlightEngine(bodyEl, {
+				onCreate: async ({ highlightedText, startXpath, startOffset, endXpath, endOffset, color, tempId, comment }) => {
 					try {
-						const saved = await highlightsAPI.createHighlight(this.article.id, {
+						const saved = await highlightsAPI.createHighlight(articleId, {
 							highlightedText,
 							startXpath,
 							startOffset,
@@ -1390,27 +1447,93 @@ export default {
 							color,
 						})
 						// Replace the temp DOM id with the real server id
-						this._highlightEngine?.updateTempId(tempId, saved.id)
+						engine.updateTempId(tempId, saved.id, saved)
+						this._updateHighlightOrder()
+						if (comment) {
+							this.openComments(saved.id)
+						}
 					} catch (error) {
+						engine.removeHighlight(tempId)
 						console.error('Failed to save highlight:', error)
 					}
 				},
 				onDelete: async (highlightId) => {
 					try {
 						await highlightsAPI.deleteHighlight(highlightId)
+						await this.commentSession?.refresh()
 					} catch (error) {
 						console.error('Failed to delete highlight:', error)
 					}
 				},
+				onOpenComments: (highlightId) => this.openComments(highlightId),
+				describe: (highlightId) => {
+					const h = this.commentSession?.state.highlights.find(x => x.id === highlightId)
+					return h && h.authorType === 'guest' && h.authorName
+						? this.t('merlin', 'Highlighted by {name}', { name: h.authorName })
+						: null
+				},
+				t: (text) => this.t('merlin', text),
 			})
+			// markRaw: _highlightEngine steht in data(), ein reaktiver Proxy wäre
+			// nicht mehr === engine (Vergleich in onUpdate unten).
+			this._highlightEngine = markRaw(engine)
 
-			// Load and restore existing highlights for this article
+			// Markierungen und Kommentare kommen gemeinsam; neue Gast-Beiträge
+			// schiebt der Server per Push-Kanal nach (kein Polling).
+			const client = ownerCommentsClient(articleId)
+			const session = createCommentSession(client, {
+				onUpdate: (state) => {
+					if (this._highlightEngine !== engine) return
+					engine.setHighlights(state.highlights)
+					engine.setCommentCounts(session.countsByHighlight())
+					this._updateHighlightOrder()
+				},
+			})
+			this.commentClient = markRaw(client)
+			this.commentSession = markRaw(session)
 			try {
-				const highlights = await highlightsAPI.getHighlights(this.article.id)
-				this._highlightEngine.applyHighlights(highlights)
+				await session.refresh()
+				session.connect()
 			} catch (error) {
 				console.error('Failed to load highlights:', error)
 			}
+		},
+
+		_updateHighlightOrder() {
+			const bodyEl = this.$el?.querySelector('.article-body')
+			if (!bodyEl) return
+			const ids = []
+			bodyEl.querySelectorAll('mark.merlin-highlight').forEach(el => {
+				const id = parseInt(el.dataset.highlightId, 10)
+				if (!ids.includes(id)) ids.push(id)
+			})
+			this.highlightOrder = ids
+		},
+
+		openComments(highlightId = null) {
+			this.commentFocus = highlightId
+			this.commentsOpen = true
+		},
+
+		toggleComments() {
+			if (this.commentsOpen) {
+				this.commentsOpen = false
+				this.commentFocus = null
+			} else {
+				this.openComments(null)
+			}
+		},
+
+		focusHighlight(highlightId) {
+			this._highlightEngine?.focusHighlight(highlightId)
+			this.commentFocus = highlightId
+		},
+
+		// Nach Anlegen/Widerrufen eines Links den Push-Kanal neu aufbauen:
+		// ohne Link beendet der Server ihn, mit Link kommen Gast-Beiträge an.
+		onShareDialogClosed() {
+			this.shareLinkDialogOpen = false
+			this.commentSession?.reconnect()
 		},
 
 		formatDate(dateString) {
@@ -1515,6 +1638,14 @@ export default {
 
 .reader-dock :deep(.button-vue:active) {
 	background: var(--dock-overlay-active, rgba(255, 255, 255, 0.28)) !important;
+}
+
+.comment-dock-count {
+	margin: 0 6px 0 -6px;
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--dock-fg, #fff);
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
 }
 
 .dock-divider {

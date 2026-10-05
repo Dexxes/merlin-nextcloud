@@ -9,7 +9,12 @@
 			<template v-else>
 				<!-- Kein Link vorhanden: Anlegen mit optionalem Passwort/Ablauf -->
 				<div v-if="!share.enabled" class="share-create">
-					<p>{{ t('merlin', 'Anyone with this link can read the article — including your highlights.') }}</p>
+					<p>{{ t('merlin', 'Anyone with this link can read the article — including your highlights and comments.') }}</p>
+
+					<label class="share-checkbox">
+						<input v-model="createAllowComments" type="checkbox">
+						{{ t('merlin', 'Visitors can highlight and comment') }}
+					</label>
 
 					<label class="share-checkbox">
 						<input v-model="createPasswordEnabled" type="checkbox">
@@ -52,6 +57,16 @@
 							</template>
 						</NcButton>
 					</div>
+
+					<section class="share-section">
+						<label class="share-checkbox">
+							<input :checked="share.allowComments !== false" type="checkbox" :disabled="busy" @change="onToggleComments">
+							{{ t('merlin', 'Visitors can highlight and comment') }}
+						</label>
+						<p class="share-hint">
+							{{ t('merlin', 'Visitors choose a name. Anyone using the same name can edit and delete what was written under it.') }}
+						</p>
+					</section>
 
 					<section class="share-section">
 						<label class="share-checkbox">
@@ -134,6 +149,7 @@ export default {
 			createPassword: '',
 			createExpiryEnabled: false,
 			createExpiry: '',
+			createAllowComments: true,
 			passwordEditing: false,
 			newPassword: '',
 			expiryEditing: false,
@@ -164,6 +180,7 @@ export default {
 				this.share = await sharesAPI.createShare(this.articleId, {
 					password: this.createPasswordEnabled ? this.createPassword : null,
 					expiresAt: this.createExpiryEnabled && this.createExpiry ? this.createExpiry : null,
+					allowComments: this.createAllowComments,
 				})
 				showSuccess(this.t('merlin', 'Public link created'))
 			} catch (error) {
@@ -171,6 +188,13 @@ export default {
 			} finally {
 				this.busy = false
 			}
+		},
+
+		onToggleComments(event) {
+			const allowComments = event.target.checked
+			this.confirmAndUpdate({ allowComments }, allowComments
+				? this.t('merlin', 'Visitors can now highlight and comment')
+				: this.t('merlin', 'Comments are closed for visitors'))
 		},
 
 		onTogglePassword(event) {

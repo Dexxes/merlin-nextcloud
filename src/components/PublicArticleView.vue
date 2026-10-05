@@ -41,7 +41,13 @@
 				<button type="button" class="pav-btn" @click="toggleAudio">
 					{{ audioVisible ? t('merlin', 'Hide audio player') : t('merlin', 'Listen') }}
 				</button>
+				<button type="button" class="pav-btn" :class="{ 'pav-btn--active': commentsOpen }" @click="toggleComments">
+					{{ commentCount > 0 ? t('merlin', 'Comments ({count})', { count: commentCount }) : t('merlin', 'Comments') }}
+				</button>
 			</div>
+			<p v-if="allowComments" class="pav-comment-hint">
+				{{ t('merlin', 'Select text to highlight it or comment on it.') }}
+			</p>
 
 			<audio v-if="audioVisible" ref="audioEl" class="pav-audio" controls :src="ttsUrl" />
 
@@ -81,6 +87,50 @@
 
 			<p v-if="footerByline" class="pav-footer-byline">– {{ footerByline }}</p>
 		</article>
+
+		<CommentPanel
+			v-if="state === 'ready' && commentsOpen && commentSession"
+			class="pav-comment-panel"
+			:session="commentSession"
+			:client="commentClient"
+			mode="guest"
+			:current-name="guestName"
+			:can-write="allowComments"
+			:sheet="isNarrow"
+			:focused-highlight-id="commentFocus"
+			:highlight-order="highlightOrder"
+			:ensure-name="ensureName"
+			@close="commentsOpen = false; commentFocus = null"
+			@unfocus="commentFocus = null"
+			@focus-highlight="focusHighlight"
+			@change-name="askName()" />
+
+		<!-- Namenswahl: Gäste weisen sich nur über ihren Namen aus. -->
+		<div v-if="nameDialog" class="pav-name-backdrop" @click.self="closeNameDialog(false)">
+			<form class="pav-name-dialog" role="dialog" aria-modal="true" @submit.prevent="closeNameDialog(true)">
+				<h2>{{ t('merlin', 'What is your name?') }}</h2>
+				<p>{{ t('merlin', 'Your name is shown with your highlights and comments and is visible to everyone with this link.') }}</p>
+				<p class="pav-name-note">
+					{{ t('merlin', 'Anyone who enters the same name can edit and delete what was written under it.') }}
+				</p>
+				<input ref="nameInput"
+					v-model="nameDraft"
+					class="pav-input pav-name-input"
+					type="text"
+					maxlength="50"
+					autocomplete="nickname"
+					:placeholder="t('merlin', 'Name')">
+				<p v-if="nameError" class="pav-error">{{ nameError }}</p>
+				<div class="pav-name-actions">
+					<button type="button" class="pav-btn" @click="closeNameDialog(false)">
+						{{ t('merlin', 'Cancel') }}
+					</button>
+					<button type="submit" class="pav-btn pav-btn--primary" :disabled="nameDraft.trim().length < 2">
+						{{ t('merlin', 'Continue') }}
+					</button>
+				</div>
+			</form>
+		</div>
 	</div>
 </template>
 
@@ -88,7 +138,11 @@
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { loadState } from '@nextcloud/initial-state'
-import { renderHighlightsReadOnly } from '../highlight-engine'
+import { markRaw } from 'vue'
+import { HighlightEngine } from '../highlight-engine'
+import { guestCommentsClient } from '../api/comments'
+import { createCommentSession, guestNameKey, loadGuestName, saveGuestName } from '../comment-session'
+import CommentPanel from './CommentPanel.vue'
 import MediaPlayer from './MediaPlayer.vue'
 import { hideBrokenSupportBoxIcons, insertSupportBox } from '../support-box'
 import { mountInlineMedia, unmountInlineMedia } from '../inline-media'
@@ -97,7 +151,7 @@ import PdfViewer from './PdfViewer.vue'
 export default {
 	name: 'PublicArticleView',
 
-	components: { MediaPlayer, PdfViewer },
+	components: { CommentPanel, MediaPlayer, PdfViewer },
 
 	data() {
 		return {
@@ -109,10 +163,31 @@ export default {
 			unlockError: '',
 			audioVisible: false,
 			mediaPlayable: false,
+			// Markieren und Kommentieren als Gast
+			guestName: loadGuestName(),
+			commentSession: null,
+			commentClient: null,
+			commentsOpen: false,
+			commentFocus: null,
+			highlightOrder: [],
+			nameDialog: false,
+			nameDraft: '',
+			nameError: '',
+			isNarrow: typeof window !== 'undefined' && window.innerWidth <= 768,
 		}
 	},
 
 	computed: {
+		allowComments() {
+			return this.article?.allowComments !== false
+		},
+
+		commentCount() {
+			const threads = this.commentSession?.state.threads || []
+			return threads.reduce((sum, thread) => sum + (thread.deleted ? 0 : 1)
+				+ thread.replies.filter(r => !r.deleted).length, 0)
+		},
+
 		// "Autor, Medium" am Artikelende (z.B. "Max Muster, taz.de").
 		footerByline() {
 			let host = ''
@@ -181,6 +256,8 @@ export default {
 
 	mounted() {
 		this.fetchData()
+		this._onResize = () => { this.isNarrow = window.innerWidth <= 768 }
+		window.addEventListener('resize', this._onResize)
 	},
 
 	updated() {
@@ -189,6 +266,9 @@ export default {
 
 	beforeUnmount() {
 		unmountInlineMedia(this._inlinePlayers ??= new Set())
+		window.removeEventListener('resize', this._onResize)
+		this._engine?.destroy()
+		this.commentSession?.stop()
 	},
 
 	methods: {
@@ -201,7 +281,7 @@ export default {
 				this.state = 'ready'
 				this.$nextTick(() => {
 					if (this.$refs.bodyEl) {
-						renderHighlightsReadOnly(this.$refs.bodyEl, this.article.highlights || [])
+						this._initDiscussion()
 						this._executeEmbedScripts()
 						hideBrokenSupportBoxIcons(this.$refs.bodyEl)
 						this._mountInlineMedia()
@@ -262,6 +342,142 @@ export default {
 
 		toggleAudio() {
 			this.audioVisible = !this.audioVisible
+		},
+
+		// ── Markieren und Kommentieren ───────────────────────────────────────
+
+		_initDiscussion() {
+			this._engine?.destroy()
+			this.commentSession?.stop()
+
+			const bodyEl = this.$refs.bodyEl
+			const client = guestCommentsClient(this.token, () => this.guestName)
+			const engine = new HighlightEngine(bodyEl, {
+				canCreate: () => this.allowComments,
+				onCreate: async ({ highlightedText, startXpath, startOffset, endXpath, endOffset, color, tempId, comment }) => {
+					if (!(await this.ensureName())) {
+						engine.removeHighlight(tempId)
+						return
+					}
+					try {
+						const saved = await client.createHighlight({
+							highlightedText, startXpath, startOffset, endXpath, endOffset, color,
+						})
+						engine.updateTempId(tempId, saved.id, saved)
+						this._updateHighlightOrder()
+						if (comment) this.openComments(saved.id)
+					} catch (error) {
+						engine.removeHighlight(tempId)
+						console.error('Failed to save highlight:', error)
+					}
+				},
+				onDelete: async (highlightId) => {
+					try {
+						await client.removeHighlight(highlightId)
+						await this.commentSession?.refresh()
+					} catch (error) {
+						console.error('Failed to delete highlight:', error)
+						await this.commentSession?.refresh()
+					}
+				},
+				onOpenComments: (highlightId) => this.openComments(highlightId),
+				canDelete: (highlightId) => {
+					const h = this._highlightById(highlightId)
+					return this.allowComments && !!h && h.authorType === 'guest'
+						&& this.guestName !== '' && guestNameKey(h.authorName) === guestNameKey(this.guestName)
+				},
+				describe: (highlightId) => {
+					const h = this._highlightById(highlightId)
+					if (!h) return null
+					const name = h.authorType === 'guest' ? h.authorName : this.article?.ownerName
+					return name ? this.t('merlin', 'Highlighted by {name}', { name }) : null
+				},
+				t: (text) => this.t('merlin', text),
+			})
+			this._engine = engine
+
+			const session = createCommentSession(client, {
+				onUpdate: (state) => {
+					if (this._engine !== engine) return
+					engine.setHighlights(state.highlights)
+					engine.setCommentCounts(session.countsByHighlight())
+					this._updateHighlightOrder()
+				},
+			})
+			this.commentClient = markRaw(client)
+			this.commentSession = markRaw(session)
+			// Erster Stand kommt mit data(), danach nur noch Push-Ereignisse.
+			session.apply({
+				comments: this.article.comments || [],
+				highlights: this.article.highlights || [],
+				signature: this.article.signature || '',
+			})
+			session.connect()
+		},
+
+		_highlightById(id) {
+			return this.commentSession?.state.highlights.find(h => h.id === id) || null
+		},
+
+		_updateHighlightOrder() {
+			const ids = []
+			this.$refs.bodyEl?.querySelectorAll('mark.merlin-highlight').forEach(el => {
+				const id = parseInt(el.dataset.highlightId, 10)
+				if (!ids.includes(id)) ids.push(id)
+			})
+			this.highlightOrder = ids
+		},
+
+		openComments(highlightId = null) {
+			this.commentFocus = highlightId
+			this.commentsOpen = true
+		},
+
+		toggleComments() {
+			if (this.commentsOpen) {
+				this.commentsOpen = false
+				this.commentFocus = null
+			} else {
+				this.openComments(null)
+			}
+		},
+
+		focusHighlight(highlightId) {
+			this._engine?.focusHighlight(highlightId)
+			this.commentFocus = highlightId
+		},
+
+		/** Sorgt für einen Gast-Namen; fragt beim ersten Schreiben danach. */
+		ensureName() {
+			if (this.guestName) return Promise.resolve(true)
+			return this.askName()
+		},
+
+		askName() {
+			this.nameDraft = this.guestName
+			this.nameError = ''
+			this.nameDialog = true
+			this.$nextTick(() => this.$refs.nameInput?.focus())
+			return new Promise(resolve => { this._nameResolve = resolve })
+		},
+
+		closeNameDialog(confirmed) {
+			if (confirmed) {
+				const name = this.nameDraft.replace(/\s+/g, ' ').trim()
+				if (name.length < 2) {
+					this.nameError = this.t('merlin', 'Please enter a name with at least 2 characters.')
+					return
+				}
+				if (this.article?.ownerName && guestNameKey(name) === guestNameKey(this.article.ownerName)) {
+					this.nameError = this.t('merlin', 'This name is reserved. Please choose another one.')
+					return
+				}
+				this.guestName = name
+				saveGuestName(name)
+			}
+			this.nameDialog = false
+			this._nameResolve?.(confirmed && !!this.guestName)
+			this._nameResolve = null
 		},
 	},
 }
@@ -340,6 +556,67 @@ export default {
 	text-decoration: none;
 	cursor: pointer;
 	font-size: 0.95em;
+}
+
+.pav-btn--active {
+	border-color: var(--color-primary-element, #0082c9);
+}
+
+.pav-comment-hint {
+	margin: -12px 0 20px;
+	font-size: 0.85em;
+	color: var(--color-text-maxcontrast, #666);
+}
+
+/* Die öffentliche Seite hat keine Nextcloud-Kopfleiste. */
+.pav-comment-panel:not(.comment-panel--sheet) {
+	top: 0;
+}
+
+.pav-name-backdrop {
+	position: fixed;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 16px;
+	background: rgba(0, 0, 0, 0.4);
+	z-index: 3000;
+}
+
+.pav-name-dialog {
+	width: min(420px, 100%);
+	padding: 20px 22px;
+	border-radius: 12px;
+	background: var(--color-main-background, #fff);
+	color: var(--color-main-text, #222);
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+.pav-name-dialog h2 {
+	margin: 0 0 8px;
+	font-size: 1.2em;
+}
+
+.pav-name-dialog p {
+	margin: 0 0 10px;
+	font-size: 0.9em;
+}
+
+.pav-name-note {
+	color: var(--color-text-maxcontrast, #666);
+}
+
+.pav-name-input {
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.pav-name-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 14px;
 }
 
 .pav-btn--primary {
