@@ -87,16 +87,18 @@
 			</div>
 
 			<!-- Kommentare: Threads an Markierungen und zum ganzen Artikel -->
-			<NcButton
-				class="dock-btn comment-dock-btn"
-				:title="t('merlin', 'Comments')"
-				:class="{ 'share-btn--active': commentsOpen }"
-				@click.stop="toggleComments">
-				<template #icon>
-					<CommentTextOutline :size="18" />
-				</template>
-			</NcButton>
-			<span v-if="commentCount > 0" class="comment-dock-count">{{ commentCount }}</span>
+			<span class="comment-dock">
+				<NcButton
+					class="dock-btn comment-dock-btn"
+					:title="t('merlin', 'Comments')"
+					:class="{ 'share-btn--active': commentsOpen }"
+					@click.stop="toggleComments">
+					<template #icon>
+						<CommentTextOutline :size="18" />
+					</template>
+				</NcButton>
+				<span v-if="commentCount > 0" class="comment-dock-count" aria-hidden="true">{{ commentCount > 99 ? '99+' : commentCount }}</span>
+			</span>
 
 			<div class="dock-divider" />
 
@@ -1664,11 +1666,29 @@ export default {
 	background: var(--dock-overlay-active, rgba(255, 255, 255, 0.28)) !important;
 }
 
+/* Zähler als Plakette an der Ecke des Knopfs, damit er nicht in dessen
+   Hover-/Aktiv-Fläche hineinragt. */
+.comment-dock {
+	position: relative;
+	display: inline-flex;
+}
+
 .comment-dock-count {
-	margin: 0 6px 0 -6px;
-	font-size: 12px;
-	font-weight: 600;
-	color: var(--dock-fg, #fff);
+	position: absolute;
+	top: -2px;
+	right: -4px;
+	min-width: 16px;
+	height: 16px;
+	padding: 0 4px;
+	box-sizing: border-box;
+	border-radius: 8px;
+	background: #f59e0b;
+	color: #fff;
+	font-size: 10px;
+	font-weight: 700;
+	line-height: 16px;
+	text-align: center;
+	pointer-events: none;
 	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
 }
 
