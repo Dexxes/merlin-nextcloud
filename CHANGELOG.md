@@ -7,6 +7,10 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Changed
+- Reader and public share links: the outlet's domain (e.g. "taz.de") now sits
+  as a kicker above the headline, styled like the topline in the iOS reader
+  and linked to the original article. It replaces the site entry in the
+  metadata row.
 - Captions: the image credit (`<cite>`) is no longer separated from the
   caption by " • ", only by a space ("Ein Bild. <cite>Foto: dpa</cite>").
   The caption's own final punctuation stays as it is.

@@ -53,6 +53,11 @@
 			<audio v-if="audioVisible" ref="audioEl" class="pav-audio" controls :src="ttsUrl" />
 
 			<header class="pav-header">
+				<!-- Dachzeile: Medium (siteName bzw. Domain ohne "www.") wie im App-Reader. -->
+				<div v-if="kickerSite" class="pav-kicker">
+					<a v-if="safeArticleUrl" :href="safeArticleUrl" target="_blank" rel="noopener noreferrer">{{ kickerSite }}</a>
+					<span v-else>{{ kickerSite }}</span>
+				</div>
 				<h1>{{ article.title }}</h1>
 				<p v-if="article.excerpt" class="pav-excerpt">{{ article.excerpt }}</p>
 				<div class="pav-meta">
@@ -65,8 +70,6 @@
 					</span>
 					<a v-else-if="article.author && safeAuthorUrl" :href="safeAuthorUrl" target="_blank" rel="noopener noreferrer">{{ article.author }}</a>
 					<span v-else-if="article.author">{{ article.author }}</span>
-					<a v-if="article.siteName && safeArticleUrl" :href="safeArticleUrl" target="_blank" rel="noopener noreferrer">{{ article.siteName }}</a>
-					<span v-else-if="article.siteName">{{ article.siteName }}</span>
 					<span v-if="article.readingTime">{{ t('merlin', '{minutes} min', { minutes: article.readingTime }) }}</span>
 				</div>
 			</header>
@@ -198,15 +201,23 @@ export default {
 				+ thread.replies.filter(r => !r.deleted).length, 0)
 		},
 
+		// Domain aus article.url (Kleinschreibung, ohne "www.") als Fallback für siteName.
+		articleDomain() {
+			try {
+				return new URL(this.article.url).hostname.toLowerCase().replace(/^www\./, '')
+			} catch {
+				return ''
+			}
+		},
+
+		// Medium für die Dachzeile über der Überschrift (z.B. "taz.de").
+		kickerSite() {
+			return (this.article.siteName || this.articleDomain || '').trim()
+		},
+
 		// "Autor, Medium" am Artikelende (z.B. "Max Muster, taz.de").
 		footerByline() {
-			let host = ''
-			try {
-				host = new URL(this.article.url).hostname.replace(/^www\./, '')
-			} catch {
-				// keine gültige URL – kein Host-Fallback
-			}
-			return [this.article.author, this.article.siteName || host]
+			return [this.article.author, this.article.siteName || this.articleDomain]
 				.map((v) => (v || '').trim())
 				.filter(Boolean)
 				.join(', ')
@@ -674,6 +685,28 @@ export default {
 .pav-audio {
 	width: 100%;
 	margin-bottom: 24px;
+}
+
+/* Dachzeile wie die Topline der iOS-App: klein, fett, gesperrt, 2px-Linie darunter. */
+.pav-kicker {
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 2px;
+	line-height: 1.3;
+	padding-bottom: 8px;
+	margin: 0 0 18px 0;
+	border-bottom: 2px solid currentColor;
+	overflow-wrap: anywhere;
+}
+
+.pav-kicker a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.pav-kicker a:hover,
+.pav-kicker a:focus-visible {
+	text-decoration: underline;
 }
 
 .pav-header h1 {
