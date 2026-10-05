@@ -27,6 +27,10 @@ All notable changes to Merlin are documented here. Format based on
   must be plain client XPaths with bounded offsets, colors come from a fixed
   list (also for the owner's own highlights). Comments stay plain text and are
   never rendered as HTML.
+  Choosing "Comment" on a selection first opens the comment form with the
+  quoted passage; the passage is only marked once the first comment is sent,
+  and then underlined instead of colored (color `comment`, sent as `anchor`
+  with the new comment). Deleting its last comment removes the underline.
 - Retention: archived articles can be deleted automatically. The period counts
   from the day an article was archived; articles that are not archived are never
   deleted. Admins set a maximum in days under Administration > Merlin >

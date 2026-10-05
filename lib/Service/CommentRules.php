@@ -22,6 +22,12 @@ final class CommentRules {
 	public const XPATH_MAX = 1000;
 	public const OFFSET_MAX = 1_000_000;
 	public const COLORS = ['yellow', 'green', 'blue', 'pink', 'orange'];
+	/**
+	 * "Farbe" einer Textstelle, die nur für einen Kommentar angelegt wurde:
+	 * die Clients unterstreichen sie, statt sie einzufärben. Sie entsteht nur
+	 * zusammen mit ihrem ersten Kommentar und verschwindet mit dem letzten.
+	 */
+	public const COLOR_COMMENT = 'comment';
 	/** Höchstens so viele Gast-Kommentare bzw. -Markierungen je Artikel und Tag. */
 	public const GUEST_DAILY_CAP = 500;
 
@@ -153,7 +159,7 @@ final class CommentRules {
 
 	/** Unbekannte Farben werden gelb (nur Namen aus der festen Liste). */
 	public static function sanitizeColor(string $color): string {
-		return in_array($color, self::COLORS, true) ? $color : 'yellow';
+		return in_array($color, self::COLORS, true) || $color === self::COLOR_COMMENT ? $color : 'yellow';
 	}
 
 	/** Änderungsmarke aus ?since= / Last-Event-ID: nur Hex, sonst leer. */

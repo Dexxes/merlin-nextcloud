@@ -2,9 +2,9 @@
 	<aside class="comment-panel" :class="{ 'comment-panel--sheet': sheet }" :aria-label="t('merlin', 'Comments')">
 		<header class="cp-header">
 			<h2 class="cp-title">
-				{{ focusedHighlightId !== null ? t('merlin', 'Comments on this passage') : t('merlin', 'Comments') }}
+				{{ focusedHighlightId !== null || pendingAnchor ? t('merlin', 'Comments on this passage') : t('merlin', 'Comments') }}
 			</h2>
-			<button v-if="focusedHighlightId !== null"
+			<button v-if="focusedHighlightId !== null || pendingAnchor"
 				type="button"
 				class="cp-link"
 				@click="$emit('unfocus')">
@@ -27,7 +27,7 @@
 		</p>
 
 		<div class="cp-threads">
-			<p v-if="session.state.loaded && visibleThreads.length === 0" class="cp-empty">
+			<p v-if="session.state.loaded && visibleThreads.length === 0 && !pendingAnchor" class="cp-empty">
 				{{ focusedHighlightId !== null
 					? t('merlin', 'No comments on this passage yet.')
 					: t('merlin', 'No comments yet. Select text to highlight and comment on it.') }}
@@ -108,8 +108,13 @@
 		</div>
 
 		<form v-if="canWrite" class="cp-form cp-form--new" @submit.prevent="submitNew">
+			<!-- Ausgewählte, noch nicht gespeicherte Stelle: erscheint im Text erst,
+			     wenn der Kommentar abgeschickt ist. -->
+			<blockquote v-if="pendingAnchor" class="cp-quote cp-quote--pending">
+				{{ shorten(pendingAnchor.highlightedText) }}
+			</blockquote>
 			<label class="cp-form-label" :for="inputId">
-				{{ focusedHighlightId !== null ? t('merlin', 'Comment on this passage') : t('merlin', 'Comment on the article') }}
+				{{ focusedHighlightId !== null || pendingAnchor ? t('merlin', 'Comment on this passage') : t('merlin', 'Comment on the article') }}
 			</label>
 			<textarea :id="inputId"
 				ref="newInput"
@@ -165,6 +170,11 @@ export default {
 		canWrite: { type: Boolean, default: true },
 		/** Thread-Ansicht einer Markierung, null = alle Kommentare */
 		focusedHighlightId: { type: Number, default: null },
+		/**
+		 * Gerade ausgewählte Textstelle ohne Markierung („Kommentieren“ im
+		 * Markier-Menü): der neue Kommentar legt sie mit an.
+		 */
+		pendingAnchor: { type: Object, default: null },
 		/** Markierungs-IDs in Textreihenfolge, für die Sortierung der Threads */
 		highlightOrder: { type: Array, default: () => [] },
 		/** Vor dem Schreiben: sorgt für einen Gast-Namen, liefert true wenn vorhanden */
@@ -173,7 +183,7 @@ export default {
 		sheet: { type: Boolean, default: false },
 	},
 
-	emits: ['close', 'unfocus', 'focus-highlight', 'change-name'],
+	emits: ['close', 'unfocus', 'focus-highlight', 'change-name', 'anchored'],
 
 	data() {
 		return {
@@ -196,6 +206,7 @@ export default {
 
 		visibleThreads() {
 			const order = new Map(this.highlightOrder.map((id, i) => [String(id), i]))
+			if (this.pendingAnchor) return []
 			const threads = this.session.state.threads.filter(thread => this.focusedHighlightId === null
 				|| thread.highlightId === this.focusedHighlightId)
 			const rank = thread => (thread.highlightId !== null && order.has(String(thread.highlightId))
@@ -206,6 +217,12 @@ export default {
 	},
 
 	watch: {
+		pendingAnchor(anchor) {
+			if (!anchor) return
+			this.error = ''
+			this.$nextTick(() => this.$refs.newInput?.focus())
+		},
+
 		focusedHighlightId() {
 			this.replyTarget = null
 			this.error = ''
@@ -218,7 +235,7 @@ export default {
 	},
 
 	mounted() {
-		if (this.focusedHighlightId !== null && !this.visibleThreads.length) {
+		if (this.pendingAnchor || (this.focusedHighlightId !== null && !this.visibleThreads.length)) {
 			this.$refs.newInput?.focus()
 		}
 	},
@@ -294,9 +311,18 @@ export default {
 			this.sending = true
 			this.error = ''
 			try {
-				await this.client.create({ body, highlightId: this.focusedHighlightId, website: this.website })
+				const anchor = this.pendingAnchor
+				const saved = await this.client.create({
+					body,
+					highlightId: anchor ? null : this.focusedHighlightId,
+					anchor,
+					website: this.website,
+				})
 				this.newBody = ''
 				await this.session.refresh()
+				// Stelle ist jetzt gespeichert (und unterstrichen): weiter in
+				// ihrem Thread.
+				if (anchor && saved?.highlightId) this.$emit('anchored', saved.highlightId)
 			} catch (e) {
 				this.error = this.messageFor(e)
 			} finally {
@@ -435,6 +461,11 @@ export default {
 	background: var(--color-background-hover, #f7f7f7);
 	margin: 0 -14px;
 	padding: 12px 14px;
+}
+
+.cp-quote--pending {
+	cursor: default;
+	border-left-color: #f59e0b;
 }
 
 .cp-quote {

@@ -45,6 +45,17 @@ if (typeof document !== 'undefined' && !document.getElementById('merlin-hl-style
 		mark.merlin-highlight[data-highlight-color="blue"]   { background-color: #bfdbfe !important; color: #1c1c1e !important; }
 		mark.merlin-highlight[data-highlight-color="pink"]   { background-color: #fbcfe8 !important; color: #1c1c1e !important; }
 		mark.merlin-highlight[data-highlight-color="orange"] { background-color: #fed7aa !important; color: #1c1c1e !important; }
+		/* Kommentierte Textstelle ohne Markierungsfarbe: unterstrichen statt
+		   eingefärbt, Schrift bleibt wie im Text. */
+		mark.merlin-highlight[data-highlight-color="comment"] {
+			background-color: transparent !important;
+			color: inherit !important;
+			padding: 0 !important;
+			text-decoration: underline !important;
+			text-decoration-color: #f59e0b !important;
+			text-decoration-thickness: 2px !important;
+			text-underline-offset: 3px !important;
+		}
 		/* Kommentar-Hinweis: nur am letzten <mark> einer Markierung (data-comment-tail),
 		   damit eine über mehrere Absätze gehende Markierung ein Symbol trägt. */
 		mark.merlin-highlight[data-comment-tail]::after {
@@ -190,6 +201,9 @@ function resolveXPath(xpath, root) {
 	return node || null
 }
 
+/** Farbe einer Stelle, die nur kommentiert (nicht markiert) wurde. */
+export const COMMENT_COLOR = 'comment'
+
 // ─── DOM wrapping ─────────────────────────────────────────────────────────────
 
 function createMarkEl(color, highlightId) {
@@ -197,6 +211,8 @@ function createMarkEl(color, highlightId) {
 	span.className = 'merlin-highlight'
 	span.dataset.highlightId = String(highlightId)
 	span.dataset.highlightColor = color
+	// Kommentar-Stelle: nur unterstrichen (CSS oben), keine Hintergrundfarbe.
+	if (color === COMMENT_COLOR) return span
 	// Inline style as additional reinforcement alongside the CSS class rules
 	span.style.backgroundColor = HIGHLIGHT_COLORS.find(c => c.id === color)?.hex ?? '#fde68a'
 	// Fixe dunkle Schrift auch inline (siehe CSS-Kommentar oben): im Dark-Theme
@@ -279,8 +295,11 @@ export class HighlightEngine {
 	/**
 	 * @param {HTMLElement} container
 	 * @param {object} callbacks
-	 * @param {Function} callbacks.onCreate neue Markierung ({ …, tempId, comment }),
-	 *        `comment: true` wenn der Nutzer „Kommentieren“ statt einer Farbe gewählt hat
+	 * @param {Function} callbacks.onCreate neue Markierung ({ …, tempId })
+	 * @param {Function} [callbacks.onCommentSelection] „Kommentieren“ an einer
+	 *        Textauswahl ({ highlightedText, startXpath, startOffset, endXpath, endOffset }).
+	 *        Im Text ändert sich dabei nichts; die Stelle wird erst mit dem
+	 *        abgeschickten Kommentar gespeichert und dann unterstrichen.
 	 * @param {Function} callbacks.onDelete Markierung löschen (id)
 	 * @param {Function} [callbacks.onOpenComments] Thread einer Markierung öffnen (id)
 	 * @param {Function} [callbacks.canDelete] darf diese Markierung gelöscht werden? (id) => bool
@@ -288,9 +307,10 @@ export class HighlightEngine {
 	 * @param {Function} [callbacks.canCreate] darf gerade markiert werden? () => bool
 	 * @param {Function} [callbacks.t] Übersetzungsfunktion (Text) => Text
 	 */
-	constructor(container, { onCreate, onDelete, onOpenComments = null, canDelete = null, describe = null, canCreate = null, t = null }) {
+	constructor(container, { onCreate, onDelete, onOpenComments = null, onCommentSelection = null, canDelete = null, describe = null, canCreate = null, t = null }) {
 		this._container = container
 		this._onCreate = onCreate
+		this._onCommentSelection = onCommentSelection
 		this._onDelete = onDelete
 		this._onOpenComments = onOpenComments
 		this._canDelete = canDelete ?? (() => true)
@@ -421,7 +441,13 @@ export class HighlightEngine {
 		const sel = window.getSelection()
 		if (clickedMark && this._container.contains(clickedMark) && (!sel || sel.isCollapsed)) {
 			this._removeToolbar()
-			this._showDeleteMenu(e.clientX, e.clientY, parseInt(clickedMark.dataset.highlightId, 10))
+			const id = parseInt(clickedMark.dataset.highlightId, 10)
+			// Unterstrichene Kommentar-Stelle: gleich die Kommentare zeigen.
+			if (clickedMark.dataset.highlightColor === COMMENT_COLOR && this._onOpenComments) {
+				this._onOpenComments(id)
+				return
+			}
+			this._showDeleteMenu(e.clientX, e.clientY, id)
 			return
 		}
 
@@ -513,7 +539,7 @@ export class HighlightEngine {
 			const commentBtn = document.createElement('button')
 			commentBtn.type = 'button'
 			commentBtn.textContent = this._t('Comment')
-			commentBtn.title = this._t('Highlight and comment')
+			commentBtn.title = this._t('Comment on this passage')
 			commentBtn.style.cssText = `
 				border: none; background: none; cursor: pointer;
 				padding: 2px 6px; font-size: 13px; color: #1c1c1e;
@@ -527,7 +553,7 @@ export class HighlightEngine {
 			})
 			commentBtn.addEventListener('click', (ev) => {
 				ev.stopPropagation()
-				this._createHighlight('yellow', true)
+				this._startComment()
 			})
 			toolbar.appendChild(commentBtn)
 		}
@@ -638,6 +664,32 @@ export class HighlightEngine {
 	}
 
 	// ── create highlight ─────────────────────────────────────────────────────
+
+	/**
+	 * „Kommentieren“: Stelle nur ausmessen und an den Kommentar-Dialog geben –
+	 * nichts einfärben. Ohne onCommentSelection wie bisher gelb markieren.
+	 */
+	_startComment() {
+		if (!this._onCommentSelection) {
+			this._createHighlight('yellow', true)
+			return
+		}
+		const range = this._pendingRange
+		this._removeToolbar()
+		if (!range || range.collapsed) return
+		const startXpath = getXPathForNode(range.startContainer, this._container)
+		const endXpath   = getXPathForNode(range.endContainer,   this._container)
+		const highlightedText = range.toString().trim()
+		if (!startXpath || !endXpath || !highlightedText) return
+		window.getSelection()?.removeAllRanges()
+		this._onCommentSelection({
+			highlightedText,
+			startXpath,
+			startOffset: range.startOffset,
+			endXpath,
+			endOffset: range.endOffset,
+		})
+	}
 
 	_createHighlight(color, comment = false) {
 		const range = this._pendingRange

@@ -101,7 +101,7 @@ class PublicCommentController extends Controller {
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
 	#[AnonRateLimit(limit: 20, period: 300)]
-	public function create(string $token, string $authorName = '', string $body = '', ?int $highlightId = null, ?int $parentId = null): DataResponse {
+	public function create(string $token, string $authorName = '', string $body = '', ?int $highlightId = null, ?int $parentId = null, ?array $anchor = null): DataResponse {
 		$share = $this->writableShare($token);
 		if ($share instanceof DataResponse) {
 			return $share;
@@ -109,6 +109,9 @@ class PublicCommentController extends Controller {
 		try {
 			$name = $this->comments->guestName($authorName, $share->getUserId());
 			$this->comments->assertGuestCapacity($share->getArticleId(), $share->getUserId(), false);
+			if ($anchor !== null) {
+				$this->comments->assertGuestCapacity($share->getArticleId(), $share->getUserId(), true);
+			}
 			$comment = $this->comments->createComment(
 				$share->getArticleId(),
 				$share->getUserId(),
@@ -117,6 +120,7 @@ class PublicCommentController extends Controller {
 				$body,
 				$highlightId,
 				$parentId,
+				$anchor,
 			);
 		} catch (CommentException $e) {
 			return $this->error($e);

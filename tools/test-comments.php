@@ -91,6 +91,7 @@ $check(CommentRules::validateHighlight("\u{200B}", 'p[1]/text()[1]', 0, 'p[1]/te
 $check(CommentRules::validateHighlight(str_repeat('a', 2001), 'p[1]/text()[1]', 0, 'p[1]/text()[1]', 1, 2000) === 'highlight_invalid', 'Zu langer Text abgelehnt');
 $check(CommentRules::sanitizeColor('green') === 'green', 'Bekannte Farbe bleibt');
 $check(CommentRules::sanitizeColor('red;background:url(x)') === 'yellow', 'Unbekannte Farbe wird gelb');
+$check(CommentRules::sanitizeColor('comment') === 'comment', 'Kommentar-Unterstreichung ist erlaubt');
 $check(CommentRules::sanitizeSignature('0123456789abcdef0123') === '0123456789abcdef0123', 'Gültige Änderungsmarke bleibt');
 $check(CommentRules::sanitizeSignature("x\nevent: closed") === '', 'Änderungsmarke mit Fremdinhalt verworfen');
 

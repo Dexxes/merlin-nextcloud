@@ -72,7 +72,7 @@ class CommentController extends Controller {
 
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function create(int $articleId, string $body = '', ?int $highlightId = null, ?int $parentId = null): DataResponse {
+	public function create(int $articleId, string $body = '', ?int $highlightId = null, ?int $parentId = null, ?array $anchor = null): DataResponse {
 		if ($this->userId === null) {
 			return $this->unauthenticated();
 		}
@@ -88,6 +88,7 @@ class CommentController extends Controller {
 				$body,
 				$highlightId,
 				$parentId,
+				$anchor,
 			);
 		} catch (CommentException $e) {
 			return new DataResponse(['error' => $e->getErrorCode()], $e->getStatus());

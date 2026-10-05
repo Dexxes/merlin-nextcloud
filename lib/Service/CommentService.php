@@ -100,9 +100,16 @@ class CommentService {
 	}
 
 	/**
-	 * Neuer Kommentar: Thread-Wurzel (an einer Markierung oder am ganzen
-	 * Artikel) oder Antwort.
+	 * Neuer Kommentar: Thread-Wurzel (an einer Markierung, an einer neuen
+	 * Textstelle `$anchor` oder am ganzen Artikel) oder Antwort.
 	 *
+	 * `$anchor` (highlightedText, startXpath, startOffset, endXpath, endOffset)
+	 * ist eine Textauswahl, die erst mit diesem Kommentar entsteht ("Kommentieren"
+	 * im Markier-Menü): Textstelle und Kommentar werden zusammen gespeichert, die
+	 * Textstelle mit der Farbe "comment" (unterstrichen statt eingefärbt). Davor
+	 * ist im Text nichts zu sehen.
+	 *
+	 * @param array<string, mixed>|null $anchor
 	 * @throws CommentException
 	 */
 	public function createComment(
@@ -113,10 +120,27 @@ class CommentService {
 		string $body,
 		?int $highlightId,
 		?int $parentId,
+		?array $anchor = null,
 	): Comment {
 		$bodyError = CommentRules::validateBody($body);
 		if ($bodyError !== null) {
 			throw new CommentException($bodyError);
+		}
+		if ($anchor !== null && $parentId === null) {
+			// Erst prüfen, dann speichern: scheitert die Stelle, entsteht nichts.
+			$highlight = $this->createHighlight(
+				$articleId,
+				$ownerId,
+				$authorType,
+				$authorName,
+				(string) ($anchor['highlightedText'] ?? ''),
+				(string) ($anchor['startXpath'] ?? ''),
+				(int) ($anchor['startOffset'] ?? -1),
+				(string) ($anchor['endXpath'] ?? ''),
+				(int) ($anchor['endOffset'] ?? -1),
+				CommentRules::COLOR_COMMENT,
+			);
+			$highlightId = $highlight->getId();
 		}
 
 		$comment = new Comment();
@@ -186,6 +210,7 @@ class CommentService {
 				return;
 			}
 			$this->commentMapper->delete($comment);
+			$this->dropUnusedCommentHighlight($comment->getHighlightId(), $comment->getUserId());
 			return;
 		}
 
@@ -194,9 +219,29 @@ class CommentService {
 			$root = $this->commentMapper->findInArticle($parentId, $comment->getArticleId(), $comment->getUserId());
 			if ($root->isDeleted() && $this->commentMapper->countReplies($root->getId()) === 0) {
 				$this->commentMapper->delete($root);
+				$this->dropUnusedCommentHighlight($root->getHighlightId(), $root->getUserId());
 			}
 		} catch (DoesNotExistException) {
 			// Wurzel schon weg
+		}
+	}
+
+	/**
+	 * Eine nur fürs Kommentieren angelegte Textstelle (Farbe "comment")
+	 * verschwindet mit ihrem letzten Kommentar – sonst bliebe eine
+	 * Unterstreichung ohne Kommentar stehen. Eingefärbte Markierungen bleiben.
+	 */
+	private function dropUnusedCommentHighlight(?int $highlightId, string $ownerId): void {
+		if ($highlightId === null || $this->commentMapper->countForHighlight($highlightId, $ownerId) > 0) {
+			return;
+		}
+		try {
+			$highlight = $this->highlightMapper->findById($highlightId, $ownerId);
+		} catch (DoesNotExistException) {
+			return;
+		}
+		if ($highlight->getColor() === CommentRules::COLOR_COMMENT) {
+			$this->highlightMapper->deleteById($highlightId, $ownerId);
 		}
 	}
 
@@ -216,8 +261,32 @@ class CommentService {
 		int $endOffset,
 		string $color,
 	): Highlight {
+		return $this->createHighlight($articleId, $ownerId, Comment::AUTHOR_GUEST, $authorName,
+			$highlightedText, $startXpath, $startOffset, $endXpath, $endOffset, $color);
+	}
+
+	/**
+	 * Markierung bzw. Kommentar-Textstelle prüfen, bereinigen und speichern.
+	 *
+	 * @throws CommentException
+	 */
+	private function createHighlight(
+		int $articleId,
+		string $ownerId,
+		string $authorType,
+		string $authorName,
+		string $highlightedText,
+		string $startXpath,
+		int $startOffset,
+		string $endXpath,
+		int $endOffset,
+		string $color,
+	): Highlight {
+		$maxText = $authorType === Comment::AUTHOR_GUEST
+			? CommentRules::HIGHLIGHT_TEXT_MAX
+			: CommentRules::OWNER_HIGHLIGHT_TEXT_MAX;
 		$error = CommentRules::validateHighlight(
-			$highlightedText, $startXpath, $startOffset, $endXpath, $endOffset, CommentRules::HIGHLIGHT_TEXT_MAX);
+			$highlightedText, $startXpath, $startOffset, $endXpath, $endOffset, $maxText);
 		if ($error !== null) {
 			throw new CommentException($error);
 		}
@@ -232,9 +301,11 @@ class CommentService {
 		$highlight->setEndOffset($endOffset);
 		$highlight->setColor(CommentRules::sanitizeColor($color));
 		$highlight->setCreatedAt(new \DateTime());
-		$highlight->setAuthorType(Comment::AUTHOR_GUEST);
-		$highlight->setAuthorName($authorName);
-		$highlight->setAuthorNameKey(CommentRules::nameKey($authorName));
+		$highlight->setAuthorType($authorType);
+		if ($authorType === Comment::AUTHOR_GUEST) {
+			$highlight->setAuthorName($authorName);
+			$highlight->setAuthorNameKey(CommentRules::nameKey($authorName));
+		}
 
 		return $this->highlightMapper->insert($highlight);
 	}

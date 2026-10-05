@@ -98,10 +98,12 @@
 			:can-write="allowComments"
 			:sheet="isNarrow"
 			:focused-highlight-id="commentFocus"
+			:pending-anchor="commentAnchor"
 			:highlight-order="highlightOrder"
 			:ensure-name="ensureName"
-			@close="commentsOpen = false; commentFocus = null"
-			@unfocus="commentFocus = null"
+			@close="closeComments"
+			@unfocus="commentFocus = null; commentAnchor = null"
+			@anchored="onCommentAnchored"
 			@focus-highlight="focusHighlight"
 			@change-name="askName()" />
 
@@ -169,6 +171,8 @@ export default {
 			commentClient: null,
 			commentsOpen: false,
 			commentFocus: null,
+			/** Ausgewählte, noch nicht gespeicherte Kommentar-Stelle */
+			commentAnchor: null,
 			highlightOrder: [],
 			nameDialog: false,
 			nameDraft: '',
@@ -381,6 +385,7 @@ export default {
 					}
 				},
 				onOpenComments: (highlightId) => this.openComments(highlightId),
+				onCommentSelection: (anchor) => this.openNewComment(anchor),
 				canDelete: (highlightId) => {
 					const h = this._highlightById(highlightId)
 					return this.allowComments && !!h && h.authorType === 'guest'
@@ -429,14 +434,32 @@ export default {
 		},
 
 		openComments(highlightId = null) {
+			this.commentAnchor = null
 			this.commentFocus = highlightId
 			this.commentsOpen = true
 		},
 
+		/** „Kommentieren“ an einer Auswahl: erst schreiben, dann unterstreichen. */
+		openNewComment(anchor) {
+			this.commentFocus = null
+			this.commentAnchor = anchor
+			this.commentsOpen = true
+		},
+
+		closeComments() {
+			this.commentsOpen = false
+			this.commentFocus = null
+			this.commentAnchor = null
+		},
+
+		onCommentAnchored(highlightId) {
+			this.commentAnchor = null
+			this.commentFocus = highlightId
+		},
+
 		toggleComments() {
 			if (this.commentsOpen) {
-				this.commentsOpen = false
-				this.commentFocus = null
+				this.closeComments()
 			} else {
 				this.openComments(null)
 			}

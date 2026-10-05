@@ -16,8 +16,10 @@ export function ownerCommentsClient(articleId) {
 		async list() {
 			return (await axios.get(generateUrl(`${base}/comments`))).data
 		},
-		async create({ body, highlightId = null, parentId = null }) {
-			return (await axios.post(generateUrl(`${base}/comments`), { body, highlightId, parentId })).data
+		// anchor: neue Textstelle ({ highlightedText, startXpath, … }), die mit
+		// diesem Kommentar entsteht (unterstrichen, siehe COMMENT_COLOR)
+		async create({ body, highlightId = null, parentId = null, anchor = null }) {
+			return (await axios.post(generateUrl(`${base}/comments`), { body, highlightId, parentId, anchor })).data
 		},
 		async update(id, body) {
 			return (await axios.put(generateUrl(`/apps/merlin/api/comments/${id}`), { body })).data
@@ -49,9 +51,9 @@ export function guestCommentsClient(token, getName) {
 		async list() {
 			return (await axios.get(generateUrl(`${base}/comments`))).data
 		},
-		async create({ body, highlightId = null, parentId = null, website = '' }) {
+		async create({ body, highlightId = null, parentId = null, anchor = null, website = '' }) {
 			return (await axios.post(generateUrl(`${base}/comments`), {
-				authorName: getName(), body, highlightId, parentId, website,
+				authorName: getName(), body, highlightId, parentId, anchor, website,
 			})).data
 		},
 		async update(id, body) {

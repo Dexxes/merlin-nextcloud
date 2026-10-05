@@ -511,9 +511,11 @@
 			mode="owner"
 			:sheet="isMobile"
 			:focused-highlight-id="commentFocus"
+			:pending-anchor="commentAnchor"
 			:highlight-order="highlightOrder"
-			@close="commentsOpen = false; commentFocus = null"
-			@unfocus="commentFocus = null"
+			@close="closeComments"
+			@unfocus="commentFocus = null; commentAnchor = null"
+			@anchored="onCommentAnchored"
 			@focus-highlight="focusHighlight" />
 	</div>
 </template>
@@ -678,6 +680,8 @@ export default {
 			commentsOpen: false,
 			// Thread-Ansicht einer Markierung, null = alle Kommentare
 			commentFocus: null,
+			/** Ausgewählte, noch nicht gespeicherte Kommentar-Stelle */
+			commentAnchor: null,
 			highlightOrder: [],
 		}
 	},
@@ -1430,6 +1434,7 @@ export default {
 			this.commentSession = null
 			this.commentsOpen = false
 			this.commentFocus = null
+			this.commentAnchor = null
 
 			const bodyEl = this.$el?.querySelector('.article-body')
 			if (!bodyEl) return
@@ -1466,6 +1471,7 @@ export default {
 					}
 				},
 				onOpenComments: (highlightId) => this.openComments(highlightId),
+				onCommentSelection: (anchor) => this.openNewComment(anchor),
 				describe: (highlightId) => {
 					const h = this.commentSession?.state.highlights.find(x => x.id === highlightId)
 					return h && h.authorType === 'guest' && h.authorName
@@ -1511,14 +1517,32 @@ export default {
 		},
 
 		openComments(highlightId = null) {
+			this.commentAnchor = null
 			this.commentFocus = highlightId
 			this.commentsOpen = true
 		},
 
+		/** „Kommentieren“ an einer Auswahl: erst schreiben, dann unterstreichen. */
+		openNewComment(anchor) {
+			this.commentFocus = null
+			this.commentAnchor = anchor
+			this.commentsOpen = true
+		},
+
+		closeComments() {
+			this.commentsOpen = false
+			this.commentFocus = null
+			this.commentAnchor = null
+		},
+
+		onCommentAnchored(highlightId) {
+			this.commentAnchor = null
+			this.commentFocus = highlightId
+		},
+
 		toggleComments() {
 			if (this.commentsOpen) {
-				this.commentsOpen = false
-				this.commentFocus = null
+				this.closeComments()
 			} else {
 				this.openComments(null)
 			}

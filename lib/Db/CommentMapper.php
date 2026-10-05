@@ -62,6 +62,19 @@ class CommentMapper extends QBMapper {
 		return $this->findEntity($qb);
 	}
 
+	/** Kommentare (auch gelöschte Platzhalter) an einer Textstelle. */
+	public function countForHighlight(int $highlightId, string $userId): int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select($qb->func()->count('*', 'cnt'))
+			->from($this->getTableName())
+			->where($qb->expr()->eq('highlight_id', $qb->createNamedParameter($highlightId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)));
+		$result = $qb->executeQuery();
+		$count = (int) $result->fetchOne();
+		$result->closeCursor();
+		return $count;
+	}
+
 	public function countReplies(int $rootId): int {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select($qb->func()->count('*', 'cnt'))
