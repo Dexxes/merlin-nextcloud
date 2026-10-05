@@ -7,10 +7,10 @@ namespace OCA\Merlin\Controller;
 use OCA\Merlin\AppInfo\Application;
 use OCA\Merlin\Db\Article;
 use OCA\Merlin\Db\ArticleMapper;
-use OCA\Merlin\Db\ArticleShare;
 use OCA\Merlin\Db\ArticleShareMapper;
-use OCA\Merlin\Db\HighlightMapper;
+use OCA\Merlin\Service\CommentService;
 use OCA\Merlin\Service\PdfProxyService;
+use OCA\Merlin\Service\ShareAccessService;
 use OCA\Merlin\Service\SupportBoxService;
 use OCA\Merlin\Service\TtsStreamService;
 use OCP\AppFramework\Controller;
@@ -24,7 +24,6 @@ use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IRequest;
-use OCP\ISession;
 use OCP\Security\Bruteforce\IThrottler;
 
 /**
@@ -34,70 +33,27 @@ use OCP\Security\Bruteforce\IThrottler;
  * NIE über eine vom Client mitgeschickte article_id/user_id (IDOR-Schutz).
  *
  * Passwort-Unlock wird in der PHP-Session gemerkt (analog Nextclouds eigenem
- * Datei-Freigabe-Passwortschutz in files_sharing), Brute-Force-Schutz über
- * den Bordmittel-Dienst IThrottler.
+ * Datei-Freigabe-Passwortschutz in files_sharing, siehe ShareAccessService),
+ * Brute-Force-Schutz über den Bordmittel-Dienst IThrottler. Markieren und
+ * Kommentieren hinter dem Link: PublicCommentController.
  */
 class PublicShareController extends Controller {
 	private const THROTTLE_ACTION = 'merlin_public_share_unlock';
-	private const SESSION_KEY = 'merlin_unlocked_share_tokens';
 
 	public function __construct(
 		string $appName,
 		IRequest $request,
 		private ArticleShareMapper $shareMapper,
 		private ArticleMapper $articleMapper,
-		private HighlightMapper $highlightMapper,
 		private TtsStreamService $ttsStream,
 		private PdfProxyService $pdfProxy,
-		private ISession $session,
+		private ShareAccessService $access,
+		private CommentService $comments,
 		private IThrottler $throttler,
 		private IInitialState $initialState,
 		private SupportBoxService $supportBox,
 	) {
 		parent::__construct($appName, $request);
-	}
-
-	// ── Session-Helfer: pro Browser-Session gemerkter Passwort-Unlock ────────
-
-	private function isUnlocked(ArticleShare $share): bool {
-		if (!$share->hasPassword()) {
-			return true;
-		}
-		$unlocked = $this->session->get(self::SESSION_KEY) ?? [];
-		return is_array($unlocked) && in_array($share->getToken(), $unlocked, true);
-	}
-
-	private function markUnlocked(ArticleShare $share): void {
-		$unlocked = $this->session->get(self::SESSION_KEY) ?? [];
-		if (!is_array($unlocked)) {
-			$unlocked = [];
-		}
-		$unlocked[] = $share->getToken();
-		$this->session->set(self::SESSION_KEY, array_values(array_unique($unlocked)));
-	}
-
-	/**
-	 * Löst den Token auf und prüft Ablauf + Passwort-Unlock in einem Rutsch.
-	 * Rückgabe ist entweder der gültige Share ODER eine fertige Fehler-DataResponse
-	 * (404 nicht gefunden, 410 abgelaufen, 401 gesperrt) – Aufrufer muss nur
-	 * `instanceof DataResponse` prüfen.
-	 */
-	private function resolveAccessibleShare(string $token): ArticleShare|DataResponse {
-		try {
-			$share = $this->shareMapper->findByToken($token);
-		} catch (DoesNotExistException) {
-			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
-		}
-
-		if ($share->isExpired()) {
-			return new DataResponse(['error' => 'Expired'], Http::STATUS_GONE);
-		}
-
-		if ($share->hasPassword() && !$this->isUnlocked($share)) {
-			return new DataResponse(['locked' => true, 'hasPassword' => true], Http::STATUS_UNAUTHORIZED);
-		}
-
-		return $share;
 	}
 
 	/**
@@ -164,7 +120,7 @@ class PublicShareController extends Controller {
 		}
 
 		$this->throttler->resetDelay($ip, self::THROTTLE_ACTION, ['token' => $token]);
-		$this->markUnlocked($share);
+		$this->access->markUnlocked($share);
 
 		return new DataResponse(['unlocked' => true]);
 	}
@@ -180,7 +136,7 @@ class PublicShareController extends Controller {
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
 	public function data(string $token): DataResponse {
-		$share = $this->resolveAccessibleShare($token);
+		$share = $this->access->resolveAccessibleShare($token);
 		if ($share instanceof DataResponse) {
 			return $share;
 		}
@@ -192,7 +148,9 @@ class PublicShareController extends Controller {
 			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
 		}
 
-		$highlights = $this->highlightMapper->findByArticleId($article->getId(), $share->getUserId());
+		// Markierungen, Threads und Änderungsmarke für den Push-Kanal
+		// (PublicCommentController::events) in einem Rutsch.
+		$discussion = $this->comments->payload($article->getId(), $share->getUserId());
 
 		return new DataResponse([
 			'title'       => $article->getTitle(),
@@ -206,7 +164,11 @@ class PublicShareController extends Controller {
 			'category'    => $article->getCategory(),
 			'publishedAt' => $article->getPublishedAt() ? $article->getPublishedAt()->format('c') : null,
 			'readingTime' => $article->getReadingTime(),
-			'highlights'  => array_map(fn ($h) => $h->jsonSerialize(), $highlights),
+			'highlights'  => $discussion['highlights'],
+			'comments'    => $discussion['comments'],
+			'signature'   => $discussion['signature'],
+			'allowComments' => $share->allowsComments(),
+			'ownerName'   => $this->comments->ownerDisplayName($share->getUserId()),
 			// Abo-/Spendenlink der Quelle; anders als im Reader immer, auch wenn der
 			// Ersteller dort ein Abo hat (Empfänger sind keine Abonnenten).
 			'supportBox'  => $this->supportBox->forShare($article, $share->getUserId()),
@@ -226,7 +188,7 @@ class PublicShareController extends Controller {
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
 	public function tts(string $token, string $lang = 'de', int $speaker = -1): void {
-		$share = $this->resolveAccessibleShare($token);
+		$share = $this->access->resolveAccessibleShare($token);
 		if ($share instanceof DataResponse) {
 			http_response_code($share->getStatus());
 			header('Content-Type: application/json');
@@ -261,7 +223,7 @@ class PublicShareController extends Controller {
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
 	public function pdf(string $token): void {
-		$share = $this->resolveAccessibleShare($token);
+		$share = $this->access->resolveAccessibleShare($token);
 		if ($share instanceof DataResponse) {
 			http_response_code($share->getStatus());
 			header('Content-Type: application/json');

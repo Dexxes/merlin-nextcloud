@@ -8,15 +8,18 @@ export async function getShare(articleId) {
 	return response.data
 }
 
-/** Share-Link anlegen (idempotent). password/expiresAt sind optional. */
-export async function createShare(articleId, { password = null, expiresAt = null } = {}) {
+/**
+ * Share-Link anlegen (idempotent). password/expiresAt sind optional,
+ * allowComments (Gäste dürfen markieren und kommentieren) ist standardmäßig an.
+ */
+export async function createShare(articleId, { password = null, expiresAt = null, allowComments = true } = {}) {
 	const url = generateUrl(`/apps/merlin/api/articles/${articleId}/share`)
-	const response = await axios.post(url, { password, expiresAt })
+	const response = await axios.post(url, { password, expiresAt, allowComments })
 	return response.data
 }
 
 /**
- * Passwort und/oder Ablaufdatum ändern. Nur mitgeschickte Felder werden
+ * Passwort, Ablaufdatum und/oder allowComments ändern. Nur mitgeschickte Felder werden
  * geändert — `password: null` entfernt den Passwortschutz, `expiresAt: null`
  * entfernt das Ablaufdatum. Ein Feld ganz wegzulassen lässt es unverändert.
  */

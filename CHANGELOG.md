@@ -12,6 +12,25 @@ All notable changes to Merlin are documented here. Format based on
   The caption's own final punctuation stays as it is.
 
 ### Added
+- Comments: in the reader and behind public share links, any text passage can
+  be highlighted and commented on. Comments form threads with replies. Guests
+  on a share link choose a name first; the name alone identifies them, and a
+  guest can edit or delete everything posted under that name. The owner can
+  delete any comment and disable comments per link (`allowComments`, on by
+  default). New comments and highlights reach every open reader right away via
+  Server-Sent Events (`/api/articles/{id}/comments/stream`,
+  `/s/{token}/events`) instead of polling. New table `merlin_comments`;
+  highlights store their author (`authorType`, `authorName`). All input is
+  cleaned before it is stored: invalid UTF-8 is repaired, text is normalized
+  to NFC, control and invisible format characters (bidi overrides,
+  zero-width characters) are removed, names lose `<`/`>`. Highlight positions
+  must be plain client XPaths with bounded offsets, colors come from a fixed
+  list (also for the owner's own highlights). Comments stay plain text and are
+  never rendered as HTML.
+  Choosing "Comment" on a selection first opens the comment form with the
+  quoted passage; the passage is only marked once the first comment is sent,
+  and then underlined instead of colored (color `comment`, sent as `anchor`
+  with the new comment). Deleting its last comment removes the underline.
 - Retention: archived articles can be deleted automatically. The period counts
   from the day an article was archived; articles that are not archived are never
   deleted. Admins set a maximum in days under Administration > Merlin >

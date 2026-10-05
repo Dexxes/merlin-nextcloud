@@ -13,6 +13,8 @@ merlin-nextcloud/
 │   │   ├── ShareController.php               # Öffentliche Share-Links verwalten (erstellen, Passwort/Ablauf)
 │   │   ├── PublicShareController.php          # Öffentliche API hinter einem Share-Link (kein Login)
 │   │   ├── HighlightController.php            # REST-API für Textmarkierungen
+│   │   ├── CommentController.php              # Kommentare des Besitzers + Push-Kanal (SSE)
+│   │   ├── PublicCommentController.php        # Gast-Kommentare/-Markierungen hinter Share-Links
 │   │   ├── TtsController.php
 │   │   ├── PdfController.php                  # GET /api/articles/{id}/pdf: PDF eines PDF-Artikels durchreichen (nichts gespeichert)
 │   │   ├── ExtensionController.php
@@ -41,6 +43,9 @@ merlin-nextcloud/
 │   │   ├── ExportService.php
 │   │   ├── ArticleDeletionService.php    # Einziger Löschweg für Artikel: mit Highlights, Tag-Zuordnungen, Shares; Nutzerlöschung; Waisen
 │   │   ├── RetentionService.php          # Löschfrist: Admin-/Nutzerwerte, Lauf, Vorschau, Hinweis
+│   │   ├── CommentService.php            # Kommentare/Gast-Markierungen anlegen, ändern, löschen; SSE-Schleife
+│   │   ├── CommentRules.php              # Reine Regeln: Namen, Längen, Thread-Position, Gast-Rechte
+│   │   ├── ShareAccessService.php        # Share-Token + Passwort-Unlock prüfen (Share-Ansicht und Gast-Kommentare)
 │   │   ├── RetentionPolicy.php           # Reine Rechenregeln der Löschfrist (Minimum, Stichtag, Hinweis fällig?)
 │   │   ├── Media/                        # Audio/Video, siehe Abschnitt "Medien-Provider" unten
 │   │   │   ├── MediaResolverService.php       # <media>-Sektion lesen, Provider aufrufen, Marker bauen/lesen
@@ -69,6 +74,7 @@ merlin-nextcloud/
 │   │   ├── Article.php / ArticleMapper.php
 │   │   ├── ArticleShare.php / ArticleShareMapper.php   # Öffentliche Share-Links (Token, Passwort, Ablauf)
 │   │   ├── Highlight.php / HighlightMapper.php         # Textmarkierungen je Artikel
+│   │   ├── Comment.php / CommentMapper.php             # Kommentar-Threads je Artikel
 │   │   ├── Tag.php / TagMapper.php
 │   │   └── SiteCredential.php / SiteCredentialMapper.php  # 🔜 geplant: verschlüsselte Paywall-Zugangsdaten je Nutzer/Domain
 │   └── Migration/            # Datenbank-Migrationen (Version1000Date20240101000000 … 000028)
@@ -272,6 +278,7 @@ src/
 ├── support-box.js / .css    # Support-Infobox (Abo-/Spendenlink, Seiten-Icon als eigene Spalte über die volle Boxhöhe) zur Lesezeit zwischen zwei Absätze setzen (data-hl-exclude); hideBrokenSupportBoxIcons() entfernt nicht ladbare Icons nach dem Rendern
 ├── inline-media.js / .css  # Legt auf jede figure.merlin-inline-media (Video mitten im Text) einen MediaPlayer (data-hl-exclude), idempotent nach jedem Rendern
 ├── highlight-engine.js      # Framework-unabhängige Logik zum Setzen/Wiederfinden von Textmarkierungen im DOM
+├── comment-session.js       # Kommentar-Zustand + SSE-Verbindung
 ├── App.vue                  # Hauptkomponente
 ├── store/
 │   └── index.js             # State Management

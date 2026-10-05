@@ -22,6 +22,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setCreatedAt(\DateTime $createdAt)
  * @method \DateTime getUpdatedAt()
  * @method void setUpdatedAt(\DateTime $updatedAt)
+ * @method bool|null getAllowComments()
+ * @method void setAllowComments(?bool $allowComments)
  */
 class ArticleShare extends Entity implements JsonSerializable {
 	protected $userId;
@@ -31,6 +33,7 @@ class ArticleShare extends Entity implements JsonSerializable {
 	protected $expiresAt;
 	protected $createdAt;
 	protected $updatedAt;
+	protected $allowComments = true;
 
 	public function __construct() {
 		$this->addType('userId', 'string');
@@ -40,6 +43,15 @@ class ArticleShare extends Entity implements JsonSerializable {
 		$this->addType('expiresAt', 'datetime');
 		$this->addType('createdAt', 'datetime');
 		$this->addType('updatedAt', 'datetime');
+		$this->addType('allowComments', 'boolean');
+	}
+
+	/**
+	 * Dürfen Gäste über diesen Link markieren und kommentieren? NULL (Zeilen
+	 * vor der Migration ohne Default) zählt wie true.
+	 */
+	public function allowsComments(): bool {
+		return $this->getAllowComments() !== false;
 	}
 
 	public function hasPassword(): bool {
@@ -62,6 +74,7 @@ class ArticleShare extends Entity implements JsonSerializable {
 			'token'      => $this->getToken(),
 			'hasPassword' => $this->hasPassword(),
 			'expiresAt'  => $this->getExpiresAt() ? $this->getExpiresAt()->format('c') : null,
+			'allowComments' => $this->allowsComments(),
 			'createdAt'  => $this->getCreatedAt()->format('c'),
 			'updatedAt'  => $this->getUpdatedAt()->format('c'),
 		];

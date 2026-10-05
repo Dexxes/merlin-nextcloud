@@ -47,6 +47,56 @@ class HighlightMapper extends QBMapper {
 	}
 
 	/**
+	 * Markierung eines bestimmten Artikels (Artikel aus Login oder Share-Token).
+	 *
+	 * @throws DoesNotExistException
+	 */
+	public function findInArticle(int $id, int $articleId, string $userId): Highlight {
+		$qb = $this->db->getQueryBuilder();
+
+		$qb->select('*')
+			->from($this->getTableName())
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('article_id', $qb->createNamedParameter($articleId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)));
+
+		return $this->findEntity($qb);
+	}
+
+	/**
+	 * Gast-Markierungen eines Artikels seit $since (Tagesobergrenze gegen Spam).
+	 */
+	public function countGuestSince(int $articleId, string $userId, \DateTime $since): int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select($qb->func()->count('*', 'cnt'))
+			->from($this->getTableName())
+			->where($qb->expr()->eq('article_id', $qb->createNamedParameter($articleId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+			->andWhere($qb->expr()->eq('author_type', $qb->createNamedParameter('guest')))
+			->andWhere($qb->expr()->gte('created_at', $qb->createNamedParameter($since, IQueryBuilder::PARAM_DATE)));
+		$result = $qb->executeQuery();
+		$count = (int) $result->fetchOne();
+		$result->closeCursor();
+		return $count;
+	}
+
+	/**
+	 * Änderungsmarke für den Push-Kanal (neue oder gelöschte Markierungen).
+	 */
+	public function signature(int $articleId, string $userId): string {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select($qb->func()->count('*', 'cnt'))
+			->selectAlias($qb->func()->max('id'), 'max_id')
+			->from($this->getTableName())
+			->where($qb->expr()->eq('article_id', $qb->createNamedParameter($articleId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)));
+		$result = $qb->executeQuery();
+		$row = $result->fetch() ?: [];
+		$result->closeCursor();
+		return ($row['cnt'] ?? 0) . ':' . ($row['max_id'] ?? 0);
+	}
+
+	/**
 	 * @return array{count: int, bytes: int}
 	 */
 	public function getStorageStats(string $userId): array {

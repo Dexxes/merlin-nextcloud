@@ -52,6 +52,14 @@ return [
         ['name' => 'highlight#create',  'url' => '/api/articles/{articleId}/highlights', 'verb' => 'POST'],
         ['name' => 'highlight#destroy', 'url' => '/api/highlights/{id}',                 'verb' => 'DELETE'],
 
+        // Kommentare (Besitzer): Threads an Markierungen oder am ganzen Artikel.
+        // stream = Push-Kanal (SSE), liefert Gast-Beiträge sofort.
+        ['name' => 'comment#index',   'url' => '/api/articles/{articleId}/comments',        'verb' => 'GET'],
+        ['name' => 'comment#create',  'url' => '/api/articles/{articleId}/comments',        'verb' => 'POST'],
+        ['name' => 'comment#stream',  'url' => '/api/articles/{articleId}/comments/stream', 'verb' => 'GET'],
+        ['name' => 'comment#update',  'url' => '/api/comments/{id}',                        'verb' => 'PUT'],
+        ['name' => 'comment#destroy', 'url' => '/api/comments/{id}',                        'verb' => 'DELETE'],
+
         // Share API routes (authenticated: erstellen/verwalten eines Public-Share-Links)
         ['name' => 'share#show',       'url' => '/api/articles/{articleId}/share',            'verb' => 'GET'],
         ['name' => 'share#create',     'url' => '/api/articles/{articleId}/share',            'verb' => 'POST'],
@@ -65,6 +73,15 @@ return [
         ['name' => 'public_share#data',       'url' => '/s/{token}/data',         'verb' => 'GET'],
         ['name' => 'public_share#tts',        'url' => '/s/{token}/tts',          'verb' => 'GET'],
         ['name' => 'public_share#pdf',        'url' => '/s/{token}/pdf',          'verb' => 'GET'],
+
+        // Markieren und Kommentieren als Gast hinter dem Share-Link (PublicCommentController)
+        ['name' => 'public_comment#index',            'url' => '/s/{token}/comments',        'verb' => 'GET'],
+        ['name' => 'public_comment#create',           'url' => '/s/{token}/comments',        'verb' => 'POST'],
+        ['name' => 'public_comment#update',           'url' => '/s/{token}/comments/{id}',   'verb' => 'PUT'],
+        ['name' => 'public_comment#destroy',          'url' => '/s/{token}/comments/{id}',   'verb' => 'DELETE'],
+        ['name' => 'public_comment#createHighlight',  'url' => '/s/{token}/highlights',      'verb' => 'POST'],
+        ['name' => 'public_comment#destroyHighlight', 'url' => '/s/{token}/highlights/{id}', 'verb' => 'DELETE'],
+        ['name' => 'public_comment#events',           'url' => '/s/{token}/events',          'verb' => 'GET'],
 
         // Settings routes
         ['name' => 'settings#get', 'url' => '/api/settings', 'verb' => 'GET'],
