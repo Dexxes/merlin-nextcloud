@@ -325,7 +325,7 @@
 				<header class="article-header">
 					<!-- Dachzeile: Medium (siteName bzw. Domain ohne "www.") wie die Topline im
 						 ArticleReaderView der iOS-App; verlinkt auf den Originalartikel. -->
-					<div v-if="kickerSite" class="article-kicker">
+					<div v-if="kickerSite" class="article-kicker" :style="kickerStyle">
 						<a
 							v-if="safeArticleUrl"
 							:href="safeArticleUrl"
@@ -698,6 +698,11 @@ export default {
 		// Medium für die Dachzeile über der Überschrift (z.B. "taz.de").
 		kickerSite() {
 			return (this.article.siteName || this.articleDomain || '').trim()
+		},
+
+		// Dachzeile in der Akzentfarbe des Nutzers (wie Dock und Fortschrittsbalken).
+		kickerStyle() {
+			return { color: this.settings.accentColor || '#FF3B30' }
 		},
 
 		// "Autor, Medium" am Artikelende (z.B. "Max Muster, taz.de").
@@ -1723,9 +1728,9 @@ article {
 	margin-bottom: 40px;
 }
 
-/* Dachzeile wie die Topline der iOS-App: klein, fett, gesperrt, 2px-Linie darunter. */
+/* Dachzeile nach der Topline der iOS-App: fett, gesperrt, 2px-Linie darunter, in der Akzentfarbe. */
 .article-kicker {
-	font-size: 11px;
+	font-size: 13px;
 	font-weight: 700;
 	letter-spacing: 2px;
 	line-height: 1.3;

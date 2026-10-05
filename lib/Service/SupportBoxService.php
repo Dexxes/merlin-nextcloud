@@ -134,7 +134,8 @@ class SupportBoxService {
 		return ($scheme === 'http' || $scheme === 'https') && filter_var($candidate, FILTER_VALIDATE_URL) !== false;
 	}
 
-	private function accentColor(string $userId): string {
+	/** Akzentfarbe des Nutzers (Reader-Einstellung), validiert als #RRGGBB. */
+	public function accentColor(string $userId): string {
 		$value = $this->config->getUserValue($userId, 'reader', 'accentColor', self::DEFAULT_ACCENT);
 		return preg_match('/^#[0-9a-fA-F]{6}$/', $value) === 1 ? $value : self::DEFAULT_ACCENT;
 	}

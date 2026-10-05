@@ -54,7 +54,7 @@
 
 			<header class="pav-header">
 				<!-- Dachzeile: Medium (siteName bzw. Domain ohne "www.") wie im App-Reader. -->
-				<div v-if="kickerSite" class="pav-kicker">
+				<div v-if="kickerSite" class="pav-kicker" :style="kickerStyle">
 					<a v-if="safeArticleUrl" :href="safeArticleUrl" target="_blank" rel="noopener noreferrer">{{ kickerSite }}</a>
 					<span v-else>{{ kickerSite }}</span>
 				</div>
@@ -213,6 +213,11 @@ export default {
 		// Medium für die Dachzeile über der Überschrift (z.B. "taz.de").
 		kickerSite() {
 			return (this.article.siteName || this.articleDomain || '').trim()
+		},
+
+		// Dachzeile in der Akzentfarbe des Nutzers (wie Dock und Fortschrittsbalken).
+		kickerStyle() {
+			return { color: this.article.accentColor || '#FF3B30' }
 		},
 
 		// "Autor, Medium" am Artikelende (z.B. "Max Muster, taz.de").
@@ -687,9 +692,9 @@ export default {
 	margin-bottom: 24px;
 }
 
-/* Dachzeile wie die Topline der iOS-App: klein, fett, gesperrt, 2px-Linie darunter. */
+/* Dachzeile nach der Topline der iOS-App: fett, gesperrt, 2px-Linie darunter, in der Akzentfarbe. */
 .pav-kicker {
-	font-size: 11px;
+	font-size: 13px;
 	font-weight: 700;
 	letter-spacing: 2px;
 	line-height: 1.3;

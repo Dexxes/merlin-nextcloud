@@ -169,6 +169,8 @@ class PublicShareController extends Controller {
 			'signature'   => $discussion['signature'],
 			'allowComments' => $share->allowsComments(),
 			'ownerName'   => $this->comments->ownerDisplayName($share->getUserId()),
+			// Akzentfarbe des Erstellers für die Dachzeile, wie im App-Reader.
+			'accentColor' => $this->supportBox->accentColor($share->getUserId()),
 			// Abo-/Spendenlink der Quelle; anders als im Reader immer, auch wenn der
 			// Ersteller dort ein Abo hat (Empfänger sind keine Abonnenten).
 			'supportBox'  => $this->supportBox->forShare($article, $share->getUserId()),
