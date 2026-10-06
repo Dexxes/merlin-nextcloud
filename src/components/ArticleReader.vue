@@ -323,6 +323,17 @@
 		<div ref="readerContent" class="reader-content">
 			<article :style="articleStyles">
 				<header class="article-header">
+					<!-- Dachzeile: Medium (siteName bzw. Domain ohne "www.") wie die Topline im
+						 ArticleReaderView der iOS-App; verlinkt auf den Originalartikel. -->
+					<div v-if="kickerSite" class="article-kicker" :style="kickerStyle">
+						<a
+							v-if="safeArticleUrl"
+							:href="safeArticleUrl"
+							target="_blank"
+							rel="noopener noreferrer">{{ kickerSite }}</a>
+						<span v-else>{{ kickerSite }}</span>
+					</div>
+
 					<h1>{{ article.title }}</h1>
 
 					<p v-if="article.excerpt" class="article-excerpt">{{ article.excerpt }}</p>
@@ -356,15 +367,6 @@
 							<Account :size="16" />
 							{{ article.author }}
 						</span>
-						<a
-							v-if="article.siteName"
-							class="meta-site"
-							:href="safeArticleUrl"
-							target="_blank"
-							rel="noopener noreferrer">
-							<Web :size="16" />
-							{{ article.siteName }}
-						</a>
 						<span v-if="article.publishedAt" class="meta-date">
 							<Calendar :size="16" />
 							{{ formatDate(article.publishedAt) }}
@@ -545,7 +547,6 @@ import StarOutline from 'vue-material-design-icons/StarOutline.vue'
 import Tag from 'vue-material-design-icons/Tag.vue'
 import Check from 'vue-material-design-icons/Check.vue'
 import Account from 'vue-material-design-icons/Account.vue'
-import Web from 'vue-material-design-icons/Web.vue'
 import Calendar from 'vue-material-design-icons/Calendar.vue'
 import CalendarPlus from 'vue-material-design-icons/CalendarPlus.vue'
 import Clock from 'vue-material-design-icons/Clock.vue'
@@ -622,7 +623,6 @@ export default {
 		Tag,
 		Check,
 		Account,
-		Web,
 		Calendar,
 		CalendarPlus,
 		Clock,
@@ -693,6 +693,16 @@ export default {
 			const threads = this.commentSession?.state.threads || []
 			return threads.reduce((sum, thread) => sum + (thread.deleted ? 0 : 1)
 				+ thread.replies.filter(r => !r.deleted).length, 0)
+		},
+
+		// Medium für die Dachzeile über der Überschrift (z.B. "taz.de").
+		kickerSite() {
+			return (this.article.siteName || this.articleDomain || '').trim()
+		},
+
+		// Dachzeile in der Akzentfarbe des Nutzers (wie Dock und Fortschrittsbalken).
+		kickerStyle() {
+			return { color: this.settings.accentColor || '#FF3B30' }
 		},
 
 		// "Autor, Medium" am Artikelende (z.B. "Max Muster, taz.de").
@@ -1718,6 +1728,28 @@ article {
 	margin-bottom: 40px;
 }
 
+/* Dachzeile nach der Topline der iOS-App: fett, gesperrt, 2px-Linie darunter, in der Akzentfarbe. */
+.article-kicker {
+	font-size: 13px;
+	font-weight: 700;
+	letter-spacing: 2px;
+	line-height: 1.3;
+	padding-bottom: 8px;
+	margin: 0 0 18px 0;
+	border-bottom: 2px solid currentColor;
+	overflow-wrap: anywhere;
+}
+
+.article-kicker a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.article-kicker a:hover,
+.article-kicker a:focus-visible {
+	text-decoration: underline;
+}
+
 .article-header h1 {
 	font-size: 2.5em;
 	font-weight: 700;
@@ -1765,14 +1797,12 @@ article {
 	display: inline;
 }
 
-.meta-site,
 .meta-author--link {
 	color: inherit;
 	text-decoration: none;
 	cursor: pointer;
 }
 
-.meta-site:hover,
 .meta-author--link:hover {
 	text-decoration: underline;
 	color: var(--color-primary);
