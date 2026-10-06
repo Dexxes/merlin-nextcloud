@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<domain name="wiwo.de">
+
+<paywall>
+  <subscribe url="https://abo.wiwo.de/" />
+  <marker xpath="//app-paywall" />
+</paywall>
+
+</domain>
