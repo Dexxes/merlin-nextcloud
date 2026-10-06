@@ -30,6 +30,7 @@
     <remove xpath="//*[@data-area='embed']" />
     <remove xpath="//*[@data-area='related_articles']" />
     <remove xpath="//section[@data-is-unsupported-smartarticle-summary-hidden]" />
+    <remove xpath="//section[contains(@data-sara-component, 'Noch mehr Wirtschaft für SPIEGEL-Abonnenten')]" />
   </pre-filter>
 
   <post-filter>

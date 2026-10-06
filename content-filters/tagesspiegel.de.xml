@@ -67,12 +67,9 @@
   </login>
 
   <pre-filter>
-    <remove class="tspACfv" />
-    <remove class="tspCIv" />
-    <remove class="tspCJgq" /> <!--Podigee Podcast-->
+    <remove xpath="//p[text()='Empfohlener redaktioneller Inhalt']/../../.." />
     <remove xpath="//div[@element-type='embed']" />
     <remove xpath="//div[@element-type='embedWrapper']" />
-    <remove class="tspBFgd" /> <!-- externer Inhalt -->
     <infobox xpath="//aside[@data-qa-hook='story-infobox']" />
   </pre-filter>
 
