@@ -31,6 +31,14 @@
     <remove class="cb-internal-link-card" />
   </pre-filter>
 
+  <images>
+    <!-- WordPress-Bildunterschrift: <div class="wp-caption"><a><img></a><p class="wp-caption-text">…</p></div> -->
+    <caption
+        container-xpath="//div[contains(@class,'wp-caption')]"
+        caption-xpath=".//p[contains(@class,'wp-caption-text')]"
+    />
+  </images>
+
   <post-filter>
     <!-- Hier post-Readability-Remove-Regeln eintragen -->
   </post-filter>
