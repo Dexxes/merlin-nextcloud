@@ -46,13 +46,14 @@ if (typeof document !== 'undefined' && !document.getElementById('merlin-hl-style
 		mark.merlin-highlight[data-highlight-color="pink"]   { background-color: #fbcfe8 !important; color: #1c1c1e !important; }
 		mark.merlin-highlight[data-highlight-color="orange"] { background-color: #fed7aa !important; color: #1c1c1e !important; }
 		/* Kommentierte Textstelle ohne Markierungsfarbe: unterstrichen statt
-		   eingefärbt, Schrift bleibt wie im Text. */
+		   eingefärbt, Schrift bleibt wie im Text. Die Linie trägt die Farbe des
+		   Verfassers (--mh-author, siehe _paintCommentCounts). */
 		mark.merlin-highlight[data-highlight-color="comment"] {
 			background-color: transparent !important;
 			color: inherit !important;
 			padding: 0 !important;
 			text-decoration: underline !important;
-			text-decoration-color: #f59e0b !important;
+			text-decoration-color: var(--mh-author, #c2410c) !important;
 			text-decoration-thickness: 2px !important;
 			text-underline-offset: 3px !important;
 		}
@@ -65,7 +66,7 @@ if (typeof document !== 'undefined' && !document.getElementById('merlin-hl-style
 			padding: 0 5px;
 			min-width: 8px;
 			border-radius: 8px 8px 8px 2px;
-			background: #1c1c1e;
+			background: var(--mh-author, #1c1c1e);
 			color: #fff;
 			font-size: 0.7em;
 			line-height: 1.5;
@@ -395,7 +396,27 @@ export class HighlightEngine {
 		return true
 	}
 
+	/**
+	 * Verfasser-Farbe (`authorColor` vom Server) als CSS-Variable an jedes
+	 * <mark>: färbt Unterstreichung und Zähler. Läuft bei jedem Stand neu,
+	 * damit auch eine später vergebene Gast-Farbe ankommt.
+	 */
+	_paintAuthorColors() {
+		const colors = new Map()
+		for (const h of this._highlights) {
+			if (typeof h.authorColor === 'string' && /^#[0-9a-f]{6}$/i.test(h.authorColor)) {
+				colors.set(String(h.id), h.authorColor)
+			}
+		}
+		this._container.querySelectorAll('mark.merlin-highlight').forEach(el => {
+			const color = colors.get(el.dataset.highlightId)
+			if (color) el.style.setProperty('--mh-author', color)
+			else el.style.removeProperty('--mh-author')
+		})
+	}
+
 	_paintCommentCounts() {
+		this._paintAuthorColors()
 		this._container.querySelectorAll('mark.merlin-highlight[data-comment-tail]').forEach(el => {
 			el.removeAttribute('data-comment-tail')
 			el.removeAttribute('data-comment-count')

@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace OCA\Merlin\Service;
 
 use OCA\Merlin\Db\Comment;
+use OCA\Merlin\Db\CommentGuest;
+use OCA\Merlin\Db\CommentGuestMapper;
 use OCA\Merlin\Db\CommentMapper;
 use OCA\Merlin\Db\Highlight;
 use OCA\Merlin\Db\HighlightMapper;
 use OCP\AppFramework\Db\DoesNotExistException;
+use OCP\DB\Exception as DbException;
 use OCP\IUserManager;
 
 /**
@@ -27,6 +30,7 @@ class CommentService {
 	public function __construct(
 		private CommentMapper $commentMapper,
 		private HighlightMapper $highlightMapper,
+		private CommentGuestMapper $guestMapper,
 		private IUserManager $userManager,
 	) {
 	}
@@ -45,6 +49,7 @@ class CommentService {
 		return substr(sha1(
 			$this->commentMapper->signature($articleId, $ownerId)
 			. '|' . $this->highlightMapper->signature($articleId, $ownerId)
+			. '|' . $this->guestMapper->signature($articleId, $ownerId)
 		), 0, 20);
 	}
 
@@ -55,27 +60,101 @@ class CommentService {
 	 * verwerfen deshalb jeden Stand, der älter ist als der zuletzt gezeigte –
 	 * sonst taucht z. B. ein gerade gelöschter Kommentar kurz wieder auf.
 	 *
-	 * @return array{signature: string, generatedAt: int, comments: array, highlights: array}
+	 * Jeder Kommentar und jede Markierung trägt `authorColor` (siehe
+	 * CommentRules::OWNER_COLOR/GUEST_COLORS); `guests` listet die vergebenen
+	 * Gast-Farben, damit der Namensdialog belegte Farben sperren kann.
+	 *
+	 * @return array{signature: string, generatedAt: int, ownerColor: string, guestColors: string[], guests: array, comments: array, highlights: array}
 	 */
 	public function payload(int $articleId, string $ownerId): array {
 		$generatedAt = (int)floor(microtime(true) * 1000000);
 		// Marke vor den Daten lesen: ändert sich dazwischen etwas, ist die
 		// Marke älter als die Daten und der nächste Push liefert nach.
 		$signature = $this->signature($articleId, $ownerId);
+		$guests = $this->guestMapper->findByArticleId($articleId, $ownerId);
+		$colors = [];
+		foreach ($guests as $guest) {
+			$colors[$guest->getNameKey()] = $guest->getColor();
+		}
+		$colorOf = fn (string $type, ?string $key) => $type === Comment::AUTHOR_GUEST
+			? ($colors[(string) $key] ?? CommentRules::FALLBACK_COLOR)
+			: CommentRules::OWNER_COLOR;
 		$comments = array_map(
-			fn (Comment $c) => $c->jsonSerialize(),
+			fn (Comment $c) => $c->jsonSerialize() + ['authorColor' => $colorOf($c->getAuthorType(), $c->getAuthorNameKey())],
 			$this->commentMapper->findByArticleId($articleId, $ownerId)
 		);
 		$highlights = array_map(
-			fn (Highlight $h) => $h->jsonSerialize(),
+			fn (Highlight $h) => $h->jsonSerialize() + ['authorColor' => $colorOf((string) ($h->getAuthorType() ?? Comment::AUTHOR_OWNER), $h->getAuthorNameKey())],
 			$this->highlightMapper->findByArticleId($articleId, $ownerId)
 		);
 		return [
 			'signature'   => $signature,
 			'generatedAt' => $generatedAt,
+			'ownerColor'  => CommentRules::OWNER_COLOR,
+			'guestColors' => CommentRules::GUEST_COLORS,
+			'guests'      => array_map(
+				fn (CommentGuest $g) => ['name' => $g->getName(), 'color' => $g->getColor()],
+				$guests
+			),
 			'comments'    => CommentRules::nest($comments),
 			'highlights'  => $highlights,
 		];
+	}
+
+	/**
+	 * Farbe eines Gast-Namens an diesem Artikel festlegen bzw. abfragen.
+	 *
+	 * Hat der Name schon eine Farbe, bleibt sie (der Name ist die Identität,
+	 * `$color` wird dann ignoriert). Sonst bekommt er `$color`, wenn sie zur
+	 * Palette gehört und frei ist; ohne Wunsch die erste freie Farbe. Sind
+	 * alle Farben vergeben, bleibt der Name ohne Eintrag und erscheint in
+	 * FALLBACK_COLOR – Kommentieren soll daran nicht scheitern. Wird nach
+	 * `guestName()` aufgerufen, `$name` ist also schon geprüft.
+	 *
+	 * @throws CommentException color_taken (409)
+	 */
+	public function claimGuestColor(int $articleId, string $ownerId, string $name, ?string $color): string {
+		$key = CommentRules::nameKey($name);
+		$guests = $this->guestMapper->findByArticleId($articleId, $ownerId);
+		$taken = [];
+		foreach ($guests as $guest) {
+			if ($guest->getNameKey() === $key) {
+				return $guest->getColor();
+			}
+			$taken[] = $guest->getColor();
+		}
+
+		$wanted = CommentRules::sanitizeGuestColor($color);
+		if ($wanted !== null && in_array($wanted, $taken, true)) {
+			throw new CommentException('color_taken', 409);
+		}
+		$wanted ??= CommentRules::firstFreeColor($taken);
+		if ($wanted === null) {
+			return CommentRules::FALLBACK_COLOR;
+		}
+
+		$guest = new CommentGuest();
+		$guest->setUserId($ownerId);
+		$guest->setArticleId($articleId);
+		$guest->setNameKey($key);
+		$guest->setName($name);
+		$guest->setColor($wanted);
+		$guest->setCreatedAt(new \DateTime());
+		try {
+			$this->guestMapper->insert($guest);
+		} catch (DbException $e) {
+			if ($e->getReason() !== DbException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw $e;
+			}
+			// Gleichzeitig vergeben: gewann derselbe Name, gilt dessen Farbe.
+			foreach ($this->guestMapper->findByArticleId($articleId, $ownerId) as $other) {
+				if ($other->getNameKey() === $key) {
+					return $other->getColor();
+				}
+			}
+			throw new CommentException('color_taken', 409);
+		}
+		return $wanted;
 	}
 
 	/**

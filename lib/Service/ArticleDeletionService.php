@@ -45,6 +45,7 @@ class ArticleDeletionService {
 				if ($ownIds !== []) {
 					$this->deleteWhereIn('merlin_highlights', 'article_id', $ownIds);
 					$this->deleteWhereIn('merlin_comments', 'article_id', $ownIds);
+					$this->deleteWhereIn('merlin_comment_guests', 'article_id', $ownIds);
 					$this->deleteWhereIn('merlin_article_tags', 'article_id', $ownIds);
 					$this->deleteWhereIn('merlin_shares', 'article_id', $ownIds);
 					$deleted += $this->deleteWhereIn('merlin_articles', 'id', $ownIds);
@@ -66,7 +67,7 @@ class ArticleDeletionService {
 	public function deleteAllForUser(string $userId): void {
 		$this->db->beginTransaction();
 		try {
-			foreach (['merlin_highlights', 'merlin_comments', 'merlin_shares'] as $table) {
+			foreach (['merlin_highlights', 'merlin_comments', 'merlin_comment_guests', 'merlin_shares'] as $table) {
 				$qb = $this->db->getQueryBuilder();
 				$qb->delete($table)
 					->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
@@ -110,7 +111,7 @@ class ArticleDeletionService {
 	 */
 	public function deleteOrphans(): int {
 		$removed = 0;
-		foreach (['merlin_highlights', 'merlin_comments', 'merlin_article_tags', 'merlin_shares'] as $table) {
+		foreach (['merlin_highlights', 'merlin_comments', 'merlin_comment_guests', 'merlin_article_tags', 'merlin_shares'] as $table) {
 			// Läuft auch aus Migration 000028, also vor der Migration, die
 			// merlin_comments anlegt.
 			if (!$this->db->tableExists($table)) {

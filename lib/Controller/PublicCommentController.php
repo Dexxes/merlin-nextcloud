@@ -93,6 +93,32 @@ class PublicCommentController extends Controller {
 	}
 
 	/**
+	 * Namen wählen: prüft ihn und legt seine Farbe fest (bzw. liefert die
+	 * schon vergebene). Antwort { name, color }.
+	 *
+	 * @PublicPage
+	 * @NoAdminRequired
+	 * @NoCSRFRequired
+	 */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 20, period: 300)]
+	public function guest(string $token, string $authorName = '', string $color = ''): DataResponse {
+		$share = $this->writableShare($token);
+		if ($share instanceof DataResponse) {
+			return $share;
+		}
+		try {
+			$name = $this->comments->guestName($authorName, $share->getUserId());
+			$color = $this->comments->claimGuestColor($share->getArticleId(), $share->getUserId(), $name, $color);
+		} catch (CommentException $e) {
+			return $this->error($e);
+		}
+		return new DataResponse(['name' => $name, 'color' => $color]);
+	}
+
+	/**
 	 * @PublicPage
 	 * @NoAdminRequired
 	 * @NoCSRFRequired
@@ -109,6 +135,9 @@ class PublicCommentController extends Controller {
 		try {
 			$name = $this->comments->guestName($authorName, $share->getUserId());
 			$this->comments->assertGuestCapacity($share->getArticleId(), $share->getUserId(), false);
+			// Gäste ohne Farbe (z. B. ein Client ohne Farbauswahl) bekommen die
+			// erste freie.
+			$this->comments->claimGuestColor($share->getArticleId(), $share->getUserId(), $name, null);
 			if ($anchor !== null) {
 				$this->comments->assertGuestCapacity($share->getArticleId(), $share->getUserId(), true);
 			}
@@ -210,6 +239,7 @@ class PublicCommentController extends Controller {
 		try {
 			$name = $this->comments->guestName($authorName, $share->getUserId());
 			$this->comments->assertGuestCapacity($share->getArticleId(), $share->getUserId(), true);
+			$this->comments->claimGuestColor($share->getArticleId(), $share->getUserId(), $name, null);
 			$highlight = $this->comments->createGuestHighlight(
 				$share->getArticleId(),
 				$share->getUserId(),

@@ -51,6 +51,10 @@ export function guestCommentsClient(token, getName) {
 		async list() {
 			return (await axios.get(generateUrl(`${base}/comments`))).data
 		},
+		/** Namen wählen und Farbe festlegen; Antwort { name, color }. */
+		async claimGuest(name, color) {
+			return (await axios.post(generateUrl(`${base}/guest`), { authorName: name, color: color || '' })).data
+		},
 		async create({ body, highlightId = null, parentId = null, anchor = null, website = '' }) {
 			return (await axios.post(generateUrl(`${base}/comments`), {
 				authorName: getName(), body, highlightId, parentId, anchor, website,
