@@ -167,6 +167,9 @@ class PublicShareController extends Controller {
 			'highlights'  => $discussion['highlights'],
 			'comments'    => $discussion['comments'],
 			'signature'   => $discussion['signature'],
+			'generatedAt' => $discussion['generatedAt'],
+			'guests'      => $discussion['guests'],
+			'guestColors' => $discussion['guestColors'],
 			'allowComments' => $share->allowsComments(),
 			'ownerName'   => $this->comments->ownerDisplayName($share->getUserId()),
 			// Abo-/Spendenlink der Quelle; anders als im Reader immer, auch wenn der

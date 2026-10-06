@@ -28,6 +28,21 @@ final class CommentRules {
 	 * zusammen mit ihrem ersten Kommentar und verschwindet mit dem letzten.
 	 */
 	public const COLOR_COMMENT = 'comment';
+	/**
+	 * Verfasser-Farben: der Besitzer ist immer orange, jeder Gast-Name hat an
+	 * einem Artikel eine eigene Farbe aus GUEST_COLORS, die kein anderer Name
+	 * dort hat. Die Farbe färbt die Unterstreichung seiner Kommentar-Stellen,
+	 * den Zähler daran und seine Kommentare. Alle Töne tragen weiße Schrift
+	 * mit einem Kontrast von mindestens 5:1 (Zähler-Plakette).
+	 */
+	public const OWNER_COLOR = '#c2410c';
+	public const GUEST_COLORS = [
+		'#1d4ed8', '#15803d', '#7e22ce', '#be185d', '#0e7490', '#b91c1c',
+		'#4338ca', '#0f766e', '#a21caf', '#4d7c0f', '#6d28d9', '#0369a1',
+		'#be123c', '#047857', '#854d0e', '#475569',
+	];
+	/** Für Gäste ohne Eintrag (alle Farben vergeben). */
+	public const FALLBACK_COLOR = '#57534e';
 	/** Höchstens so viele Gast-Kommentare bzw. -Markierungen je Artikel und Tag. */
 	public const GUEST_DAILY_CAP = 500;
 
@@ -70,6 +85,26 @@ final class CommentRules {
 		$name = str_replace(['<', '>'], '', $name);
 		$name = preg_replace('/\s+/u', ' ', $name) ?? '';
 		return trim($name);
+	}
+
+	/** Die angefragte Farbe, wenn sie zur Gast-Palette gehört, sonst null. */
+	public static function sanitizeGuestColor(?string $color): ?string {
+		$color = strtolower(trim((string) $color));
+		return in_array($color, self::GUEST_COLORS, true) ? $color : null;
+	}
+
+	/**
+	 * Erste Farbe der Gast-Palette, die nicht in $taken steht, oder null.
+	 *
+	 * @param string[] $taken
+	 */
+	public static function firstFreeColor(array $taken): ?string {
+		foreach (self::GUEST_COLORS as $color) {
+			if (!in_array($color, $taken, true)) {
+				return $color;
+			}
+		}
+		return null;
 	}
 
 	public static function nameKey(string $name): string {

@@ -1,16 +1,27 @@
 <template>
-	<div class="comment-item" :class="{ 'comment-item--deleted': comment.deleted }">
+	<div class="comment-item"
+		:class="{ 'comment-item--deleted': comment.deleted, 'comment-item--deletable': canDelete && !comment.deleted }"
+		:style="{ '--ci-color': authorColor }">
 		<p v-if="comment.deleted" class="ci-deleted">
 			{{ t('merlin', 'Comment deleted') }}
 		</p>
 		<template v-else>
 			<div class="ci-meta">
-				<span class="ci-author">{{ comment.authorName }}</span>
+				<span class="ci-author"><span class="ci-dot" aria-hidden="true" />{{ comment.authorName }}</span>
 				<span v-if="comment.authorType === 'owner'" class="ci-badge">{{ ownerLabel }}</span>
 				<span v-if="replyTo" class="ci-reply-to">→ {{ replyTo }}</span>
 				<time class="ci-time" :datetime="comment.createdAt" :title="absolute(comment.createdAt)">{{ relative(comment.createdAt) }}</time>
 				<span v-if="comment.edited" class="ci-edited">{{ t('merlin', '(edited)') }}</span>
 			</div>
+			<button v-if="canDelete"
+				type="button"
+				class="ci-delete"
+				:title="t('merlin', 'Delete')"
+				:aria-label="t('merlin', 'Delete')"
+				:disabled="busy"
+				@click="$emit('delete')">
+				<DeleteOutline :size="18" />
+			</button>
 
 			<form v-if="editing" class="ci-edit" @submit.prevent="save">
 				<textarea ref="input"
@@ -38,17 +49,21 @@
 				<button v-if="canEdit" type="button" class="ci-link" @click="startEdit">
 					{{ t('merlin', 'Edit') }}
 				</button>
-				<button v-if="canDelete" type="button" class="ci-link ci-link--danger" :disabled="busy" @click="$emit('delete')">
-					{{ t('merlin', 'Delete') }}
-				</button>
 			</div>
 		</template>
 	</div>
 </template>
 
 <script>
+import DeleteOutline from 'vue-material-design-icons/DeleteOutline.vue'
+
+/** Wie CommentRules::FALLBACK_COLOR – für Stände ohne `authorColor`. */
+const FALLBACK_COLOR = '#57534e'
+
 export default {
 	name: 'CommentItem',
+
+	components: { DeleteOutline },
 
 	props: {
 		comment: { type: Object, required: true },
@@ -64,6 +79,14 @@ export default {
 
 	data() {
 		return { editing: false, draft: '' }
+	},
+
+	computed: {
+		/** Verfasser-Farbe vom Server (Besitzer orange, Gäste je eigene). */
+		authorColor() {
+			const c = this.comment.authorColor
+			return typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) ? c : FALLBACK_COLOR
+		},
 	},
 
 	methods: {
@@ -105,7 +128,56 @@ export default {
 
 <style scoped>
 .comment-item {
-	padding: 4px 0;
+	position: relative;
+	padding: 4px 0 4px 10px;
+	border-left: 3px solid var(--ci-color);
+}
+
+.comment-item--deleted {
+	border-left-color: var(--color-border, #ddd);
+}
+
+/* Platz für den Papierkorb oben rechts. */
+.comment-item--deletable .ci-meta {
+	padding-right: 28px;
+}
+
+.ci-dot {
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	margin-right: 5px;
+	border-radius: 50%;
+	background: var(--ci-color);
+	vertical-align: 1px;
+}
+
+.ci-delete {
+	position: absolute;
+	top: 0;
+	right: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: none;
+	border-radius: 50%;
+	background: none;
+	color: var(--color-text-maxcontrast, #666);
+	cursor: pointer;
+}
+
+.ci-delete:hover,
+.ci-delete:focus-visible {
+	background: var(--color-background-hover, #f0f0f0);
+	color: var(--color-error, #c00);
+}
+
+.ci-delete:disabled {
+	opacity: 0.5;
+	cursor: default;
 }
 
 .ci-meta {
@@ -162,10 +234,6 @@ export default {
 
 .ci-link:hover {
 	color: var(--color-main-text, #222);
-}
-
-.ci-link--danger:hover {
-	color: var(--color-error, #c00);
 }
 
 .ci-edit {

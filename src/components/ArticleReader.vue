@@ -1682,8 +1682,10 @@ export default {
 	padding: 0 4px;
 	box-sizing: border-box;
 	border-radius: 8px;
-	background: #f59e0b;
-	color: #fff;
+	/* Weiß mit dunkler Schrift: lesbar auf jeder Leistenfarbe. */
+	background: #fff;
+	color: #1c1c1e;
+	box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
 	font-size: 10px;
 	font-weight: 700;
 	line-height: 16px;

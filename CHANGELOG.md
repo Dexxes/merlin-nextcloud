@@ -10,6 +10,19 @@ All notable changes to Merlin are documented here. Format based on
 - Captions: the image credit (`<cite>`) is no longer separated from the
   caption by " • ", only by a space ("Ein Bild. <cite>Foto: dpa</cite>").
   The caption's own final punctuation stays as it is.
+- Comments: every author has a color. The owner is always orange; guests pick
+  a color when they choose their name, from the colors no other name on this
+  article has (a name that already posted keeps its color). The color is used
+  for the underline of commented passages, the count badge on them and the
+  comment itself. New table `merlin_comment_guests` (migration 30, app 1.0.16);
+  guests from before get free colors in order of their first post. New
+  endpoint `POST /s/{token}/guest` (`authorName`, `color`); the comment state
+  now carries `authorColor` per comment and highlight, plus `guests` and
+  `guestColors`.
+- Comments: the delete action is a trash icon at the top right of a comment.
+  The heading "Comments on this passage" and the label above the input are
+  gone. The comment count on the reader bar is dark on white instead of white
+  on orange.
 
 ### Added
 - Comments: in the reader and behind public share links, any text passage can

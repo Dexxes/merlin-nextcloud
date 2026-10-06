@@ -1,12 +1,13 @@
 <template>
 	<aside class="comment-panel" :class="{ 'comment-panel--sheet': sheet }" :aria-label="t('merlin', 'Comments')">
 		<header class="cp-header">
-			<h2 class="cp-title">
-				{{ focusedHighlightId !== null || pendingAnchor ? t('merlin', 'Comments on this passage') : t('merlin', 'Comments') }}
+			<!-- An einer Stelle keine Überschrift: das Zitat darunter sagt genug. -->
+			<h2 v-if="!passageFocused" class="cp-title">
+				{{ t('merlin', 'Comments') }}
 			</h2>
-			<button v-if="focusedHighlightId !== null || pendingAnchor"
+			<button v-else
 				type="button"
-				class="cp-link"
+				class="cp-link cp-all"
 				@click="$emit('unfocus')">
 				{{ t('merlin', 'All comments') }}
 			</button>
@@ -113,11 +114,12 @@
 			<blockquote v-if="pendingAnchor" class="cp-quote cp-quote--pending">
 				{{ shorten(pendingAnchor.highlightedText) }}
 			</blockquote>
-			<label class="cp-form-label" :for="inputId">
-				{{ focusedHighlightId !== null || pendingAnchor ? t('merlin', 'Comment on this passage') : t('merlin', 'Comment on the article') }}
+			<label v-if="!passageFocused" class="cp-form-label" :for="inputId">
+				{{ t('merlin', 'Comment on the article') }}
 			</label>
 			<textarea :id="inputId"
 				ref="newInput"
+				:aria-label="passageFocused ? t('merlin', 'Write a comment…') : null"
 				v-model="newBody"
 				class="cp-input"
 				rows="3"
@@ -200,6 +202,10 @@ export default {
 	},
 
 	computed: {
+		passageFocused() {
+			return this.focusedHighlightId !== null || !!this.pendingAnchor
+		},
+
 		ownerLabel() {
 			return this.mode === 'guest' ? this.t('merlin', 'Shared this article') : this.t('merlin', 'You')
 		},
@@ -420,6 +426,10 @@ export default {
 	margin: 0;
 	font-size: 16px;
 	font-weight: 600;
+}
+
+.cp-all {
+	margin-right: auto;
 }
 
 .cp-close {

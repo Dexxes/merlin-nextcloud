@@ -92,6 +92,14 @@ $check(CommentRules::validateHighlight(str_repeat('a', 2001), 'p[1]/text()[1]', 
 $check(CommentRules::sanitizeColor('green') === 'green', 'Bekannte Farbe bleibt');
 $check(CommentRules::sanitizeColor('red;background:url(x)') === 'yellow', 'Unbekannte Farbe wird gelb');
 $check(CommentRules::sanitizeColor('comment') === 'comment', 'Kommentar-Unterstreichung ist erlaubt');
+$check(CommentRules::sanitizeGuestColor(' #1D4ED8 ') === '#1d4ed8', 'Gast-Farbe aus der Palette wird angenommen');
+$check(CommentRules::sanitizeGuestColor('#ffffff') === null, 'Farbe außerhalb der Palette wird abgelehnt');
+$check(CommentRules::sanitizeGuestColor(CommentRules::OWNER_COLOR) === null, 'Besitzer-Orange ist für Gäste gesperrt');
+$check(CommentRules::sanitizeGuestColor('red;background:url(x)') === null, 'CSS in der Farbe wird abgelehnt');
+$check(CommentRules::firstFreeColor([]) === CommentRules::GUEST_COLORS[0], 'Erste freie Farbe ohne Gäste');
+$check(CommentRules::firstFreeColor([CommentRules::GUEST_COLORS[0], CommentRules::GUEST_COLORS[2]]) === CommentRules::GUEST_COLORS[1], 'Lücke wird zuerst vergeben');
+$check(CommentRules::firstFreeColor(CommentRules::GUEST_COLORS) === null, 'Alle Farben vergeben');
+$check(count(array_unique(CommentRules::GUEST_COLORS)) === count(CommentRules::GUEST_COLORS), 'Palette ohne Doppelte');
 $check(CommentRules::sanitizeSignature('0123456789abcdef0123') === '0123456789abcdef0123', 'Gültige Änderungsmarke bleibt');
 $check(CommentRules::sanitizeSignature("x\nevent: closed") === '', 'Änderungsmarke mit Fremdinhalt verworfen');
 

@@ -19,6 +19,10 @@ export function createCommentSession(client, { onUpdate = null } = {}) {
 	const state = reactive({
 		threads: [],
 		highlights: [],
+		/** Vergebene Gast-Farben: [{ name, color }] */
+		guests: [],
+		/** Palette der Gast-Farben (CommentRules::GUEST_COLORS) */
+		guestColors: [],
 		signature: '',
 		generatedAt: 0,
 		loaded: false,
@@ -36,6 +40,8 @@ export function createCommentSession(client, { onUpdate = null } = {}) {
 		if (at) state.generatedAt = at
 		state.threads = payload.comments || []
 		state.highlights = payload.highlights || []
+		state.guests = payload.guests || []
+		state.guestColors = payload.guestColors || []
 		state.signature = payload.signature || ''
 		state.loaded = true
 		onUpdate?.(state)

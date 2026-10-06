@@ -76,6 +76,7 @@ return [
 
         // Markieren und Kommentieren als Gast hinter dem Share-Link (PublicCommentController)
         ['name' => 'public_comment#index',            'url' => '/s/{token}/comments',        'verb' => 'GET'],
+        ['name' => 'public_comment#guest',            'url' => '/s/{token}/guest',           'verb' => 'POST'],
         ['name' => 'public_comment#create',           'url' => '/s/{token}/comments',        'verb' => 'POST'],
         ['name' => 'public_comment#update',           'url' => '/s/{token}/comments/{id}',   'verb' => 'PUT'],
         ['name' => 'public_comment#destroy',          'url' => '/s/{token}/comments/{id}',   'verb' => 'DELETE'],

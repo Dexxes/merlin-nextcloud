@@ -123,12 +123,28 @@
 					maxlength="50"
 					autocomplete="nickname"
 					:placeholder="t('merlin', 'Name')">
+				<!-- Farbe: färbt Unterstreichung und Kommentare. Jede Farbe gehört an
+				     diesem Artikel nur einem Namen; ein schon bekannter Name behält seine. -->
+				<fieldset v-if="guestPalette.length" class="pav-colors">
+					<legend>{{ existingNameColor ? t('merlin', 'This name already has a color') : t('merlin', 'Your color') }}</legend>
+					<button v-for="color in guestPalette"
+						:key="color"
+						type="button"
+						class="pav-color"
+						role="radio"
+						:aria-checked="String(selectedNameColor === color)"
+						:aria-label="color"
+						:class="{ 'pav-color--selected': selectedNameColor === color }"
+						:style="{ background: color }"
+						:disabled="!!existingNameColor || takenNameColors.has(color)"
+						@click="nameColor = color" />
+				</fieldset>
 				<p v-if="nameError" class="pav-error">{{ nameError }}</p>
 				<div class="pav-name-actions">
 					<button type="button" class="pav-btn" @click="closeNameDialog(false)">
 						{{ t('merlin', 'Cancel') }}
 					</button>
-					<button type="submit" class="pav-btn pav-btn--primary" :disabled="nameDraft.trim().length < 2">
+					<button type="submit" class="pav-btn pav-btn--primary" :disabled="nameSaving || nameDraft.trim().length < 2">
 						{{ t('merlin', 'Continue') }}
 					</button>
 				</div>
@@ -183,11 +199,40 @@ export default {
 			nameDialog: false,
 			nameDraft: '',
 			nameError: '',
+			/** Im Namensdialog gewählte Farbe */
+			nameColor: null,
+			nameSaving: false,
 			isNarrow: typeof window !== 'undefined' && window.innerWidth <= 768,
 		}
 	},
 
 	computed: {
+		guestPalette() {
+			return this.commentSession?.state.guestColors || []
+		},
+
+		/** Farbe, die der eingetippte Name an diesem Artikel schon hat. */
+		existingNameColor() {
+			const key = guestNameKey(this.nameDraft)
+			if (!key) return null
+			const guest = (this.commentSession?.state.guests || []).find(g => guestNameKey(g.name) === key)
+			return guest?.color || null
+		},
+
+		/** Farben anderer Namen – nicht wählbar. */
+		takenNameColors() {
+			const key = guestNameKey(this.nameDraft)
+			return new Set((this.commentSession?.state.guests || [])
+				.filter(g => guestNameKey(g.name) !== key)
+				.map(g => g.color))
+		},
+
+		selectedNameColor() {
+			if (this.existingNameColor) return this.existingNameColor
+			if (this.nameColor && !this.takenNameColors.has(this.nameColor)) return this.nameColor
+			return this.guestPalette.find(c => !this.takenNameColors.has(c)) || null
+		},
+
 		allowComments() {
 			return this.article?.allowComments !== false
 		},
@@ -422,6 +467,9 @@ export default {
 				comments: this.article.comments || [],
 				highlights: this.article.highlights || [],
 				signature: this.article.signature || '',
+				generatedAt: this.article.generatedAt || 0,
+				guests: this.article.guests || [],
+				guestColors: this.article.guestColors || [],
 			})
 			session.connect()
 		},
@@ -485,12 +533,14 @@ export default {
 		askName() {
 			this.nameDraft = this.guestName
 			this.nameError = ''
+			this.nameColor = null
 			this.nameDialog = true
 			this.$nextTick(() => this.$refs.nameInput?.focus())
 			return new Promise(resolve => { this._nameResolve = resolve })
 		},
 
-		closeNameDialog(confirmed) {
+		async closeNameDialog(confirmed) {
+			if (this.nameSaving) return
 			if (confirmed) {
 				const name = this.nameDraft.replace(/\s+/g, ' ').trim()
 				if (name.length < 2) {
@@ -501,8 +551,28 @@ export default {
 					this.nameError = this.t('merlin', 'This name is reserved. Please choose another one.')
 					return
 				}
+				// Farbe beim Server festlegen; der kennt alle anderen Gäste.
+				this.nameSaving = true
+				try {
+					await this.commentClient?.claimGuest(name, this.existingNameColor ? '' : this.selectedNameColor)
+				} catch (e) {
+					const code = e?.response?.data?.error
+					if (code === 'color_taken') {
+						this.nameError = this.t('merlin', 'Someone has just taken this color. Please choose another one.')
+						this.nameColor = null
+						await this.commentSession?.refresh().catch(() => {})
+					} else if (code === 'name_reserved') {
+						this.nameError = this.t('merlin', 'This name is reserved. Please choose another one.')
+					} else {
+						this.nameError = this.t('merlin', 'Could not save. Please try again.')
+					}
+					return
+				} finally {
+					this.nameSaving = false
+				}
 				this.guestName = name
 				saveGuestName(name)
+				this.commentSession?.refresh().catch(() => {})
 			}
 			this.nameDialog = false
 			this._nameResolve?.(confirmed && !!this.guestName)
@@ -639,6 +709,50 @@ export default {
 .pav-name-input {
 	width: 100%;
 	box-sizing: border-box;
+}
+
+.pav-colors {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 12px 0 0;
+	padding: 0;
+	border: none;
+}
+
+.pav-colors legend {
+	width: 100%;
+	/* Nextcloud-Core zentriert legend im öffentlichen Layout. */
+	text-align: left !important;
+	margin-bottom: 6px;
+	padding: 0;
+	font-size: 0.9em;
+}
+
+.pav-color {
+	flex: 0 0 28px;
+	width: 28px;
+	height: 28px;
+	/* Core-Buttons haben min-height 34px – sonst werden die Kreise oval. */
+	min-width: 0 !important;
+	min-height: 0 !important;
+	padding: 0;
+	border: 2px solid transparent;
+	border-radius: 50%;
+	cursor: pointer;
+	box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+.pav-color--selected {
+	border-color: var(--color-main-text, #222);
+	box-shadow: inset 0 0 0 2px var(--color-main-background, #fff);
+}
+
+/* Vergeben: blass und durchgestrichen statt nur grau. */
+.pav-color:disabled:not(.pav-color--selected) {
+	opacity: 0.25;
+	cursor: not-allowed;
+	background-image: linear-gradient(45deg, transparent 46%, #fff 46%, #fff 54%, transparent 54%) !important;
 }
 
 .pav-name-actions {
