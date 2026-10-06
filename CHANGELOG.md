@@ -11,6 +11,10 @@ All notable changes to Merlin are documented here. Format based on
   reply, newest or oldest first, besides the order in the text. The choice is
   remembered in the browser.
 
+### Fixed
+- Comments: several threads on the same passage now sit together under a
+  single quote instead of repeating the quote above each thread.
+
 ### Changed
 - Reader and public share links: the outlet's domain (e.g. "taz.de") now sits
   as a kicker above the headline, styled like the topline in the iOS reader,
