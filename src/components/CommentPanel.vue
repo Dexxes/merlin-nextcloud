@@ -23,6 +23,21 @@
 			</button>
 		</div>
 
+		<div v-if="!passageFocused && session.state.threads.length > 1" class="cp-sort">
+			<label :for="sortId">{{ t('merlin', 'Sort') }}</label>
+			<select :id="sortId" v-model="sortOrder" @change="saveSortOrder">
+				<option value="text">
+					{{ t('merlin', 'Order in text') }}
+				</option>
+				<option value="newest">
+					{{ t('merlin', 'Newest reply first') }}
+				</option>
+				<option value="oldest">
+					{{ t('merlin', 'Oldest reply first') }}
+				</option>
+			</select>
+		</div>
+
 		<p v-if="!canWrite" class="cp-hint">
 			{{ t('merlin', 'Comments are closed for this link.') }}
 		</p>
@@ -34,77 +49,80 @@
 					: t('merlin', 'No comments yet. Select text to highlight and comment on it.') }}
 			</p>
 
-			<section v-for="thread in visibleThreads"
-				:key="thread.id"
+			<!-- Mehrere Threads zur selben Stelle stehen unter einem Zitat. -->
+			<section v-for="group in visibleGroups"
+				:key="group.key"
 				class="cp-thread"
-				:class="{ 'cp-thread--active': thread.highlightId !== null && thread.highlightId === focusedHighlightId }">
-				<blockquote v-if="thread.quotedText"
+				:class="{ 'cp-thread--active': group.highlightId !== null && group.highlightId === focusedHighlightId }">
+				<blockquote v-if="group.quotedText"
 					class="cp-quote"
-					:class="{ 'cp-quote--detached': thread.highlightId === null }"
-					:title="thread.highlightId !== null ? t('merlin', 'Show in text') : t('merlin', 'The highlight was removed')"
-					@click="thread.highlightId !== null && $emit('focus-highlight', thread.highlightId)">
-					{{ shorten(thread.quotedText) }}
+					:class="{ 'cp-quote--detached': group.highlightId === null }"
+					:title="group.highlightId !== null ? t('merlin', 'Show in text') : t('merlin', 'The highlight was removed')"
+					@click="group.highlightId !== null && $emit('focus-highlight', group.highlightId)">
+					{{ shorten(group.quotedText) }}
 				</blockquote>
 				<p v-else class="cp-article-label">
 					{{ t('merlin', 'On the article') }}
 				</p>
 
-				<CommentItem
-					:comment="thread"
-					:can-edit="canEdit(thread)"
-					:can-delete="canDelete(thread)"
-					:owner-label="ownerLabel"
-					:busy="busyId === thread.id"
-					@edit="body => edit(thread, body)"
-					@delete="remove(thread)" />
-
-				<div v-if="thread.replies.length" class="cp-replies">
+				<div v-for="thread in group.threads" :key="thread.id" class="cp-subthread">
 					<CommentItem
-						v-for="reply in thread.replies"
-						:key="reply.id"
-						:comment="reply"
-						:reply-to="replyToName(thread, reply)"
-						:can-edit="canEdit(reply)"
-						:can-delete="canDelete(reply)"
-						:can-reply="canWrite"
+						:comment="thread"
+						:can-edit="canEdit(thread)"
+						:can-delete="canDelete(thread)"
 						:owner-label="ownerLabel"
-						:busy="busyId === reply.id"
-						@edit="body => edit(reply, body)"
-						@delete="remove(reply)"
-						@reply="startReply(thread, reply)" />
-				</div>
+						:busy="busyId === thread.id"
+						@edit="body => edit(thread, body)"
+						@delete="remove(thread)" />
 
-				<template v-if="canWrite">
-					<form v-if="replyTarget && replyTarget.threadId === thread.id"
-						class="cp-form cp-form--reply"
-						@submit.prevent="submitReply(thread)">
-						<p v-if="replyTarget.name" class="cp-reply-to">
-							{{ t('merlin', 'Reply to {name}', { name: replyTarget.name }, undefined, { escape: false }) }}
-						</p>
-						<textarea ref="replyInput"
-							v-model="replyBody"
-							class="cp-input"
-							rows="2"
-							:maxlength="maxBody"
-							:placeholder="t('merlin', 'Write a reply…')"
-							@keydown.enter.exact.ctrl.prevent="submitReply(thread)"
-							@keydown.enter.exact.meta.prevent="submitReply(thread)" />
-						<div class="cp-form-actions">
-							<button type="button" class="cp-btn" @click="replyTarget = null">
-								{{ t('merlin', 'Cancel') }}
-							</button>
-							<button type="submit" class="cp-btn cp-btn--primary" :disabled="sending || !replyBody.trim()">
-								{{ t('merlin', 'Reply') }}
-							</button>
-						</div>
-					</form>
-					<button v-else-if="!thread.deleted || thread.replies.length"
-						type="button"
-						class="cp-link cp-reply-btn"
-						@click="startReply(thread, null)">
-						{{ t('merlin', 'Reply') }}
-					</button>
-				</template>
+					<div v-if="thread.replies.length" class="cp-replies">
+						<CommentItem
+							v-for="reply in thread.replies"
+							:key="reply.id"
+							:comment="reply"
+							:reply-to="replyToName(thread, reply)"
+							:can-edit="canEdit(reply)"
+							:can-delete="canDelete(reply)"
+							:can-reply="canWrite"
+							:owner-label="ownerLabel"
+							:busy="busyId === reply.id"
+							@edit="body => edit(reply, body)"
+							@delete="remove(reply)"
+							@reply="startReply(thread, reply)" />
+					</div>
+
+					<template v-if="canWrite">
+						<form v-if="replyTarget && replyTarget.threadId === thread.id"
+							class="cp-form cp-form--reply"
+							@submit.prevent="submitReply(thread)">
+							<p v-if="replyTarget.name" class="cp-reply-to">
+								{{ t('merlin', 'Reply to {name}', { name: replyTarget.name }, undefined, { escape: false }) }}
+							</p>
+							<textarea ref="replyInput"
+								v-model="replyBody"
+								class="cp-input"
+								rows="2"
+								:maxlength="maxBody"
+								:placeholder="t('merlin', 'Write a reply…')"
+								@keydown.enter.exact.ctrl.prevent="submitReply(thread)"
+								@keydown.enter.exact.meta.prevent="submitReply(thread)" />
+							<div class="cp-form-actions">
+								<button type="button" class="cp-btn" @click="replyTarget = null">
+									{{ t('merlin', 'Cancel') }}
+								</button>
+								<button type="submit" class="cp-btn cp-btn--primary" :disabled="sending || !replyBody.trim()">
+									{{ t('merlin', 'Reply') }}
+								</button>
+							</div>
+						</form>
+						<button v-else-if="!thread.deleted || thread.replies.length"
+							type="button"
+							class="cp-link cp-reply-btn"
+							@click="startReply(thread, null)">
+							{{ t('merlin', 'Reply') }}
+						</button>
+					</template>
+				</div>
 			</section>
 		</div>
 
@@ -154,6 +172,27 @@ import CommentItem from './CommentItem.vue'
 import { guestNameKey } from '../comment-session'
 
 const MAX_BODY = 5000
+const SORT_KEY = 'merlin.commentSort'
+const SORT_ORDERS = ['text', 'newest', 'oldest']
+
+function loadSortOrder() {
+	try {
+		const value = localStorage.getItem(SORT_KEY)
+		return SORT_ORDERS.includes(value) ? value : 'text'
+	} catch {
+		return 'text'
+	}
+}
+
+/** Zeitpunkt der neuesten Antwort (ohne Antworten: der Kommentar selbst). */
+function lastActivity(thread) {
+	let latest = Date.parse(thread.createdAt) || 0
+	for (const reply of thread.replies || []) {
+		if (reply.deleted) continue
+		latest = Math.max(latest, Date.parse(reply.createdAt) || 0)
+	}
+	return latest
+}
 
 export default {
 	name: 'CommentPanel',
@@ -198,6 +237,8 @@ export default {
 			error: '',
 			maxBody: MAX_BODY,
 			inputId: 'cp-input-' + Math.random().toString(36).slice(2),
+			sortId: 'cp-sort-' + Math.random().toString(36).slice(2),
+			sortOrder: loadSortOrder(),
 		}
 	},
 
@@ -218,7 +259,33 @@ export default {
 			const rank = thread => (thread.highlightId !== null && order.has(String(thread.highlightId))
 				? order.get(String(thread.highlightId))
 				: Number.MAX_SAFE_INTEGER)
+			if (this.focusedHighlightId === null && this.sortOrder !== 'text') {
+				const dir = this.sortOrder === 'newest' ? -1 : 1
+				return [...threads].sort((a, b) => dir * (lastActivity(a) - lastActivity(b) || a.id - b.id))
+			}
 			return [...threads].sort((a, b) => rank(a) - rank(b) || a.id - b.id)
+		},
+
+		/** Threads nach Stelle gebündelt; Kommentare zum Artikel bleiben einzeln. */
+		visibleGroups() {
+			const groups = []
+			const byKey = new Map()
+			for (const thread of this.visibleThreads) {
+				const key = thread.highlightId !== null ? 'h' + thread.highlightId : 't' + thread.id
+				let group = byKey.get(key)
+				if (!group) {
+					group = { key, highlightId: thread.highlightId, quotedText: thread.quotedText, threads: [] }
+					byKey.set(key, group)
+					groups.push(group)
+				}
+				group.threads.push(thread)
+			}
+			if (this.focusedHighlightId === null && this.sortOrder !== 'text') {
+				const dir = this.sortOrder === 'newest' ? -1 : 1
+				const activity = group => Math.max(...group.threads.map(lastActivity))
+				groups.sort((a, b) => dir * (activity(a) - activity(b)) || a.threads[0].id - b.threads[0].id)
+			}
+			return groups
 		},
 	},
 
@@ -247,6 +314,14 @@ export default {
 	},
 
 	methods: {
+		saveSortOrder() {
+			try {
+				localStorage.setItem(SORT_KEY, this.sortOrder)
+			} catch {
+				// privater Modus – Sortierung gilt dann nur für diese Seite
+			}
+		},
+
 		shorten(text) {
 			const clean = (text || '').replace(/\s+/g, ' ').trim()
 			return clean.length > 220 ? clean.slice(0, 217) + '…' : clean
@@ -442,6 +517,22 @@ export default {
 	padding: 0 4px;
 }
 
+.cp-sort {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 14px;
+	font-size: 13px;
+	color: var(--color-text-maxcontrast, #666);
+	border-bottom: 1px solid var(--color-border, #e0e0e0);
+}
+
+.cp-sort select {
+	margin: 0;
+	min-height: 30px;
+	font-size: 13px;
+}
+
 .cp-identity,
 .cp-hint {
 	margin: 0;
@@ -465,6 +556,12 @@ export default {
 .cp-thread {
 	padding: 12px 0;
 	border-bottom: 1px solid var(--color-border, #eee);
+}
+
+.cp-subthread + .cp-subthread {
+	margin-top: 12px;
+	padding-top: 12px;
+	border-top: 1px dashed var(--color-border, #e0e0e0);
 }
 
 .cp-thread--active {

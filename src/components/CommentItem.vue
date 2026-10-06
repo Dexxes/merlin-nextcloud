@@ -39,8 +39,15 @@
 					</button>
 				</div>
 			</form>
-			<!-- Klartext: nur Text-Interpolation, nie v-html. -->
-			<p v-else class="ci-body">{{ comment.body }}</p>
+			<!-- Klartext: nur Text-Interpolation, nie v-html. Links als echte <a>. -->
+			<p v-else class="ci-body">
+				<template v-for="(part, i) in bodyParts"><a v-if="part.href"
+					:key="i"
+					class="ci-url"
+					:href="part.href"
+					target="_blank"
+					rel="noopener noreferrer nofollow ugc">{{ part.text }}</a><template v-else>{{ part.text }}</template></template>
+			</p>
 
 			<div v-if="!editing" class="ci-links">
 				<button v-if="canReply" type="button" class="ci-link" @click="$emit('reply')">
@@ -56,6 +63,7 @@
 
 <script>
 import DeleteOutline from 'vue-material-design-icons/DeleteOutline.vue'
+import { splitLinks } from '../linkify.js'
 
 /** Wie CommentRules::FALLBACK_COLOR – für Stände ohne `authorColor`. */
 const FALLBACK_COLOR = '#57534e'
@@ -82,6 +90,10 @@ export default {
 	},
 
 	computed: {
+		bodyParts() {
+			return splitLinks(this.comment.body || '')
+		},
+
 		/** Verfasser-Farbe vom Server (Besitzer orange, Gäste je eigene). */
 		authorColor() {
 			const c = this.comment.authorColor
@@ -208,6 +220,11 @@ export default {
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
 	line-height: 1.45;
+}
+
+.ci-url {
+	color: var(--color-primary-element, #00679e);
+	text-decoration: underline;
 }
 
 .ci-deleted {
