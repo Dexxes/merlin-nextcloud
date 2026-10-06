@@ -6,6 +6,11 @@ All notable changes to Merlin are documented here. Format based on
 
 ## [Unreleased]
 
+### Added
+- Comments: under "All comments" the threads can be sorted by their newest
+  reply, newest or oldest first, besides the order in the text. The choice is
+  remembered in the browser.
+
 ### Changed
 - Reader and public share links: the outlet's domain (e.g. "taz.de") now sits
   as a kicker above the headline, styled like the topline in the iOS reader,

@@ -23,6 +23,21 @@
 			</button>
 		</div>
 
+		<div v-if="!passageFocused && session.state.threads.length > 1" class="cp-sort">
+			<label :for="sortId">{{ t('merlin', 'Sort') }}</label>
+			<select :id="sortId" v-model="sortOrder" @change="saveSortOrder">
+				<option value="text">
+					{{ t('merlin', 'Order in text') }}
+				</option>
+				<option value="newest">
+					{{ t('merlin', 'Newest reply first') }}
+				</option>
+				<option value="oldest">
+					{{ t('merlin', 'Oldest reply first') }}
+				</option>
+			</select>
+		</div>
+
 		<p v-if="!canWrite" class="cp-hint">
 			{{ t('merlin', 'Comments are closed for this link.') }}
 		</p>
@@ -154,6 +169,27 @@ import CommentItem from './CommentItem.vue'
 import { guestNameKey } from '../comment-session'
 
 const MAX_BODY = 5000
+const SORT_KEY = 'merlin.commentSort'
+const SORT_ORDERS = ['text', 'newest', 'oldest']
+
+function loadSortOrder() {
+	try {
+		const value = localStorage.getItem(SORT_KEY)
+		return SORT_ORDERS.includes(value) ? value : 'text'
+	} catch {
+		return 'text'
+	}
+}
+
+/** Zeitpunkt der neuesten Antwort (ohne Antworten: der Kommentar selbst). */
+function lastActivity(thread) {
+	let latest = Date.parse(thread.createdAt) || 0
+	for (const reply of thread.replies || []) {
+		if (reply.deleted) continue
+		latest = Math.max(latest, Date.parse(reply.createdAt) || 0)
+	}
+	return latest
+}
 
 export default {
 	name: 'CommentPanel',
@@ -198,6 +234,8 @@ export default {
 			error: '',
 			maxBody: MAX_BODY,
 			inputId: 'cp-input-' + Math.random().toString(36).slice(2),
+			sortId: 'cp-sort-' + Math.random().toString(36).slice(2),
+			sortOrder: loadSortOrder(),
 		}
 	},
 
@@ -218,6 +256,10 @@ export default {
 			const rank = thread => (thread.highlightId !== null && order.has(String(thread.highlightId))
 				? order.get(String(thread.highlightId))
 				: Number.MAX_SAFE_INTEGER)
+			if (this.focusedHighlightId === null && this.sortOrder !== 'text') {
+				const dir = this.sortOrder === 'newest' ? -1 : 1
+				return [...threads].sort((a, b) => dir * (lastActivity(a) - lastActivity(b) || a.id - b.id))
+			}
 			return [...threads].sort((a, b) => rank(a) - rank(b) || a.id - b.id)
 		},
 	},
@@ -247,6 +289,14 @@ export default {
 	},
 
 	methods: {
+		saveSortOrder() {
+			try {
+				localStorage.setItem(SORT_KEY, this.sortOrder)
+			} catch {
+				// privater Modus – Sortierung gilt dann nur für diese Seite
+			}
+		},
+
 		shorten(text) {
 			const clean = (text || '').replace(/\s+/g, ' ').trim()
 			return clean.length > 220 ? clean.slice(0, 217) + '…' : clean
@@ -440,6 +490,22 @@ export default {
 	cursor: pointer;
 	color: inherit;
 	padding: 0 4px;
+}
+
+.cp-sort {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 14px;
+	font-size: 13px;
+	color: var(--color-text-maxcontrast, #666);
+	border-bottom: 1px solid var(--color-border, #e0e0e0);
+}
+
+.cp-sort select {
+	margin: 0;
+	min-height: 30px;
+	font-size: 13px;
 }
 
 .cp-identity,
