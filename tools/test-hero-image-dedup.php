@@ -445,6 +445,13 @@ $checkMatch(
 );
 
 $checkMatch(
+	'spiegel.de-Bildserver: Fokuspunkt mit Nachkommastellen ("_fpx68.62_fpy44.99"), gleiche Bild-UUID',
+	'https://cdn.prod.www.spiegel.de/images/042cc0ee-33e8-46ea-94c2-3e1639ee46bb_w960_r1.5_fpx68.62_fpy44.99.jpg',
+	'https://cdn.prod.www.spiegel.de/images/042cc0ee-33e8-46ea-94c2-3e1639ee46bb_w1200_r1.778_fpx68.62_fpy44.99.jpg',
+	true
+);
+
+$checkMatch(
 	'spiegel.de-Bildserver-Rendition eines ANDEREN Bilds (andere UUID) matcht nicht',
 	'https://cdn.prod.www.spiegel.de/images/11111111-1111-1111-1111-111111111111_w960_r1.5_fpx29_fpy41.jpg',
 	'https://cdn.prod.www.spiegel.de/images/22222222-2222-2222-2222-222222222222_w1200_r1.778_fpx29_fpy41.jpg',

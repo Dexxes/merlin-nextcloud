@@ -1903,9 +1903,10 @@ class ContentExtractorService {
 			// Fokuspunkt als "_w<Breite>_r<Verhältnis>_fpx<x>_fpy<y>"-Suffix vor
 			// der Endung, z. B. "<uuid>_w1200_r1.778_fpx29_fpy41.jpg" (og:image)
 			// vs. "<uuid>_w960_r1.5_fpx29_fpy41.jpg" (Content-<figure>, andere
-			// Breite/Beschnitt derselben Aufnahme). Das Suffix entfernen, damit
-			// beide auf dieselbe UUID+Endung normalisieren.
-			$url = preg_replace('/_w\d+_r[\d.]+_fpx\d+_fpy\d+(?=\.\w+$)/i', '', $url) ?? $url;
+			// Breite/Beschnitt derselben Aufnahme). Der Fokuspunkt kann
+			// Nachkommastellen tragen ("_fpx68.62_fpy44.99"). Das Suffix
+			// entfernen, damit beide auf dieselbe UUID+Endung normalisieren.
+			$url = preg_replace('/_w\d+_r[\d.]+_fpx[\d.]+_fpy[\d.]+(?=\.\w+$)/i', '', $url) ?? $url;
 
 			// Tagesspiegel-CDN "alternates"-Renditions: ein mittleres Pfadsegment
 			// wie "BASE_16_9_W1400" oder "BASE_21_9_W1000" kodiert Seitenverhältnis
