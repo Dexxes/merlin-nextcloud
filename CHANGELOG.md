@@ -10,6 +10,8 @@ All notable changes to Merlin are documented here. Format based on
 - Comments: under "All comments" the threads can be sorted by their newest
   reply, newest or oldest first, besides the order in the text. The choice is
   remembered in the browser.
+- Comments: web addresses (http, https and "www.") in comments are clickable
+  links that open in a new tab.
 
 ### Fixed
 - Comments: several threads on the same passage now sit together under a
