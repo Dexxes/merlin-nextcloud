@@ -7,7 +7,9 @@
 	Bereinigungsregeln für eine scrapbare Seite, sondern um Seiten, bei denen
 	jeder Scrape-Versuch von vornherein sinnlos ist - z. B. weil der
 	Artikeltext serverseitig gar nicht als HTML ausgeliefert wird (reine
-	JS-SPA oder Bild/Canvas-Viewer). Ein Fetch würde dort nur unnötigen
+	JS-SPA oder Bild/Canvas-Viewer) oder weil ein Bot-Schutz (z. B. eine
+	Cloudflare-JS-Challenge, erkennbar an HTTP 403 + "cf-mitigated: challenge")
+	jeden Server-Abruf abfängt. Ein Fetch würde dort nur unnötigen
 	Traffic beim Zielserver erzeugen und mit einem rohen
 	Readability-ParseException fehlschlagen, statt einer klaren Fehlermeldung.
 
@@ -26,3 +28,4 @@
 <domain name="msn.com" />
 <domain name="tomshardware.com" />
 <domain name="stern.de" />
+<domain name="openai.com" />
