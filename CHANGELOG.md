@@ -18,6 +18,10 @@ All notable changes to Merlin are documented here. Format based on
   single quote instead of repeating the quote above each thread.
 
 ### Changed
+- Sidebar: like the iOS app, tabs "Text", "Video" and "Audio" sit at the top;
+  below them only the Unread/Favorites/Archived views of the selected type
+  are listed instead of all three groups at once. The tab follows the active
+  view; switching tabs loads nothing until a view is clicked.
 - Reader and public share links: the outlet's domain (e.g. "taz.de") now sits
   as a kicker above the headline, styled like the topline in the iOS reader,
   in the user's accent color (on share links the owner's) and linked to the

@@ -14,123 +14,37 @@
 				</NcButton>
 			</div>
 
-			<!-- Top-level filters: Pages, Videos and Audio, each with their own
-			     Unread(/Unwatched/Not listened)/Favorites/Archived sub-views.
-			     "Mixed" articles (text with embedded media) count as pages. -->
-			<li class="filter-caption-row app-navigation-caption">
-				<span class="filter-caption-label">{{ t('merlin', 'Pages') }}</span>
+			<!-- Media type tabs (Text/Video/Audio) like the iOS app's side menu.
+			     Below them the Unread(/Unwatched/Not listened)/Favorites/Archived
+			     views of the selected type. Switching a tab only changes which
+			     views are listed; a view loads once it is clicked. "Mixed"
+			     articles (text with embedded media) count as text. -->
+			<li class="media-tabs-row">
+				<div class="media-tabs" role="tablist" :aria-label="t('merlin', 'Media type')">
+					<button
+						v-for="tab in mediaTabs"
+						:key="tab.group"
+						type="button"
+						role="tab"
+						class="media-tab"
+						:class="{ 'is-active': menuGroup === tab.group }"
+						:aria-selected="menuGroup === tab.group ? 'true' : 'false'"
+						@click="menuGroup = tab.group">
+						{{ tab.label }}
+					</button>
+				</div>
 			</li>
 			<NcAppNavigationItem
-				:name="t('merlin', 'Unread')"
-				:active="currentFilter === 'pages-unread'"
-				@click="$emit('filter', 'pages-unread')">
+				v-for="item in groupFilters"
+				:key="item.filter"
+				:name="item.label"
+				:active="currentFilter === item.filter"
+				@click="$emit('filter', item.filter)">
 				<template #icon>
-					<InboxOutline :size="20" />
+					<component :is="item.icon" :size="20" />
 				</template>
 				<template #counter>
-					<NcCounterBubble :count="counts.pages.unread" />
-				</template>
-			</NcAppNavigationItem>
-
-			<NcAppNavigationItem
-				:name="t('merlin', 'Favorites')"
-				:active="currentFilter === 'pages-favorites'"
-				@click="$emit('filter', 'pages-favorites')">
-				<template #icon>
-					<Star :size="20" />
-				</template>
-				<template #counter>
-					<NcCounterBubble :count="counts.pages.favorites" />
-				</template>
-			</NcAppNavigationItem>
-
-			<NcAppNavigationItem
-				:name="t('merlin', 'Archived')"
-				:active="currentFilter === 'pages-archived'"
-				@click="$emit('filter', 'pages-archived')">
-				<template #icon>
-					<Archive :size="20" />
-				</template>
-				<template #counter>
-					<NcCounterBubble :count="counts.pages.archived" />
-				</template>
-			</NcAppNavigationItem>
-
-			<li class="filter-caption-row app-navigation-caption">
-				<span class="filter-caption-label">{{ t('merlin', 'Videos') }}</span>
-			</li>
-			<NcAppNavigationItem
-				:name="t('merlin', 'Unwatched')"
-				:active="currentFilter === 'videos-unread'"
-				@click="$emit('filter', 'videos-unread')">
-				<template #icon>
-					<PlayCircleOutline :size="20" />
-				</template>
-				<template #counter>
-					<NcCounterBubble :count="counts.videos.unread" />
-				</template>
-			</NcAppNavigationItem>
-
-			<NcAppNavigationItem
-				:name="t('merlin', 'Favorites')"
-				:active="currentFilter === 'videos-favorites'"
-				@click="$emit('filter', 'videos-favorites')">
-				<template #icon>
-					<Star :size="20" />
-				</template>
-				<template #counter>
-					<NcCounterBubble :count="counts.videos.favorites" />
-				</template>
-			</NcAppNavigationItem>
-
-			<NcAppNavigationItem
-				:name="t('merlin', 'Archived')"
-				:active="currentFilter === 'videos-archived'"
-				@click="$emit('filter', 'videos-archived')">
-				<template #icon>
-					<Archive :size="20" />
-				</template>
-				<template #counter>
-					<NcCounterBubble :count="counts.videos.archived" />
-				</template>
-			</NcAppNavigationItem>
-
-			<li class="filter-caption-row app-navigation-caption">
-				<span class="filter-caption-label">{{ t('merlin', 'Audio') }}</span>
-			</li>
-			<NcAppNavigationItem
-				:name="t('merlin', 'Not listened')"
-				:active="currentFilter === 'audio-unread'"
-				@click="$emit('filter', 'audio-unread')">
-				<template #icon>
-					<Headphones :size="20" />
-				</template>
-				<template #counter>
-					<NcCounterBubble :count="counts.audio.unread" />
-				</template>
-			</NcAppNavigationItem>
-
-			<NcAppNavigationItem
-				:name="t('merlin', 'Favorites')"
-				:active="currentFilter === 'audio-favorites'"
-				@click="$emit('filter', 'audio-favorites')">
-				<template #icon>
-					<Star :size="20" />
-				</template>
-				<template #counter>
-					<NcCounterBubble :count="counts.audio.favorites" />
-				</template>
-			</NcAppNavigationItem>
-
-			<NcAppNavigationItem
-				:name="t('merlin', 'Archived')"
-				:active="currentFilter === 'audio-archived'"
-				@click="$emit('filter', 'audio-archived')">
-				<template #icon>
-					<Archive :size="20" />
-				</template>
-				<template #counter>
-					<NcCounterBubble :count="counts.audio.archived" />
+					<NcCounterBubble :count="item.count" />
 				</template>
 			</NcAppNavigationItem>
 
@@ -251,6 +165,17 @@ import Close from 'vue-material-design-icons/Close.vue'
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
 
+/**
+ * Media type ('pages' | 'videos' | 'audio') of a filter such as 'audio-favorites'.
+ *
+ * @param {string|null} filter Active sidebar filter
+ * @return {string|null}
+ */
+function groupOf(filter) {
+	const group = (filter || '').split('-')[0]
+	return ['pages', 'videos', 'audio'].includes(group) ? group : null
+}
+
 export default {
 	name: 'Sidebar',
 
@@ -319,10 +244,47 @@ export default {
 		return {
 			tagQuery: '',
 			showAllTags: false,
+			// Media type shown in the tabs ('pages' | 'videos' | 'audio').
+			// Follows the active filter; a tag filter leaves it unchanged.
+			menuGroup: groupOf(this.currentFilter) || 'pages',
 		}
 	},
 
+	watch: {
+		currentFilter(filter) {
+			const group = groupOf(filter)
+			if (group) this.menuGroup = group
+		},
+	},
+
 	computed: {
+		mediaTabs() {
+			return [
+				{ group: 'pages', label: this.t('merlin', 'Text') },
+				{ group: 'videos', label: this.t('merlin', 'Video') },
+				{ group: 'audio', label: this.t('merlin', 'Audio') },
+			]
+		},
+		// Views of the selected media type, in the same order as on iOS.
+		groupFilters() {
+			const group = this.menuGroup
+			const counts = this.counts[group] || {}
+			const unreadLabel = {
+				pages: this.t('merlin', 'Unread'),
+				videos: this.t('merlin', 'Unwatched'),
+				audio: this.t('merlin', 'Not listened'),
+			}[group]
+			const unreadIcon = {
+				pages: 'InboxOutline',
+				videos: 'PlayCircleOutline',
+				audio: 'Headphones',
+			}[group]
+			return [
+				{ filter: `${group}-unread`, label: unreadLabel, icon: unreadIcon, count: counts.unread },
+				{ filter: `${group}-favorites`, label: this.t('merlin', 'Favorites'), icon: 'Star', count: counts.favorites },
+				{ filter: `${group}-archived`, label: this.t('merlin', 'Archived'), icon: 'Archive', count: counts.archived },
+			]
+		},
 		filteredTags() {
 			const q = this.tagQuery.trim().toLowerCase()
 			if (!q) return this.tags
@@ -356,25 +318,47 @@ export default {
 	justify-content: center;
 }
 
-/* ── Pages/Videos filter group captions ──────────────────────────────── */
-.filter-caption-row {
-	display: flex;
-	align-items: center;
-	padding: 4px 12px;
-	min-height: 34px;
+/* ── Media type tabs (Text/Video/Audio) ───────────────────────────── */
+.media-tabs-row {
 	list-style: none;
+	padding: 8px 12px 6px;
 }
 
-.filter-caption-row:not(:first-child) {
-	margin-top: 8px;
+.media-tabs {
+	display: flex;
+	gap: 2px;
+	padding: 2px;
+	border-radius: var(--border-radius-large, 10px);
+	background: var(--color-background-hover);
 }
 
-.filter-caption-label {
-	font-size: 11px;
+.media-tab {
+	flex: 1;
+	min-width: 0;
+	min-height: 30px;
+	margin: 0;
+	padding: 0 8px;
+	border: none;
+	border-radius: calc(var(--border-radius-large, 10px) - 2px);
+	background: transparent;
+	font: inherit;
+	font-size: 13px;
+	color: var(--color-main-text);
+	cursor: pointer;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	transition: background 120ms;
+}
+
+.media-tab:hover {
+	background: var(--color-background-dark);
+}
+
+.media-tab.is-active {
+	background: var(--color-main-background);
 	font-weight: 600;
-	color: var(--color-text-maxcontrast);
-	text-transform: uppercase;
-	letter-spacing: 0.05em;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 /* ── Tags caption ─────────────────────────────────────────────────── */
