@@ -8,6 +8,9 @@ return [
         // Article API routes
         ['name' => 'article#counts', 'url' => '/api/articles/counts', 'verb' => 'GET'],
         ['name' => 'article#index', 'url' => '/api/articles', 'verb' => 'GET'],
+        // Muss vor /api/articles/{id} stehen, sonst matcht "search" als {id}
+        // (article#show) und die Suche liefert immer 404.
+        ['name' => 'article#search', 'url' => '/api/articles/search', 'verb' => 'GET'],
         ['name' => 'article#show', 'url' => '/api/articles/{id}', 'verb' => 'GET'],
         ['name' => 'article#create', 'url' => '/api/articles', 'verb' => 'POST'],
         ['name' => 'article#update', 'url' => '/api/articles/{id}', 'verb' => 'PUT'],
@@ -17,7 +20,6 @@ return [
         ['name' => 'article#toggleArchive', 'url' => '/api/articles/{id}/archive', 'verb' => 'PUT'],
         ['name' => 'article#updateProgress', 'url' => '/api/articles/{id}/progress', 'verb' => 'PUT'],
         ['name' => 'article#retryExtraction', 'url' => '/api/articles/{id}/retry-extraction', 'verb' => 'POST'],
-        ['name' => 'article#search', 'url' => '/api/articles/search', 'verb' => 'GET'],
 
         // SSE: push article-ready events when processing finishes
         ['name' => 'article#stream', 'url' => '/api/events', 'verb' => 'GET'],

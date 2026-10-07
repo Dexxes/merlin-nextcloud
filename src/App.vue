@@ -49,6 +49,7 @@
 import { mapState, mapGetters, mapActions, mapMutations } from 'vuex'
 import { showSuccess } from '@nextcloud/dialogs'
 import { acknowledgeRetentionNotice } from './api/retention.js'
+import { getArticle } from './api/articles.js'
 import {
 	NcContent,
 	NcAppContent,
@@ -124,6 +125,7 @@ export default {
 			if (defaultView && defaultView !== this.currentFilter) {
 				this.setFilter(defaultView)
 			}
+			this.openArticleFromHash()
 			this._pollInterval = setInterval(() => this.pollForUpdates(), 15_000)
 			this.showRetentionNotice = Boolean(this.settings && this.settings.retentionNoticeRequired)
 		})
@@ -195,6 +197,19 @@ export default {
 			// pages, videos and audio, for tag filters
 			this.SET_FILTER({ key: 'isArchived', value: null })
 			this.fetchArticles()
+		},
+
+		// Treffer der Nextcloud-Suche (ArticleSearchProvider) verlinken auf
+		// #article-<id>: den Artikel direkt im Reader öffnen.
+		async openArticleFromHash() {
+			const match = window.location.hash.match(/^#article-(\d+)$/)
+			if (!match) return
+			history.replaceState(null, '', window.location.pathname + window.location.search)
+			try {
+				this.openArticle(await getArticle(Number(match[1])))
+			} catch (error) {
+				console.error('Failed to open article from search result:', error)
+			}
 		},
 
 		openArticle(article) {
