@@ -13,6 +13,7 @@ use OCA\Merlin\Service\ContentFilterSchema;
 use OCA\Merlin\Service\ExportService;
 use OCA\Merlin\Service\Login\PaywallLoginRequiredException;
 use OCA\Merlin\Service\SupportBoxService;
+use OCA\Merlin\Service\TagTree;
 use OCA\Merlin\Service\UnsupportedSiteException;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -114,9 +115,16 @@ class ArticleController extends Controller {
 			'is_read'    => $isRead,
 			'is_favorite' => $isFavorite,
 			'is_archived' => $isArchived,
-			'tag_id'     => $tagId,
 			'category'   => $category,
 		], fn($value) => $value !== null);
+
+		// Filtering by a tag includes articles of its sub-tags (nested tags).
+		if ($tagId !== null) {
+			$filters['tag_ids'] = array_merge(
+				[$tagId],
+				TagTree::descendantIds($this->tagMapper->findParentMap($this->userId), $tagId)
+			);
+		}
 
 		// contentType=page/video/audio: Seiten/Videos/Audio-Aufteilung auf
 		// oberster Ebene, orthogonal zu isRead/isFavorite/isArchived. "video"

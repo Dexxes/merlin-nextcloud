@@ -47,6 +47,7 @@ merlin-nextcloud/
 │   │   ├── CommentRules.php              # Reine Regeln: Namen, Längen, Thread-Position, Gast-Rechte
 │   │   ├── ShareAccessService.php        # Share-Token + Passwort-Unlock prüfen (Share-Ansicht und Gast-Kommentare)
 │   │   ├── RetentionPolicy.php           # Reine Rechenregeln der Löschfrist (Minimum, Stichtag, Hinweis fällig?)
+│   │   ├── TagTree.php                   # Reine Baumregeln verschachtelter Tags (Nachfahren, Kreisprüfung beim Verschieben)
 │   │   ├── Media/                        # Audio/Video, siehe Abschnitt "Medien-Provider" unten
 │   │   │   ├── MediaResolverService.php       # <media>-Sektion lesen, Provider aufrufen, Marker bauen/lesen
 │   │   │   ├── MediaProviderRegistry.php      # type → Provider (einzige Registrierungsstelle)
@@ -92,6 +93,7 @@ merlin-nextcloud/
     ├── test-pdf-article.php           # Testharness PDF-Artikel (URL-Erkennung, Marker, SSRF, Sanitizer)
     ├── test-support-box.php           # Testharness SupportBoxService (URL-Auswahl, Login-Ausblendung, Share, Seiten-Icon))
     ├── test-retention.php             # Testharness RetentionPolicy (effektive Frist, Stichtag, Hinweis)
+    ├── test-tag-tree.php              # Testharness TagTree (Nachfahren, Kreisprüfung)
     └── test-site-icon.php             # Testharness ContentExtractorService::extractSiteIconUrl() (Apple > SVG > Bitmap > ICO, <base>, data:/javascript:, kein og:image)
 ```
 
@@ -279,6 +281,7 @@ src/
 ├── inline-media.js / .css  # Legt auf jede figure.merlin-inline-media (Video mitten im Text) einen MediaPlayer (data-hl-exclude), idempotent nach jedem Rendern
 ├── highlight-engine.js      # Framework-unabhängige Logik zum Setzen/Wiederfinden von Textmarkierungen im DOM
 ├── comment-session.js       # Kommentar-Zustand + SSE-Verbindung
+├── tag-tree.js              # Verschachtelte Tags im Browser: Kinder, Nachfahren, Baumreihenfolge, Pfad (Gegenstück zu TagTree.php)
 ├── App.vue                  # Hauptkomponente
 ├── store/
 │   └── index.js             # State Management
@@ -295,7 +298,9 @@ src/
     ├── ArticleCard.vue
     ├── ArticleReader.vue
     ├── AddArticleDialog.vue
-    ├── Sidebar.vue
+    ├── Sidebar.vue                # Navigation; Tags als aufklappbarer Baum
+    ├── MoveTagDialog.vue          # „Verschieben nach…“: neuen Eltern-Tag wählen
+    ├── DeleteTagDialog.vue        # Rückfrage vor dem Löschen, nennt die mitgelöschten Unter-Tags
     ├── ShareLinkDialog.vue        # Dialog zum Anlegen/Verwalten von Share-Links
     ├── PublicArticleView.vue      # Ansicht für öffentliche Share-Links (public-main.js)
     ├── MediaPlayer.vue            # Audio-/Video-Player (HLS, Datei, Embed), siehe "Medien-Provider"

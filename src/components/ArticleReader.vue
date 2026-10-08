@@ -164,11 +164,13 @@
 					<li v-if="allTags.length === 0" role="none" class="tag-menu-empty">
 						<span>{{ t('merlin', 'No tags defined yet') }}</span>
 					</li>
+					<!-- Sub-tags indented below their parent (nested tags) -->
 					<li
-						v-for="tag in allTags"
+						v-for="{ tag, depth } in tagRows"
 						:key="tag.id"
 						role="menuitemcheckbox"
 						:aria-checked="articleHasTag(tag)"
+						:style="depth ? { paddingInlineStart: `calc(var(--tag-menu-inset, 12px) + ${depth * 16}px)` } : null"
 						@click="handleTagToggle(tag)">
 						<span class="tag-color-dot" :style="{ backgroundColor: tag.color }" />
 						<span class="tag-name">{{ tag.name }}</span>
@@ -183,6 +185,18 @@
 							type="text"
 							:placeholder="t('merlin', 'New tag…')"
 							@keyup.enter="createAndAssignTag" />
+						<!-- Optional parent: the new tag becomes its sub-tag -->
+						<label v-if="allTags.length" class="tag-new-parent">
+							<span>{{ t('merlin', 'Below') }}</span>
+							<select v-model="newTagParentId" class="tag-new-input">
+								<option :value="null">
+									{{ t('merlin', 'Top level') }}
+								</option>
+								<option v-for="{ tag, depth } in tagRows" :key="tag.id" :value="tag.id">
+									{{ '\u00a0\u00a0\u00a0'.repeat(depth) + tag.name }}
+								</option>
+							</select>
+						</label>
 						<div class="tag-new-row">
 							<div class="tag-new-swatches">
 								<span
@@ -387,6 +401,7 @@
 							v-for="tag in articleTagsFromStore"
 							:key="tag.id"
 							class="article-tag-chip"
+							:title="tagPath(allTags, tag)"
 							:style="{ backgroundColor: tag.color || '#6b7280', color: contrastColor(tag.color || '#6b7280') }">{{ tag.name }}</span>
 					</div>
 				</header>
@@ -545,6 +560,7 @@ import ArchiveArrowDown from 'vue-material-design-icons/ArchiveArrowDown.vue'
 import Star from 'vue-material-design-icons/Star.vue'
 import StarOutline from 'vue-material-design-icons/StarOutline.vue'
 import Tag from 'vue-material-design-icons/Tag.vue'
+import { flattenTree, tagPath } from '../tag-tree'
 import Check from 'vue-material-design-icons/Check.vue'
 import Account from 'vue-material-design-icons/Account.vue'
 import Calendar from 'vue-material-design-icons/Calendar.vue'
@@ -672,6 +688,7 @@ export default {
 			dockAnchoredMenuStyle: {},
 			newTagName: '',
 			newTagColor: TAG_COLORS[5], // blue default
+			newTagParentId: null, // parent of a new tag; null = top level
 			tagColors: TAG_COLORS,
 			scrollPct: 0,
 			_scrollTimer: null,
@@ -737,6 +754,11 @@ export default {
 
 		allTags() {
 			return this.$store.state.tags || []
+		},
+
+		// All tags in tree order with depth, for the indented picker.
+		tagRows() {
+			return flattenTree(this.allTags)
 		},
 
 		// Normalisierte Domain aus article.url (Kleinschreibung, ohne "www.") -
@@ -1033,6 +1055,8 @@ export default {
 			}
 		},
 
+		tagPath,
+
 		articleHasTag(tag) {
 			return this.articleTagsFromStore.some(t => t.id === tag.id)
 		},
@@ -1053,7 +1077,7 @@ export default {
 			const name = this.newTagName.trim()
 			if (!name) return
 			try {
-				const tag = await this.addTag({ name, color: this.newTagColor })
+				const tag = await this.addTag({ name, color: this.newTagColor, parentId: this.newTagParentId })
 				await this.addTagToArticle({ articleId: this.article.id, tagId: tag.id })
 				this.newTagName = ''
 			} catch (error) {
@@ -2578,6 +2602,19 @@ article {
 	color: var(--color-main-text);
 	outline: none;
 	box-sizing: border-box;
+}
+
+.tag-new-parent {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 0.85em;
+	color: var(--color-text-maxcontrast);
+}
+
+.tag-new-parent select {
+	flex: 1;
+	min-width: 0;
 }
 
 .tag-new-input:focus {

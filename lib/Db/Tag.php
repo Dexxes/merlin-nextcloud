@@ -12,6 +12,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setUserId(string $userId)
  * @method string getName()
  * @method void setName(string $name)
+ * @method int|null getParentId()
+ * @method void setParentId(?int $parentId)
  * @method string getColor()
  * @method void setColor(string $color)
  * @method \DateTime getCreatedAt()
@@ -21,12 +23,14 @@ class Tag extends Entity implements JsonSerializable {
 	protected $userId;
 	protected $name;
 	protected $color;
+	protected $parentId;
 	protected $createdAt;
 
 	public function __construct() {
 		$this->addType('userId', 'string');
 		$this->addType('name', 'string');
 		$this->addType('color', 'string');
+		$this->addType('parentId', 'integer');
 		$this->addType('createdAt', 'datetime');
 	}
 
@@ -36,6 +40,8 @@ class Tag extends Entity implements JsonSerializable {
 			'userId' => $this->getUserId(),
 			'name' => $this->getName(),
 			'color' => $this->getColor(),
+			// null = oberste Ebene (verschachtelte Tags, siehe Service\TagTree)
+			'parentId' => $this->getParentId(),
 			'createdAt' => $this->getCreatedAt()->format('c'),
 		];
 	}

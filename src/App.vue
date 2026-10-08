@@ -10,8 +10,9 @@
 	         @filter="setFilter"
 	         @filter-tag="filterByTag"
 	         :hidden-tag-ids="excludedTagIdSet"
-	         @delete-tag="handleDeleteTag"
+	         @delete-tag="tagToDelete = tags.find(tag => tag.id === $event) || null"
 	         @toggle-tag-hidden="toggleTagExcluded"
+	         @move-tag="handleMoveTag"
 	         @open-settings="openSettings"
 		/>
 
@@ -39,6 +40,12 @@
 			:favorites-days="settings.retentionFavoritesEffectiveDays || 0"
 			@close="onRetentionNoticeClose" />
 
+		<DeleteTagDialog
+			v-if="tagToDelete"
+			:tag="tagToDelete"
+			:tags="tags"
+			@close="onDeleteTagClose" />
+
 		<AddArticleDialog
 			v-if="showAddArticleDialog"
 			:initial-url="addArticleUrl"
@@ -49,7 +56,7 @@
 
 <script>
 import { mapState, mapGetters, mapActions, mapMutations } from 'vuex'
-import { showSuccess } from '@nextcloud/dialogs'
+import { showError, showSuccess } from '@nextcloud/dialogs'
 import { acknowledgeRetentionNotice } from './api/retention.js'
 import { getArticle } from './api/articles.js'
 import {
@@ -60,6 +67,7 @@ import {
 import ArticleList from './components/ArticleList.vue'
 import ArticleReader from './components/ArticleReader.vue'
 import AddArticleDialog from './components/AddArticleDialog.vue'
+import DeleteTagDialog from './components/DeleteTagDialog.vue'
 import Settings from './components/Settings.vue'
 import RetentionNoticeDialog from './components/RetentionNoticeDialog.vue'
 import Sidebar from './components/Sidebar.vue'
@@ -73,6 +81,7 @@ export default {
 		ArticleList,
 		ArticleReader,
 		AddArticleDialog,
+		DeleteTagDialog,
 		Settings,
 		RetentionNoticeDialog,
 		MerlinSidebar: Sidebar,
@@ -81,6 +90,8 @@ export default {
 	data() {
 		return {
 			showAddArticleDialog: false,
+			// Tag awaiting the delete confirmation (DeleteTagDialog).
+			tagToDelete: null,
 			addArticleUrl: '',
 			// Einmaliger Löschfrist-Hinweis, siehe RetentionNoticeDialog.
 			showRetentionNotice: false,
@@ -150,7 +161,7 @@ export default {
 	},
 
 	methods: {
-		...mapActions(['fetchArticles', 'fetchCounts', 'fetchTags', 'fetchSettings', 'fetchLoginCapableDomains', 'deleteArticle', 'deleteTag', 'toggleTagExcluded', 'pollForUpdates']),
+		...mapActions(['fetchArticles', 'fetchCounts', 'fetchTags', 'fetchSettings', 'fetchLoginCapableDomains', 'deleteArticle', 'deleteTag', 'moveTag', 'toggleTagExcluded', 'pollForUpdates']),
 		...mapMutations(['SET_FILTER', 'RESET_FILTER', 'SET_VIEW', 'SET_CURRENT_ARTICLE', 'SET_SETTINGS']),
 
 		async loadData() {
@@ -245,9 +256,30 @@ export default {
 			this.fetchArticles()
 		},
 
+		// A tag is deleted together with its sub-tags, so only after the
+		// confirmation in DeleteTagDialog.
+		async onDeleteTagClose(confirmed) {
+			const tag = this.tagToDelete
+			this.tagToDelete = null
+			if (confirmed && tag) {
+				await this.handleDeleteTag(tag.id)
+			}
+		},
+
+		async handleMoveTag({ tagId, parentId }) {
+			try {
+				await this.moveTag({ tagId, parentId })
+			} catch {
+				showError(this.t('merlin', 'Could not move the tag'))
+				return
+			}
+			// The article list of a filtered parent tag includes its sub-tags.
+			if (this.currentTagId != null) this.fetchArticles()
+		},
+
 		async handleDeleteTag(tagId) {
-			await this.deleteTag(tagId)
-			if (this.currentTagId === tagId) {
+			const deletedIds = await this.deleteTag(tagId)
+			if (deletedIds.includes(this.currentTagId)) {
 				this.currentTagId = null
 				// 'all' view was removed — fall back to the app's default (Pages/Unread)
 				// instead of a filter that no longer exists in the sidebar.

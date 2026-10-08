@@ -40,6 +40,7 @@
         "Auto": "Automatisch",
         "Back 15 seconds": "15 Sekunden zurück",
         "Back to list": "Zurück zur Liste",
+        "Below": "Unter",
         "Blue": "Blau",
         "Bottom": "Unten",
         "Built-in": "Vordefiniert",
@@ -50,6 +51,18 @@
         "Cancel": "Abbrechen",
         "Category": "Kategorie",
         "Change name": "Name ändern",
+        "Collapse sub-tags": "Unter-Tags einklappen",
+        "Could not move the tag": "Tag konnte nicht verschoben werden",
+        "Delete all": "Alle löschen",
+        "Delete the tag \"{name}\"?": "Tag „{name}“ löschen?",
+        "Excluding a tag also hides its sub-tags.": "Ein ausgeschlossener Tag blendet auch seine Unter-Tags aus.",
+        "Expand sub-tags": "Unter-Tags ausklappen",
+        "Move": "Verschieben",
+        "Move \"{name}\" below:": "„{name}“ verschieben unter:",
+        "Move \"{name}\" with its sub-tags below:": "„{name}“ mit seinen Unter-Tags verschieben unter:",
+        "Move tag": "Tag verschieben",
+        "Move to…": "Verschieben nach…",
+        "New parent tag": "Neuer übergeordneter Tag",
         "Sort": "Sortieren",
         "Order in text": "Reihenfolge im Text",
         "Newest reply first": "Neueste Antwort zuerst",
@@ -67,6 +80,8 @@
         "Comments are closed for this link.": "Für diesen Link sind Kommentare geschlossen.",
         "Comments are closed for visitors": "Kommentare für Besucher geschlossen",
         "Comments on this passage": "Kommentare zu dieser Stelle",
+        "The articles are kept, only the tags are removed from them.": "Die Artikel bleiben erhalten, nur die Tags werden von ihnen entfernt.",
+        "Top level": "Oberste Ebene",
         "Your color": "Deine Farbe",
         "This name already has a color": "Dieser Name hat schon eine Farbe",
         "Someone has just taken this color. Please choose another one.": "Diese Farbe wurde gerade vergeben. Bitte wähle eine andere.",
@@ -393,6 +408,10 @@
         "_Archived favorites are deleted %n day after archiving._::_Archived favorites are deleted %n days after archiving._": [
             "Archivierte Favoriten werden %n Tag nach dem Archivieren gelöscht.",
             "Archivierte Favoriten werden %n Tage nach dem Archivieren gelöscht."
+        ],
+        "_Delete the tag \"{name}\" and its {count} sub-tag?_::_Delete the tag \"{name}\" and its {count} sub-tags?_": [
+            "Tag „{name}“ und seinen {count} Unter-Tag löschen?",
+            "Tag „{name}“ und seine {count} Unter-Tags löschen?"
         ],
         "_Deleted %n day after archiving. Takes effect with the next daily cleanup._::_Deleted %n days after archiving. Takes effect with the next daily cleanup._": [
             "Wird %n Tag nach dem Archivieren gelöscht. Gilt ab dem nächsten täglichen Durchlauf.",

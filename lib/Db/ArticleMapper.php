@@ -50,10 +50,15 @@ class ArticleMapper extends QBMapper {
 			->setMaxResults($limit)
 			->setFirstResult($offset);
 
-		// Optional tag filter – join the article_tags pivot table
-		if (isset($filters['tag_id'])) {
-			$qb->innerJoin('a', 'merlin_article_tags', 'at', $qb->expr()->eq('a.id', 'at.article_id'))
-				->andWhere($qb->expr()->eq('at.tag_id', $qb->createNamedParameter($filters['tag_id'], IQueryBuilder::PARAM_INT)));
+		// Optional tag filter. tag_ids holds the tag plus its descendants
+		// (nested tags); a subquery instead of a join so an article carrying
+		// several of them is listed once.
+		if (!empty($filters['tag_ids'])) {
+			$sub = $this->db->getQueryBuilder();
+			$sub->select('at.article_id')
+				->from('merlin_article_tags', 'at')
+				->where($sub->expr()->in('at.tag_id', $qb->createNamedParameter(array_values($filters['tag_ids']), IQueryBuilder::PARAM_INT_ARRAY)));
+			$qb->andWhere($qb->expr()->in('a.id', $qb->createFunction($sub->getSQL())));
 		}
 
 		// Apply remaining column filters (prefix with alias to avoid ambiguity)

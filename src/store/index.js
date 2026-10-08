@@ -4,6 +4,7 @@ import * as articlesAPI from '../api/articles'
 import * as tagsAPI from '../api/tags'
 import * as settingsAPI from '../api/settings'
 import { listSiteCredentials } from '../api/siteCredentials'
+import { childrenMap, descendantIds } from '../tag-tree'
 
 // Module-level EventSource so we can close any existing connection before
 // opening a new one.  Kept outside the store to avoid reactivity overhead.
@@ -68,8 +69,20 @@ export default createStore({
 		ADD_TAG(state, tag) {
 			state.tags.push(tag)
 		},
-		REMOVE_TAG(state, tagId) {
-			state.tags = state.tags.filter(t => t.id !== tagId)
+		UPDATE_TAG(state, tag) {
+			const index = state.tags.findIndex(t => t.id === tag.id)
+			if (index !== -1) state.tags.splice(index, 1, tag)
+		},
+		// Deleting a tag also deletes its sub-tags; drop all of them, also
+		// from the articles already loaded.
+		REMOVE_TAGS(state, tagIds) {
+			const ids = new Set(tagIds)
+			state.tags = state.tags.filter(t => !ids.has(t.id))
+			for (const article of state.articles) {
+				if (article.tags && article.tags.some(t => ids.has(t.id))) {
+					article.tags = article.tags.filter(t => !ids.has(t.id))
+				}
+			}
 		},
 		SET_SETTINGS(state, settings) {
 			state.settings = settings
@@ -338,12 +351,28 @@ export default createStore({
 			}
 		},
 
+		// The server deletes the tag with all its sub-tags and answers with
+		// their ids (deletedIds); older servers only delete the tag itself.
 		async deleteTag({ commit }, tagId) {
 			try {
-				await tagsAPI.deleteTag(tagId)
-				commit('REMOVE_TAG', tagId)
+				const response = await tagsAPI.deleteTag(tagId)
+				const ids = response && Array.isArray(response.deletedIds) ? response.deletedIds : [tagId]
+				commit('REMOVE_TAGS', ids)
+				return ids
 			} catch (error) {
 				console.error('Failed to delete tag:', error)
+				throw error
+			}
+		},
+
+		// Moves a tag below another one; parentId null = top level.
+		async moveTag({ commit }, { tagId, parentId }) {
+			try {
+				const tag = await tagsAPI.updateTag(tagId, { parentId: parentId == null ? 0 : parentId })
+				commit('UPDATE_TAG', tag)
+				return tag
+			} catch (error) {
+				console.error('Failed to move tag:', error)
 				throw error
 			}
 		},
@@ -453,8 +482,19 @@ export default createStore({
 			}
 			return new Set()
 		},
-		filteredArticles: (state, getters) => {
+		// Hiding a tag also hides its sub-tags (nested tags).
+		hiddenTagIdSet: (state, getters) => {
 			const excluded = getters.excludedTagIdSet
+			if (excluded.size === 0) return excluded
+			const children = childrenMap(state.tags)
+			const hidden = new Set(excluded)
+			for (const id of excluded) {
+				for (const child of descendantIds(state.tags, id, children)) hidden.add(child)
+			}
+			return hidden
+		},
+		filteredArticles: (state, getters) => {
+			const excluded = getters.hiddenTagIdSet
 			if (excluded.size === 0) return state.articles
 			return state.articles.filter(article => {
 				const tags = article.tags || []
