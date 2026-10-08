@@ -559,7 +559,18 @@ export default {
 .tag-fold--toggle:hover,
 .tag-fold--toggle:focus-visible {
 	color: var(--color-main-text);
-	background: var(--color-background-hover);
+}
+
+/* Inline buttons (eye, trash) and the "…" menu toggle of a tag stay without
+   background on hover, click and while the menu is open; only the icon
+   shows the interaction. Nextcloud sets these backgrounds with !important. */
+.tag-row :deep(.app-navigation-entry__actions .button-vue),
+.tag-row :deep(.app-navigation-entry__actions .button-vue:hover),
+.tag-row :deep(.app-navigation-entry__actions .button-vue:active),
+.tag-row :deep(.app-navigation-entry__actions .button-vue:focus-visible),
+.tag-row :deep(.app-navigation-entry__actions:hover .button-vue),
+.tag-row :deep(.action-item--open .action-item__menutoggle) {
+	background-color: transparent !important;
 }
 
 .tag-icon .tag-dot {
