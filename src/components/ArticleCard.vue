@@ -1,7 +1,10 @@
 <template>
 	<div
 		class="article-card"
-		:class="{ 'article-card--processing': article.isProcessing }"
+		:class="{
+			'article-card--processing': article.isProcessing,
+			'article-card--archived': isMarkedArchived,
+		}"
 		@contextmenu.prevent="openContextMenu">
 
 		<!-- Processing overlay -->
@@ -26,6 +29,14 @@
 
 		<div class="article-image">
 			<img :src="article.imageUrl || noImgPath" :alt="article.title" @error="onImageError">
+			<!-- Archiv-Plakette: in gemischten Listen (Schlagworte, Favoriten)
+			     sieht man so auf einen Blick, was schon archiviert ist. Bewusst
+			     auf dem Bild statt in der Plakettenkette oben, damit sie nicht
+			     mit Paywall/Lädt… konkurriert. -->
+			<span v-if="isMarkedArchived" class="article-archived-badge">
+				<ArchiveArrowDown :size="14" />
+				{{ t('merlin', 'Archived') }}
+			</span>
 			<!-- Lese-Fortschrittsbalken, analog zur Karten-Anzeige in den Mobile-Apps;
 			     Farbe kommt aus den Settings (accentColor), wie bei iOS/Android -->
 			<div
@@ -304,6 +315,12 @@ export default {
 			type: Object,
 			required: true,
 		},
+		// Archivierte Artikel mit Plakette und abgeblendet zeigen. Die
+		// Archiv-Ansicht schaltet das ab, dort ist ohnehin alles archiviert.
+		showArchivedState: {
+			type: Boolean,
+			default: true,
+		},
 	},
 
 	emits: ['open', 'delete', 'archive', 'favorite'],
@@ -346,6 +363,10 @@ export default {
 	},
 
 	computed: {
+		isMarkedArchived() {
+			return this.showArchivedState && !!this.article.isArchived
+		},
+
 		allTags() {
 			return this.$store.state.tags || []
 		},
@@ -566,6 +587,37 @@ export default {
 
 .article-card--processing {
 	opacity: 0.75;
+}
+
+/* Archivierte Artikel in gemischten Listen: Bild und Text abgeblendet,
+   beim Überfahren wieder voll sichtbar. Die Plakette bleibt immer kräftig. */
+.article-card--archived .article-image img,
+.article-card--archived .article-content {
+	opacity: 0.6;
+	transition: opacity 0.2s ease;
+}
+
+.article-card--archived:hover .article-image img,
+.article-card--archived:hover .article-content {
+	opacity: 1;
+}
+
+.article-archived-badge {
+	position: absolute;
+	top: 8px;
+	left: 8px;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 8px;
+	font-size: 11px;
+	color: #fff;
+	background: rgba(0, 0, 0, 0.65);
+	border-radius: var(--border-radius-pill, 12px);
+}
+
+.article-archived-badge .material-design-icon {
+	display: flex;
 }
 
 /* Small badge shown at the top of a card while content is being extracted */

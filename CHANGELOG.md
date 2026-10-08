@@ -12,6 +12,10 @@ All notable changes to Merlin are documented here. Format based on
   remembered in the browser.
 - Comments: web addresses (http, https and "www.") in comments are clickable
   links that open in a new tab.
+- Article list: archived articles in mixed lists (a tag, Favorites) carry an
+  "Archived" badge on the image and are slightly faded, so it is clear at a
+  glance what has already been archived. The Archived view itself shows no
+  badge.
 
 ### Fixed
 - Comments: several threads on the same passage now sit together under a
