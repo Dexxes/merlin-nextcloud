@@ -39,6 +39,7 @@
 				v-for="article in articles"
 				:key="article.id"
 				:article="article"
+				:show-archived-state="!isArchiveView"
 				@click="$emit('open-article', article)"
 				@open="$emit('open-article', article)"
 				@archive="toggleArchive(article.id)"
@@ -98,6 +99,10 @@ export default {
 	},
 
 	computed: {
+		// Archiv-Ansicht ('pages-archived' usw.): dort keine Archiv-Plakette.
+		isArchiveView() {
+			return !!this.filterCategory && this.filterCategory.endsWith('-archived')
+		},
 		emptyTitle() {
 			if (this.searchQuery.trim()) {
 				return t('merlin', 'No results for "{query}"', { query: this.searchQuery.trim() })
