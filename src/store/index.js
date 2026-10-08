@@ -384,6 +384,17 @@ export default createStore({
 			}
 		},
 
+		// Augen-Button in der Sidebar: Tag in excludedTagIds aufnehmen/entfernen.
+		// Nur diesen einen Key senden und das Ergebnis in die bestehenden
+		// Settings mergen (updateSettings würde state.settings ersetzen).
+		async toggleTagExcluded({ state, commit, getters }, tagId) {
+			const next = new Set(getters.excludedTagIdSet)
+			if (next.has(tagId)) next.delete(tagId)
+			else next.add(tagId)
+			const response = await settingsAPI.updateSettings({ excludedTagIds: JSON.stringify([...next]) })
+			commit('SET_SETTINGS', { ...state.settings, ...(response && response.settings) })
+		},
+
 		async pollForUpdates({ state, commit }) {
 			try {
 				const counts = await articlesAPI.getCounts()

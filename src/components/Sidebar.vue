@@ -5,6 +5,7 @@
 			<div class="sidebar-new-article">
 				<NcButton
 					variant="primary"
+					wide
 					class="new-article-btn"
 					@click="$emit('add-article')">
 					<template #icon>
@@ -48,95 +49,97 @@
 				</template>
 			</NcAppNavigationItem>
 
-			<NcAppNavigationSpacer />
-
 			<template v-if="tags.length">
-				<!-- Tags caption with count -->
-				<li class="tags-caption-row app-navigation-caption">
-					<span class="tags-caption-label">{{ t('merlin', 'Tags') }}</span>
-					<span class="tags-caption-count">{{ tags.length }}</span>
+				<NcAppNavigationCaption :name="t('merlin', 'Tags')" />
+
+				<!-- Tag search: only worth it once the list is long enough to collapse -->
+				<li v-if="tags.length > collapsedRestLimit" class="tags-search-row">
+					<NcTextField
+						v-model="tagQuery"
+						:label="t('merlin', 'Filter tags…')"
+						:show-trailing-button="tagQuery !== ''"
+						:trailing-button-label="t('merlin', 'Clear search')"
+						@trailing-button-click="tagQuery = ''"
+						@keydown.escape="tagQuery = ''">
+						<template #icon>
+							<Magnify :size="20" />
+						</template>
+					</NcTextField>
 				</li>
 
-				<!-- Tag search -->
-				<li class="tags-search-row">
-					<label class="tags-search">
-						<Magnify :size="16" class="tags-search-icon" />
-						<input
-							v-model="tagQuery"
-							type="text"
-							:placeholder="t('merlin', 'Filter tags…')"
-							class="tags-search-input"
-							@keydown.escape="tagQuery = ''">
-						<button
-							v-if="tagQuery"
-							type="button"
-							class="tags-search-clear"
-							:aria-label="t('merlin', 'Clear search')"
-							@click="tagQuery = ''">
-							<Close :size="14" />
-						</button>
-					</label>
-				</li>
-
-				<!-- Tags -->
-				<li v-if="visibleTags.length" class="tag-chips">
-					<span
-						v-for="tag in visibleTags"
-						:key="tag.id"
-						class="tag-chip"
-						:class="{ 'is-active': currentTagId === tag.id }">
-						<button
-							type="button"
-							class="tag-chip-main"
-							:title="tag.name"
-							@click="$emit('filter-tag', tag.id)">
-							<span class="tag-chip-dot" :style="{ backgroundColor: tag.color }" />
-							<span class="tag-chip-label">{{ tag.name }}</span>
-							<span v-if="tag.count != null" class="tag-chip-count">{{ tag.count }}</span>
-						</button>
-						<NcActions
-							class="tag-chip-actions"
-							:force-menu="true">
-							<NcActionButton @click="$emit('delete-tag', tag.id)">
-								<template #icon>
-									<TrashCanOutline :size="20" />
-								</template>
-								{{ t('merlin', 'Delete tag') }}
-							</NcActionButton>
-						</NcActions>
-					</span>
-				</li>
+				<!-- Tags: same rows as the views above (colored dot instead of an
+				     icon, counter bubble). Eye and trash sit inline next to each tag;
+				     hidden tags (excludedTagIds, also editable in Settings) are dimmed. -->
+				<NcAppNavigationItem
+					v-for="tag in visibleTags"
+					:key="tag.id"
+					:class="{ 'is-hidden-tag': isTagHidden(tag.id) }"
+					:name="tag.name"
+					:active="currentTagId === tag.id"
+					:inline-actions="2"
+					@click="$emit('filter-tag', tag.id)">
+					<template #icon>
+						<span class="tag-dot" :style="{ backgroundColor: tag.color }" />
+					</template>
+					<template v-if="tag.count != null" #counter>
+						<NcCounterBubble :count="tag.count" />
+					</template>
+					<template #actions>
+						<NcActionButton
+							:aria-label="isTagHidden(tag.id) ? t('merlin', 'Show tag') : t('merlin', 'Hide tag')"
+							:title="isTagHidden(tag.id) ? t('merlin', 'Show tag') : t('merlin', 'Hide tag')"
+							@click="$emit('toggle-tag-hidden', tag.id)">
+							<template #icon>
+								<EyeOffOutline v-if="isTagHidden(tag.id)" :size="20" />
+								<EyeOutline v-else :size="20" />
+							</template>
+							{{ isTagHidden(tag.id) ? t('merlin', 'Show tag') : t('merlin', 'Hide tag') }}
+						</NcActionButton>
+						<NcActionButton
+							:aria-label="t('merlin', 'Delete tag')"
+							:title="t('merlin', 'Delete tag')"
+							@click="$emit('delete-tag', tag.id)">
+							<template #icon>
+								<TrashCanOutline :size="20" />
+							</template>
+							{{ t('merlin', 'Delete tag') }}
+						</NcActionButton>
+					</template>
+				</NcAppNavigationItem>
 
 				<!-- Show all / less toggle -->
-				<li v-if="!tagQuery && filteredTags.length > collapsedRestLimit" class="tags-show-all-row">
-					<button
-						type="button"
-						class="tags-show-all-btn"
-						@click="showAllTags = !showAllTags">
-						<ChevronDown v-if="showAllTags" :size="12" />
-						<ChevronRight v-else :size="12" />
-						<span v-if="showAllTags">{{ t('merlin', 'Show less') }}</span>
-						<span v-else>{{ n('merlin', 'Show all {count} tag', 'Show all {count} tags', filteredTags.length, { count: filteredTags.length }) }}</span>
-					</button>
-				</li>
+				<NcAppNavigationItem
+					v-if="!tagQuery && filteredTags.length > collapsedRestLimit"
+					class="tags-show-all"
+					:name="showAllTags
+						? t('merlin', 'Show less')
+						: n('merlin', 'Show all {count} tag', 'Show all {count} tags', filteredTags.length, { count: filteredTags.length })"
+					@click="showAllTags = !showAllTags">
+					<template #icon>
+						<ChevronUp v-if="showAllTags" :size="20" />
+						<ChevronDown v-else :size="20" />
+					</template>
+				</NcAppNavigationItem>
 
 				<!-- Empty state -->
 				<li v-if="tagQuery && filteredTags.length === 0" class="tags-empty">
 					{{ t('merlin', 'No tags matching "{query}"', { query: tagQuery }) }}
 				</li>
 			</template>
+		</template>
 
-			<NcAppNavigationSpacer />
-
-			<!-- Settings -->
-			<NcAppNavigationItem
-				:name="t('merlin', 'Settings')"
-				:active="view === 'settings'"
-				@click="$emit('open-settings')">
-				<template #icon>
-					<Cog :size="20" />
-				</template>
-			</NcAppNavigationItem>
+		<!-- Settings pinned to the bottom like in other Nextcloud apps -->
+		<template #footer>
+			<ul class="sidebar-footer">
+				<NcAppNavigationItem
+					:name="t('merlin', 'Settings')"
+					:active="view === 'settings'"
+					@click="$emit('open-settings')">
+					<template #icon>
+						<Cog :size="20" />
+					</template>
+				</NcAppNavigationItem>
+			</ul>
 		</template>
 	</NcAppNavigation>
 </template>
@@ -144,12 +147,12 @@
 <script>
 import {
 	NcAppNavigation,
+	NcAppNavigationCaption,
 	NcAppNavigationItem,
-	NcAppNavigationSpacer,
 	NcButton,
 	NcCounterBubble,
-	NcActions,
 	NcActionButton,
+	NcTextField,
 } from '@nextcloud/vue'
 
 import InboxOutline from 'vue-material-design-icons/InboxOutline.vue'
@@ -160,10 +163,11 @@ import TrashCanOutline from 'vue-material-design-icons/TrashCanOutline.vue'
 import PlayCircleOutline from 'vue-material-design-icons/PlayCircleOutline.vue'
 import Headphones from 'vue-material-design-icons/Headphones.vue'
 import Cog from 'vue-material-design-icons/Cog.vue'
+import EyeOutline from 'vue-material-design-icons/EyeOutline.vue'
+import EyeOffOutline from 'vue-material-design-icons/EyeOffOutline.vue'
 import Magnify from 'vue-material-design-icons/Magnify.vue'
-import Close from 'vue-material-design-icons/Close.vue'
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue'
-import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
+import ChevronUp from 'vue-material-design-icons/ChevronUp.vue'
 
 /**
  * Media type ('pages' | 'videos' | 'audio') of a filter such as 'audio-favorites'.
@@ -181,12 +185,12 @@ export default {
 
 	components: {
 		NcAppNavigation,
+		NcAppNavigationCaption,
 		NcAppNavigationItem,
-		NcAppNavigationSpacer,
 		NcButton,
 		NcCounterBubble,
-		NcActions,
 		NcActionButton,
+		NcTextField,
 		InboxOutline,
 		Star,
 		Archive,
@@ -195,10 +199,11 @@ export default {
 		PlayCircleOutline,
 		Headphones,
 		Cog,
+		EyeOutline,
+		EyeOffOutline,
 		Magnify,
-		Close,
 		ChevronDown,
-		ChevronRight,
+		ChevronUp,
 	},
 
 	props: {
@@ -217,6 +222,11 @@ export default {
 		currentTagId: {
 			type: [Number, String],
 			default: null,
+		},
+		// Ids of tags hidden from the article list (setting excludedTagIds).
+		hiddenTagIds: {
+			type: Set,
+			default: () => new Set(),
 		},
 		// Which main view is active ('list' | 'reader' | 'settings'). Used to
 		// highlight the Settings entry, since opening Settings clears
@@ -237,6 +247,7 @@ export default {
 		'filter',
 		'filter-tag',
 		'delete-tag',
+		'toggle-tag-hidden',
 		'open-settings',
 	],
 
@@ -254,6 +265,12 @@ export default {
 		currentFilter(filter) {
 			const group = groupOf(filter)
 			if (group) this.menuGroup = group
+		},
+	},
+
+	methods: {
+		isTagHidden(tagId) {
+			return this.hiddenTagIds.has(tagId)
 		},
 	},
 
@@ -299,264 +316,103 @@ export default {
 </script>
 
 <style scoped>
+/* All custom rows share the inset of NcAppNavigationItem (the list already
+   pads by --app-navigation-padding), its height and its corner radius, so
+   button, tabs, views and tags line up on the same edges. */
+
 .sidebar-new-article {
-	display: flex;
-	justify-content: center;
 	box-sizing: border-box;
 	width: 100%;
-	padding: 8px 12px 4px;
+	padding-bottom: calc(var(--default-grid-baseline, 4px) * 2);
 	list-style: none;
 }
 
 .new-article-btn {
 	width: 100%;
-	max-width: 100%;
-	justify-content: center;
-}
-
-.new-article-btn :deep(.button-vue__wrapper) {
-	justify-content: center;
 }
 
 /* ── Media type tabs (Text/Video/Audio) ───────────────────────────── */
 .media-tabs-row {
 	list-style: none;
-	padding: 8px 12px 6px;
+	padding-bottom: var(--default-grid-baseline, 4px);
 }
 
 .media-tabs {
 	display: flex;
 	gap: 2px;
 	padding: 2px;
-	border-radius: var(--border-radius-large, 10px);
-	background: var(--color-background-hover);
+	border-radius: var(--border-radius-element, 8px);
+	background: var(--color-primary-element-light);
 }
 
 .media-tab {
 	flex: 1;
 	min-width: 0;
-	min-height: 30px;
+	height: calc(var(--default-clickable-area, 34px) - 4px);
+	min-height: 0;
 	margin: 0;
 	padding: 0 8px;
 	border: none;
-	border-radius: calc(var(--border-radius-large, 10px) - 2px);
+	border-radius: calc(var(--border-radius-element, 8px) - 2px);
 	background: transparent;
 	font: inherit;
-	font-size: 13px;
-	color: var(--color-main-text);
+	color: var(--color-primary-element-light-text);
 	cursor: pointer;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	transition: background 120ms;
+	transition: background var(--animation-quick, 100ms), color var(--animation-quick, 100ms);
 }
 
 .media-tab:hover {
-	background: var(--color-background-dark);
+	background: var(--color-primary-element-light-hover);
 }
 
+.media-tab:focus-visible {
+	outline: 2px solid var(--color-primary-element);
+	outline-offset: 2px;
+}
+
+/* Selected tab in the Nextcloud theme color, like the primary button above */
 .media-tab.is-active {
-	background: var(--color-main-background);
-	font-weight: 600;
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+	background: var(--color-primary-element);
+	color: var(--color-primary-element-text);
+	font-weight: bold;
 }
 
-/* ── Tags caption ─────────────────────────────────────────────────── */
-.tags-caption-row {
-	display: flex;
-	align-items: center;
-	padding: 4px 12px;
-	min-height: 34px;
-	list-style: none;
-	gap: 6px;
-}
-
-.tags-caption-label {
-	flex: 1;
-	font-size: 11px;
-	font-weight: 600;
-	color: var(--color-text-maxcontrast);
-	text-transform: uppercase;
-	letter-spacing: 0.05em;
-}
-
-.tags-caption-count {
-	font-size: 11px;
-	color: var(--color-text-maxcontrast);
-	opacity: 0.7;
-}
-
-/* ── Tag search ───────────────────────────────────────────────────── */
+/* ── Tags ─────────────────────────────────────────────────────────── */
 .tags-search-row {
 	list-style: none;
-	padding: 0 8px 8px;
+	padding-bottom: var(--default-grid-baseline, 4px);
 }
 
-.tags-search {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	height: 28px;
-	padding: 0 8px;
-	border-radius: var(--border-radius-pill, 999px);
-	background: var(--color-background-hover);
-	border: none;
-	color: var(--color-text-maxcontrast);
-	transition: color 120ms;
-}
-
-.tags-search:focus-within {
-	color: var(--color-main-text);
-}
-
-.tags-search-icon {
-	flex-shrink: 0;
-}
-
-.tags-search-input {
-	flex: 1;
-	min-width: 0;
-	border: none;
-	outline: none;
-	background: transparent;
-	font-size: 13px;
-	font-family: inherit;
-	color: inherit;
-	padding: 0;
-}
-
-.tags-search-clear {
-	border: none;
-	background: transparent;
-	color: var(--color-text-maxcontrast);
-	cursor: pointer;
-	padding: 0;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.tags-search-clear:hover {
-	color: var(--color-main-text);
-}
-
-/* ── Tag chips ────────────────────────────────────────────────────── */
-.tag-chips {
-	list-style: none;
-	display: flex;
-	flex-wrap: wrap;
-	gap: 6px;
-	padding: 4px 12px 8px;
-}
-
-/* Wrapper is a non-interactive element: the clickable filter surface is the
-   nested .tag-chip-main <button>, and NcActions renders its own <button> as
-   a sibling. Nesting a real <button> (NcActions) inside another <button>
-   used to happen here — invalid HTML that breaks keyboard/screen-reader
-   semantics. */
-.tag-chip {
-	display: inline-flex;
-	align-items: center;
-	height: 28px;
-	max-width: 100%;
-	padding: 0 4px 0 0;
-	border-radius: var(--border-radius-pill, 999px);
-	background: var(--color-background-hover);
-	border: 1px solid transparent;
-	white-space: nowrap;
-	transition: background 120ms, border-color 120ms;
-}
-
-.tag-chip:hover {
-	background: var(--color-background-dark);
-}
-
-.tag-chip.is-active {
-	background: var(--color-primary-element-light, rgba(0, 130, 201, 0.1));
-	border-color: var(--color-primary-element);
-	color: var(--color-primary-element);
-	font-weight: 600;
-}
-
-.tag-chip-main {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	height: 100%;
-	min-width: 0;
-	max-width: 100%;
-	padding: 0 4px 0 10px;
-	border: none;
-	background: transparent;
-	font: inherit;
-	font-size: 12px;
-	color: inherit;
-	cursor: pointer;
-}
-
-.tag-chip-dot {
-	display: inline-block;
-	width: 8px;
-	height: 8px;
+/* Colored dot in the 20px icon box, same size as NcAppNavigationIconBullet */
+.tag-dot {
+	display: block;
+	width: 14px;
+	height: 14px;
+	margin: 3px;
 	border-radius: 50%;
-	flex-shrink: 0;
 }
 
-.tag-chip-label {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	max-width: 160px;
+/* Hidden tags stay listed (so they can be shown again) but are dimmed */
+.is-hidden-tag :deep(.app-navigation-entry__name),
+.is-hidden-tag .tag-dot {
+	opacity: 0.5;
 }
 
-.tag-chip-count {
-	font-size: 11px;
+.tags-show-all :deep(.app-navigation-entry__name) {
 	color: var(--color-text-maxcontrast);
-	font-weight: 500;
 }
 
-.tag-chip-actions {
-	margin-inline-start: 2px;
-	opacity: 0;
-	transition: opacity 100ms;
-}
-
-.tag-chip:hover .tag-chip-actions,
-.tag-chip:focus-within .tag-chip-actions {
-	opacity: 1;
-}
-
-/* ── Show all toggle ──────────────────────────────────────────────── */
-.tags-show-all-row {
-	list-style: none;
-	padding: 2px 12px 8px;
-}
-
-.tags-show-all-btn {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	font-size: 11px;
-	color: var(--color-text-maxcontrast);
-	cursor: pointer;
-	background: none;
-	border: none;
-	padding: 6px 4px;
-	font-family: inherit;
-	text-transform: uppercase;
-	letter-spacing: 0.05em;
-	font-weight: 600;
-}
-
-.tags-show-all-btn:hover {
-	color: var(--color-main-text);
-}
-
-/* ── Empty state ──────────────────────────────────────────────────── */
 .tags-empty {
 	list-style: none;
-	padding: 12px 14px;
+	padding: var(--default-grid-baseline, 4px) calc(var(--default-grid-baseline, 4px) * 3);
 	color: var(--color-text-maxcontrast);
-	font-size: 12px;
-	font-style: italic;
+}
+
+/* ── Footer ───────────────────────────────────────────────────────── */
+.sidebar-footer {
+	padding: var(--app-navigation-padding, 8px);
 }
 </style>
