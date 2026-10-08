@@ -9,7 +9,9 @@
 	         @add-article="showAddArticleDialog = true"
 	         @filter="setFilter"
 	         @filter-tag="filterByTag"
+	         :hidden-tag-ids="excludedTagIdSet"
 	         @delete-tag="handleDeleteTag"
+	         @toggle-tag-hidden="toggleTagExcluded"
 	         @open-settings="openSettings"
 		/>
 
@@ -93,7 +95,7 @@ export default {
 
 	computed: {
 		...mapState(['articles', 'counts', 'tags', 'currentArticle', 'loading', 'view', 'settings']),
-		...mapGetters(['filteredArticles']),
+		...mapGetters(['filteredArticles', 'excludedTagIdSet']),
 	},
 
 	mounted() {
@@ -148,7 +150,7 @@ export default {
 	},
 
 	methods: {
-		...mapActions(['fetchArticles', 'fetchCounts', 'fetchTags', 'fetchSettings', 'fetchLoginCapableDomains', 'deleteArticle', 'deleteTag', 'pollForUpdates']),
+		...mapActions(['fetchArticles', 'fetchCounts', 'fetchTags', 'fetchSettings', 'fetchLoginCapableDomains', 'deleteArticle', 'deleteTag', 'toggleTagExcluded', 'pollForUpdates']),
 		...mapMutations(['SET_FILTER', 'RESET_FILTER', 'SET_VIEW', 'SET_CURRENT_ARTICLE', 'SET_SETTINGS']),
 
 		async loadData() {

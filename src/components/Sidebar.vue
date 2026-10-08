@@ -5,6 +5,7 @@
 			<div class="sidebar-new-article">
 				<NcButton
 					variant="primary"
+					wide
 					class="new-article-btn"
 					@click="$emit('add-article')">
 					<template #icon>
@@ -67,13 +68,15 @@
 				</li>
 
 				<!-- Tags: same rows as the views above (colored dot instead of an
-				     icon, counter bubble, actions menu on hover) -->
+				     icon, counter bubble). Eye and trash sit inline next to each tag;
+				     hidden tags (excludedTagIds, also editable in Settings) are dimmed. -->
 				<NcAppNavigationItem
 					v-for="tag in visibleTags"
 					:key="tag.id"
+					:class="{ 'is-hidden-tag': isTagHidden(tag.id) }"
 					:name="tag.name"
 					:active="currentTagId === tag.id"
-					:force-menu="true"
+					:inline-actions="2"
 					@click="$emit('filter-tag', tag.id)">
 					<template #icon>
 						<span class="tag-dot" :style="{ backgroundColor: tag.color }" />
@@ -82,7 +85,20 @@
 						<NcCounterBubble :count="tag.count" />
 					</template>
 					<template #actions>
-						<NcActionButton @click="$emit('delete-tag', tag.id)">
+						<NcActionButton
+							:aria-label="isTagHidden(tag.id) ? t('merlin', 'Show tag') : t('merlin', 'Hide tag')"
+							:title="isTagHidden(tag.id) ? t('merlin', 'Show tag') : t('merlin', 'Hide tag')"
+							@click="$emit('toggle-tag-hidden', tag.id)">
+							<template #icon>
+								<EyeOffOutline v-if="isTagHidden(tag.id)" :size="20" />
+								<EyeOutline v-else :size="20" />
+							</template>
+							{{ isTagHidden(tag.id) ? t('merlin', 'Show tag') : t('merlin', 'Hide tag') }}
+						</NcActionButton>
+						<NcActionButton
+							:aria-label="t('merlin', 'Delete tag')"
+							:title="t('merlin', 'Delete tag')"
+							@click="$emit('delete-tag', tag.id)">
 							<template #icon>
 								<TrashCanOutline :size="20" />
 							</template>
@@ -147,6 +163,8 @@ import TrashCanOutline from 'vue-material-design-icons/TrashCanOutline.vue'
 import PlayCircleOutline from 'vue-material-design-icons/PlayCircleOutline.vue'
 import Headphones from 'vue-material-design-icons/Headphones.vue'
 import Cog from 'vue-material-design-icons/Cog.vue'
+import EyeOutline from 'vue-material-design-icons/EyeOutline.vue'
+import EyeOffOutline from 'vue-material-design-icons/EyeOffOutline.vue'
 import Magnify from 'vue-material-design-icons/Magnify.vue'
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue'
 import ChevronUp from 'vue-material-design-icons/ChevronUp.vue'
@@ -181,6 +199,8 @@ export default {
 		PlayCircleOutline,
 		Headphones,
 		Cog,
+		EyeOutline,
+		EyeOffOutline,
 		Magnify,
 		ChevronDown,
 		ChevronUp,
@@ -203,6 +223,11 @@ export default {
 			type: [Number, String],
 			default: null,
 		},
+		// Ids of tags hidden from the article list (setting excludedTagIds).
+		hiddenTagIds: {
+			type: Set,
+			default: () => new Set(),
+		},
 		// Which main view is active ('list' | 'reader' | 'settings'). Used to
 		// highlight the Settings entry, since opening Settings clears
 		// currentFilter rather than setting it to 'settings'.
@@ -222,6 +247,7 @@ export default {
 		'filter',
 		'filter-tag',
 		'delete-tag',
+		'toggle-tag-hidden',
 		'open-settings',
 	],
 
@@ -239,6 +265,12 @@ export default {
 		currentFilter(filter) {
 			const group = groupOf(filter)
 			if (group) this.menuGroup = group
+		},
+	},
+
+	methods: {
+		isTagHidden(tagId) {
+			return this.hiddenTagIds.has(tagId)
 		},
 	},
 
@@ -310,7 +342,7 @@ export default {
 	gap: 2px;
 	padding: 2px;
 	border-radius: var(--border-radius-element, 8px);
-	background: var(--color-background-dark);
+	background: var(--color-primary-element-light);
 }
 
 .media-tab {
@@ -324,7 +356,7 @@ export default {
 	border-radius: calc(var(--border-radius-element, 8px) - 2px);
 	background: transparent;
 	font: inherit;
-	color: var(--color-text-maxcontrast);
+	color: var(--color-primary-element-light-text);
 	cursor: pointer;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -333,19 +365,19 @@ export default {
 }
 
 .media-tab:hover {
-	color: var(--color-main-text);
+	background: var(--color-primary-element-light-hover);
 }
 
 .media-tab:focus-visible {
-	outline: 2px solid var(--color-main-text);
-	outline-offset: -2px;
+	outline: 2px solid var(--color-primary-element);
+	outline-offset: 2px;
 }
 
+/* Selected tab in the Nextcloud theme color, like the primary button above */
 .media-tab.is-active {
-	background: var(--color-main-background);
-	color: var(--color-main-text);
+	background: var(--color-primary-element);
+	color: var(--color-primary-element-text);
 	font-weight: bold;
-	box-shadow: 0 1px 2px var(--color-box-shadow, rgba(77, 77, 77, 0.5));
 }
 
 /* ── Tags ─────────────────────────────────────────────────────────── */
@@ -361,6 +393,12 @@ export default {
 	height: 14px;
 	margin: 3px;
 	border-radius: 50%;
+}
+
+/* Hidden tags stay listed (so they can be shown again) but are dimmed */
+.is-hidden-tag :deep(.app-navigation-entry__name),
+.is-hidden-tag .tag-dot {
+	opacity: 0.5;
 }
 
 .tags-show-all :deep(.app-navigation-entry__name) {

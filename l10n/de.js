@@ -107,6 +107,8 @@ OC.L10N.register(
     "Delete own rules" : "Eigene Regeln löschen",
     "Delete rule" : "Regel löschen",
     "Delete tag" : "Tag löschen",
+    "Hide tag" : "Tag ausblenden",
+    "Show tag" : "Tag einblenden",
     "Delete this comment?" : "Diesen Kommentar löschen?",
     "Delete your own rules for {domain}? Built-in and admin rules stay in place." : "Deine eigenen Regeln für {domain} löschen? Vordefinierte und Admin-Regeln bleiben bestehen.",
     "Delete your own rules for {domain}? The built-in filter stays in place." : "Deine eigenen Regeln für {domain} löschen? Der vordefinierte Filter bleibt bestehen.",

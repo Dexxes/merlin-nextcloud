@@ -184,7 +184,6 @@ export default {
 	align-items: center;
 	gap: 8px;
 	height: 36px;
-	max-width: 400px;
 	padding: 0 12px;
 	border-radius: var(--border-radius-pill, 999px);
 	background: var(--color-background-hover);
@@ -227,12 +226,6 @@ export default {
 
 .article-search-clear:hover {
 	color: var(--color-main-text);
-}
-
-@media (max-width: 768px) {
-	.article-search-field {
-		max-width: none;
-	}
 }
 
 .articles-grid {

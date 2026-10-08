@@ -23,8 +23,11 @@ All notable changes to Merlin are documented here. Format based on
   are listed instead of all three groups at once. The tab follows the active
   view; switching tabs loads nothing until a view is clicked.
 - Sidebar: one consistent look. Tags are now regular navigation rows like
-  the views above (colored dot, counter bubble, "Delete tag" in the "…"
-  menu) instead of pills, the tag filter uses the standard Nextcloud text
+  the views above (colored dot, counter bubble) instead of pills, each with
+  an eye button to hide or show the tag (same setting as "Excluded tags" in
+  Settings; hidden tags are dimmed) and a trash button to delete it. The
+  Text/Video/Audio tabs use the Nextcloud theme color, "Add article" and the
+  article search span the full width, the tag filter uses the standard Nextcloud text
   field and only appears once there are more tags than fit collapsed, and
   "Settings" is pinned to the bottom. Button, tabs and rows share the same
   edges, heights and corner radius.
