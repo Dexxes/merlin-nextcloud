@@ -563,13 +563,16 @@ export default {
 
 /* Inline buttons (eye, trash) and the "…" menu toggle of a tag stay without
    background on hover, click and while the menu is open; only the icon
-   shows the interaction. Nextcloud sets these backgrounds with !important. */
-.tag-row :deep(.app-navigation-entry__actions .button-vue),
-.tag-row :deep(.app-navigation-entry__actions .button-vue:hover),
-.tag-row :deep(.app-navigation-entry__actions .button-vue:active),
-.tag-row :deep(.app-navigation-entry__actions .button-vue:focus-visible),
-.tag-row :deep(.app-navigation-entry__actions:hover .button-vue),
-.tag-row :deep(.action-item--open .action-item__menutoggle) {
+   shows the interaction. Nextcloud sets these backgrounds with !important
+   (hovering the action area greys all buttons), so the doubled class wins
+   on specificity regardless of stylesheet order. */
+.tag-row.tag-row :deep(.app-navigation-entry .app-navigation-entry__actions .button-vue),
+.tag-row.tag-row :deep(.app-navigation-entry .app-navigation-entry__actions .button-vue:hover),
+.tag-row.tag-row :deep(.app-navigation-entry .app-navigation-entry__actions .button-vue:active),
+.tag-row.tag-row :deep(.app-navigation-entry .app-navigation-entry__actions .button-vue:focus-visible),
+.tag-row.tag-row :deep(.app-navigation-entry .app-navigation-entry__actions:hover .button-vue),
+.tag-row.tag-row :deep(.app-navigation-entry.active .app-navigation-entry__actions:hover .button-vue),
+.tag-row.tag-row :deep(.app-navigation-entry .action-item--open .action-item__menutoggle) {
 	background-color: transparent !important;
 }
 
