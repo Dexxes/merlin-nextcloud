@@ -22,6 +22,12 @@ All notable changes to Merlin are documented here. Format based on
   below them only the Unread/Favorites/Archived views of the selected type
   are listed instead of all three groups at once. The tab follows the active
   view; switching tabs loads nothing until a view is clicked.
+- Sidebar: one consistent look. Tags are now regular navigation rows like
+  the views above (colored dot, counter bubble, "Delete tag" in the "…"
+  menu) instead of pills, the tag filter uses the standard Nextcloud text
+  field and only appears once there are more tags than fit collapsed, and
+  "Settings" is pinned to the bottom. Button, tabs and rows share the same
+  edges, heights and corner radius.
 - Reader and public share links: the outlet's domain (e.g. "taz.de") now sits
   as a kicker above the headline, styled like the topline in the iOS reader,
   in the user's accent color (on share links the owner's) and linked to the
