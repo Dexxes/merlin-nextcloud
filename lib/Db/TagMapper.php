@@ -50,6 +50,51 @@ class TagMapper extends QBMapper {
 	}
 
 	/**
+	 * Baumstruktur der Tags eines Nutzers für Service\TagTree.
+	 *
+	 * @return array<int, ?int> id => parentId (null = oberste Ebene)
+	 */
+	public function findParentMap(string $userId): array {
+		$qb = $this->db->getQueryBuilder();
+
+		$qb->select('id', 'parent_id')
+			->from($this->getTableName())
+			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)));
+
+		$parents = [];
+		$result = $qb->executeQuery();
+		while ($row = $result->fetch()) {
+			$parents[(int) $row['id']] = $row['parent_id'] === null ? null : (int) $row['parent_id'];
+		}
+		$result->closeCursor();
+
+		return $parents;
+	}
+
+	/**
+	 * Löscht Tags samt ihren Artikel-Zuordnungen (die Artikel bleiben).
+	 *
+	 * @param int[] $tagIds
+	 */
+	public function deleteWithLinks(array $tagIds, string $userId): void {
+		if ($tagIds === []) {
+			return;
+		}
+		foreach (array_chunk($tagIds, 500) as $chunk) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete('merlin_article_tags')
+				->where($qb->expr()->in('tag_id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)));
+			$qb->executeStatement();
+
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete($this->getTableName())
+				->where($qb->expr()->in('id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)))
+				->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)));
+			$qb->executeStatement();
+		}
+	}
+
+	/**
 	 * @param int $articleId
 	 * @return Tag[]
 	 */

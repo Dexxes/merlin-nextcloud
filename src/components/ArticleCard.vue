@@ -74,6 +74,7 @@
 					v-for="tag in article.tags"
 					:key="tag.id"
 					class="tag"
+					:title="tagPath(allTags, tag)"
 					:style="{ backgroundColor: tag.color }">
 					{{ tag.name }}
 				</span>
@@ -180,9 +181,11 @@
 							<span>{{ t('merlin', 'No tags defined yet') }}</span>
 						</li>
 
+						<!-- Sub-tags indented below their parent (nested tags) -->
 						<li
-							v-for="tag in allTags"
+							v-for="{ tag, depth } in tagRows"
 							:key="tag.id"
+							:style="depth ? { paddingInlineStart: `${12 + depth * 16}px` } : null"
 							@click="handleTagToggle(tag)">
 							<span class="ctx-tag-dot" :style="{ backgroundColor: tag.color }" />
 							<span class="ctx-tag-name">{{ tag.name }}</span>
@@ -197,6 +200,18 @@
 								type="text"
 								:placeholder="t('merlin', 'New tag…')"
 								@keyup.enter="createAndAssignTag" />
+							<!-- Optional parent: the new tag becomes its sub-tag -->
+							<label v-if="allTags.length" class="ctx-tag-new-parent">
+								<span>{{ t('merlin', 'Below') }}</span>
+								<select v-model="newTagParentId" class="ctx-tag-new-input">
+									<option :value="null">
+										{{ t('merlin', 'Top level') }}
+									</option>
+									<option v-for="{ tag, depth } in tagRows" :key="tag.id" :value="tag.id">
+										{{ '\u00a0\u00a0\u00a0'.repeat(depth) + tag.name }}
+									</option>
+								</select>
+							</label>
 							<div class="ctx-tag-new-row">
 								<div class="ctx-tag-new-swatches">
 									<span
@@ -274,6 +289,7 @@ import ArchiveArrowUp from 'vue-material-design-icons/ArchiveArrowUp.vue'
 import Star from 'vue-material-design-icons/Star.vue'
 import StarOutline from 'vue-material-design-icons/StarOutline.vue'
 import Tag from 'vue-material-design-icons/Tag.vue'
+import { flattenTree, tagPath } from '../tag-tree'
 import Check from 'vue-material-design-icons/Check.vue'
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
 import Lock from 'vue-material-design-icons/Lock.vue'
@@ -336,6 +352,7 @@ export default {
 			subMenu: null, // null | 'share' | 'tags'
 			newTagName: '',
 			newTagColor: TAG_COLORS[5], // blue default
+			newTagParentId: null, // parent of a new tag; null = top level
 			tagColors: TAG_COLORS,
 			hasNativeShare: typeof navigator !== 'undefined' && !!navigator.share,
 			reportDialog: {
@@ -371,6 +388,11 @@ export default {
 			return this.$store.state.tags || []
 		},
 
+		// All tags in tree order with depth, for the indented picker.
+		tagRows() {
+			return flattenTree(this.allTags)
+		},
+
 		// URL aus den Merlin-Settings, gespeichert per SettingsController
 		reportBackendUrl() {
 			return (this.$store.state.settings?.reportBackendUrl || '').trim()
@@ -389,6 +411,8 @@ export default {
 	},
 
 	methods: {
+		tagPath,
+
 		formatDate(dateString) {
 			const date = new Date(dateString)
 			return new Intl.DateTimeFormat('default', {
@@ -499,7 +523,7 @@ export default {
 			const name = this.newTagName.trim()
 			if (!name) return
 			try {
-				const tag = await this.$store.dispatch('addTag', { name, color: this.newTagColor })
+				const tag = await this.$store.dispatch('addTag', { name, color: this.newTagColor, parentId: this.newTagParentId })
 				await this.$store.dispatch('addTagToArticle', { articleId: this.article.id, tagId: tag.id })
 				this.newTagName = ''
 			} catch (error) {
@@ -924,6 +948,19 @@ body[data-theme-dark-highcontrast] .article-context-menu li.context-menu-item--d
 	color: var(--color-main-text);
 	outline: none;
 	box-sizing: border-box;
+}
+
+.article-context-menu .ctx-tag-new-parent {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 0.85em;
+	color: var(--color-text-maxcontrast);
+}
+
+.article-context-menu .ctx-tag-new-parent select {
+	flex: 1;
+	min-width: 0;
 }
 
 .article-context-menu .ctx-tag-new-input:focus {

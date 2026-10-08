@@ -7,6 +7,7 @@ namespace OCA\Merlin\Controller;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Db\Tag;
 use OCA\Merlin\Db\TagMapper;
+use OCA\Merlin\Service\TagTree;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -71,12 +72,19 @@ class TagController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function create(string $name, ?string $color = null): DataResponse {
+	public function create(string $name, ?string $color = null, ?int $parentId = null): DataResponse {
 		try {
+			// Nested tags: parentId null/0 = top level, otherwise one of the user's tags.
+			$parentId = ($parentId !== null && $parentId > 0) ? $parentId : null;
+			if ($parentId !== null) {
+				$this->tagMapper->find($parentId, $this->userId);
+			}
+
 			$tag = new Tag();
 			$tag->setUserId($this->userId);
 			$tag->setName($name);
 			$tag->setColor($color ?? '#0082c9');
+			$tag->setParentId($parentId);
 			$tag->setCreatedAt(new \DateTime());
 
 			$savedTag = $this->tagMapper->insert($tag);
@@ -96,10 +104,31 @@ class TagController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function update(int $id, ?string $name = null, ?string $color = null): DataResponse {
+	public function update(int $id, ?string $name = null, ?string $color = null, ?int $parentId = null): DataResponse {
 		try {
 			$tag = $this->tagMapper->find($id, $this->userId);
+		} catch (\Exception $e) {
+			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
+		}
 
+		// Move: parentId 0 = top level, null = leave as is. Neither the tag
+		// itself nor one of its descendants may become its parent.
+		if ($parentId !== null) {
+			$newParent = $parentId > 0 ? $parentId : null;
+			try {
+				if ($newParent !== null) {
+					$this->tagMapper->find($newParent, $this->userId);
+				}
+			} catch (\Exception $e) {
+				return new DataResponse(['error' => 'Parent tag not found'], Http::STATUS_BAD_REQUEST);
+			}
+			if (!TagTree::canMove($this->tagMapper->findParentMap($this->userId), $id, $newParent)) {
+				return new DataResponse(['error' => 'A tag cannot be moved below itself or one of its sub-tags'], Http::STATUS_BAD_REQUEST);
+			}
+			$tag->setParentId($newParent);
+		}
+
+		try {
 			if ($name !== null) {
 				$tag->setName($name);
 			}
@@ -111,12 +140,14 @@ class TagController extends Controller {
 
 			return new DataResponse($updatedTag->jsonSerialize());
 		} catch (\Exception $e) {
-			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
+			$this->logger->error('Merlin: tag update failed', ['exception' => $e]);
+			return new DataResponse(['error' => 'Bad request'], Http::STATUS_BAD_REQUEST);
 		}
 	}
 
 	/**
-	 * Delete tag
+	 * Delete tag together with all its sub-tags (nested tags). The articles
+	 * stay, only their tag links go. Responds with the ids of all deleted tags.
 	 *
 	 * @NoAdminRequired
 	 * @NoCSRFRequired
@@ -125,10 +156,11 @@ class TagController extends Controller {
 	#[NoCSRFRequired]
 	public function destroy(int $id): DataResponse {
 		try {
-			$tag = $this->tagMapper->find($id, $this->userId);
-			$this->tagMapper->delete($tag);
+			$this->tagMapper->find($id, $this->userId);
+			$ids = array_merge([$id], TagTree::descendantIds($this->tagMapper->findParentMap($this->userId), $id));
+			$this->tagMapper->deleteWithLinks($ids, $this->userId);
 
-			return new DataResponse(['success' => true]);
+			return new DataResponse(['success' => true, 'deletedIds' => $ids]);
 		} catch (\Exception $e) {
 			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
 		}

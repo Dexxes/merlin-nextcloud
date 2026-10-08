@@ -348,18 +348,20 @@
 				<div class="field">
 					<div class="field__label">
 						{{ t('merlin', 'Excluded tags') }}
-						<div class="field__hint">{{ t('merlin', 'Articles with an excluded tag are hidden everywhere except when filtering by that tag directly.') }}</div>
+						<div class="field__hint">{{ t('merlin', 'Articles with an excluded tag are hidden everywhere except when filtering by that tag directly.') }} {{ t('merlin', 'Excluding a tag also hides its sub-tags.') }}</div>
 					</div>
 					<div class="field__control">
 						<div class="tag-toggle-group">
+							<!-- Tree order; sub-tags show their path. Excluding a tag
+							     also hides its sub-tags. -->
 							<button
-								v-for="tag in tags"
+								v-for="{ tag } in tagRows"
 								:key="tag.id"
 								type="button"
 								:class="['tag-toggle', { 'is-excluded': isTagExcluded(tag.id) }]"
 								@click="toggleExcludedTag(tag.id)">
 								<span class="tag-toggle__dot" :style="{ backgroundColor: tag.color }" />
-								<span class="tag-toggle__label">{{ tag.name }}</span>
+								<span class="tag-toggle__label">{{ tagPath(tags, tag) }}</span>
 								<Close v-if="isTagExcluded(tag.id)" :size="12" />
 							</button>
 						</div>
@@ -561,6 +563,7 @@ import Inbox from 'vue-material-design-icons/Inbox.vue'
 import Star from 'vue-material-design-icons/Star.vue'
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
 import TagOutline from 'vue-material-design-icons/TagOutline.vue'
+import { flattenTree, tagPath } from '../tag-tree'
 import Close from 'vue-material-design-icons/Close.vue'
 import InformationOutline from 'vue-material-design-icons/InformationOutline.vue'
 import LockOutline from 'vue-material-design-icons/LockOutline.vue'
@@ -720,6 +723,10 @@ export default {
 
 	computed: {
 		...mapState(['settings', 'tags']),
+
+		tagRows() {
+			return flattenTree(this.tags)
+		},
 
 		// Zwei Fristen mit derselben Logik: normale Artikel und Favoriten. maxKey/
 		// effectiveKey sind die nur lesenden Werte aus GET /api/settings.
@@ -950,6 +957,8 @@ export default {
 				'Deleted %n days after archiving. Takes effect with the next daily cleanup.',
 				effective)
 		},
+
+		tagPath,
 
 		isTagExcluded(tagId) {
 			return this.localSettings.excludedTagIds.includes(tagId)

@@ -7,6 +7,17 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- Tags can be nested: a tag can have sub-tags, any number of levels deep.
+  The sidebar shows tags as a tree whose branches fold open and closed
+  (remembered in the browser); "Move to…" in a tag's menu puts it below
+  another tag or back on the top level, and a new tag can be created below
+  an existing one in the tag picker. Filtering by a tag also lists the
+  articles of its sub-tags, hiding a tag also hides its sub-tags, and tag
+  chips show the full path on hover. Tag names stay unique. The API adds
+  `parentId` to tags (`POST`/`PUT /api/tags`, `0` = top level), so older
+  apps keep showing a flat list (database migration 31, app 1.0.17).
+- Tags: deleting asks for confirmation first. Deleting a tag also deletes
+  all its sub-tags, which the dialog lists; the articles are kept.
 - Comments: under "All comments" the threads can be sorted by their newest
   reply, newest or oldest first, besides the order in the text. The choice is
   remembered in the browser.
