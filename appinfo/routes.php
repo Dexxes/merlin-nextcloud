@@ -28,6 +28,13 @@ return [
         ['name' => 'tts#synthesize', 'url' => '/api/articles/{id}/tts', 'verb' => 'GET'],
         ['name' => 'pdf#show',       'url' => '/api/articles/{id}/pdf', 'verb' => 'GET'],
 
+        // Dateien vom Handy in „Merlin Dateien“ (FileController, Service\MerlinFileService):
+        // Zielpfad für den WebDAV-Upload, Eintrag anlegen, Datei über signierten Link.
+        ['name' => 'file#target',   'url' => '/api/files/target',       'verb' => 'POST'],
+        ['name' => 'file#register', 'url' => '/api/files',              'verb' => 'POST'],
+        ['name' => 'file#content',  'url' => '/api/articles/{id}/file', 'verb' => 'GET'],
+        ['name' => 'file#rename',   'url' => '/api/articles/{id}/file-name', 'verb' => 'PUT'],
+
         // Audio-/Video-Quelle eines Artikels (siehe Service/Media/MediaResolverService)
         ['name' => 'media#resolve', 'url' => '/api/articles/{id}/media', 'verb' => 'GET'],
         // Veraltet, nur für bestehende Clients: altes Format, nur HLS-Video

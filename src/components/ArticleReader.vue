@@ -134,6 +134,10 @@
 						<Tag :size="16" />
 						<span>{{ t('merlin', 'Manage tags') }}</span>
 					</li>
+					<li v-if="article.fileId" role="menuitem" @click="moreMenuOpen = false; renameFile()">
+						<Pencil :size="16" />
+						<span>{{ t('merlin', 'Rename…') }}</span>
+					</li>
 					<li role="menuitem" @click="exportHtml(); moreMenuOpen = false">
 						<Download :size="16" />
 						<span>{{ t('merlin', 'Export as HTML') }}</span>
@@ -560,6 +564,8 @@ import ArchiveArrowDown from 'vue-material-design-icons/ArchiveArrowDown.vue'
 import Star from 'vue-material-design-icons/Star.vue'
 import StarOutline from 'vue-material-design-icons/StarOutline.vue'
 import Tag from 'vue-material-design-icons/Tag.vue'
+import Pencil from 'vue-material-design-icons/Pencil.vue'
+import { promptRenameFile } from '../file-rename.js'
 import { flattenTree, tagPath } from '../tag-tree'
 import Check from 'vue-material-design-icons/Check.vue'
 import Account from 'vue-material-design-icons/Account.vue'
@@ -637,6 +643,7 @@ export default {
 		Star,
 		StarOutline,
 		Tag,
+		Pencil,
 		Check,
 		Account,
 		Calendar,
@@ -1029,6 +1036,11 @@ export default {
 	},
 
 	methods: {
+		// Datei-Einträge aus „Merlin Dateien“: Datei und Titel umbenennen.
+		renameFile() {
+			promptRenameFile(this.$store, this.article)
+		},
+
 		// supportBox (Abo-/Spendenlink der Quelle, null bei aktivem Login dort) steht
 		// nur in der Einzelabruf-Antwort, nicht in der Artikelliste, mit der der
 		// Reader geöffnet wird - deshalb hier nachladen.
@@ -1910,6 +1922,43 @@ article {
 .article-body :deep(td) {
 	border: 1px solid var(--color-border);
 	padding: 0.5em 0.75em;
+}
+
+/* Metadaten unter Dateien aus „Merlin Dateien“ (MerlinFileService::metadataHtml):
+   je Gruppe eine aufklappbare Tabelle, kompakt und über die volle Breite. */
+.article-body :deep(.merlin-file-metadata) {
+	margin-top: 2.5em;
+	font-size: 0.85em;
+}
+
+.article-body :deep(.merlin-file-metadata details) {
+	margin: 0.75em 0;
+}
+
+.article-body :deep(.merlin-file-metadata summary) {
+	cursor: pointer;
+	font-weight: 600;
+}
+
+.article-body :deep(.merlin-file-metadata table) {
+	display: table;
+	width: 100%;
+	margin: 0.5em 0 0;
+	table-layout: fixed;
+}
+
+.article-body :deep(.merlin-file-metadata th) {
+	width: 35%;
+	text-align: start;
+	font-weight: 500;
+	color: var(--color-text-maxcontrast);
+}
+
+.article-body :deep(.merlin-file-metadata th),
+.article-body :deep(.merlin-file-metadata td) {
+	padding: 0.3em 0.6em;
+	vertical-align: top;
+	overflow-wrap: anywhere;
 }
 
 /* Video-Embeds (YouTube/Vimeo/Twitch/TikTok/Facebook/Arte), siehe

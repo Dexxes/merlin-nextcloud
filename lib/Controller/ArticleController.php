@@ -12,6 +12,7 @@ use OCA\Merlin\Service\ContentExtractorService;
 use OCA\Merlin\Service\ContentFilterSchema;
 use OCA\Merlin\Service\ExportService;
 use OCA\Merlin\Service\Login\PaywallLoginRequiredException;
+use OCA\Merlin\Service\MerlinFileService;
 use OCA\Merlin\Service\SupportBoxService;
 use OCA\Merlin\Service\TagTree;
 use OCA\Merlin\Service\UnsupportedSiteException;
@@ -59,6 +60,7 @@ class ArticleController extends Controller {
 		LoggerInterface $logger,
 		private SupportBoxService $supportBox,
 		private ArticleDeletionService $deletionService,
+		private MerlinFileService $files,
 		?string $userId
 	) {
 		parent::__construct($appName, $request);
@@ -130,13 +132,20 @@ class ArticleController extends Controller {
 		// oberster Ebene, orthogonal zu isRead/isFavorite/isArchived. "video"
 		// ist gleichbedeutend mit category=Video, "audio" mit category=Audio;
 		// "page" ist alles andere (inkl. "Mixed", also Text mit Medium).
+		// "file" sind die Datei-Einträge aus „Merlin Dateien“ (Tab „Dateien“);
+		// sie stehen nur dort, nicht zusätzlich unter Seiten/Videos/Audio.
 		if ($contentType === 'video') {
 			$filters['category'] = 'Video';
+			$filters['has_file'] = false;
 		} elseif ($contentType === 'audio') {
 			$filters['category'] = 'Audio';
+			$filters['has_file'] = false;
 		} elseif ($contentType === 'page') {
 			unset($filters['category']);
 			$filters['not_category'] = ContentFilterSchema::MEDIA_CATEGORIES;
+			$filters['has_file'] = false;
+		} elseif ($contentType === 'file') {
+			$filters['has_file'] = true;
 		}
 
 		// Clear articles stuck in processing state from crashed/previous sessions.
@@ -167,6 +176,15 @@ class ArticleController extends Controller {
 	public function show(int $id): DataResponse {
 		try {
 			$article = $this->articleMapper->find($id, $this->userId);
+			// Datei-Einträge beim Öffnen nachziehen: in Nextcloud umbenannt, oder
+			// von vor Metadaten-Anzeige/Download-Link.
+			if ($article->getFileId() !== null && $this->files->needsRefresh($article)) {
+				try {
+					$article = $this->files->refresh($article);
+				} catch (\Throwable $e) {
+					$this->logger->info('Merlin: could not add metadata to file entry', ['exception' => $e]);
+				}
+			}
 			$tags = $this->tagMapper->findByArticleId($article->getId());
 
 			$articleData = $article->jsonSerialize();
@@ -368,7 +386,16 @@ class ArticleController extends Controller {
 	public function retryExtraction(int $id): DataResponse {
 		try {
 			$article = $this->articleMapper->find($id, $this->userId);
-			if ($article->getIsProcessing()) {
+			// Datei-Einträge (Service\MerlinFileService): nichts zu extrahieren,
+			// aber Vorschaubild, Inhalt und Metadaten aus der Datei neu aufbauen.
+			if ($article->getFileId() !== null) {
+				try {
+					$article = $this->files->refresh($article);
+				} catch (\OCP\Files\NotFoundException) {
+					// Datei gelöscht: Eintrag bleibt wie er ist.
+				}
+			}
+			if ($article->getIsProcessing() || $article->getFileId() !== null) {
 				// Already extracting – don't kick off a second run.
 				$tags = $this->tagMapper->findByArticleId($article->getId());
 				$articleData = $article->jsonSerialize();

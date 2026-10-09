@@ -65,6 +65,16 @@ export async function updateArticle(id, data) {
 	return response.data
 }
 
+/**
+ * Benennt die Datei eines Eintrags aus „Merlin Dateien“ um (Name ohne Endung,
+ * die Endung bleibt). Liefert den neu aufgebauten Eintrag; 409 = Name vergeben.
+ */
+export async function renameFile(id, name) {
+	const url = generateUrl(`/apps/merlin/api/articles/${id}/file-name`)
+	const response = await axios.put(url, { name })
+	return response.data
+}
+
 export async function deleteArticle(id) {
 	const url = generateUrl(`/apps/merlin/api/articles/${id}`)
 	const response = await axios.delete(url)

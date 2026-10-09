@@ -126,6 +126,11 @@
 							<ChevronRight :size="14" class="submenu-chevron" />
 						</li>
 
+						<li v-if="article.fileId" @click="handleRename">
+							<Pencil :size="16" />
+							<span>{{ t('merlin', 'Rename…') }}</span>
+						</li>
+
 						<li @click="handleReport">
 							<AlertCircleOutline :size="16" />
 							<span>{{ t('merlin', 'Report faulty rendered article') }}</span>
@@ -289,6 +294,8 @@ import ArchiveArrowUp from 'vue-material-design-icons/ArchiveArrowUp.vue'
 import Star from 'vue-material-design-icons/Star.vue'
 import StarOutline from 'vue-material-design-icons/StarOutline.vue'
 import Tag from 'vue-material-design-icons/Tag.vue'
+import Pencil from 'vue-material-design-icons/Pencil.vue'
+import { promptRenameFile } from '../file-rename.js'
 import { flattenTree, tagPath } from '../tag-tree'
 import Check from 'vue-material-design-icons/Check.vue'
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
@@ -321,6 +328,7 @@ export default {
 		Star,
 		StarOutline,
 		Tag,
+		Pencil,
 		Check,
 		AlertCircleOutline,
 		Lock,
@@ -411,6 +419,12 @@ export default {
 	},
 
 	methods: {
+		// Datei-Einträge aus „Merlin Dateien“: Datei und Titel umbenennen.
+		handleRename() {
+			this.closeMenu()
+			promptRenameFile(this.$store, this.article)
+		},
+
 		tagPath,
 
 		formatDate(dateString) {

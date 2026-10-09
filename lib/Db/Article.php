@@ -64,6 +64,12 @@ use OCP\AppFramework\Db\Entity;
  * @method void setUnsupportedSiteDomain(?string $unsupportedSiteDomain)
  * @method string|null getSiteIconUrl()
  * @method void setSiteIconUrl(?string $siteIconUrl)
+ * @method int|null getFileId()
+ * @method void setFileId(?int $fileId)
+ * @method string|null getFileMime()
+ * @method void setFileMime(?string $fileMime)
+ * @method string|null getFileText()
+ * @method void setFileText(?string $fileText)
  */
 class Article extends Entity implements JsonSerializable {
 	protected $userId;
@@ -121,6 +127,15 @@ class Article extends Entity implements JsonSerializable {
 	// Bewusst NICHT in jsonSerialize(): nur die Support-Infobox braucht es
 	// (supportBox.iconUrl, Service\SupportBoxService), Listen bleiben schlank.
 	protected $siteIconUrl;
+	// Nextcloud-Datei-ID bei Datei-Einträgen (vom Handy in „Merlin Dateien“
+	// gespeichert, siehe Service\MerlinFileService), sonst null. url ist dann
+	// der Link in die Nextcloud-Dateien-App, content zeigt die Datei über
+	// signierte Links auf /api/articles/{id}/file.
+	protected $fileId;
+	protected $fileMime;
+	// Text, den die iOS-Share-Extension per OCR in einem Bild erkannt hat
+	// (durchsuchbar, im Content als „Erkannter Text“). Nicht im JSON.
+	protected $fileText;
 
 	public function __construct() {
 		$this->addType('userId', 'string');
@@ -156,6 +171,9 @@ class Article extends Entity implements JsonSerializable {
 		$this->addType('paywallSubscribeUrl', 'string');
 		$this->addType('unsupportedSiteDomain', 'string');
 		$this->addType('siteIconUrl', 'string');
+		$this->addType('fileId', 'integer');
+		$this->addType('fileMime', 'string');
+		$this->addType('fileText', 'string');
 	}
 
 	/**
@@ -257,6 +275,10 @@ class Article extends Entity implements JsonSerializable {
 			// erklärenden Hinweis statt eines Retry-Buttons, da ein erneuter
 			// Versuch am selben Ergebnis nichts ändert.
 			'unsupportedSiteDomain' => $this->getUnsupportedSiteDomain(),
+			// null bei Web-Artikeln. Gesetzt: Eintrag für eine Datei in
+			// „Merlin Dateien“ (fileMime = MIME-Typ der Datei).
+			'fileId'   => $this->getFileId() !== null ? (int) $this->getFileId() : null,
+			'fileMime' => $this->getFileMime(),
 		];
 	}
 }

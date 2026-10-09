@@ -16,7 +16,8 @@ merlin-nextcloud/
 │   │   ├── CommentController.php              # Kommentare des Besitzers + Push-Kanal (SSE)
 │   │   ├── PublicCommentController.php        # Gast-Kommentare/-Markierungen hinter Share-Links
 │   │   ├── TtsController.php
-│   │   ├── PdfController.php                  # GET /api/articles/{id}/pdf: PDF eines PDF-Artikels durchreichen (nichts gespeichert)
+│   │   ├── PdfController.php                  # GET /api/articles/{id}/pdf: PDF eines PDF-Artikels durchreichen (nichts gespeichert; Datei-Einträge direkt aus Nextcloud)
+│   │   ├── FileController.php                 # Dateien vom Handy: Upload-Ziel, Eintrag anlegen, GET /api/articles/{id}/file (signierter Link)
 │   │   ├── ExtensionController.php
 │   │   ├── ManifestController.php             # PWA-Manifest
 │   │   ├── ServiceWorkerController.php         # Liefert den Service-Worker (PWA)
@@ -48,6 +49,9 @@ merlin-nextcloud/
 │   │   ├── ShareAccessService.php        # Share-Token + Passwort-Unlock prüfen (Share-Ansicht und Gast-Kommentare)
 │   │   ├── RetentionPolicy.php           # Reine Rechenregeln der Löschfrist (Minimum, Stichtag, Hinweis fällig?)
 │   │   ├── TagTree.php                   # Reine Baumregeln verschachtelter Tags (Nachfahren, Kreisprüfung beim Verschieben)
+│   │   ├── MerlinFileService.php         # „Merlin Dateien“: Ordner (lokalisiert, per ID gemerkt), Datei-Einträge, Streamen mit Range
+│   │   ├── FileRules.php                 # Reine Regeln dazu: Dateiart/Kategorie, Dateinamen, signierte Links, Range
+│   │   ├── FileMetadata.php              # Eingebettete Metadaten einer Datei (EXIF, GPS, IPTC, XMP, ID3, MP4/MOV, PDF) für die Anzeige im Reader
 │   │   ├── Media/                        # Audio/Video, siehe Abschnitt "Medien-Provider" unten
 │   │   │   ├── MediaResolverService.php       # <media>-Sektion lesen, Provider aufrufen, Marker bauen/lesen
 │   │   │   ├── MediaProviderRegistry.php      # type → Provider (einzige Registrierungsstelle)
@@ -78,7 +82,7 @@ merlin-nextcloud/
 │   │   ├── Comment.php / CommentMapper.php             # Kommentar-Threads je Artikel
 │   │   ├── Tag.php / TagMapper.php
 │   │   └── SiteCredential.php / SiteCredentialMapper.php  # 🔜 geplant: verschlüsselte Paywall-Zugangsdaten je Nutzer/Domain
-│   └── Migration/            # Datenbank-Migrationen (Version1000Date20240101000000 … 000028)
+│   └── Migration/            # Datenbank-Migrationen (Version1000Date20240101000000 … 000032)
 ├── content-filters/          # Mitgelieferte Filter, eine Datei je Domain (~55 Domains, z. B. spiegel.de, zeit.de, taz.de, youtube.com)
 │   ├── 000.sample.com.xml    # Kommentierte Referenz aller Regeltypen
 │   ├── 000dead.xml           # Parkliste toter Domains (kein gültiges XML)
@@ -94,6 +98,7 @@ merlin-nextcloud/
     ├── test-support-box.php           # Testharness SupportBoxService (URL-Auswahl, Login-Ausblendung, Share, Seiten-Icon))
     ├── test-retention.php             # Testharness RetentionPolicy (effektive Frist, Stichtag, Hinweis)
     ├── test-tag-tree.php              # Testharness TagTree (Nachfahren, Kreisprüfung)
+    ├── test-file-rules.php            # Testharness FileRules (Dateiart, Namen, Token, Range)
     └── test-site-icon.php             # Testharness ContentExtractorService::extractSiteIconUrl() (Apple > SVG > Bitmap > ICO, <base>, data:/javascript:, kein og:image)
 ```
 
@@ -215,6 +220,51 @@ durchreicht: nur die gespeicherte Artikel-URL, SSRF-Guard je Hop, `%PDF-`-Prüfu
 Range-Weitergabe für pdf.js, gehärtete Antwort (`nosniff`, `CSP: sandbox`). Schlägt das fehl,
 erscheint `PdfCard.vue`. iOS/Android rendern die PDF nativ aus der Quell-URL. Nebenbei
 begrenzt der HTML-Abruf den Body jetzt auf 20 MB (`MAX_BODY_BYTES`).
+
+### Dateien vom Handy („Merlin Dateien“)
+
+Dateien (Bilder, Videos, Audios, PDFs, Sonstiges), die über die iOS-Share-Extension
+gespeichert werden, landen im Nextcloud-Ordner „Merlin Dateien“ und erscheinen
+zugleich als Eintrag in der Leseliste:
+
+```
+POST /api/files/target {name, mimeType}  → MerlinFileService::uploadTarget()
+     Ordner „Merlin Dateien“/<Art> in der Nextcloud-Sprache des Nutzers, IDs in
+     den Nutzereinstellungen (merlin/files_folder_ids), freier Dateiname
+     Antwort {path, davPath, uploadsPath, kind}
+Client: PUT davPath bzw. Chunked Upload v2 unter uploadsPath (große Videos)
+POST /api/files {path, tagIds[]}          → MerlinFileService::register()
+     Artikel mit file_id/file_mime (Migration …000032), url = /f/{fileId},
+     category Image/Video/Audio/PDF/File, content mit denselben Markern wie
+     Web-Artikel (Figure, div.merlin-media delivery=file, div.merlin-pdf)
+GET /api/articles/{id}/file?t=…[&size=N][&download=1]
+     ohne Login, Token = HMAC(Eintrag, Datei, Besitzer) (FileRules::sign),
+     Range, gehärtet (nosniff, CSP sandbox, nur Medien/PDF inline)
+```
+
+In der Liste stehen Datei-Einträge nur im Tab „Dateien“ (`contentType=file`,
+`file_id IS NOT NULL`; Zähler `files` in getCounts()), nicht zusätzlich unter
+Text/Video/Audio. Fotos komprimiert die iOS-Share-Extension auf Wunsch vor dem Upload.
+
+Unter der Datei steht ein Abschnitt „Metadaten“ (`section.merlin-file-metadata`,
+je Gruppe `<details open>` mit Tabelle), gebaut beim Anlegen bzw. bei „Neu laden“
+(MerlinFileService::refresh()). `Service\FileMetadata` liest ohne Abhängigkeiten aus
+dem Datei-Stream (Kopf, Ende, gezielte Sprünge): EXIF/GPS (ext-exif), IPTC, XMP,
+ID3v2/ID3v1, QuickTime/MP4 (mvhd, tkhd, ilst, keys/mdta, udta ©xyz) und das
+PDF-Info-Wörterbuch. Test: `php tools/test-file-metadata.php`.
+
+PUT /api/articles/{id}/file-name {name} → MerlinFileService::rename(): benennt die
+Datei im selben Ordner um (Endung bleibt, FileRules::renamedName), 409 bei
+vorhandenem Namen; Web: src/file-rename.js. Der Titel folgt immer dem Dateinamen;
+show() frischt Datei-Einträge auf, wenn der Name in Nextcloud geändert wurde
+(needsRefresh). Erkannter Text aus der iOS-Share-Extension (`text` bei POST
+/api/files) steht in `file_text` (Migration …000033), als
+`section.merlin-file-text` im Inhalt und wird von der Suche erfasst.
+
+Die Datei geht bewusst nicht durch die Merlin-API (PHP-Uploadgrenzen). Löschen des
+Eintrags (auch per Löschfrist) lässt die Datei in Nextcloud liegen und macht nur die
+signierten Links ungültig. `/api/articles/{id}/pdf` und `/s/{token}/pdf` liefern
+PDF-Dateieinträge direkt aus Nextcloud.
 
 ### Titel-Duplikat-Heuristik (`stripDuplicateMetadata()`)
 
