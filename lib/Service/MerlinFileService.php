@@ -136,7 +136,7 @@ class MerlinFileService {
 		$hasPreview = $this->hasPreview($node);
 		$article->setImageUrl($hasPreview ? $this->fileUrl($article, self::THUMBNAIL_SIZE) : '');
 		$article->setContent($this->buildContent($article, $kind, $name, $size, $hasPreview, $l)
-			. $this->metadataHtml($node, $l));
+			. $this->metadataHtml($article, $node, $l));
 		return $this->articleMapper->update($article);
 	}
 
@@ -157,7 +157,7 @@ class MerlinFileService {
 		$article->setFileMime($mime);
 		$article->setImageUrl($hasPreview ? $this->fileUrl($article, self::THUMBNAIL_SIZE) : '');
 		$article->setContent($this->buildContent($article, $kind, $name, Util::humanFileSize((int) $file->getSize()), $hasPreview, $l)
-			. $this->metadataHtml($file, $l));
+			. $this->metadataHtml($article, $file, $l));
 		$article->setUpdatedAt(new \DateTime());
 		return $this->articleMapper->update($article);
 	}
@@ -363,8 +363,11 @@ class MerlinFileService {
 	 * aufgeklappte <details> mit einer Tabelle, damit Web-Reader, Share-Ansicht
 	 * und iOS sie ohne eigenen Code anzeigen (iOS liest den Abschnitt bei PDFs
 	 * zusätzlich nativ aus, siehe FileMetadataSection.swift).
+	 *
+	 * data-download-src: signierter Download-Link der Originaldatei, mit dem
+	 * iOS beim Teilen die Datei selbst statt des Links weitergibt.
 	 */
-	private function metadataHtml(File $file, IL10N $l): string {
+	private function metadataHtml(Article $article, File $file, IL10N $l): string {
 		$esc = static fn(string $v): string => htmlspecialchars($v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 		$size = (int) $file->getSize();
 		$groups = [[
@@ -393,7 +396,7 @@ class MerlinFileService {
 			}
 		}
 
-		$html = '<section class="merlin-file-metadata"><h2>' . $esc($l->t('Metadata')) . '</h2>';
+		$html = '<section class="merlin-file-metadata" data-download-src="' . $esc($this->fileUrl($article, null, true)) . '"><h2>' . $esc($l->t('Metadata')) . '</h2>';
 		foreach ($groups as $group) {
 			$html .= '<details open data-group="' . $esc($group['key']) . '"><summary>' . $esc($group['title']) . '</summary><table><tbody>';
 			foreach ($group['entries'] as $entry) {

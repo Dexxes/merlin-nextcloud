@@ -177,7 +177,7 @@ class ArticleController extends Controller {
 		try {
 			$article = $this->articleMapper->find($id, $this->userId);
 			// Datei-Einträge von vor der Metadaten-Anzeige beim ersten Öffnen nachrüsten.
-			if ($article->getFileId() !== null && !str_contains((string) $article->getContent(), 'merlin-file-metadata')) {
+			if ($article->getFileId() !== null && !str_contains((string) $article->getContent(), 'merlin-file-metadata" data-download-src')) {
 				try {
 					$article = $this->files->refresh($article);
 				} catch (\Throwable $e) {
