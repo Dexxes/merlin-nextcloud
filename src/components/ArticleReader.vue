@@ -1912,6 +1912,43 @@ article {
 	padding: 0.5em 0.75em;
 }
 
+/* Metadaten unter Dateien aus „Merlin Dateien“ (MerlinFileService::metadataHtml):
+   je Gruppe eine aufklappbare Tabelle, kompakt und über die volle Breite. */
+.article-body :deep(.merlin-file-metadata) {
+	margin-top: 2.5em;
+	font-size: 0.85em;
+}
+
+.article-body :deep(.merlin-file-metadata details) {
+	margin: 0.75em 0;
+}
+
+.article-body :deep(.merlin-file-metadata summary) {
+	cursor: pointer;
+	font-weight: 600;
+}
+
+.article-body :deep(.merlin-file-metadata table) {
+	display: table;
+	width: 100%;
+	margin: 0.5em 0 0;
+	table-layout: fixed;
+}
+
+.article-body :deep(.merlin-file-metadata th) {
+	width: 35%;
+	text-align: start;
+	font-weight: 500;
+	color: var(--color-text-maxcontrast);
+}
+
+.article-body :deep(.merlin-file-metadata th),
+.article-body :deep(.merlin-file-metadata td) {
+	padding: 0.3em 0.6em;
+	vertical-align: top;
+	overflow-wrap: anywhere;
+}
+
 /* Video-Embeds (YouTube/Vimeo/Twitch/TikTok/Facebook/Arte), siehe
    isAllowedVideoEmbedSrc() im Backend. 16:9 als bester Kompromiss über alle
    Hosts hinweg – einzelne Embeds bringen zwar eigene width/height mit, die

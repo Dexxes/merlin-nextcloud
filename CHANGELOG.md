@@ -17,7 +17,11 @@ All notable changes to Merlin are documented here. Format based on
   itself goes over WebDAV. Deleting an entry keeps the file in Nextcloud
   (database migration 32, app 1.0.18). The sidebar has a new "Files" tab
   next to Text/Video/Audio; file entries are listed only there
-  (`contentType=file`, counts under `files`).
+  (`contentType=file`, counts under `files`). Below each file the reader
+  shows all embedded metadata: file details, EXIF and GPS (with a map link),
+  IPTC, XMP, ID3v2/ID3v1, QuickTime/MP4 tags (incl. location) and the PDF
+  info dictionary. "Reload" on a file entry rebuilds preview, content and
+  metadata from the file.
 - Tags can be nested: a tag can have sub-tags, any number of levels deep.
   The sidebar shows tags as a tree whose branches fold open and closed
   (remembered in the browser); "Move to…" in a tag's menu puts it below

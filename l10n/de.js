@@ -414,6 +414,11 @@ OC.L10N.register(
     "No files yet" : "Noch keine Dateien",
     "Not opened" : "Nicht geöffnet",
     "Share images, PDFs and other files from your phone to Merlin to find them here" : "Teile Bilder, PDFs und andere Dateien vom Handy mit Merlin, um sie hier zu finden",
+    "File" : "Datei",
+    "Metadata" : "Metadaten",
+    "Modified" : "Geändert",
+    "Size" : "Größe",
+    "Type" : "Typ",
     "— empty —" : "— leer —"
 },
 "nplurals=2; plural=(n != 1);");

@@ -51,6 +51,7 @@ merlin-nextcloud/
 │   │   ├── TagTree.php                   # Reine Baumregeln verschachtelter Tags (Nachfahren, Kreisprüfung beim Verschieben)
 │   │   ├── MerlinFileService.php         # „Merlin Dateien“: Ordner (lokalisiert, per ID gemerkt), Datei-Einträge, Streamen mit Range
 │   │   ├── FileRules.php                 # Reine Regeln dazu: Dateiart/Kategorie, Dateinamen, signierte Links, Range
+│   │   ├── FileMetadata.php              # Eingebettete Metadaten einer Datei (EXIF, GPS, IPTC, XMP, ID3, MP4/MOV, PDF) für die Anzeige im Reader
 │   │   ├── Media/                        # Audio/Video, siehe Abschnitt "Medien-Provider" unten
 │   │   │   ├── MediaResolverService.php       # <media>-Sektion lesen, Provider aufrufen, Marker bauen/lesen
 │   │   │   ├── MediaProviderRegistry.php      # type → Provider (einzige Registrierungsstelle)
@@ -244,6 +245,13 @@ GET /api/articles/{id}/file?t=…[&size=N][&download=1]
 In der Liste stehen Datei-Einträge nur im Tab „Dateien“ (`contentType=file`,
 `file_id IS NOT NULL`; Zähler `files` in getCounts()), nicht zusätzlich unter
 Text/Video/Audio. Fotos komprimiert die iOS-Share-Extension auf Wunsch vor dem Upload.
+
+Unter der Datei steht ein Abschnitt „Metadaten“ (`section.merlin-file-metadata`,
+je Gruppe `<details open>` mit Tabelle), gebaut beim Anlegen bzw. bei „Neu laden“
+(MerlinFileService::refresh()). `Service\FileMetadata` liest ohne Abhängigkeiten aus
+dem Datei-Stream (Kopf, Ende, gezielte Sprünge): EXIF/GPS (ext-exif), IPTC, XMP,
+ID3v2/ID3v1, QuickTime/MP4 (mvhd, tkhd, ilst, keys/mdta, udta ©xyz) und das
+PDF-Info-Wörterbuch. Test: `php tools/test-file-metadata.php`.
 
 Die Datei geht bewusst nicht durch die Merlin-API (PHP-Uploadgrenzen). Löschen des
 Eintrags (auch per Löschfrist) lässt die Datei in Nextcloud liegen und macht nur die

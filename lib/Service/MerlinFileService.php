@@ -135,7 +135,30 @@ class MerlinFileService {
 		// Die Links brauchen die Eintrags-ID (Token), deshalb erst nach dem Insert.
 		$hasPreview = $this->hasPreview($node);
 		$article->setImageUrl($hasPreview ? $this->fileUrl($article, self::THUMBNAIL_SIZE) : '');
-		$article->setContent($this->buildContent($article, $kind, $name, $size, $hasPreview, $l));
+		$article->setContent($this->buildContent($article, $kind, $name, $size, $hasPreview, $l)
+			. $this->metadataHtml($node, $l));
+		return $this->articleMapper->update($article);
+	}
+
+	/**
+	 * Baut Vorschaubild und Inhalt (inkl. Metadaten) eines Datei-Eintrags neu,
+	 * z. B. für Einträge von vor der Metadaten-Anzeige oder nach Änderungen an
+	 * der Datei. Aufruf über „Neu laden“ (ArticleController::retryExtraction()).
+	 *
+	 * @throws NotFoundException wenn die Datei nicht mehr existiert
+	 */
+	public function refresh(Article $article): Article {
+		$file = $this->fileOf($article);
+		$l = $this->l10n((string) $article->getUserId());
+		$mime = (string) $file->getMimetype();
+		$kind = FileRules::kindFor($mime);
+		$name = (string) $file->getName();
+		$hasPreview = $this->hasPreview($file);
+		$article->setFileMime($mime);
+		$article->setImageUrl($hasPreview ? $this->fileUrl($article, self::THUMBNAIL_SIZE) : '');
+		$article->setContent($this->buildContent($article, $kind, $name, Util::humanFileSize((int) $file->getSize()), $hasPreview, $l)
+			. $this->metadataHtml($file, $l));
+		$article->setUpdatedAt(new \DateTime());
 		return $this->articleMapper->update($article);
 	}
 
@@ -332,6 +355,60 @@ class MerlinFileService {
 				return '<p><a class="merlin-file-download" href="' . $esc($this->fileUrl($article, null, true)) . '">'
 					. $esc($l->t('Download file')) . '</a> · ' . $esc($name) . ' · ' . $esc($size) . '</p>';
 		}
+	}
+
+	/**
+	 * Abschnitt „Metadaten“ unter der Datei: Dateiangaben aus Nextcloud und
+	 * alle eingebetteten Metadaten (FileMetadata). Jede Gruppe als
+	 * aufgeklappte <details> mit einer Tabelle, damit Web-Reader, Share-Ansicht
+	 * und iOS sie ohne eigenen Code anzeigen (iOS liest den Abschnitt bei PDFs
+	 * zusätzlich nativ aus, siehe FileMetadataSection.swift).
+	 */
+	private function metadataHtml(File $file, IL10N $l): string {
+		$esc = static fn(string $v): string => htmlspecialchars($v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+		$size = (int) $file->getSize();
+		$groups = [[
+			'key' => 'file',
+			'title' => $l->t('File'),
+			'entries' => array_values(array_filter([
+				['label' => $l->t('Name'), 'value' => (string) $file->getName()],
+				['label' => $l->t('Type'), 'value' => (string) $file->getMimetype()],
+				['label' => $l->t('Size'), 'value' => Util::humanFileSize($size) . ' (' . number_format($size, 0, ',', '.') . ' B)'],
+				['label' => $l->t('Modified'), 'value' => $file->getMTime() > 0 ? gmdate('Y-m-d H:i:s', $file->getMTime()) . ' UTC' : ''],
+			], static fn(array $e): bool => $e['value'] !== '')),
+		]];
+
+		$handle = null;
+		try {
+			$handle = $file->fopen('r');
+			if (is_resource($handle)) {
+				array_push($groups, ...FileMetadata::extract($handle, $size, (string) $file->getMimetype()));
+			}
+		} catch (\Throwable $e) {
+			// Metadaten sind Beiwerk: ohne sie wird der Eintrag trotzdem angelegt.
+			$this->logger->info('Merlin: could not read file metadata', ['exception' => $e]);
+		} finally {
+			if (is_resource($handle)) {
+				fclose($handle);
+			}
+		}
+
+		$html = '<section class="merlin-file-metadata"><h2>' . $esc($l->t('Metadata')) . '</h2>';
+		foreach ($groups as $group) {
+			$html .= '<details open data-group="' . $esc($group['key']) . '"><summary>' . $esc($group['title']) . '</summary><table><tbody>';
+			foreach ($group['entries'] as $entry) {
+				$value = $esc($entry['value']);
+				// GPS-Position: Link auf die Karte.
+				if ($group['key'] === 'gps' && $entry['label'] === 'Position'
+					&& preg_match('/^(-?\d+\.\d+), (-?\d+\.\d+)$/', $entry['value'], $m) === 1) {
+					$value = '<a href="' . $esc('https://www.openstreetmap.org/?mlat=' . $m[1] . '&mlon=' . $m[2] . '#map=16/' . $m[1] . '/' . $m[2])
+						. '" target="_blank" rel="noopener noreferrer">' . $value . '</a>';
+				}
+				$html .= '<tr><th>' . $esc($entry['label']) . '</th><td>' . $value . '</td></tr>';
+			}
+			$html .= '</tbody></table></details>';
+		}
+		return $html . '</section>';
 	}
 
 	private function hasPreview(File $file): bool {
