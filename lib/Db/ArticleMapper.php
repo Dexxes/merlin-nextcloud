@@ -106,6 +106,13 @@ class ArticleMapper extends QBMapper {
 		if (isset($filters['is_archived'])) {
 			$qb->andWhere($qb->expr()->eq('a.is_archived', $qb->createNamedParameter($filters['is_archived'], IQueryBuilder::PARAM_BOOL)));
 		}
+		// has_file: Datei-Einträge aus „Merlin Dateien“ (Tab „Dateien“) bzw.
+		// alles andere (Seiten/Videos/Audio), siehe ArticleController::index().
+		if (isset($filters['has_file'])) {
+			$qb->andWhere($filters['has_file']
+				? $qb->expr()->isNotNull('a.file_id')
+				: $qb->expr()->isNull('a.file_id'));
+		}
 		if (isset($filters['category'])) {
 			$qb->andWhere($qb->expr()->eq('a.category', $qb->createNamedParameter($filters['category'])));
 		}
@@ -168,7 +175,7 @@ class ArticleMapper extends QBMapper {
 	 */
 	public function getCounts(string $userId): array {
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('is_read', 'is_favorite', 'is_archived', 'category')
+		$qb->select('is_read', 'is_favorite', 'is_archived', 'category', 'file_id')
 			->from($this->getTableName())
 			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)));
 
@@ -178,10 +185,13 @@ class ArticleMapper extends QBMapper {
 		// "Audio" oder etwas anderes - "Mixed", also Text mit Medium, zählt zu
 		// den Seiten), Unread/Favorites/Archived darunter je Kategorie gezählt -
 		// siehe getCounts() in merlin-standalone-server/src/Db/ArticleRepository.php.
+		// Datei-Einträge (file_id gesetzt) zählen nur unter "files", damit ein
+		// hochgeladenes Video nicht zusätzlich bei den Videos auftaucht.
 		$counts = [
 			'pages'  => ['total' => 0, 'unread' => 0, 'favorites' => 0, 'archived' => 0],
 			'videos' => ['total' => 0, 'unread' => 0, 'favorites' => 0, 'archived' => 0],
 			'audio'  => ['total' => 0, 'unread' => 0, 'favorites' => 0, 'archived' => 0],
+			'files'  => ['total' => 0, 'unread' => 0, 'favorites' => 0, 'archived' => 0],
 		];
 
 		while ($row = $result->fetch()) {
@@ -191,7 +201,7 @@ class ArticleMapper extends QBMapper {
 			// DATETIME-String oder NULL, kein Integer mehr – nicht (int)/(bool)
 			// casten (führt bei Datums-Strings zu Fehlinterpretation).
 			$favorite = $row['is_favorite'] !== null;
-			$group    = match ($row['category'] ?? '') {
+			$group    = $row['file_id'] !== null ? 'files' : match ($row['category'] ?? '') {
 				'Video' => 'videos',
 				'Audio' => 'audio',
 				default => 'pages',

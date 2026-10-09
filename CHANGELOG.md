@@ -15,7 +15,9 @@ All notable changes to Merlin are documented here. Format based on
   New endpoints `POST /api/files/target`, `POST /api/files` and
   `GET /api/articles/{id}/file` (signed link, supports Range); the upload
   itself goes over WebDAV. Deleting an entry keeps the file in Nextcloud
-  (database migration 32, app 1.0.18).
+  (database migration 32, app 1.0.18). The sidebar has a new "Files" tab
+  next to Text/Video/Audio; file entries are listed only there
+  (`contentType=file`, counts under `files`).
 - Tags can be nested: a tag can have sub-tags, any number of levels deep.
   The sidebar shows tags as a tree whose branches fold open and closed
   (remembered in the browser); "Move to…" in a tag's menu puts it below

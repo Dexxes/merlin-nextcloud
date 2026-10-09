@@ -241,6 +241,10 @@ GET /api/articles/{id}/file?t=…[&size=N][&download=1]
      Range, gehärtet (nosniff, CSP sandbox, nur Medien/PDF inline)
 ```
 
+In der Liste stehen Datei-Einträge nur im Tab „Dateien“ (`contentType=file`,
+`file_id IS NOT NULL`; Zähler `files` in getCounts()), nicht zusätzlich unter
+Text/Video/Audio. Fotos komprimiert die iOS-Share-Extension auf Wunsch vor dem Upload.
+
 Die Datei geht bewusst nicht durch die Merlin-API (PHP-Uploadgrenzen). Löschen des
 Eintrags (auch per Löschfrist) lässt die Datei in Nextcloud liegen und macht nur die
 signierten Links ungültig. `/api/articles/{id}/pdf` und `/s/{token}/pdf` liefern

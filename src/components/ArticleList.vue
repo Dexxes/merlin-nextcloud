@@ -28,6 +28,7 @@
 				<Magnify v-if="searchQuery.trim()" :size="64" />
 				<PlayCircleOutline v-else-if="filterCategory && filterCategory.startsWith('videos-')" :size="64" />
 				<Headphones v-else-if="filterCategory && filterCategory.startsWith('audio-')" :size="64" />
+				<FolderOutline v-else-if="filterCategory && filterCategory.startsWith('files-')" :size="64" />
 				<BookOpen v-else :size="64" />
 			</template>
 		</NcEmptyContent>
@@ -58,6 +59,7 @@ import {
 import BookOpen from 'vue-material-design-icons/BookOpen.vue'
 import PlayCircleOutline from 'vue-material-design-icons/PlayCircleOutline.vue'
 import Headphones from 'vue-material-design-icons/Headphones.vue'
+import FolderOutline from 'vue-material-design-icons/FolderOutline.vue'
 import Magnify from 'vue-material-design-icons/Magnify.vue'
 import Close from 'vue-material-design-icons/Close.vue'
 import ArticleCard from './ArticleCard.vue'
@@ -71,6 +73,7 @@ export default {
 		BookOpen,
 		PlayCircleOutline,
 		Headphones,
+		FolderOutline,
 		Magnify,
 		Close,
 		ArticleCard,
@@ -113,6 +116,9 @@ export default {
 			if (this.filterCategory && this.filterCategory.startsWith('audio-')) {
 				return t('merlin', 'No audio yet')
 			}
+			if (this.filterCategory && this.filterCategory.startsWith('files-')) {
+				return t('merlin', 'No files yet')
+			}
 			return t('merlin', 'No articles yet')
 		},
 		emptyDescription() {
@@ -124,6 +130,9 @@ export default {
 			}
 			if (this.filterCategory && this.filterCategory.startsWith('audio-')) {
 				return t('merlin', 'Save podcast and radio links to listen to them here')
+			}
+			if (this.filterCategory && this.filterCategory.startsWith('files-')) {
+				return t('merlin', 'Share images, PDFs and other files from your phone to Merlin to find them here')
 			}
 			return t('merlin', 'Add your first article to get started')
 		},

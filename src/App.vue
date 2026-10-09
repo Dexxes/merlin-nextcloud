@@ -183,7 +183,7 @@ export default {
 			this.RESET_FILTER()
 			this.SET_VIEW('list')
 			const [contentType, status] = type.split('-')
-			const contentTypeFilter = { videos: 'video', audio: 'audio' }
+			const contentTypeFilter = { videos: 'video', audio: 'audio', files: 'file' }
 			this.SET_FILTER({ key: 'contentType', value: contentTypeFilter[contentType] || 'page' })
 			switch (status) {
 			case 'unread':

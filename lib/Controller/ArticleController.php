@@ -130,13 +130,20 @@ class ArticleController extends Controller {
 		// oberster Ebene, orthogonal zu isRead/isFavorite/isArchived. "video"
 		// ist gleichbedeutend mit category=Video, "audio" mit category=Audio;
 		// "page" ist alles andere (inkl. "Mixed", also Text mit Medium).
+		// "file" sind die Datei-Einträge aus „Merlin Dateien“ (Tab „Dateien“);
+		// sie stehen nur dort, nicht zusätzlich unter Seiten/Videos/Audio.
 		if ($contentType === 'video') {
 			$filters['category'] = 'Video';
+			$filters['has_file'] = false;
 		} elseif ($contentType === 'audio') {
 			$filters['category'] = 'Audio';
+			$filters['has_file'] = false;
 		} elseif ($contentType === 'page') {
 			unset($filters['category']);
 			$filters['not_category'] = ContentFilterSchema::MEDIA_CATEGORIES;
+			$filters['has_file'] = false;
+		} elseif ($contentType === 'file') {
+			$filters['has_file'] = true;
 		}
 
 		// Clear articles stuck in processing state from crashed/previous sessions.

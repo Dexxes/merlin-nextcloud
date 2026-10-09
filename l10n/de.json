@@ -457,6 +457,10 @@
         "Merlin files": "Merlin Dateien",
         "Other files": "Sonstige Dateien",
         "PDFs": "PDFs",
+        "Files": "Dateien",
+        "No files yet": "Noch keine Dateien",
+        "Not opened": "Nicht geöffnet",
+        "Share images, PDFs and other files from your phone to Merlin to find them here": "Teile Bilder, PDFs und andere Dateien vom Handy mit Merlin, um sie hier zu finden",
         "— empty —": "— leer —"
     },
     "pluralForm": "nplurals=2; plural=(n != 1);"
