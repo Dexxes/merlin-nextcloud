@@ -35,6 +35,35 @@ class ArticleMapper extends QBMapper {
 	}
 
 	/**
+	 * Eintrag ohne Nutzerbezug - nur für den signierten Datei-Link
+	 * (FileController::content), dessen Token Besitzer und Datei prüft.
+	 *
+	 * @throws DoesNotExistException
+	 */
+	public function findById(int $id): Article {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')
+			->from($this->getTableName())
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)));
+		return $this->findEntity($qb);
+	}
+
+	/**
+	 * Vorhandener Datei-Eintrag des Nutzers für diese Nextcloud-Datei, damit ein
+	 * wiederholtes Registrieren (z. B. nach Zeitüberschreitung) keinen zweiten anlegt.
+	 */
+	public function findByFileId(string $userId, int $fileId): ?Article {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')
+			->from($this->getTableName())
+			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+			->andWhere($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId, IQueryBuilder::PARAM_INT)))
+			->setMaxResults(1);
+		$entities = $this->findEntities($qb);
+		return $entities[0] ?? null;
+	}
+
+	/**
 	 * @param string $userId
 	 * @param array $filters
 	 * @param int $limit

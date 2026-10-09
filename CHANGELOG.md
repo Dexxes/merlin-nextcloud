@@ -7,6 +7,15 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- Files from the phone: images, videos, audio, PDFs and other files shared
+  to Merlin on iOS are stored in the Nextcloud folder "Merlin files" (named
+  in the user's Nextcloud language), sorted into sub-folders by type, and
+  appear in the reading list like articles, with tags. The folders are
+  remembered by ID, so renaming or moving them does not create new ones.
+  New endpoints `POST /api/files/target`, `POST /api/files` and
+  `GET /api/articles/{id}/file` (signed link, supports Range); the upload
+  itself goes over WebDAV. Deleting an entry keeps the file in Nextcloud
+  (database migration 32, app 1.0.18).
 - Tags can be nested: a tag can have sub-tags, any number of levels deep.
   The sidebar shows tags as a tree whose branches fold open and closed
   (remembered in the browser); "Move to…" in a tag's menu puts it below

@@ -405,6 +405,11 @@ OC.L10N.register(
     "your own rules present" : "deine eigenen Regeln vorhanden",
     "yours" : "deine",
     "{minutes} min" : "{minutes} Min.",
+    "Download file" : "Datei herunterladen",
+    "Images" : "Bilder",
+    "Merlin files" : "Merlin Dateien",
+    "Other files" : "Sonstige Dateien",
+    "PDFs" : "PDFs",
     "— empty —" : "— leer —"
 },
 "nplurals=2; plural=(n != 1);");

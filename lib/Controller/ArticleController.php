@@ -368,7 +368,8 @@ class ArticleController extends Controller {
 	public function retryExtraction(int $id): DataResponse {
 		try {
 			$article = $this->articleMapper->find($id, $this->userId);
-			if ($article->getIsProcessing()) {
+			// Datei-Einträge (Service\MerlinFileService) haben nichts zu extrahieren.
+			if ($article->getIsProcessing() || $article->getFileId() !== null) {
 				// Already extracting – don't kick off a second run.
 				$tags = $this->tagMapper->findByArticleId($article->getId());
 				$articleData = $article->jsonSerialize();
