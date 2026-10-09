@@ -22,6 +22,13 @@ All notable changes to Merlin are documented here. Format based on
   IPTC, XMP, ID3v2/ID3v1, QuickTime/MP4 tags (incl. location) and the PDF
   info dictionary. "Reload" on a file entry rebuilds preview, content and
   metadata from the file.
+  File entries can be renamed ("Rename…" in the card menu and the reader's
+  menu); the file in Nextcloud is renamed with them and keeps its extension
+  (`PUT /api/articles/{id}/file-name`, 409 if the name is taken). A file
+  renamed in Nextcloud shows its new name the next time the entry is opened.
+  Text that the iOS app recognises in an uploaded image (`text` on
+  `POST /api/files`) is shown under "Recognized text" and found by the
+  search (database migration 33, app 1.0.19).
 - Tags can be nested: a tag can have sub-tags, any number of levels deep.
   The sidebar shows tags as a tree whose branches fold open and closed
   (remembered in the browser); "Move to…" in a tag's menu puts it below

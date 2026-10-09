@@ -76,5 +76,17 @@ $check(FileRules::parseRange('items=0-1', 100) === null, 'Andere Einheit → gan
 echo "encodePath\n";
 $check(FileRules::encodePath('/Merlin Dateien/Bilder/a#b?.jpg') === '/Merlin%20Dateien/Bilder/a%23b%3F.jpg', 'Segmente kodiert, Schrägstriche bleiben');
 
+echo "renamedName\n";
+$check(FileRules::renamedName('IMG_1.HEIC', 'Urlaub') === 'Urlaub.HEIC', 'Endung bleibt');
+$check(FileRules::renamedName('IMG_1.HEIC', 'Urlaub.heic') === 'Urlaub.HEIC', 'Mitgetippte Endung zählt nicht doppelt');
+$check(FileRules::renamedName('a.jpg', '  ') === null && FileRules::renamedName('a.jpg', '.jpg') === null, 'Leerer Name');
+$check(FileRules::renamedName('README', 'Neu') === 'Neu', 'Ohne Endung');
+$check(FileRules::renamedName('a.jpg', '../x/y') === 'x y.jpg', 'Keine Pfadtrenner');
+
+echo "sanitizeText\n";
+$check(FileRules::sanitizeText("a\r\nb\n\n\n\nc\x01") === "a\nb\n\nc", 'Zeilenumbrüche normalisiert, Steuerzeichen weg');
+$check(FileRules::sanitizeText("  \n ") === null && FileRules::sanitizeText(null) === null, 'Leer wird null');
+$check(mb_strlen((string) FileRules::sanitizeText(str_repeat('ä', 200000))) === FileRules::MAX_TEXT_LENGTH, 'Gekürzt');
+
 echo $failed === 0 ? "\nAlle Tests bestanden.\n" : "\n$failed Test(s) fehlgeschlagen.\n";
 exit($failed === 0 ? 0 : 1);

@@ -299,6 +299,17 @@ export default createStore({
 			}
 		},
 
+		// Datei-Eintrag umbenennen (Datei in Nextcloud + Titel); wirft bei
+		// Fehlern (409 = Name im Ordner vergeben), der Aufrufer meldet sie.
+		async renameFile({ commit, state }, { articleId, name }) {
+			const article = await articlesAPI.renameFile(articleId, name)
+			commit('UPDATE_ARTICLE', article)
+			if (state.currentArticle && state.currentArticle.id === article.id) {
+				commit('SET_CURRENT_ARTICLE', { ...state.currentArticle, ...article })
+			}
+			return article
+		},
+
 		async deleteArticle({ commit, dispatch }, articleId) {
 			try {
 				await articlesAPI.deleteArticle(articleId)

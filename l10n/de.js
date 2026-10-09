@@ -419,6 +419,13 @@ OC.L10N.register(
     "Modified" : "Geändert",
     "Size" : "Größe",
     "Type" : "Typ",
+    "A file with this name already exists in the folder" : "Im Ordner gibt es schon eine Datei mit diesem Namen",
+    "Could not rename the file" : "Datei konnte nicht umbenannt werden",
+    "File renamed" : "Datei umbenannt",
+    "New name (the extension .{extension} stays):" : "Neuer Name (die Endung .{extension} bleibt):",
+    "New name:" : "Neuer Name:",
+    "Recognized text" : "Erkannter Text",
+    "Rename…" : "Umbenennen…",
     "— empty —" : "— leer —"
 },
 "nplurals=2; plural=(n != 1);");

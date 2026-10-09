@@ -14,6 +14,7 @@ use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\Files\AlreadyExistsException;
 use OCP\Files\NotFoundException;
 use OCP\IRequest;
 use OCP\ISession;
@@ -24,6 +25,7 @@ use Psr\Log\LoggerInterface;
  *
  *   POST /api/files/target       Zielpfad für den WebDAV-Upload holen
  *   POST /api/files              hochgeladene Datei als Eintrag anlegen
+ *   PUT  /api/articles/{id}/file-name  Datei (und Eintrag) umbenennen
  *   GET  /api/articles/{id}/file Datei bzw. Vorschaubild über signierten Link
  *
  * NoCSRFRequired wie bei ArticleController (native Clients mit Basic-Auth,
@@ -66,14 +68,15 @@ class FileController extends Controller {
 
 	/**
 	 * Legt den Eintrag für die Datei unter $path an. tagIds wie bei
-	 * POST /api/articles (Query-Parameter tagIds[] oder JSON-Body).
+	 * POST /api/articles (Query-Parameter tagIds[] oder JSON-Body). text: per
+	 * OCR erkannter Text eines Bildes (iOS), wird durchsuchbar gespeichert.
 	 *
 	 * @NoAdminRequired
 	 * @NoCSRFRequired
 	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function register(string $path = ''): DataResponse {
+	public function register(string $path = '', ?string $text = null): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
 		}
@@ -81,7 +84,7 @@ class FileController extends Controller {
 			return new DataResponse(['error' => 'Missing path'], Http::STATUS_BAD_REQUEST);
 		}
 		try {
-			$article = $this->files->register($this->userId, $path);
+			$article = $this->files->register($this->userId, $path, $text);
 		} catch (NotFoundException) {
 			return new DataResponse(['error' => 'File not found'], Http::STATUS_NOT_FOUND);
 		} catch (\Throwable $e) {
@@ -106,6 +109,45 @@ class FileController extends Controller {
 		$data = $article->jsonSerialize();
 		$data['tags'] = array_map(fn($tag) => $tag->jsonSerialize(), $this->tagMapper->findByArticleId((int) $article->getId()));
 		return new DataResponse($data, Http::STATUS_CREATED);
+	}
+
+	/**
+	 * Benennt die Datei eines Datei-Eintrags um; $name ohne Endung (die bleibt).
+	 * Antwort: der neu aufgebaute Eintrag mit Tags. 409 wenn der Name im
+	 * Ordner schon vergeben ist.
+	 *
+	 * @NoAdminRequired
+	 * @NoCSRFRequired
+	 */
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function rename(int $id, string $name = ''): DataResponse {
+		if ($this->userId === null) {
+			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
+		}
+		try {
+			$article = $this->articleMapper->find($id, $this->userId);
+		} catch (DoesNotExistException) {
+			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
+		}
+		if ($article->getFileId() === null) {
+			return new DataResponse(['error' => 'Not a file entry'], Http::STATUS_BAD_REQUEST);
+		}
+		try {
+			$article = $this->files->rename($article, $name);
+		} catch (\InvalidArgumentException) {
+			return new DataResponse(['error' => 'Missing name'], Http::STATUS_BAD_REQUEST);
+		} catch (AlreadyExistsException) {
+			return new DataResponse(['error' => 'A file with this name already exists'], Http::STATUS_CONFLICT);
+		} catch (NotFoundException) {
+			return new DataResponse(['error' => 'File not found'], Http::STATUS_NOT_FOUND);
+		} catch (\Throwable $e) {
+			$this->logger->error('Merlin: could not rename file', ['exception' => $e]);
+			return new DataResponse(['error' => 'Could not rename the file'], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
+		$data = $article->jsonSerialize();
+		$data['tags'] = array_map(fn($tag) => $tag->jsonSerialize(), $this->tagMapper->findByArticleId((int) $article->getId()));
+		return new DataResponse($data);
 	}
 
 	/**

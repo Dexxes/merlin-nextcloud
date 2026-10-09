@@ -176,8 +176,9 @@ class ArticleController extends Controller {
 	public function show(int $id): DataResponse {
 		try {
 			$article = $this->articleMapper->find($id, $this->userId);
-			// Datei-Einträge von vor der Metadaten-Anzeige beim ersten Öffnen nachrüsten.
-			if ($article->getFileId() !== null && !str_contains((string) $article->getContent(), 'merlin-file-metadata" data-download-src')) {
+			// Datei-Einträge beim Öffnen nachziehen: in Nextcloud umbenannt, oder
+			// von vor Metadaten-Anzeige/Download-Link.
+			if ($article->getFileId() !== null && $this->files->needsRefresh($article)) {
 				try {
 					$article = $this->files->refresh($article);
 				} catch (\Throwable $e) {

@@ -33,6 +33,7 @@ return [
         ['name' => 'file#target',   'url' => '/api/files/target',       'verb' => 'POST'],
         ['name' => 'file#register', 'url' => '/api/files',              'verb' => 'POST'],
         ['name' => 'file#content',  'url' => '/api/articles/{id}/file', 'verb' => 'GET'],
+        ['name' => 'file#rename',   'url' => '/api/articles/{id}/file-name', 'verb' => 'PUT'],
 
         // Audio-/Video-Quelle eines Artikels (siehe Service/Media/MediaResolverService)
         ['name' => 'media#resolve', 'url' => '/api/articles/{id}/media', 'verb' => 'GET'],

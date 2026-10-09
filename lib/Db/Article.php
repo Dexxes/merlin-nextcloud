@@ -68,6 +68,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setFileId(?int $fileId)
  * @method string|null getFileMime()
  * @method void setFileMime(?string $fileMime)
+ * @method string|null getFileText()
+ * @method void setFileText(?string $fileText)
  */
 class Article extends Entity implements JsonSerializable {
 	protected $userId;
@@ -131,6 +133,9 @@ class Article extends Entity implements JsonSerializable {
 	// signierte Links auf /api/articles/{id}/file.
 	protected $fileId;
 	protected $fileMime;
+	// Text, den die iOS-Share-Extension per OCR in einem Bild erkannt hat
+	// (durchsuchbar, im Content als „Erkannter Text“). Nicht im JSON.
+	protected $fileText;
 
 	public function __construct() {
 		$this->addType('userId', 'string');
@@ -168,6 +173,7 @@ class Article extends Entity implements JsonSerializable {
 		$this->addType('siteIconUrl', 'string');
 		$this->addType('fileId', 'integer');
 		$this->addType('fileMime', 'string');
+		$this->addType('fileText', 'string');
 	}
 
 	/**

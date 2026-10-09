@@ -253,6 +253,14 @@ dem Datei-Stream (Kopf, Ende, gezielte Sprünge): EXIF/GPS (ext-exif), IPTC, XMP
 ID3v2/ID3v1, QuickTime/MP4 (mvhd, tkhd, ilst, keys/mdta, udta ©xyz) und das
 PDF-Info-Wörterbuch. Test: `php tools/test-file-metadata.php`.
 
+PUT /api/articles/{id}/file-name {name} → MerlinFileService::rename(): benennt die
+Datei im selben Ordner um (Endung bleibt, FileRules::renamedName), 409 bei
+vorhandenem Namen; Web: src/file-rename.js. Der Titel folgt immer dem Dateinamen;
+show() frischt Datei-Einträge auf, wenn der Name in Nextcloud geändert wurde
+(needsRefresh). Erkannter Text aus der iOS-Share-Extension (`text` bei POST
+/api/files) steht in `file_text` (Migration …000033), als
+`section.merlin-file-text` im Inhalt und wird von der Suche erfasst.
+
 Die Datei geht bewusst nicht durch die Merlin-API (PHP-Uploadgrenzen). Löschen des
 Eintrags (auch per Löschfrist) lässt die Datei in Nextcloud liegen und macht nur die
 signierten Links ungültig. `/api/articles/{id}/pdf` und `/s/{token}/pdf` liefern

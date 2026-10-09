@@ -8,6 +8,7 @@ use OCA\Merlin\Db\Article;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Service\Media\MediaResolverService;
 use OCA\Merlin\Service\Media\MediaResult;
+use OCP\Files\AlreadyExistsException;
 use OCP\Files\File;
 use OCP\Files\Folder;
 use OCP\Files\IRootFolder;
@@ -92,14 +93,20 @@ class MerlinFileService {
 	 *
 	 * @throws NotFoundException wenn $path keine Datei des Nutzers ist
 	 */
-	public function register(string $userId, string $path): Article {
+	public function register(string $userId, string $path, ?string $text = null): Article {
 		$node = $this->userFolder($userId)->get($path);
 		if (!$node instanceof File) {
 			throw new NotFoundException('Not a file');
 		}
+		$text = FileRules::sanitizeText($text);
 		$fileId = (int) $node->getId();
 		$existing = $this->articleMapper->findByFileId($userId, $fileId);
 		if ($existing !== null) {
+			// Erneutes Registrieren (Upload wiederholt): erkannten Text nachtragen.
+			if ($text !== null && $existing->getFileText() === null) {
+				$existing->setFileText($text);
+				return $this->refresh($existing);
+			}
 			return $existing;
 		}
 
@@ -128,6 +135,7 @@ class MerlinFileService {
 		$article->setCategory(FileRules::categoryFor($kind));
 		$article->setFileId($fileId);
 		$article->setFileMime($mime);
+		$article->setFileText($text);
 		$article->setCreatedAt($now);
 		$article->setUpdatedAt($now);
 		$article = $this->articleMapper->insert($article);
@@ -136,14 +144,17 @@ class MerlinFileService {
 		$hasPreview = $this->hasPreview($node);
 		$article->setImageUrl($hasPreview ? $this->fileUrl($article, self::THUMBNAIL_SIZE) : '');
 		$article->setContent($this->buildContent($article, $kind, $name, $size, $hasPreview, $l)
+			. $this->textHtml($article, $l)
 			. $this->metadataHtml($article, $node, $l));
 		return $this->articleMapper->update($article);
 	}
 
 	/**
-	 * Baut Vorschaubild und Inhalt (inkl. Metadaten) eines Datei-Eintrags neu,
-	 * z. B. für Einträge von vor der Metadaten-Anzeige oder nach Änderungen an
-	 * der Datei. Aufruf über „Neu laden“ (ArticleController::retryExtraction()).
+	 * Baut Titel, Vorschaubild und Inhalt (inkl. Metadaten) eines
+	 * Datei-Eintrags neu, z. B. für Einträge von vor der Metadaten-Anzeige oder
+	 * nachdem die Datei in Nextcloud umbenannt wurde (der Titel ist immer der
+	 * Dateiname). Aufruf beim Öffnen (ArticleController::show()) und über
+	 * „Neu laden“ (ArticleController::retryExtraction()).
 	 *
 	 * @throws NotFoundException wenn die Datei nicht mehr existiert
 	 */
@@ -154,12 +165,56 @@ class MerlinFileService {
 		$kind = FileRules::kindFor($mime);
 		$name = (string) $file->getName();
 		$hasPreview = $this->hasPreview($file);
+		$article->setTitle($name);
 		$article->setFileMime($mime);
 		$article->setImageUrl($hasPreview ? $this->fileUrl($article, self::THUMBNAIL_SIZE) : '');
 		$article->setContent($this->buildContent($article, $kind, $name, Util::humanFileSize((int) $file->getSize()), $hasPreview, $l)
+			. $this->textHtml($article, $l)
 			. $this->metadataHtml($article, $file, $l));
 		$article->setUpdatedAt(new \DateTime());
 		return $this->articleMapper->update($article);
+	}
+
+	/**
+	 * Benennt die Datei eines Eintrags in Nextcloud um und baut den Eintrag
+	 * neu auf (Titel = Dateiname). $name ist der neue Name ohne Endung; die
+	 * Endung der Datei bleibt (eine mitgetippte gleiche Endung wird ignoriert).
+	 *
+	 * @throws NotFoundException wenn die Datei nicht mehr existiert
+	 * @throws \InvalidArgumentException bei leerem Namen
+	 * @throws AlreadyExistsException wenn der Name im Ordner schon vergeben ist
+	 */
+	public function rename(Article $article, string $name): Article {
+		$file = $this->fileOf($article);
+		$current = (string) $file->getName();
+		$newName = FileRules::renamedName($current, $name);
+		if ($newName === null) {
+			throw new \InvalidArgumentException('Empty name');
+		}
+		if ($newName !== $current) {
+			$parent = $file->getParent();
+			// Groß-/Kleinschreibung allein ändern ist erlaubt (gleiche Datei).
+			if ($parent->nodeExists($newName) && strcasecmp($newName, $current) !== 0) {
+				throw new AlreadyExistsException($newName);
+			}
+			$file->move(rtrim($parent->getPath(), '/') . '/' . $newName);
+		}
+		return $this->refresh($article);
+	}
+
+	/**
+	 * Ob der Eintrag neu aufgebaut werden muss: Datei in Nextcloud umbenannt
+	 * oder Inhalt von vor Metadaten/Download-Link (ArticleController::show()).
+	 */
+	public function needsRefresh(Article $article): bool {
+		if (!str_contains((string) $article->getContent(), 'merlin-file-metadata" data-download-src')) {
+			return true;
+		}
+		try {
+			return $this->fileOf($article)->getName() !== $article->getTitle();
+		} catch (NotFoundException) {
+			return false;
+		}
 	}
 
 	/**
@@ -410,6 +465,27 @@ class MerlinFileService {
 				$html .= '<tr><th>' . $esc($entry['label']) . '</th><td>' . $value . '</td></tr>';
 			}
 			$html .= '</tbody></table></details>';
+		}
+		return $html . '</section>';
+	}
+
+	/**
+	 * Abschnitt „Erkannter Text“ (OCR der iOS-Share-Extension) zwischen Datei
+	 * und Metadaten; leer ohne Text.
+	 */
+	private function textHtml(Article $article, IL10N $l): string {
+		$text = (string) $article->getFileText();
+		if ($text === '') {
+			return '';
+		}
+		$esc = static fn(string $v): string => htmlspecialchars($v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+		$paragraphs = preg_split('/\n\s*\n/u', $text) ?: [$text];
+		$html = '<section class="merlin-file-text"><h2>' . $esc($l->t('Recognized text')) . '</h2>';
+		foreach ($paragraphs as $paragraph) {
+			$paragraph = trim($paragraph);
+			if ($paragraph !== '') {
+				$html .= '<p>' . nl2br($esc($paragraph), false) . '</p>';
+			}
 		}
 		return $html . '</section>';
 	}

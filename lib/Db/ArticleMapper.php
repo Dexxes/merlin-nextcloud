@@ -393,7 +393,8 @@ class ArticleMapper extends QBMapper {
 	}
 
 	/**
-	 * Full-text search across title, excerpt, author, and site name.
+	 * Full-text search across title, excerpt, author, site name and the text
+	 * recognised in saved images (file_text).
 	 *
 	 * @return Article[]
 	 */
@@ -411,6 +412,8 @@ class ArticleMapper extends QBMapper {
 					$qb->expr()->iLike('excerpt', $qb->createNamedParameter($like)),
 					$qb->expr()->iLike('author',  $qb->createNamedParameter($like)),
 					$qb->expr()->iLike('site_name', $qb->createNamedParameter($like)),
+					// Per OCR erkannter Text in Bildern aus „Merlin Dateien“.
+					$qb->expr()->iLike('file_text', $qb->createNamedParameter($like)),
 				)
 			)
 			->orderBy('created_at', 'DESC')

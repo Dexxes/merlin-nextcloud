@@ -95,6 +95,50 @@ class FileRules {
 	}
 
 	/**
+	 * Neuer Dateiname beim Umbenennen: $name ist der Name ohne Endung, die
+	 * Endung von $current bleibt. Tippt der Nutzer dieselbe Endung mit, zählt
+	 * sie nicht doppelt. null bei leerem Namen.
+	 */
+	public static function renamedName(string $current, string $name): ?string {
+		$extension = pathinfo($current, PATHINFO_EXTENSION);
+		$suffix = $extension !== '' ? '.' . $extension : '';
+		$name = trim($name);
+		if ($suffix !== '' && mb_strlen($name) >= mb_strlen($suffix)
+			&& mb_strtolower(mb_substr($name, -mb_strlen($suffix))) === mb_strtolower($suffix)) {
+			$name = mb_substr($name, 0, -mb_strlen($suffix));
+		}
+		$sanitized = self::sanitizeName($name . $suffix, '');
+		if ($sanitized === '' || $sanitized === $suffix || ltrim($sanitized, '.') === $extension) {
+			return null;
+		}
+		return $sanitized;
+	}
+
+	/** Längster gespeicherter OCR-Text (Zeichen). */
+	public const MAX_TEXT_LENGTH = 100000;
+
+	/**
+	 * Per OCR erkannter Text aus dem Client: gültiges UTF-8, ohne Steuerzeichen
+	 * außer Zeilenumbrüchen, höchstens MAX_TEXT_LENGTH Zeichen. null wenn leer.
+	 */
+	public static function sanitizeText(?string $text): ?string {
+		if ($text === null) {
+			return null;
+		}
+		if (!mb_check_encoding($text, 'UTF-8')) {
+			$text = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+		}
+		$text = str_replace(["\r\n", "\r"], "\n", $text);
+		$text = (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]+/u', ' ', $text);
+		$text = (string) preg_replace("/\n{3,}/", "\n\n", $text);
+		$text = trim($text);
+		if ($text === '') {
+			return null;
+		}
+		return mb_strlen($text) > self::MAX_TEXT_LENGTH ? mb_substr($text, 0, self::MAX_TEXT_LENGTH) : $text;
+	}
+
+	/**
 	 * Signatur des Datei-Links eines Eintrags. Gebunden an Eintrag, Datei und
 	 * Besitzer: Löschen des Eintrags macht alle Links ungültig, ein Link öffnet
 	 * nie eine andere Datei.
