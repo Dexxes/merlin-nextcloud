@@ -41,20 +41,40 @@ export function authorBoxEntries(authors) {
 		.filter(a => a.image || a.bio)
 }
 
-// http(s)://… oder www.… bis zum nächsten Leerzeichen/Klammer/Anführungszeichen.
-const URL_PATTERN = /\b(?:https?:\/\/|www\.)[^\s<>"'()]+/gi
+// http(s)://… oder www.… bis zum nächsten Leerzeichen/Klammer/Anführungszeichen,
+// oder ein Bluesky-Handle (@name.bsky.social bzw. @eigene-domain.de) - kein
+// Mastodon-Handle (@name@instanz), daher kein @ direkt danach.
+const LINK_PATTERN = /\b(?:https?:\/\/|www\.)[^\s<>"'()]+|(?<![\w@])@[a-z0-9-]+(?:\.[a-z0-9-]+)+(?![\w@-])/gi
 // Satzzeichen am Ende gehören meist zum Satz, nicht zur URL.
 const TRAILING_PUNCTUATION = /[.,;:!?…]+$/
 
 /**
- * Hängt $text an $parent an und macht darin enthaltene URLs zu Links. Alles
- * als Text-/Elementknoten, kein innerHTML: die Bio stammt von der Quellseite.
+ * Link-Ziel zu einem Treffer von LINK_PATTERN in der Zeile $line. Handles
+ * auf *.bsky.social sind immer Bluesky; andere Domain-Handles nur, wenn die
+ * Zeile Bluesky erwähnt ("Bluesky: @name.de") - sonst könnte es auch eine
+ * E-Mail-artige Angabe oder ein anderes Netzwerk sein.
+ */
+function linkTarget(raw, line) {
+	if (raw.startsWith('@')) {
+		const handle = raw.slice(1).toLowerCase()
+		const isBluesky = handle.endsWith('.bsky.social') || /bluesky|bsky/i.test(line)
+		return isBluesky ? safeHttpUrl('https://bsky.app/profile/' + handle) : null
+	}
+	return safeHttpUrl(/^www\./i.test(raw) ? 'https://' + raw : raw)
+}
+
+/**
+ * Hängt $text an $parent an und macht darin enthaltene URLs und Bluesky-
+ * Handles zu Links. Alles als Text-/Elementknoten, kein innerHTML: die Bio
+ * stammt von der Quellseite.
  */
 function appendLinkified(doc, parent, text) {
 	let last = 0
-	for (const match of text.matchAll(URL_PATTERN)) {
+	for (const match of text.matchAll(LINK_PATTERN)) {
 		const raw = match[0].replace(TRAILING_PUNCTUATION, '')
-		const href = safeHttpUrl(/^www\./i.test(raw) ? 'https://' + raw : raw)
+		const lineStart = text.lastIndexOf('\n', match.index) + 1
+		const lineEnd = text.indexOf('\n', match.index)
+		const href = linkTarget(raw, text.slice(lineStart, lineEnd === -1 ? undefined : lineEnd))
 		if (!href) continue
 		if (match.index > last) parent.appendChild(doc.createTextNode(text.slice(last, match.index)))
 		const a = doc.createElement('a')
