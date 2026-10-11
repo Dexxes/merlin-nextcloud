@@ -1,0 +1,58 @@
+/* Autorenboxen am Artikelende, eingefügt von author-box.js. Gleiche Optik wie
+   die Support-Infobox (support-box.css): Akzentfarbe des Nutzers
+   (--merlin-author-accent, inline gesetzt), Text erbt vom Reader. */
+.merlin-author-boxes {
+	margin: 2em 0 1.5em;
+}
+
+.merlin-author-box {
+	display: flex;
+	align-items: center;
+	gap: 1em;
+	margin: 1em 0;
+	padding: 0.9em 1em;
+	border-left: 4px solid var(--merlin-author-accent, #FF3B30);
+	border-radius: 0 8px 8px 0;
+	background: rgba(128, 128, 128, 0.1);
+	background: color-mix(in srgb, var(--merlin-author-accent, #FF3B30) 12%, transparent);
+	font-size: 0.93em;
+	line-height: 1.55;
+}
+
+/* !important: die Artikel-Bildregeln (.article-body img: margin auto, display
+   block, Breite/Höhe) dürfen das Foto nicht aufblasen oder zentrieren. */
+.merlin-author-box .merlin-author-box__photo {
+	flex: none !important;
+	width: 8em !important;
+	height: 8em !important;
+	max-width: 8em !important;
+	margin: 0 !important;
+	object-fit: cover !important;
+	border-radius: 50% !important;
+}
+
+.merlin-author-box__body {
+	flex: 1;
+	min-width: 0;
+}
+
+.merlin-author-box__body p {
+	margin: 0 !important;
+}
+
+.merlin-author-box__name {
+	font-weight: 600;
+}
+
+.merlin-author-box__bio {
+	margin-top: 0.25em !important;
+	white-space: pre-line;
+}
+
+.merlin-author-box a {
+	color: inherit;
+	text-decoration: underline;
+	text-decoration-color: var(--merlin-author-accent, #FF3B30);
+	text-decoration-thickness: 2px;
+	text-underline-offset: 2px;
+}

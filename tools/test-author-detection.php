@@ -364,6 +364,145 @@ $check(
 	]]
 );
 
+echo "\n\033[1m<author-image>/<author-bio> (Autorenbox)\033[0m\n";
+
+$check(
+	'Ein Autor: Foto per <img>-Element, Bio mit Zeilenumbrüchen, relative URL aufgelöst',
+	'<html><head><meta property="article:author" content="Bea Bild"></head><body>'
+		. '<figure class="af"><img src="/profil/bea.webp" alt="Bea Bild"></figure>'
+		. '<div class="bio">  Jahrgang 1980,' . "\n" . '   schreibt über   Kultur.<br>Bluesky: @bea  </div></body></html>',
+	'<domain name="example.com"><metadata><author-image xpath="//figure[@class=\'af\']/img" />'
+		. '<author-bio xpath="//div[@class=\'bio\']" /></metadata></domain>',
+	$a('Bea Bild') + ['authors' => [
+		['name' => 'Bea Bild', 'url' => null, 'image' => 'https://example.com/profil/bea.webp',
+			'bio' => "Jahrgang 1980,\nschreibt über Kultur.\nBluesky: @bea"],
+	]]
+);
+
+$check(
+	'Co-Autoren: Fotos über den Namen im alt-Text zugeordnet, auch wenn nicht jeder eins hat',
+	'<html><head><meta property="article:author" content="Bea Bild"><meta property="article:author" content="Carl Cut">'
+		. '<meta property="article:author" content="Dana Druck"></head><body><div class="byline">'
+		. '<figure class="af"><img src="https://cdn.example.com/carl.jpg" alt="Carl Cut "></figure>'
+		. '<figure class="af"><img src="http://cdn.example.com/dana.jpg" alt="Dana Druck"></figure>'
+		. '<span>Bea Bild</span>, <span>Carl Cut</span> und <span>Dana Druck</span></div></body></html>',
+	'<domain name="example.com"><metadata><author-image xpath="//figure[@class=\'af\']/img/@src" /></metadata></domain>',
+	$a('Bea Bild, Carl Cut, Dana Druck') + ['authors' => [
+		['name' => 'Bea Bild', 'url' => null],
+		['name' => 'Carl Cut', 'url' => null, 'image' => 'https://cdn.example.com/carl.jpg'],
+		['name' => 'Dana Druck', 'url' => null, 'image' => 'https://cdn.example.com/dana.jpg'],
+	]]
+);
+
+$check(
+	'Co-Autoren: Bio über den Namen im umschließenden Element zugeordnet',
+	'<html><head><meta property="article:author" content="Bea Bild"><meta property="article:author" content="Carl Cut"></head><body>'
+		. '<div class="box"><a>Carl Cut</a><div class="bio">Schreibt über Sport.</div></div></body></html>',
+	'<domain name="example.com"><metadata><author-bio xpath="//div[@class=\'bio\']" /></metadata></domain>',
+	$a('Bea Bild, Carl Cut') + ['authors' => [
+		['name' => 'Bea Bild', 'url' => null],
+		['name' => 'Carl Cut', 'url' => null, 'bio' => 'Schreibt über Sport.'],
+	]]
+);
+
+$check(
+	'Co-Autoren per JSON-Pfad: der Reihe nach, javascript:-Bild verworfen',
+	'<html><head><script type="application/ld+json">{"@type":"Article","author":['
+		. '{"@type":"Person","name":"Bea Bild","image":"https://example.com/bea.jpg"},'
+		. '{"@type":"Person","name":"Carl Cut","image":"https://example.com/carl.jpg"}]}</script></head><body></body></html>',
+	'<domain name="example.com">' . $ldSource . '<metadata><author json="ld:$.author[*].name" />'
+		. '<author-image json="ld:$.author[*].image" /><author-bio xpath="//p[@class=\'gibtsnicht\']" /></metadata></domain>',
+	$a('Bea Bild, Carl Cut') + ['authors' => [
+		['name' => 'Bea Bild', 'url' => null, 'image' => 'https://example.com/bea.jpg'],
+		['name' => 'Carl Cut', 'url' => null, 'image' => 'https://example.com/carl.jpg'],
+	]]
+);
+
+$check(
+	'Foto mit javascript:-URL wird ignoriert -> keine Autorenliste',
+	'<html><head><meta property="article:author" content="Bea Bild"></head><body><img class="af" src="javascript:alert(1)"></body></html>',
+	'<domain name="example.com"><metadata><author-image xpath="//img[@class=\'af\']" /></metadata></domain>',
+	$a('Bea Bild') + ['authors' => null]
+);
+
+echo "\n\033[1m<author-bio from=\"author-page\"> (Autorenseite)\033[0m\n";
+
+// Unterklasse ohne Netzwerk: liefert Autorenseiten aus $pages und merkt sich die Abrufe.
+$pageService = new class extends ContentExtractorService {
+	public array $pages   = [];
+	public array $fetched = [];
+	public function __construct() {
+	}
+	protected function fetchAuthorPage(string $url): ?string {
+		$this->fetched[] = $url;
+		return $this->pages[$url] ?? null;
+	}
+};
+$fillFromPages = new ReflectionMethod(ContentExtractorService::class, 'fillAuthorExtrasFromAuthorPages');
+
+$checkPages = function (string $label, array $meta, string $configXml, array $pages, array $expectedAuthors, array $expectedFetches)
+	use ($pageService, $contentFiltersProp, $fillFromPages, $repoStubClass, &$passed, &$failures): void {
+	$contentFiltersProp->setValue($pageService, new ($repoStubClass::class)(new \SimpleXMLElement($configXml)));
+	$pageService->pages   = $pages;
+	$pageService->fetched = [];
+	$result = $fillFromPages->invoke($pageService, $meta, 'example.com', 'https://example.com/2026/10/artikel/', null);
+	$actual = ['authors' => $result['authors'] ?? null, 'fetched' => $pageService->fetched];
+	$expected = ['authors' => $expectedAuthors, 'fetched' => $expectedFetches];
+	if ($actual === $expected) {
+		$passed++;
+		echo "  \033[32m✓\033[0m " . $label . "\n";
+		return;
+	}
+	$failures[] = $label;
+	echo "  \033[31m✗ " . $label . "\033[0m\n";
+	echo '      erwartet: ' . var_export($expected, true) . "\n";
+	echo '      erhalten: ' . var_export($actual, true) . "\n";
+};
+
+$pageConfig = '<domain name="example.com"><metadata>'
+	. '<author-bio xpath="//div[@class=\'bio\']" />'
+	. '<author-bio from="author-page" xpath="//div[@class=\'profil-bio\']" />'
+	. '<author-image from="author-page" xpath="//img[@class=\'profil-foto\']" />'
+	. '</metadata></domain>';
+$profilePage = '<html><body><img class="profil-foto" src="/fotos/bea.jpg"><div class="profil-bio">Schreibt über Kultur.</div></body></html>';
+
+$checkPages(
+	'Bio und Foto fehlen im Artikel -> von der Autorenseite',
+	['author' => 'Bea Bild', 'authors' => [['name' => 'Bea Bild', 'url' => 'https://example.com/autor/bea']]],
+	$pageConfig,
+	['https://example.com/autor/bea' => $profilePage],
+	[['name' => 'Bea Bild', 'url' => 'https://example.com/autor/bea', 'image' => 'https://example.com/fotos/bea.jpg', 'bio' => 'Schreibt über Kultur.']],
+	['https://example.com/autor/bea']
+);
+
+$checkPages(
+	'Bio und Foto schon da -> keine Autorenseite geladen',
+	['author' => 'Bea Bild', 'authors' => [['name' => 'Bea Bild', 'url' => 'https://example.com/autor/bea', 'image' => 'https://example.com/a.jpg', 'bio' => 'Aus dem Artikel.']]],
+	$pageConfig,
+	['https://example.com/autor/bea' => $profilePage],
+	[['name' => 'Bea Bild', 'url' => 'https://example.com/autor/bea', 'image' => 'https://example.com/a.jpg', 'bio' => 'Aus dem Artikel.']],
+	[]
+);
+
+$checkPages(
+	'Profil-Link auf fremder Website -> nicht geladen; Seite nicht ladbar -> Feld bleibt leer',
+	['author' => 'Bea Bild, Carl Cut', 'authors' => [
+		['name' => 'Bea Bild', 'url' => 'https://twitter.com/bea'],
+		['name' => 'Carl Cut', 'url' => 'https://www.example.com/autor/carl'],
+	]],
+	$pageConfig,
+	[],
+	[['name' => 'Bea Bild', 'url' => 'https://twitter.com/bea'], ['name' => 'Carl Cut', 'url' => 'https://www.example.com/autor/carl']],
+	['https://www.example.com/autor/carl']
+);
+
+$check(
+	'from="author-page"-Regeln laufen nicht auf der Artikelseite',
+	'<html><head><meta property="article:author" content="Bea Bild"></head><body><div class="profil-bio">Falsch: Artikelseite.</div></body></html>',
+	$pageConfig,
+	$a('Bea Bild') + ['authors' => null]
+);
+
 echo "\n" . str_repeat('─', 72) . "\n";
 if ($failures === []) {
 	echo "\033[32mAlle " . $passed . " Prüfungen bestanden.\033[0m\n";

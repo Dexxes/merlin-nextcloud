@@ -361,6 +361,8 @@ class ContentExtractorService {
 		// because applyRemoveRules() removes all <script> tags — which would
 		// destroy JSON-LD and other embedded JSON sources before they can be read.
 		$domainMeta = $this->extractDomainMetadata($rawHtml, $domain, $trace, $url);
+		// Foto/Bio, die nur auf der Autorenseite stehen (<author-bio from="author-page">).
+		$domainMeta = $this->fillAuthorExtrasFromAuthorPages($domainMeta, $domain, $url, $trace);
 		// extractDomainMetadata() setzt category nur, wenn eine gefunden wurde –
 		// die Prüfungen unten (Medien, Mastodon, Readability-Zweig) erwarten
 		// aber einen vorhandenen Schlüssel.
@@ -4305,6 +4307,11 @@ class ContentExtractorService {
 
 		// ── <author-link>: explizite Regeln für die Profil-Links ───────────────
 		$configuredAuthorLinks = $this->extractConfiguredAuthorLinks($meta, $xpath, $jsonSources, $baseUrl, $trace);
+		// ── <author-image>/<author-bio>: Foto und Kurzbiografie (Autorenbox) ──
+		$configuredAuthorExtras = [
+			'image' => $this->extractConfiguredAuthorExtras($meta, 'author-image', $xpath, $jsonSources, $baseUrl, $trace),
+			'bio'   => $this->extractConfiguredAuthorExtras($meta, 'author-bio', $xpath, $jsonSources, $baseUrl, $trace),
+		];
 
 		// ── Generic JSON-LD fallback (schema.org Article/@graph) ────────────────
 		// Greift domainübergreifend, ganz ohne Domain-Config: viele CMS (Drupal,
@@ -4334,7 +4341,7 @@ class ContentExtractorService {
 		}
 		$result = $this->resolveAuthorMetadata(
 			$result, $xpath, $baseUrl, $authorNames, $authorNodes, $authorUrlFromRule,
-			$genericLd['authors'] ?? [], $configuredAuthorLinks
+			$genericLd['authors'] ?? [], $configuredAuthorLinks, $configuredAuthorExtras
 		);
 
 		// ── Static category declaration ──────────────────────────────────────────
@@ -4905,6 +4912,367 @@ class ContentExtractorService {
 		return [];
 	}
 
+	/** Längere Kurzbiografien werden abgeschnitten (Autorenbox, nicht Autorenseite). */
+	private const AUTHOR_BIO_MAX_LENGTH = 1000;
+
+	/**
+	 * Wertet die <metadata><author-image …/>- bzw. <author-bio …/>-Regeln aus
+	 * (Fallback-Kette in Dokumentreihenfolge wie bei <author-link>): die erste
+	 * Regel mit mindestens einem gültigen Wert gewinnt und liefert alle ihre
+	 * Werte, je Treffer bzw. je Wert eines [*]-JSON-Pfads. Bei XPath-Treffern
+	 * wird der Knoten mitgeliefert, damit resolveAuthorMetadata() ihn über den
+	 * Namen in seinem Umfeld dem richtigen Autor zuordnen kann.
+	 *
+	 * @param 'author-image'|'author-bio' $field
+	 * @param array<string, mixed> $jsonSources
+	 * @return list<array{value: string, node: ?\DOMNode}>
+	 */
+	private function extractConfiguredAuthorExtras(
+		?\SimpleXMLElement $meta,
+		string $field,
+		\DOMXPath $xpath,
+		array $jsonSources,
+		?string $baseUrl,
+		?ContentFilterTrace $trace
+	): array {
+		if ($meta === null || !isset($meta->$field)) {
+			return [];
+		}
+
+		$normalize = $field === 'author-image'
+			? fn (string $v): ?string => $this->normalizeAuthorImageUrl($v, $baseUrl)
+			: fn (string $v): ?string => $this->cleanAuthorBio($v);
+
+		foreach ($meta->$field as $rule) {
+			// Regeln für die Autorenseite wertet fillAuthorExtrasFromAuthorPages() aus.
+			if (trim((string) ($rule['from'] ?? '')) === 'author-page') {
+				continue;
+			}
+			$expr = trim((string) ($rule['xpath'] ?? ''));
+			if ($expr !== '') {
+				$nodes = @$xpath->query($expr);
+				if ($nodes === false) {
+					$trace?->record('metadata', $rule, 0, 'Ungültiger XPath-Ausdruck');
+				} else {
+					$values = [];
+					$seen   = [];
+					foreach ($nodes as $node) {
+						$raw = $field === 'author-image'
+							? $this->authorImageFromNode($node)
+							: $this->authorBioFromNode($node);
+						$value = $raw !== null ? $normalize($raw) : null;
+						// Gleicher Wert mehrfach (Byline oben + Box unten) nur einmal.
+						if ($value !== null && !isset($seen[$value])) {
+							$seen[$value] = true;
+							$values[]     = ['value' => $value, 'node' => $node];
+						}
+					}
+					$trace?->record('metadata', $rule, $nodes->length,
+						($nodes->length > 0 && $values === [])
+							? ($field === 'author-image' ? 'Kein gültiges http(s)-Bild im Treffer' : 'Treffer ohne Text')
+							: null);
+					if ($values !== []) {
+						return $values;
+					}
+				}
+			}
+
+			$jsonPath = trim((string) ($rule['json'] ?? ''));
+			if ($jsonPath !== '') {
+				if (!str_starts_with($jsonPath, '$') && str_contains($jsonPath, ':')) {
+					[$sourceId, $actualPath] = array_map('trim', explode(':', $jsonPath, 2));
+				} else {
+					[$sourceId, $actualPath] = ['default', $jsonPath];
+				}
+				$sourceData = $jsonSources[$sourceId] ?? null;
+				$values = [];
+				$seen   = [];
+				if ($sourceData !== null) {
+					foreach ($this->resolveJsonPathValues($sourceData, $actualPath) as $raw) {
+						$value = $normalize($raw);
+						if ($value !== null && !isset($seen[$value])) {
+							$seen[$value] = true;
+							$values[]     = ['value' => $value, 'node' => null];
+						}
+					}
+				}
+				$trace?->record('metadata', $rule, count($values),
+					$sourceData === null ? 'JSON-Quelle "' . $sourceId . '" nicht gefunden' : null);
+				if ($values !== []) {
+					return $values;
+				}
+			}
+		}
+
+		return [];
+	}
+
+	/**
+	 * Bild-URL aus einem <author-image>-Treffer: Attributwert (…/@src), ein
+	 * <img> (src, sonst data-src) oder das erste <img> im Element, sonst ein
+	 * content-Attribut (<meta>) bzw. der Text.
+	 */
+	private function authorImageFromNode(\DOMNode $node): ?string {
+		if ($node instanceof \DOMAttr) {
+			return $node->value;
+		}
+		if (!$node instanceof \DOMElement) {
+			return trim($node->textContent ?? '') ?: null;
+		}
+		$img = strtolower($node->nodeName) === 'img'
+			? $node
+			: $node->getElementsByTagName('img')->item(0);
+		if ($img instanceof \DOMElement) {
+			foreach (['src', 'data-src'] as $attr) {
+				$v = trim($img->getAttribute($attr));
+				if ($v !== '' && !str_starts_with($v, 'data:')) {
+					return $v;
+				}
+			}
+			return null;
+		}
+		if ($node->hasAttribute('content')) {
+			return $node->getAttribute('content');
+		}
+		return trim($node->textContent) ?: null;
+	}
+
+	/**
+	 * Absolute http(s)-URL eines Autorenfotos (relative gegen die Artikel-URL
+	 * aufgelöst, http:// auf https:// hochgestuft wie bei den Artikelbildern).
+	 */
+	private function normalizeAuthorImageUrl(string $src, ?string $baseUrl): ?string {
+		$url = $this->normalizeAuthorUrl($src, $baseUrl);
+		if ($url === null) {
+			return null;
+		}
+		return (string) preg_replace('#^http://#i', 'https://', $url);
+	}
+
+	/**
+	 * Text eines <author-bio>-Treffers mit erhaltenen Zeilenumbrüchen: <br>
+	 * und Blockelemente (<p>, <div>, <li>) beginnen eine neue Zeile.
+	 */
+	private function authorBioFromNode(\DOMNode $node): ?string {
+		if (!$node instanceof \DOMElement) {
+			return $node instanceof \DOMAttr ? $node->value : ($node->textContent ?? null);
+		}
+		$text = '';
+		$walk = function (\DOMNode $n) use (&$walk, &$text): void {
+			foreach ($n->childNodes as $child) {
+				if ($child instanceof \DOMText) {
+					$text .= $child->nodeValue;
+				} elseif ($child instanceof \DOMElement) {
+					$tag = strtolower($child->nodeName);
+					if ($tag === 'script' || $tag === 'style') {
+						continue;
+					}
+					if ($tag === 'br') {
+						$text .= "\n";
+						continue;
+					}
+					$block = in_array($tag, ['p', 'div', 'li', 'ul', 'ol', 'section', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'], true);
+					if ($block) {
+						$text .= "\n";
+					}
+					$walk($child);
+					if ($block) {
+						$text .= "\n";
+					}
+				}
+			}
+		};
+		$walk($node);
+		return $text;
+	}
+
+	/**
+	 * Normalisiert eine Kurzbiografie: Whitespace je Zeile zusammenfassen, leere
+	 * Zeilen entfernen, auf AUTHOR_BIO_MAX_LENGTH kürzen. null, wenn leer.
+	 */
+	private function cleanAuthorBio(string $raw): ?string {
+		$raw   = html_entity_decode($raw, ENT_QUOTES, 'UTF-8');
+		$lines = preg_split('/\R/u', $raw) ?: [];
+		$lines = array_values(array_filter(array_map(
+			fn (string $line) => trim((string) preg_replace('/[\s\x{00A0}]+/u', ' ', $line)),
+			$lines
+		), fn (string $line) => $line !== ''));
+		$bio = implode("\n", $lines);
+		if ($bio === '') {
+			return null;
+		}
+		if (mb_strlen($bio) > self::AUTHOR_BIO_MAX_LENGTH) {
+			$bio = rtrim(mb_substr($bio, 0, self::AUTHOR_BIO_MAX_LENGTH - 1)) . '…';
+		}
+		return $bio;
+	}
+
+	/**
+	 * Ordnet die Werte einer <author-image>/<author-bio>-Regel den Autoren zu.
+	 *
+	 *   - ein Autor: erster Wert
+	 *   - XPath-Treffer: der Autor, dessen Name im Treffer (Text, alt/title)
+	 *     oder im nächsten umschließenden Element als EINZIGER vorkommt
+	 *     (bis zu AUTHOR_EXTRA_MAX_ANCESTORS Ebenen nach oben)
+	 *   - übrige Autoren: der Reihe nach, wenn die Anzahl der Werte passt
+	 *
+	 * @param list<array{name: string, url: ?string}> $entries
+	 * @param list<array{value: string, node: ?\DOMNode}> $values
+	 * @return array<int, string> Index in $entries => Wert
+	 */
+	private function assignAuthorExtras(array $entries, array $values): array {
+		if ($values === [] || $entries === []) {
+			return [];
+		}
+		if (count($entries) === 1) {
+			return [0 => $values[0]['value']];
+		}
+
+		$names    = array_map(fn (array $e) => mb_strtolower($e['name']), $entries);
+		$assigned = [];
+		foreach ($values as $value) {
+			$el = $value['node'] instanceof \DOMAttr ? $value['node']->ownerElement : $value['node'];
+			for ($depth = 0; $el instanceof \DOMElement && $depth <= self::AUTHOR_EXTRA_MAX_ANCESTORS; $depth++, $el = $el->parentNode) {
+				$haystack = mb_strtolower($el->textContent . ' ' . $el->getAttribute('alt') . ' ' . $el->getAttribute('title'));
+				$hits = array_keys(array_filter($names, fn (string $n) => str_contains($haystack, $n)));
+				if (count($hits) === 1) {
+					$assigned[$hits[0]] ??= $value['value'];
+					break;
+				}
+				if (count($hits) > 1) {
+					break; // Element umfasst mehrere Autoren: weiter oben wird es nicht eindeutiger
+				}
+			}
+		}
+
+		if (count($values) === count($entries)) {
+			foreach ($entries as $i => $_) {
+				if (!isset($assigned[$i]) && !in_array($values[$i]['value'], $assigned, true)) {
+					$assigned[$i] = $values[$i]['value'];
+				}
+			}
+		}
+
+		ksort($assigned);
+		return $assigned;
+	}
+
+	/** Höchstens so viele Autorenseiten werden je Artikel geladen. */
+	private const AUTHOR_PAGE_MAX_FETCHES = 4;
+
+	/**
+	 * Ergänzt Foto/Kurzbiografie aus den Profilseiten der Autoren
+	 * (<metadata><author-image|author-bio from="author-page" xpath="…"/>), für
+	 * Autoren mit Profil-Link, denen das Feld nach den Artikel-Regeln noch
+	 * fehlt. Die erste Regel mit Treffer gewinnt (Fallback-Kette).
+	 *
+	 * Geladen werden nur Profilseiten derselben Website wie der Artikel
+	 * (gleicher Host ohne www.), höchstens AUTHOR_PAGE_MAX_FETCHES, jede
+	 * höchstens einmal; ein Ladefehler lässt das Feld einfach leer.
+	 *
+	 * @param array<string, mixed> $meta Ergebnis von extractDomainMetadata()
+	 * @return array<string, mixed>
+	 */
+	private function fillAuthorExtrasFromAuthorPages(array $meta, string $domain, string $articleUrl, ?ContentFilterTrace $trace): array {
+		$authors = $meta['authors'] ?? null;
+		if (!is_array($authors) || $authors === []) {
+			return $meta;
+		}
+		$config  = $this->loadDomainConfig($domain);
+		$rulesBy = [];
+		foreach (['image' => 'author-image', 'bio' => 'author-bio'] as $key => $field) {
+			foreach (($config !== null && isset($config->metadata->$field)) ? $config->metadata->$field : [] as $rule) {
+				if (trim((string) ($rule['from'] ?? '')) === 'author-page' && trim((string) ($rule['xpath'] ?? '')) !== '') {
+					$rulesBy[$key][] = $rule;
+				}
+			}
+		}
+		if ($rulesBy === []) {
+			return $meta;
+		}
+
+		$articleHost = preg_replace('/^www\./', '', strtolower((string) parse_url($articleUrl, PHP_URL_HOST))) ?? '';
+		$fetches     = 0;
+		foreach ($authors as $i => $author) {
+			$missing = array_filter(array_keys($rulesBy), fn (string $key) => empty($author[$key]));
+			$url     = $author['url'] ?? null;
+			if ($missing === [] || !is_string($url)) {
+				continue;
+			}
+			$host = preg_replace('/^www\./', '', strtolower((string) parse_url($url, PHP_URL_HOST))) ?? '';
+			if ($host === '' || $host !== $articleHost || $fetches >= self::AUTHOR_PAGE_MAX_FETCHES) {
+				continue;
+			}
+			$fetches++;
+			$html = $this->fetchAuthorPage($url);
+			if ($html === null) {
+				continue;
+			}
+
+			$prev = libxml_use_internal_errors(true);
+			$dom  = new \DOMDocument();
+			$dom->loadHTML('<?xml version="1.0" encoding="UTF-8"?>' . $html, LIBXML_NOERROR | LIBXML_NOWARNING);
+			libxml_clear_errors();
+			libxml_use_internal_errors($prev);
+			$xpath = new \DOMXPath($dom);
+
+			foreach ($missing as $key) {
+				foreach ($rulesBy[$key] as $rule) {
+					$nodes = @$xpath->query(trim((string) $rule['xpath']));
+					if ($nodes === false) {
+						$trace?->record('metadata', $rule, 0, 'Ungültiger XPath-Ausdruck');
+						continue;
+					}
+					$trace?->record('metadata', $rule, $nodes->length);
+					$value = null;
+					foreach ($nodes as $node) {
+						$raw   = $key === 'image' ? $this->authorImageFromNode($node) : $this->authorBioFromNode($node);
+						$value = $raw === null ? null
+							: ($key === 'image' ? $this->normalizeAuthorImageUrl($raw, $url) : $this->cleanAuthorBio($raw));
+						if ($value !== null) {
+							break;
+						}
+					}
+					if ($value !== null) {
+						$authors[$i][$key] = $value;
+						break;
+					}
+				}
+			}
+		}
+
+		$meta['authors'] = $authors;
+		return $meta;
+	}
+
+	/**
+	 * HTML einer Autorenseite über denselben abgesicherten Abruf wie der Artikel
+	 * (SSRF-Schutz, Domain-Header aus <fetch>); null bei Fehler oder PDF.
+	 * Eigene Methode, damit Tests sie ohne Netzwerk ersetzen können.
+	 */
+	protected function fetchAuthorPage(string $url): ?string {
+		try {
+			$result = $this->fetchUrl($url);
+		} catch (\Throwable $e) {
+			if (isset($this->logger)) {
+				$this->logger->debug('Autorenseite nicht ladbar: ' . $e->getMessage(), ['url' => $url]);
+			}
+			return null;
+		}
+		if ($result['isPdf'] || $result['body'] === '') {
+			return null;
+		}
+		$charset = $result['httpCharset'] ?? $this->detectHtmlEncoding($result['body']);
+		if ($charset !== null && !in_array($charset, ['utf-8', 'utf8'], true)) {
+			$converted = @mb_convert_encoding($result['body'], 'UTF-8', $charset);
+			return is_string($converted) && $converted !== '' ? $converted : $result['body'];
+		}
+		return $result['body'];
+	}
+
+	/** Wie weit assignAuthorExtras() vom Treffer aus nach einem Autorennamen sucht. */
+	private const AUTHOR_EXTRA_MAX_ANCESTORS = 4;
+
 	/**
 	 * Vervollständigt Autorennamen und Profil-Links im Metadaten-Ergebnis.
 	 *
@@ -4930,6 +5298,8 @@ class ContentExtractorService {
 	 * @param list<\DOMNode>                             $authorNodes parallel zu $authorNames, wenn die Namen aus einer XPath-Regel stammen
 	 * @param list<array{name: string, url: ?string}>    $jsonLdAuthors
 	 * @param list<string>                               $configuredLinks
+	 * @param array{image?: list<array{value: string, node: ?\DOMNode}>, bio?: list<array{value: string, node: ?\DOMNode}>} $configuredExtras
+	 *        Foto/Kurzbiografie aus <author-image>/<author-bio> (siehe assignAuthorExtras())
 	 * @return array<string, mixed>
 	 */
 	private function resolveAuthorMetadata(
@@ -4940,7 +5310,8 @@ class ContentExtractorService {
 		array $authorNodes,
 		?string $authorUrlFromRule,
 		array $jsonLdAuthors,
-		array $configuredLinks
+		array $configuredLinks,
+		array $configuredExtras = []
 	): array {
 		$generic = null;
 		$entries = [];
@@ -5019,7 +5390,16 @@ class ContentExtractorService {
 			$entries[0]['url'] = $authorUrlFromRule;
 		}
 
-		if (array_filter(array_column($entries, 'url')) !== []) {
+		// Foto und Kurzbiografie (Autorenbox): Schlüssel nur bei vorhandenem Wert.
+		$hasExtras = false;
+		foreach (['image', 'bio'] as $key) {
+			foreach ($this->assignAuthorExtras($entries, $configuredExtras[$key] ?? []) as $i => $value) {
+				$entries[$i][$key] = $value;
+				$hasExtras = true;
+			}
+		}
+
+		if ($hasExtras || array_filter(array_column($entries, 'url')) !== []) {
 			$result['authors'] = $entries;
 		}
 		if (count($entries) === 1 && $entries[0]['url'] !== null) {

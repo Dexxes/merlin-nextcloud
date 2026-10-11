@@ -15,11 +15,12 @@
 				</NcButton>
 			</div>
 
-			<!-- Media type tabs (Text/Video/Audio) like the iOS app's side menu.
+			<!-- Media type tabs (Text/Video/Audio/Files) like the iOS app's side menu.
 			     Below them the Unread(/Unwatched/Not listened)/Favorites/Archived
 			     views of the selected type. Switching a tab only changes which
 			     views are listed; a view loads once it is clicked. "Mixed"
-			     articles (text with embedded media) count as text. -->
+			     articles (text with embedded media) count as text; files saved
+			     from the phone ("Merlin files") only show under Files. -->
 			<li class="media-tabs-row">
 				<div class="media-tabs" role="tablist" :aria-label="t('merlin', 'Media type')">
 					<button
@@ -196,6 +197,7 @@ import Plus from 'vue-material-design-icons/Plus.vue'
 import TrashCanOutline from 'vue-material-design-icons/TrashCanOutline.vue'
 import PlayCircleOutline from 'vue-material-design-icons/PlayCircleOutline.vue'
 import Headphones from 'vue-material-design-icons/Headphones.vue'
+import FolderOutline from 'vue-material-design-icons/FolderOutline.vue'
 import Cog from 'vue-material-design-icons/Cog.vue'
 import EyeOutline from 'vue-material-design-icons/EyeOutline.vue'
 import EyeOffOutline from 'vue-material-design-icons/EyeOffOutline.vue'
@@ -223,14 +225,14 @@ function loadExpanded() {
 }
 
 /**
- * Media type ('pages' | 'videos' | 'audio') of a filter such as 'audio-favorites'.
+ * Media type ('pages' | 'videos' | 'audio' | 'files') of a filter such as 'audio-favorites'.
  *
  * @param {string|null} filter Active sidebar filter
  * @return {string|null}
  */
 function groupOf(filter) {
 	const group = (filter || '').split('-')[0]
-	return ['pages', 'videos', 'audio'].includes(group) ? group : null
+	return ['pages', 'videos', 'audio', 'files'].includes(group) ? group : null
 }
 
 export default {
@@ -251,6 +253,7 @@ export default {
 		TrashCanOutline,
 		PlayCircleOutline,
 		Headphones,
+		FolderOutline,
 		Cog,
 		EyeOutline,
 		EyeOffOutline,
@@ -315,7 +318,7 @@ export default {
 			expandedTagIds: loadExpanded(),
 			// Tag whose "Move to…" dialog is open.
 			tagToMove: null,
-			// Media type shown in the tabs ('pages' | 'videos' | 'audio').
+			// Media type shown in the tabs ('pages' | 'videos' | 'audio' | 'files').
 			// Follows the active filter; a tag filter leaves it unchanged.
 			menuGroup: groupOf(this.currentFilter) || 'pages',
 		}
@@ -386,6 +389,7 @@ export default {
 				{ group: 'pages', label: this.t('merlin', 'Text') },
 				{ group: 'videos', label: this.t('merlin', 'Video') },
 				{ group: 'audio', label: this.t('merlin', 'Audio') },
+				{ group: 'files', label: this.t('merlin', 'Files') },
 			]
 		},
 		// Views of the selected media type, in the same order as on iOS.
@@ -396,11 +400,13 @@ export default {
 				pages: this.t('merlin', 'Unread'),
 				videos: this.t('merlin', 'Unwatched'),
 				audio: this.t('merlin', 'Not listened'),
+				files: this.t('merlin', 'Not opened'),
 			}[group]
 			const unreadIcon = {
 				pages: 'InboxOutline',
 				videos: 'PlayCircleOutline',
 				audio: 'Headphones',
+				files: 'FolderOutline',
 			}[group]
 			return [
 				{ filter: `${group}-unread`, label: unreadLabel, icon: unreadIcon, count: counts.unread },

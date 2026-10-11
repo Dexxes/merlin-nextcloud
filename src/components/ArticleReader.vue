@@ -134,6 +134,10 @@
 						<Tag :size="16" />
 						<span>{{ t('merlin', 'Manage tags') }}</span>
 					</li>
+					<li v-if="article.fileId" role="menuitem" @click="moreMenuOpen = false; renameFile()">
+						<Pencil :size="16" />
+						<span>{{ t('merlin', 'Rename…') }}</span>
+					</li>
 					<li role="menuitem" @click="exportHtml(); moreMenuOpen = false">
 						<Download :size="16" />
 						<span>{{ t('merlin', 'Export as HTML') }}</span>
@@ -560,6 +564,8 @@ import ArchiveArrowDown from 'vue-material-design-icons/ArchiveArrowDown.vue'
 import Star from 'vue-material-design-icons/Star.vue'
 import StarOutline from 'vue-material-design-icons/StarOutline.vue'
 import Tag from 'vue-material-design-icons/Tag.vue'
+import Pencil from 'vue-material-design-icons/Pencil.vue'
+import { promptRenameFile } from '../file-rename.js'
 import { flattenTree, tagPath } from '../tag-tree'
 import Check from 'vue-material-design-icons/Check.vue'
 import Account from 'vue-material-design-icons/Account.vue'
@@ -582,6 +588,7 @@ import CommentPanel from './CommentPanel.vue'
 import CommentTextOutline from 'vue-material-design-icons/CommentTextOutline.vue'
 import MediaPlayer from './MediaPlayer.vue'
 import { hideBrokenSupportBoxIcons, insertSupportBox } from '../support-box'
+import { appendAuthorBoxes, authorBoxEntries, hideBrokenAuthorPhotos } from '../author-box'
 import { mountInlineMedia, unmountInlineMedia } from '../inline-media'
 import PdfViewer from './PdfViewer.vue'
 import { generateUrl } from '@nextcloud/router'
@@ -637,6 +644,7 @@ export default {
 		Star,
 		StarOutline,
 		Tag,
+		Pencil,
 		Check,
 		Account,
 		Calendar,
@@ -722,8 +730,10 @@ export default {
 			return { color: this.settings.accentColor || '#FF3B30' }
 		},
 
-		// "Autor, Medium" am Artikelende (z.B. "Max Muster, taz.de").
+		// "Autor, Medium" am Artikelende (z.B. "Max Muster, taz.de"). Entfällt,
+		// wenn Autorenboxen (author-box.js) Autor und Profil-Link schon zeigen.
 		footerByline() {
+			if (authorBoxEntries(this.article?.authors).length > 0) return ''
 			return [this.article.author, this.article.siteName || this.articleDomain]
 				.map((v) => (v || '').trim())
 				.filter(Boolean)
@@ -911,13 +921,15 @@ export default {
 		// Element ist - sonst bleibt alles wie zuvor in restHtml.
 		// Support-Infobox (Abo-/Spendenlink) zwischen zwei Absätzen des Rest-HTML,
 		// siehe support-box.js. Der Hero-Split darüber bleibt unverändert.
+		// Autorenboxen (Foto/Bio, siehe author-box.js) am Ende des Rest-HTML.
 		heroAndRestContent() {
 			const base = this.baseHeroAndRestContent
-			if (!this.supportBox) return base
-			return {
-				...base,
-				restHtml: insertSupportBox(base.restHtml, this.supportBox, this.article.id, this.t),
+			let restHtml = base.restHtml
+			if (this.supportBox) {
+				restHtml = insertSupportBox(restHtml, this.supportBox, this.article.id, this.t)
 			}
+			restHtml = appendAuthorBoxes(restHtml, this.article.authors, this.settings.accentColor, this.t)
+			return restHtml === base.restHtml ? base : { ...base, restHtml }
 		},
 
 		baseHeroAndRestContent() {
@@ -1029,6 +1041,11 @@ export default {
 	},
 
 	methods: {
+		// Datei-Einträge aus „Merlin Dateien“: Datei und Titel umbenennen.
+		renameFile() {
+			promptRenameFile(this.$store, this.article)
+		},
+
 		// supportBox (Abo-/Spendenlink der Quelle, null bei aktivem Login dort) steht
 		// nur in der Einzelabruf-Antwort, nicht in der Artikelliste, mit der der
 		// Reader geöffnet wird - deshalb hier nachladen.
@@ -1408,7 +1425,8 @@ export default {
 			// Das Icon der Support-Infobox hat einen eigenen Umgang mit Ladefehlern
 			// (einfach entfernen statt "Bild nicht verfügbar"-Platzhalter).
 			hideBrokenSupportBoxIcons(bodyEl)
-			bodyEl.querySelectorAll('img:not(.merlin-support-box__icon)').forEach(img => {
+			hideBrokenAuthorPhotos(bodyEl)
+			bodyEl.querySelectorAll('img:not(.merlin-support-box__icon):not(.merlin-author-box__photo)').forEach(img => {
 				// Already broken (cached failure)
 				if (img.complete && img.naturalWidth === 0) {
 					this._replaceWithPlaceholder(img)
@@ -1910,6 +1928,43 @@ article {
 .article-body :deep(td) {
 	border: 1px solid var(--color-border);
 	padding: 0.5em 0.75em;
+}
+
+/* Metadaten unter Dateien aus „Merlin Dateien“ (MerlinFileService::metadataHtml):
+   je Gruppe eine aufklappbare Tabelle, kompakt und über die volle Breite. */
+.article-body :deep(.merlin-file-metadata) {
+	margin-top: 2.5em;
+	font-size: 0.85em;
+}
+
+.article-body :deep(.merlin-file-metadata details) {
+	margin: 0.75em 0;
+}
+
+.article-body :deep(.merlin-file-metadata summary) {
+	cursor: pointer;
+	font-weight: 600;
+}
+
+.article-body :deep(.merlin-file-metadata table) {
+	display: table;
+	width: 100%;
+	margin: 0.5em 0 0;
+	table-layout: fixed;
+}
+
+.article-body :deep(.merlin-file-metadata th) {
+	width: 35%;
+	text-align: start;
+	font-weight: 500;
+	color: var(--color-text-maxcontrast);
+}
+
+.article-body :deep(.merlin-file-metadata th),
+.article-body :deep(.merlin-file-metadata td) {
+	padding: 0.3em 0.6em;
+	vertical-align: top;
+	overflow-wrap: anywhere;
 }
 
 /* Video-Embeds (YouTube/Vimeo/Twitch/TikTok/Facebook/Arte), siehe

@@ -64,6 +64,12 @@ use OCP\AppFramework\Db\Entity;
  * @method void setUnsupportedSiteDomain(?string $unsupportedSiteDomain)
  * @method string|null getSiteIconUrl()
  * @method void setSiteIconUrl(?string $siteIconUrl)
+ * @method int|null getFileId()
+ * @method void setFileId(?int $fileId)
+ * @method string|null getFileMime()
+ * @method void setFileMime(?string $fileMime)
+ * @method string|null getFileText()
+ * @method void setFileText(?string $fileText)
  */
 class Article extends Entity implements JsonSerializable {
 	protected $userId;
@@ -121,6 +127,15 @@ class Article extends Entity implements JsonSerializable {
 	// Bewusst NICHT in jsonSerialize(): nur die Support-Infobox braucht es
 	// (supportBox.iconUrl, Service\SupportBoxService), Listen bleiben schlank.
 	protected $siteIconUrl;
+	// Nextcloud-Datei-ID bei Datei-Einträgen (vom Handy in „Merlin Dateien“
+	// gespeichert, siehe Service\MerlinFileService), sonst null. url ist dann
+	// der Link in die Nextcloud-Dateien-App, content zeigt die Datei über
+	// signierte Links auf /api/articles/{id}/file.
+	protected $fileId;
+	protected $fileMime;
+	// Text, den die iOS-Share-Extension per OCR in einem Bild erkannt hat
+	// (durchsuchbar, im Content als „Erkannter Text“). Nicht im JSON.
+	protected $fileText;
 
 	public function __construct() {
 		$this->addType('userId', 'string');
@@ -156,12 +171,15 @@ class Article extends Entity implements JsonSerializable {
 		$this->addType('paywallSubscribeUrl', 'string');
 		$this->addType('unsupportedSiteDomain', 'string');
 		$this->addType('siteIconUrl', 'string');
+		$this->addType('fileId', 'integer');
+		$this->addType('fileMime', 'string');
+		$this->addType('fileText', 'string');
 	}
 
 	/**
 	 * Speicherform für setAuthors(): JSON oder null bei leerer Liste.
 	 *
-	 * @param list<array{name: string, url: ?string}>|null $authors
+	 * @param list<array{name: string, url: ?string, image?: string, bio?: string}>|null $authors
 	 */
 	public static function encodeAuthors(?array $authors): ?string {
 		if ($authors === null || $authors === []) {
@@ -172,7 +190,7 @@ class Article extends Entity implements JsonSerializable {
 	}
 
 	/**
-	 * @return list<array{name: string, url: ?string}>|null
+	 * @return list<array{name: string, url: ?string, image?: string, bio?: string}>|null
 	 */
 	public static function decodeAuthors(?string $json): ?array {
 		if ($json === null || $json === '') {
@@ -185,10 +203,19 @@ class Article extends Entity implements JsonSerializable {
 		$authors = [];
 		foreach ($decoded as $entry) {
 			if (is_array($entry) && is_string($entry['name'] ?? null) && $entry['name'] !== '') {
-				$authors[] = [
+				$author = [
 					'name' => $entry['name'],
 					'url'  => is_string($entry['url'] ?? null) ? $entry['url'] : null,
 				];
+				// Foto und Kurzbiografie für die Autorenbox (<metadata><author-image>/
+				// <author-bio>), nur wenn vorhanden.
+				if (is_string($entry['image'] ?? null) && preg_match('#^https?://#i', $entry['image']) === 1) {
+					$author['image'] = $entry['image'];
+				}
+				if (is_string($entry['bio'] ?? null) && $entry['bio'] !== '') {
+					$author['bio'] = $entry['bio'];
+				}
+				$authors[] = $author;
 			}
 		}
 		return $authors !== [] ? $authors : null;
@@ -257,6 +284,10 @@ class Article extends Entity implements JsonSerializable {
 			// erklärenden Hinweis statt eines Retry-Buttons, da ein erneuter
 			// Versuch am selben Ergebnis nichts ändert.
 			'unsupportedSiteDomain' => $this->getUnsupportedSiteDomain(),
+			// null bei Web-Artikeln. Gesetzt: Eintrag für eine Datei in
+			// „Merlin Dateien“ (fileMime = MIME-Typ der Datei).
+			'fileId'   => $this->getFileId() !== null ? (int) $this->getFileId() : null,
+			'fileMime' => $this->getFileMime(),
 		];
 	}
 }

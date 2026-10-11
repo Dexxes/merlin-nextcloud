@@ -9,6 +9,7 @@ use OCA\Merlin\Db\Article;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Db\ArticleShareMapper;
 use OCA\Merlin\Service\CommentService;
+use OCA\Merlin\Service\MerlinFileService;
 use OCA\Merlin\Service\PdfProxyService;
 use OCA\Merlin\Service\ShareAccessService;
 use OCA\Merlin\Service\SupportBoxService;
@@ -52,6 +53,7 @@ class PublicShareController extends Controller {
 		private IThrottler $throttler,
 		private IInitialState $initialState,
 		private SupportBoxService $supportBox,
+		private MerlinFileService $files,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -243,6 +245,11 @@ class PublicShareController extends Controller {
 			header('Content-Type: application/json');
 			echo json_encode(['error' => 'Article not found']);
 			exit();
+		}
+
+		// PDF aus „Merlin Dateien“: direkt aus Nextcloud statt über den Proxy.
+		if ($article->getFileId() !== null) {
+			$this->files->stream($article);
 		}
 
 		// Läuft nie normal zurück: PdfProxyService::stream() beendet den Prozess selbst per exit().

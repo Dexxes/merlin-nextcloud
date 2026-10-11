@@ -51,6 +51,18 @@
 
   <metadata>
     <donations url="https://taz.de/taz-zahl-ich/ihnen-liegt-die-taz-am-herzen/!v=bd8182f9-0363-4f43-936f-7a2f0666b18c/" />
+    <!-- Autorenbox am Artikelende. Läuft auf dem rohen HTML, die Pre-Filter oben
+         (author-container/author-profile) stören also nicht.
+         Foto: aus der Byline oben (ein <figure class="author-figure"> je Autor,
+         Name im alt-Text); die Kommentar-Avatare tragen ebenfalls author-profile,
+         deshalb über author-figure eingegrenzt.
+         Bio: steht im Artikel nur bei manchen Autor*innen (Autorenbox unten),
+         sonst auf der Autorenseite (Profil-Link, z. B. /Pascal-Maier/!a404192/).
+         Dort auch das Foto für Co-Autor*innen ohne Bild in der Byline. -->
+    <author-image xpath="//figure[contains(@class,'author-figure')]/img[contains(@class,'author-profile')]" />
+    <author-image from="author-page" xpath="//div[contains(@class,'author-pic-name-wrapper')]//img[contains(@class,'author-profile')]" />
+    <author-bio   xpath="//div[contains(@class,'author-description')]" />
+    <author-bio   from="author-page" xpath="//div[contains(@class,'author-description')]" />
     <!--<author   xpath="//span[@class='Autor']" />
     <author   xpath="//span[contains(@class, 'typo-name-detail-bold')]" />-->
     <!-- Beispiele:
