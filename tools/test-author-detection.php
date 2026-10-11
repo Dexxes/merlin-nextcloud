@@ -425,6 +425,84 @@ $check(
 	$a('Bea Bild') + ['authors' => null]
 );
 
+echo "\n\033[1m<author-bio from=\"author-page\"> (Autorenseite)\033[0m\n";
+
+// Unterklasse ohne Netzwerk: liefert Autorenseiten aus $pages und merkt sich die Abrufe.
+$pageService = new class extends ContentExtractorService {
+	public array $pages   = [];
+	public array $fetched = [];
+	public function __construct() {
+	}
+	protected function fetchAuthorPage(string $url): ?string {
+		$this->fetched[] = $url;
+		return $this->pages[$url] ?? null;
+	}
+};
+$fillFromPages = new ReflectionMethod(ContentExtractorService::class, 'fillAuthorExtrasFromAuthorPages');
+
+$checkPages = function (string $label, array $meta, string $configXml, array $pages, array $expectedAuthors, array $expectedFetches)
+	use ($pageService, $contentFiltersProp, $fillFromPages, $repoStubClass, &$passed, &$failures): void {
+	$contentFiltersProp->setValue($pageService, new ($repoStubClass::class)(new \SimpleXMLElement($configXml)));
+	$pageService->pages   = $pages;
+	$pageService->fetched = [];
+	$result = $fillFromPages->invoke($pageService, $meta, 'example.com', 'https://example.com/2026/10/artikel/', null);
+	$actual = ['authors' => $result['authors'] ?? null, 'fetched' => $pageService->fetched];
+	$expected = ['authors' => $expectedAuthors, 'fetched' => $expectedFetches];
+	if ($actual === $expected) {
+		$passed++;
+		echo "  \033[32m✓\033[0m " . $label . "\n";
+		return;
+	}
+	$failures[] = $label;
+	echo "  \033[31m✗ " . $label . "\033[0m\n";
+	echo '      erwartet: ' . var_export($expected, true) . "\n";
+	echo '      erhalten: ' . var_export($actual, true) . "\n";
+};
+
+$pageConfig = '<domain name="example.com"><metadata>'
+	. '<author-bio xpath="//div[@class=\'bio\']" />'
+	. '<author-bio from="author-page" xpath="//div[@class=\'profil-bio\']" />'
+	. '<author-image from="author-page" xpath="//img[@class=\'profil-foto\']" />'
+	. '</metadata></domain>';
+$profilePage = '<html><body><img class="profil-foto" src="/fotos/bea.jpg"><div class="profil-bio">Schreibt über Kultur.</div></body></html>';
+
+$checkPages(
+	'Bio und Foto fehlen im Artikel -> von der Autorenseite',
+	['author' => 'Bea Bild', 'authors' => [['name' => 'Bea Bild', 'url' => 'https://example.com/autor/bea']]],
+	$pageConfig,
+	['https://example.com/autor/bea' => $profilePage],
+	[['name' => 'Bea Bild', 'url' => 'https://example.com/autor/bea', 'image' => 'https://example.com/fotos/bea.jpg', 'bio' => 'Schreibt über Kultur.']],
+	['https://example.com/autor/bea']
+);
+
+$checkPages(
+	'Bio und Foto schon da -> keine Autorenseite geladen',
+	['author' => 'Bea Bild', 'authors' => [['name' => 'Bea Bild', 'url' => 'https://example.com/autor/bea', 'image' => 'https://example.com/a.jpg', 'bio' => 'Aus dem Artikel.']]],
+	$pageConfig,
+	['https://example.com/autor/bea' => $profilePage],
+	[['name' => 'Bea Bild', 'url' => 'https://example.com/autor/bea', 'image' => 'https://example.com/a.jpg', 'bio' => 'Aus dem Artikel.']],
+	[]
+);
+
+$checkPages(
+	'Profil-Link auf fremder Website -> nicht geladen; Seite nicht ladbar -> Feld bleibt leer',
+	['author' => 'Bea Bild, Carl Cut', 'authors' => [
+		['name' => 'Bea Bild', 'url' => 'https://twitter.com/bea'],
+		['name' => 'Carl Cut', 'url' => 'https://www.example.com/autor/carl'],
+	]],
+	$pageConfig,
+	[],
+	[['name' => 'Bea Bild', 'url' => 'https://twitter.com/bea'], ['name' => 'Carl Cut', 'url' => 'https://www.example.com/autor/carl']],
+	['https://www.example.com/autor/carl']
+);
+
+$check(
+	'from="author-page"-Regeln laufen nicht auf der Artikelseite',
+	'<html><head><meta property="article:author" content="Bea Bild"></head><body><div class="profil-bio">Falsch: Artikelseite.</div></body></html>',
+	$pageConfig,
+	$a('Bea Bild') + ['authors' => null]
+);
+
 echo "\n" . str_repeat('─', 72) . "\n";
 if ($failures === []) {
 	echo "\033[32mAlle " . $passed . " Prüfungen bestanden.\033[0m\n";

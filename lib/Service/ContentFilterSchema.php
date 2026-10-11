@@ -64,6 +64,12 @@ final class ContentFilterSchema {
 	 */
 	public const MEDIA_INLINE_TYPES = ['ard-player'];
 
+	/**
+	 * Erlaubte Werte für <metadata><author-image|author-bio from="…">: wo der
+	 * XPath ausgewertet wird (Artikelseite oder Profilseite des Autors).
+	 */
+	public const AUTHOR_EXTRA_FROM = ['article', 'author-page'];
+
 	/** Erlaubte Werte für <media><source kind="…">. */
 	public const MEDIA_KINDS = ['video', 'audio'];
 
@@ -237,8 +243,11 @@ final class ContentFilterSchema {
 				// Artikelende (siehe src/author-box.js). Mehrere Treffer werden
 				// den Autoren wie bei <author-link> zugeordnet, bei XPath-
 				// Treffern bevorzugt über den Namen im Umfeld des Treffers.
-				'author-image' => ['optional' => ['xpath', 'json']],
-				'author-bio'   => ['optional' => ['xpath', 'json']],
+				// from="author-page": xpath läuft stattdessen auf der
+				// Autorenseite (Profil-Link des Autors, gleiche Website), für
+				// Autoren, denen das Feld nach den Artikel-Regeln noch fehlt.
+				'author-image' => ['optional' => ['xpath', 'json', 'from']],
+				'author-bio'   => ['optional' => ['xpath', 'json', 'from']],
 				'excerpt'   => ['optional' => ['xpath', 'json']],
 				'image'     => ['optional' => ['xpath', 'json']],
 				'published' => ['optional' => ['xpath', 'json']],

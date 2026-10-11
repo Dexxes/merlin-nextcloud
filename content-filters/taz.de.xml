@@ -56,9 +56,13 @@
          Foto: aus der Byline oben (ein <figure class="author-figure"> je Autor,
          Name im alt-Text); die Kommentar-Avatare tragen ebenfalls author-profile,
          deshalb über author-figure eingegrenzt.
-         Bio: nur bei manchen Autor*innen vorhanden, in der Autorenbox unten. -->
+         Bio: steht im Artikel nur bei manchen Autor*innen (Autorenbox unten),
+         sonst auf der Autorenseite (Profil-Link, z. B. /Pascal-Maier/!a404192/).
+         Dort auch das Foto für Co-Autor*innen ohne Bild in der Byline. -->
     <author-image xpath="//figure[contains(@class,'author-figure')]/img[contains(@class,'author-profile')]" />
+    <author-image from="author-page" xpath="//div[contains(@class,'author-pic-name-wrapper')]//img[contains(@class,'author-profile')]" />
     <author-bio   xpath="//div[contains(@class,'author-description')]" />
+    <author-bio   from="author-page" xpath="//div[contains(@class,'author-description')]" />
     <!--<author   xpath="//span[@class='Autor']" />
     <author   xpath="//span[contains(@class, 'typo-name-detail-bold')]" />-->
     <!-- Beispiele:

@@ -361,6 +361,8 @@ class ContentExtractorService {
 		// because applyRemoveRules() removes all <script> tags — which would
 		// destroy JSON-LD and other embedded JSON sources before they can be read.
 		$domainMeta = $this->extractDomainMetadata($rawHtml, $domain, $trace, $url);
+		// Foto/Bio, die nur auf der Autorenseite stehen (<author-bio from="author-page">).
+		$domainMeta = $this->fillAuthorExtrasFromAuthorPages($domainMeta, $domain, $url, $trace);
 		// extractDomainMetadata() setzt category nur, wenn eine gefunden wurde –
 		// die Prüfungen unten (Medien, Mastodon, Readability-Zweig) erwarten
 		// aber einen vorhandenen Schlüssel.
@@ -4942,6 +4944,10 @@ class ContentExtractorService {
 			: fn (string $v): ?string => $this->cleanAuthorBio($v);
 
 		foreach ($meta->$field as $rule) {
+			// Regeln für die Autorenseite wertet fillAuthorExtrasFromAuthorPages() aus.
+			if (trim((string) ($rule['from'] ?? '')) === 'author-page') {
+				continue;
+			}
 			$expr = trim((string) ($rule['xpath'] ?? ''));
 			if ($expr !== '') {
 				$nodes = @$xpath->query($expr);
@@ -5149,6 +5155,119 @@ class ContentExtractorService {
 
 		ksort($assigned);
 		return $assigned;
+	}
+
+	/** Höchstens so viele Autorenseiten werden je Artikel geladen. */
+	private const AUTHOR_PAGE_MAX_FETCHES = 4;
+
+	/**
+	 * Ergänzt Foto/Kurzbiografie aus den Profilseiten der Autoren
+	 * (<metadata><author-image|author-bio from="author-page" xpath="…"/>), für
+	 * Autoren mit Profil-Link, denen das Feld nach den Artikel-Regeln noch
+	 * fehlt. Die erste Regel mit Treffer gewinnt (Fallback-Kette).
+	 *
+	 * Geladen werden nur Profilseiten derselben Website wie der Artikel
+	 * (gleicher Host ohne www.), höchstens AUTHOR_PAGE_MAX_FETCHES, jede
+	 * höchstens einmal; ein Ladefehler lässt das Feld einfach leer.
+	 *
+	 * @param array<string, mixed> $meta Ergebnis von extractDomainMetadata()
+	 * @return array<string, mixed>
+	 */
+	private function fillAuthorExtrasFromAuthorPages(array $meta, string $domain, string $articleUrl, ?ContentFilterTrace $trace): array {
+		$authors = $meta['authors'] ?? null;
+		if (!is_array($authors) || $authors === []) {
+			return $meta;
+		}
+		$config  = $this->loadDomainConfig($domain);
+		$rulesBy = [];
+		foreach (['image' => 'author-image', 'bio' => 'author-bio'] as $key => $field) {
+			foreach (($config !== null && isset($config->metadata->$field)) ? $config->metadata->$field : [] as $rule) {
+				if (trim((string) ($rule['from'] ?? '')) === 'author-page' && trim((string) ($rule['xpath'] ?? '')) !== '') {
+					$rulesBy[$key][] = $rule;
+				}
+			}
+		}
+		if ($rulesBy === []) {
+			return $meta;
+		}
+
+		$articleHost = preg_replace('/^www\./', '', strtolower((string) parse_url($articleUrl, PHP_URL_HOST))) ?? '';
+		$fetches     = 0;
+		foreach ($authors as $i => $author) {
+			$missing = array_filter(array_keys($rulesBy), fn (string $key) => empty($author[$key]));
+			$url     = $author['url'] ?? null;
+			if ($missing === [] || !is_string($url)) {
+				continue;
+			}
+			$host = preg_replace('/^www\./', '', strtolower((string) parse_url($url, PHP_URL_HOST))) ?? '';
+			if ($host === '' || $host !== $articleHost || $fetches >= self::AUTHOR_PAGE_MAX_FETCHES) {
+				continue;
+			}
+			$fetches++;
+			$html = $this->fetchAuthorPage($url);
+			if ($html === null) {
+				continue;
+			}
+
+			$prev = libxml_use_internal_errors(true);
+			$dom  = new \DOMDocument();
+			$dom->loadHTML('<?xml version="1.0" encoding="UTF-8"?>' . $html, LIBXML_NOERROR | LIBXML_NOWARNING);
+			libxml_clear_errors();
+			libxml_use_internal_errors($prev);
+			$xpath = new \DOMXPath($dom);
+
+			foreach ($missing as $key) {
+				foreach ($rulesBy[$key] as $rule) {
+					$nodes = @$xpath->query(trim((string) $rule['xpath']));
+					if ($nodes === false) {
+						$trace?->record('metadata', $rule, 0, 'Ungültiger XPath-Ausdruck');
+						continue;
+					}
+					$trace?->record('metadata', $rule, $nodes->length);
+					$value = null;
+					foreach ($nodes as $node) {
+						$raw   = $key === 'image' ? $this->authorImageFromNode($node) : $this->authorBioFromNode($node);
+						$value = $raw === null ? null
+							: ($key === 'image' ? $this->normalizeAuthorImageUrl($raw, $url) : $this->cleanAuthorBio($raw));
+						if ($value !== null) {
+							break;
+						}
+					}
+					if ($value !== null) {
+						$authors[$i][$key] = $value;
+						break;
+					}
+				}
+			}
+		}
+
+		$meta['authors'] = $authors;
+		return $meta;
+	}
+
+	/**
+	 * HTML einer Autorenseite über denselben abgesicherten Abruf wie der Artikel
+	 * (SSRF-Schutz, Domain-Header aus <fetch>); null bei Fehler oder PDF.
+	 * Eigene Methode, damit Tests sie ohne Netzwerk ersetzen können.
+	 */
+	protected function fetchAuthorPage(string $url): ?string {
+		try {
+			$result = $this->fetchUrl($url);
+		} catch (\Throwable $e) {
+			if (isset($this->logger)) {
+				$this->logger->debug('Autorenseite nicht ladbar: ' . $e->getMessage(), ['url' => $url]);
+			}
+			return null;
+		}
+		if ($result['isPdf'] || $result['body'] === '') {
+			return null;
+		}
+		$charset = $result['httpCharset'] ?? $this->detectHtmlEncoding($result['body']);
+		if ($charset !== null && !in_array($charset, ['utf-8', 'utf8'], true)) {
+			$converted = @mb_convert_encoding($result['body'], 'UTF-8', $charset);
+			return is_string($converted) && $converted !== '' ? $converted : $result['body'];
+		}
+		return $result['body'];
 	}
 
 	/** Wie weit assignAuthorExtras() vom Treffer aus nach einem Autorennamen sucht. */

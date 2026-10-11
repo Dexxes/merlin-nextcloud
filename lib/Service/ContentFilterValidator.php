@@ -492,6 +492,25 @@ class ContentFilterValidator {
 			return;
 		}
 
+		if (in_array($tag, ['author-image', 'author-bio'], true) && $attrName === 'from') {
+			if (!in_array($value, ContentFilterSchema::AUTHOR_EXTRA_FROM, true)) {
+				$errors[] = [
+					'message' => sprintf(
+						'from muss %s sein, war: %s',
+						implode(' oder ', ContentFilterSchema::AUTHOR_EXTRA_FROM),
+						$value
+					),
+					'line' => $rule->getLineNo(),
+				];
+			} elseif ($value === 'author-page' && trim($rule->getAttribute('xpath')) === '') {
+				$errors[] = [
+					'message' => '<' . $tag . ' from="author-page"> braucht das Attribut xpath.',
+					'line'    => $rule->getLineNo(),
+				];
+			}
+			return;
+		}
+
 		if ($tag === 'source' && $attrName === 'kind') {
 			if (!in_array($value, ContentFilterSchema::MEDIA_KINDS, true)) {
 				$errors[] = [
