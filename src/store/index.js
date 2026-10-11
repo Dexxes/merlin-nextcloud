@@ -21,6 +21,7 @@ export default createStore({
 			pages: { total: 0, unread: 0, favorites: 0, archived: 0 },
 			videos: { total: 0, unread: 0, favorites: 0, archived: 0 },
 			audio: { total: 0, unread: 0, favorites: 0, archived: 0 },
+			files: { total: 0, unread: 0, favorites: 0, archived: 0 },
 		},
 		tags: [],
 		settings: {},
@@ -298,6 +299,17 @@ export default createStore({
 			}
 		},
 
+		// Datei-Eintrag umbenennen (Datei in Nextcloud + Titel); wirft bei
+		// Fehlern (409 = Name im Ordner vergeben), der Aufrufer meldet sie.
+		async renameFile({ commit, state }, { articleId, name }) {
+			const article = await articlesAPI.renameFile(articleId, name)
+			commit('UPDATE_ARTICLE', article)
+			if (state.currentArticle && state.currentArticle.id === article.id) {
+				commit('SET_CURRENT_ARTICLE', { ...state.currentArticle, ...article })
+			}
+			return article
+		},
+
 		async deleteArticle({ commit, dispatch }, articleId) {
 			try {
 				await articlesAPI.deleteArticle(articleId)
@@ -427,7 +439,7 @@ export default createStore({
 		async pollForUpdates({ state, commit }) {
 			try {
 				const counts = await articlesAPI.getCounts()
-				const sumTotals = c => ['pages', 'videos', 'audio'].reduce((sum, group) => sum + (c[group]?.total || 0), 0)
+				const sumTotals = c => ['pages', 'videos', 'audio', 'files'].reduce((sum, group) => sum + (c[group]?.total || 0), 0)
 				const total = sumTotals(counts)
 				const previousTotal = sumTotals(state.counts)
 				if (total !== previousTotal) {

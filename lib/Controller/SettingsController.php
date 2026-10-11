@@ -36,7 +36,7 @@ class SettingsController extends Controller {
 		'fontSize' => '17', // numerischer Wert in px (z.B. 13, 15, 17, 19, 21, 24)
 		'fontFamily' => 'default', // 'default', 'serif', 'sans-serif', 'monospace'
 		'lineHeight' => '1.6',
-		'defaultView' => 'pages-unread', // 'pages-unread', 'pages-favorites', 'pages-archived', 'videos-unread', 'videos-favorites', 'videos-archived', 'audio-unread', 'audio-favorites', 'audio-archived'
+		'defaultView' => 'pages-unread', // 'pages-unread', 'pages-favorites', 'pages-archived', 'videos-unread', 'videos-favorites', 'videos-archived', 'audio-unread', 'audio-favorites', 'audio-archived', 'files-unread', 'files-favorites', 'files-archived'
 		'saveProgress' => '1', // boolean: remember scroll position per article
 		'resumeOnOpen' => '1', // boolean: restore scroll position when reopening
 		// progressEdge ersetzt showProgress: 'left', 'right', 'top', 'bottom', 'off'

@@ -7,6 +7,28 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- Files from the phone: images, videos, audio, PDFs and other files shared
+  to Merlin on iOS are stored in the Nextcloud folder "Merlin files" (named
+  in the user's Nextcloud language), sorted into sub-folders by type, and
+  appear in the reading list like articles, with tags. The folders are
+  remembered by ID, so renaming or moving them does not create new ones.
+  New endpoints `POST /api/files/target`, `POST /api/files` and
+  `GET /api/articles/{id}/file` (signed link, supports Range); the upload
+  itself goes over WebDAV. Deleting an entry keeps the file in Nextcloud
+  (database migration 32, app 1.0.18). The sidebar has a new "Files" tab
+  next to Text/Video/Audio; file entries are listed only there
+  (`contentType=file`, counts under `files`). Below each file the reader
+  shows all embedded metadata: file details, EXIF and GPS (with a map link),
+  IPTC, XMP, ID3v2/ID3v1, QuickTime/MP4 tags (incl. location) and the PDF
+  info dictionary. "Reload" on a file entry rebuilds preview, content and
+  metadata from the file.
+  File entries can be renamed ("Rename…" in the card menu and the reader's
+  menu); the file in Nextcloud is renamed with them and keeps its extension
+  (`PUT /api/articles/{id}/file-name`, 409 if the name is taken). A file
+  renamed in Nextcloud shows its new name the next time the entry is opened.
+  Text that the iOS app recognises in an uploaded image (`text` on
+  `POST /api/files`) is shown under "Recognized text" and found by the
+  search (database migration 33, app 1.0.19).
 - Tags can be nested: a tag can have sub-tags, any number of levels deep.
   The sidebar shows tags as a tree whose branches fold open and closed
   (remembered in the browser); "Move to…" in a tag's menu puts it below

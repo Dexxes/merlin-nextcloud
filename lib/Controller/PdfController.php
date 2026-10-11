@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\Merlin\Controller;
 
 use OCA\Merlin\Db\ArticleMapper;
+use OCA\Merlin\Service\MerlinFileService;
 use OCA\Merlin\Service\PdfProxyService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Db\DoesNotExistException;
@@ -25,6 +26,7 @@ class PdfController extends Controller {
 		IRequest               $request,
 		private ArticleMapper  $articleMapper,
 		private PdfProxyService $pdfProxy,
+		private MerlinFileService $files,
 		private ?string        $userId,
 	) {
 		parent::__construct($appName, $request);
@@ -44,6 +46,11 @@ class PdfController extends Controller {
 			header('Content-Type: application/json');
 			echo json_encode(['error' => 'Article not found']);
 			exit();
+		}
+
+		// PDF aus „Merlin Dateien“: direkt aus Nextcloud statt über den Proxy.
+		if ($article->getFileId() !== null) {
+			$this->files->stream($article);
 		}
 
 		// Läuft nie normal zurück: PdfProxyService::stream() beendet den Prozess selbst per exit().
