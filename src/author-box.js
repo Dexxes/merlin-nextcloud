@@ -41,6 +41,33 @@ export function authorBoxEntries(authors) {
 		.filter(a => a.image || a.bio)
 }
 
+// http(s)://… oder www.… bis zum nächsten Leerzeichen/Klammer/Anführungszeichen.
+const URL_PATTERN = /\b(?:https?:\/\/|www\.)[^\s<>"'()]+/gi
+// Satzzeichen am Ende gehören meist zum Satz, nicht zur URL.
+const TRAILING_PUNCTUATION = /[.,;:!?…]+$/
+
+/**
+ * Hängt $text an $parent an und macht darin enthaltene URLs zu Links. Alles
+ * als Text-/Elementknoten, kein innerHTML: die Bio stammt von der Quellseite.
+ */
+function appendLinkified(doc, parent, text) {
+	let last = 0
+	for (const match of text.matchAll(URL_PATTERN)) {
+		const raw = match[0].replace(TRAILING_PUNCTUATION, '')
+		const href = safeHttpUrl(/^www\./i.test(raw) ? 'https://' + raw : raw)
+		if (!href) continue
+		if (match.index > last) parent.appendChild(doc.createTextNode(text.slice(last, match.index)))
+		const a = doc.createElement('a')
+		a.href = href
+		a.target = '_blank'
+		a.rel = 'noopener noreferrer'
+		a.textContent = raw
+		parent.appendChild(a)
+		last = match.index + raw.length
+	}
+	if (last < text.length) parent.appendChild(doc.createTextNode(text.slice(last)))
+}
+
 function buildBox(doc, author, accent) {
 	const box = doc.createElement('div')
 	box.className = 'merlin-author-box'
@@ -79,7 +106,7 @@ function buildBox(doc, author, accent) {
 	if (author.bio) {
 		const bio = doc.createElement('p')
 		bio.className = 'merlin-author-box__bio'
-		bio.textContent = author.bio
+		appendLinkified(doc, bio, author.bio)
 		body.appendChild(bio)
 	}
 
