@@ -364,6 +364,67 @@ $check(
 	]]
 );
 
+echo "\n\033[1m<author-image>/<author-bio> (Autorenbox)\033[0m\n";
+
+$check(
+	'Ein Autor: Foto per <img>-Element, Bio mit Zeilenumbrüchen, relative URL aufgelöst',
+	'<html><head><meta property="article:author" content="Bea Bild"></head><body>'
+		. '<figure class="af"><img src="/profil/bea.webp" alt="Bea Bild"></figure>'
+		. '<div class="bio">  Jahrgang 1980,' . "\n" . '   schreibt über   Kultur.<br>Bluesky: @bea  </div></body></html>',
+	'<domain name="example.com"><metadata><author-image xpath="//figure[@class=\'af\']/img" />'
+		. '<author-bio xpath="//div[@class=\'bio\']" /></metadata></domain>',
+	$a('Bea Bild') + ['authors' => [
+		['name' => 'Bea Bild', 'url' => null, 'image' => 'https://example.com/profil/bea.webp',
+			'bio' => "Jahrgang 1980,\nschreibt über Kultur.\nBluesky: @bea"],
+	]]
+);
+
+$check(
+	'Co-Autoren: Fotos über den Namen im alt-Text zugeordnet, auch wenn nicht jeder eins hat',
+	'<html><head><meta property="article:author" content="Bea Bild"><meta property="article:author" content="Carl Cut">'
+		. '<meta property="article:author" content="Dana Druck"></head><body><div class="byline">'
+		. '<figure class="af"><img src="https://cdn.example.com/carl.jpg" alt="Carl Cut "></figure>'
+		. '<figure class="af"><img src="http://cdn.example.com/dana.jpg" alt="Dana Druck"></figure>'
+		. '<span>Bea Bild</span>, <span>Carl Cut</span> und <span>Dana Druck</span></div></body></html>',
+	'<domain name="example.com"><metadata><author-image xpath="//figure[@class=\'af\']/img/@src" /></metadata></domain>',
+	$a('Bea Bild, Carl Cut, Dana Druck') + ['authors' => [
+		['name' => 'Bea Bild', 'url' => null],
+		['name' => 'Carl Cut', 'url' => null, 'image' => 'https://cdn.example.com/carl.jpg'],
+		['name' => 'Dana Druck', 'url' => null, 'image' => 'https://cdn.example.com/dana.jpg'],
+	]]
+);
+
+$check(
+	'Co-Autoren: Bio über den Namen im umschließenden Element zugeordnet',
+	'<html><head><meta property="article:author" content="Bea Bild"><meta property="article:author" content="Carl Cut"></head><body>'
+		. '<div class="box"><a>Carl Cut</a><div class="bio">Schreibt über Sport.</div></div></body></html>',
+	'<domain name="example.com"><metadata><author-bio xpath="//div[@class=\'bio\']" /></metadata></domain>',
+	$a('Bea Bild, Carl Cut') + ['authors' => [
+		['name' => 'Bea Bild', 'url' => null],
+		['name' => 'Carl Cut', 'url' => null, 'bio' => 'Schreibt über Sport.'],
+	]]
+);
+
+$check(
+	'Co-Autoren per JSON-Pfad: der Reihe nach, javascript:-Bild verworfen',
+	'<html><head><script type="application/ld+json">{"@type":"Article","author":['
+		. '{"@type":"Person","name":"Bea Bild","image":"https://example.com/bea.jpg"},'
+		. '{"@type":"Person","name":"Carl Cut","image":"https://example.com/carl.jpg"}]}</script></head><body></body></html>',
+	'<domain name="example.com">' . $ldSource . '<metadata><author json="ld:$.author[*].name" />'
+		. '<author-image json="ld:$.author[*].image" /><author-bio xpath="//p[@class=\'gibtsnicht\']" /></metadata></domain>',
+	$a('Bea Bild, Carl Cut') + ['authors' => [
+		['name' => 'Bea Bild', 'url' => null, 'image' => 'https://example.com/bea.jpg'],
+		['name' => 'Carl Cut', 'url' => null, 'image' => 'https://example.com/carl.jpg'],
+	]]
+);
+
+$check(
+	'Foto mit javascript:-URL wird ignoriert -> keine Autorenliste',
+	'<html><head><meta property="article:author" content="Bea Bild"></head><body><img class="af" src="javascript:alert(1)"></body></html>',
+	'<domain name="example.com"><metadata><author-image xpath="//img[@class=\'af\']" /></metadata></domain>',
+	$a('Bea Bild') + ['authors' => null]
+);
+
 echo "\n" . str_repeat('─', 72) . "\n";
 if ($failures === []) {
 	echo "\033[32mAlle " . $passed . " Prüfungen bestanden.\033[0m\n";

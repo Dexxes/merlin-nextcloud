@@ -582,6 +582,7 @@ import CommentPanel from './CommentPanel.vue'
 import CommentTextOutline from 'vue-material-design-icons/CommentTextOutline.vue'
 import MediaPlayer from './MediaPlayer.vue'
 import { hideBrokenSupportBoxIcons, insertSupportBox } from '../support-box'
+import { appendAuthorBoxes, hideBrokenAuthorPhotos } from '../author-box'
 import { mountInlineMedia, unmountInlineMedia } from '../inline-media'
 import PdfViewer from './PdfViewer.vue'
 import { generateUrl } from '@nextcloud/router'
@@ -911,13 +912,15 @@ export default {
 		// Element ist - sonst bleibt alles wie zuvor in restHtml.
 		// Support-Infobox (Abo-/Spendenlink) zwischen zwei Absätzen des Rest-HTML,
 		// siehe support-box.js. Der Hero-Split darüber bleibt unverändert.
+		// Autorenboxen (Foto/Bio, siehe author-box.js) am Ende des Rest-HTML.
 		heroAndRestContent() {
 			const base = this.baseHeroAndRestContent
-			if (!this.supportBox) return base
-			return {
-				...base,
-				restHtml: insertSupportBox(base.restHtml, this.supportBox, this.article.id, this.t),
+			let restHtml = base.restHtml
+			if (this.supportBox) {
+				restHtml = insertSupportBox(restHtml, this.supportBox, this.article.id, this.t)
 			}
+			restHtml = appendAuthorBoxes(restHtml, this.article.authors, this.settings.accentColor, this.t)
+			return restHtml === base.restHtml ? base : { ...base, restHtml }
 		},
 
 		baseHeroAndRestContent() {
@@ -1408,7 +1411,8 @@ export default {
 			// Das Icon der Support-Infobox hat einen eigenen Umgang mit Ladefehlern
 			// (einfach entfernen statt "Bild nicht verfügbar"-Platzhalter).
 			hideBrokenSupportBoxIcons(bodyEl)
-			bodyEl.querySelectorAll('img:not(.merlin-support-box__icon)').forEach(img => {
+			hideBrokenAuthorPhotos(bodyEl)
+			bodyEl.querySelectorAll('img:not(.merlin-support-box__icon):not(.merlin-author-box__photo)').forEach(img => {
 				// Already broken (cached failure)
 				if (img.complete && img.naturalWidth === 0) {
 					this._replaceWithPlaceholder(img)

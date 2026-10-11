@@ -223,6 +223,17 @@
                                  Autoren liefert die Regel je Treffer bzw. je [*]-Wert
                                  einen Link; passt die Anzahl zur Zahl der Autoren,
                                  werden sie der Reihe nach zugeordnet.
+    <author-image xpath="..." /> – Autorenfoto für die Autorenbox am Artikelende. XPath auf
+                                 ein Attribut (…/@src), ein <img> (src bzw. data-src) oder
+                                 ein Element mit <img> darin. Nur http(s)-Bilder.
+    <author-bio   xpath="..." /> – Kurzbiografie für die Autorenbox (Text des Treffers,
+                                 Zeilenumbrüche bleiben erhalten, max. 1000 Zeichen).
+                                 Zuordnung bei mehreren Autoren (gilt für beide Felder):
+                                 Ein XPath-Treffer gehört zu dem Autor, dessen Name im
+                                 Treffer selbst (Text, alt/title) oder im nächsten
+                                 umschließenden Element als einziger vorkommt; sonst der
+                                 Reihe nach, wenn die Anzahl passt. Bei einem Autor gilt
+                                 der erste Treffer.
     <excerpt  xpath="..." />   – Teaser / Zusammenfassung
     <image    xpath="..." />   – Bild-URL
     <published xpath="..." />  – Veröffentlichungsdatum (ISO 8601 oder deutsches Format)
@@ -510,6 +521,10 @@
     <!-- Autorenprofil-Link (optional, sonst automatisch) -->
     <!-- <author-link xpath="//a[@rel='author']/@href" /> -->
     <!-- <author-link json="ld:$.author[*].url" /> -->
+
+    <!-- Autorenbox am Artikelende: Foto und Kurzbiografie (optional) -->
+    <!-- <author-image xpath="//div[@class='author-box']//img/@src" /> -->
+    <!-- <author-bio   xpath="//div[@class='author-box']//p[@class='bio']" /> -->
 
     <excerpt  xpath="//p[contains(@class,'article-intro')]" />
     <image    xpath="//meta[@property='og:image']/@content" />

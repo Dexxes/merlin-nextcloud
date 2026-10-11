@@ -164,6 +164,7 @@ import { createCommentSession, guestNameKey, loadGuestName, saveGuestName } from
 import CommentPanel from './CommentPanel.vue'
 import MediaPlayer from './MediaPlayer.vue'
 import { hideBrokenSupportBoxIcons, insertSupportBox } from '../support-box'
+import { appendAuthorBoxes, hideBrokenAuthorPhotos } from '../author-box'
 import { mountInlineMedia, unmountInlineMedia } from '../inline-media'
 import PdfViewer from './PdfViewer.vue'
 
@@ -270,11 +271,13 @@ export default {
 				.join(', ')
 		},
 
-		// Artikeltext inkl. Support-Infobox (Abo-/Spendenlink der Quelle). Seed ist
+		// Artikeltext inkl. Support-Infobox (Abo-/Spendenlink der Quelle) und
+		// Autorenboxen am Ende (author-box.js). Seed der Support-Box ist
 		// der Titel, weil die Share-Antwort keine Artikel-ID enthält.
 		bodyHtml() {
 			const content = this.article?.content || ''
-			return insertSupportBox(content, this.article?.supportBox, this.article?.title || '', this.t)
+			const withSupportBox = insertSupportBox(content, this.article?.supportBox, this.article?.title || '', this.t)
+			return appendAuthorBoxes(withSupportBox, this.article?.authors, this.article?.accentColor, this.t)
 		},
 
 		/** Durchreich-Endpunkt für die PDF eines PDF-Artikels (siehe PdfProxyService). */
@@ -352,6 +355,7 @@ export default {
 						this._initDiscussion()
 						this._executeEmbedScripts()
 						hideBrokenSupportBoxIcons(this.$refs.bodyEl)
+						hideBrokenAuthorPhotos(this.$refs.bodyEl)
 						this._mountInlineMedia()
 					}
 				})

@@ -233,6 +233,12 @@ final class ContentFilterSchema {
 				// Link zum Autorenprofil. Ohne Regel ermittelt der Extractor ihn
 				// selbst (Link der <author>-Regel, JSON-LD, generische Signale).
 				'author-link' => ['optional' => ['xpath', 'json']],
+				// Foto und Kurzbiografie je Autor für die Autorenbox am
+				// Artikelende (siehe src/author-box.js). Mehrere Treffer werden
+				// den Autoren wie bei <author-link> zugeordnet, bei XPath-
+				// Treffern bevorzugt über den Namen im Umfeld des Treffers.
+				'author-image' => ['optional' => ['xpath', 'json']],
+				'author-bio'   => ['optional' => ['xpath', 'json']],
 				'excerpt'   => ['optional' => ['xpath', 'json']],
 				'image'     => ['optional' => ['xpath', 'json']],
 				'published' => ['optional' => ['xpath', 'json']],

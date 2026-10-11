@@ -100,6 +100,8 @@ export default {
 			return [
 				{ key: 'title', label: this.t('merlin', 'Title'), value: r.title },
 				{ key: 'author', label: this.t('merlin', 'Author'), value: this.authorWithLinks(r) },
+				{ key: 'authorImage', label: this.t('merlin', 'Author photo'), value: this.authorExtra(r, 'image') },
+				{ key: 'authorBio', label: this.t('merlin', 'Author bio'), value: this.authorExtra(r, 'bio') },
 				{ key: 'publishedAt', label: this.t('merlin', 'Date'), value: r.publishedAt },
 				{ key: 'excerpt', label: this.t('merlin', 'Teaser'), value: r.excerpt },
 				{ key: 'category', label: this.t('merlin', 'Category'), value: r.category },
@@ -126,6 +128,14 @@ export default {
 				return r.authors.map(a => (a.url ? `${a.name} (${a.url})` : a.name)).join(', ')
 			}
 			return r.author && r.authorUrl ? `${r.author} (${r.authorUrl})` : r.author
+		},
+		// Foto bzw. Bio je Autor (<metadata><author-image>/<author-bio>).
+		authorExtra(r, key) {
+			const list = Array.isArray(r.authors) ? r.authors.filter(a => a && a[key]) : []
+			if (list.length === 0) return ''
+			return list.length === 1 && r.authors.length === 1
+				? list[0][key]
+				: list.map(a => `${a.name}: ${a[key]}`).join('\n')
 		},
 		formatAttributes(attributes) {
 			return Object.keys(attributes || {})

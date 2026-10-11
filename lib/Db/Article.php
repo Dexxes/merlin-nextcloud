@@ -161,7 +161,7 @@ class Article extends Entity implements JsonSerializable {
 	/**
 	 * Speicherform für setAuthors(): JSON oder null bei leerer Liste.
 	 *
-	 * @param list<array{name: string, url: ?string}>|null $authors
+	 * @param list<array{name: string, url: ?string, image?: string, bio?: string}>|null $authors
 	 */
 	public static function encodeAuthors(?array $authors): ?string {
 		if ($authors === null || $authors === []) {
@@ -172,7 +172,7 @@ class Article extends Entity implements JsonSerializable {
 	}
 
 	/**
-	 * @return list<array{name: string, url: ?string}>|null
+	 * @return list<array{name: string, url: ?string, image?: string, bio?: string}>|null
 	 */
 	public static function decodeAuthors(?string $json): ?array {
 		if ($json === null || $json === '') {
@@ -185,10 +185,19 @@ class Article extends Entity implements JsonSerializable {
 		$authors = [];
 		foreach ($decoded as $entry) {
 			if (is_array($entry) && is_string($entry['name'] ?? null) && $entry['name'] !== '') {
-				$authors[] = [
+				$author = [
 					'name' => $entry['name'],
 					'url'  => is_string($entry['url'] ?? null) ? $entry['url'] : null,
 				];
+				// Foto und Kurzbiografie für die Autorenbox (<metadata><author-image>/
+				// <author-bio>), nur wenn vorhanden.
+				if (is_string($entry['image'] ?? null) && preg_match('#^https?://#i', $entry['image']) === 1) {
+					$author['image'] = $entry['image'];
+				}
+				if (is_string($entry['bio'] ?? null) && $entry['bio'] !== '') {
+					$author['bio'] = $entry['bio'];
+				}
+				$authors[] = $author;
 			}
 		}
 		return $authors !== [] ? $authors : null;
