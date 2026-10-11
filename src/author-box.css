@@ -23,9 +23,9 @@
    block, Breite/Höhe) dürfen das Foto nicht aufblasen oder zentrieren. */
 .merlin-author-box .merlin-author-box__photo {
 	flex: none !important;
-	width: 4em !important;
-	height: 4em !important;
-	max-width: 4em !important;
+	width: 8em !important;
+	height: 8em !important;
+	max-width: 8em !important;
 	margin: 0 !important;
 	object-fit: cover !important;
 	border-radius: 50% !important;
