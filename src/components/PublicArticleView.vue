@@ -164,7 +164,7 @@ import { createCommentSession, guestNameKey, loadGuestName, saveGuestName } from
 import CommentPanel from './CommentPanel.vue'
 import MediaPlayer from './MediaPlayer.vue'
 import { hideBrokenSupportBoxIcons, insertSupportBox } from '../support-box'
-import { appendAuthorBoxes, hideBrokenAuthorPhotos } from '../author-box'
+import { appendAuthorBoxes, authorBoxEntries, hideBrokenAuthorPhotos } from '../author-box'
 import { mountInlineMedia, unmountInlineMedia } from '../inline-media'
 import PdfViewer from './PdfViewer.vue'
 
@@ -263,8 +263,10 @@ export default {
 			return { color: this.article.accentColor || '#FF3B30' }
 		},
 
-		// "Autor, Medium" am Artikelende (z.B. "Max Muster, taz.de").
+		// "Autor, Medium" am Artikelende (z.B. "Max Muster, taz.de"). Entfällt,
+		// wenn Autorenboxen (author-box.js) Autor und Profil-Link schon zeigen.
 		footerByline() {
+			if (authorBoxEntries(this.article?.authors).length > 0) return ''
 			return [this.article.author, this.article.siteName || this.articleDomain]
 				.map((v) => (v || '').trim())
 				.filter(Boolean)
