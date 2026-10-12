@@ -49,6 +49,42 @@ function findParagraphs(body) {
 	return best
 }
 
+/**
+ * Absatz wirkt wie eine Zwischenüberschrift: enthält eine Überschrift oder sein
+ * ganzer Text ist fett (<strong>/<b>, z. B. "<p><strong>Zwischenzeile</strong></p>").
+ * Direkt danach darf die Box nicht stehen, sie risse Zwischenzeile und Text auseinander.
+ */
+function isHeadingLike(p) {
+	if (p.querySelector('h1, h2, h3, h4, h5, h6')) return true
+	const walker = p.ownerDocument.createTreeWalker(p, NodeFilter.SHOW_TEXT)
+	let hasText = false
+	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+		if (node.data.trim() === '') continue
+		hasText = true
+		const bold = node.parentElement.closest('strong, b')
+		if (!bold || !p.contains(bold)) return false
+	}
+	return hasText
+}
+
+/**
+ * Index des Absatzes, nach dem die Box steht: ab der Seed-Position der erste
+ * Absatz, der nicht wie eine Zwischenüberschrift wirkt, zuerst nach hinten,
+ * dann nach vorn; nie nach dem ersten oder letzten Absatz. -1: keiner passt.
+ */
+function pickIndex(paragraphs, seed) {
+	const first = 1
+	const last = paragraphs.length - 2
+	const start = first + (hashSeed(seed) % (last - first + 1))
+	for (let i = start; i <= last; i++) {
+		if (!isHeadingLike(paragraphs[i])) return i
+	}
+	for (let i = start - 1; i >= first; i--) {
+		if (!isHeadingLike(paragraphs[i])) return i
+	}
+	return -1
+}
+
 function buildSentence(t, box, doc) {
 	const subscribeUrl = safeHttpUrl(box.subscribeUrl)
 	const donationsUrl = safeHttpUrl(box.donationsUrl)
@@ -90,7 +126,8 @@ function buildSentence(t, box, doc) {
 }
 
 /**
- * Setzt die Box nach einem pseudo-zufälligen Top-Level-Absatz ein.
+ * Setzt die Box nach einem pseudo-zufälligen Top-Level-Absatz ein, nie direkt
+ * nach einer Überschrift oder Fettung (siehe pickIndex).
  *
  * @param {string} html    Artikel-HTML
  * @param {object|null} box  {siteName, subscribeUrl, donationsUrl, accentColor}
@@ -111,8 +148,10 @@ export function insertSupportBox(html, box, seed, t) {
 	// (das kann auch <body> selbst sein).
 	const paragraphs = findParagraphs(doc.body)
 	if (paragraphs.length < MIN_PARAGRAPHS) return html
-	// Nach dem 2. bis (n-1). Absatz, nie ganz vorn oder am Ende.
-	const index = 1 + (hashSeed(seed) % (paragraphs.length - 2))
+	// Nach dem 2. bis (n-1). Absatz, nie ganz vorn oder am Ende und nie direkt
+	// nach einer Überschrift oder einem komplett fetten Absatz.
+	const index = pickIndex(paragraphs, seed)
+	if (index < 0) return html
 
 	const accent = /^#[0-9a-fA-F]{6}$/.test(box.accentColor || '') ? box.accentColor : '#FF3B30'
 	const wrapper = doc.createElement('div')
