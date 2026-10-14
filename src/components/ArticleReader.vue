@@ -1964,7 +1964,11 @@ article {
 .article-body :deep(.merlin-file-metadata td) {
 	padding: 0.3em 0.6em;
 	vertical-align: top;
+	/* Nextclouds eigene Tabellen-Styles lassen Zellen nicht umbrechen; lange Werte
+	   (z. B. der User-Agent im PDF-Feld „Creator“) liefen sonst aus der Tabelle. */
+	white-space: normal;
 	overflow-wrap: anywhere;
+	word-break: break-word;
 }
 
 /* Video-Embeds (YouTube/Vimeo/Twitch/TikTok/Facebook/Arte), siehe

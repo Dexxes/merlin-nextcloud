@@ -51,6 +51,8 @@ All notable changes to Merlin are documented here. Format based on
   badge.
 
 ### Fixed
+- Long metadata values below files (for example a browser user agent as a
+  PDF's creator) now wrap inside the table instead of running out of it.
 - Comments: several threads on the same passage now sit together under a
   single quote instead of repeating the quote above each thread.
 
