@@ -57,6 +57,9 @@ All notable changes to Merlin are documented here. Format based on
   single quote instead of repeating the quote above each thread.
 
 ### Changed
+- Reader: the subscription/donation box is never placed directly after a
+  heading or a fully bold paragraph (an inline sub-heading); it moves to the
+  next fitting paragraph instead.
 - Sidebar: like the iOS app, tabs "Text", "Video" and "Audio" sit at the top;
   below them only the Unread/Favorites/Archived views of the selected type
   are listed instead of all three groups at once. The tab follows the active
