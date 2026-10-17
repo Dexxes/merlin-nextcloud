@@ -867,6 +867,8 @@ export default {
 				maxWidth:   '800px',
 				lineHeight: this.settings.lineHeight || '1.6',
 				margin:     '0 auto',
+				// Zitate (blockquote) in der Akzentfarbe wie in der iOS-App
+				'--merlin-accent': this.settings.accentColor || '#FF3B30',
 			}
 		},
 
@@ -1994,8 +1996,12 @@ article {
 .article-body :deep(blockquote.bluesky-embed),
 .article-body :deep(blockquote.tiktok-embed) {
 	border-left: none;
-	padding-left: 0;
+	padding: 0;
+	text-align: left;
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+	font-size: 1em;
 	font-style: normal;
+	line-height: normal;
 	color: inherit;
 	max-width: 100%;
 	overflow: hidden;
@@ -2157,64 +2163,63 @@ article {
 	color: inherit;
 }
 
-.article-body :deep(blockquote) {
-	border-left: 4px solid #0082c9;
-	padding-left: 20px;
-	margin: 1.5em 0;
-	font-style: italic;
-	color: #666;
-}
-
-.dark-mode .article-body :deep(blockquote) {
-	border-left-color: #58a6ff;
-	color: #999;
-}
-
 /* -------------------------------------------------------
-   merlin-quote: Blockquotes, die von normalizeQuotes() vor
-   Readability als Zitate erkannt und normalisiert wurden.
-   Gilt für seitenspezifische Strukturen (via content-filter
-   <quotes>-Regeln) sowie Standard-<blockquote>-Elemente.
+   Zitate wie im ArticleReaderView der iOS-App: als Pull-Quote
+   zentriert, kursiv, Serif, in der Akzentfarbe des Nutzers
+   (--merlin-accent, siehe articleStyles), ohne Rand und
+   Hintergrund. Gilt für die von normalizeQuotes() erzeugten
+   blockquote.merlin-quote (seitenspezifische <quotes>-Regeln
+   und Standard-<blockquote>) ebenso wie für alle übrigen.
    ------------------------------------------------------- */
 
-.article-body :deep(blockquote.merlin-quote) {
-	border-left: 4px solid var(--color-primary, #0082c9);
-	background: var(--color-background-hover);
-	border-radius: 0 var(--border-radius-large) var(--border-radius-large) 0;
-	padding: 1em 1.25em 0.75em;
-	margin: 2em 0 0.5em;
+.article-body :deep(blockquote) {
+	margin: 1.5em 0;
+	padding: 0;
+	text-align: center;
+	font-family: Georgia, 'Times New Roman', serif;
+	font-size: 1.3em;
 	font-style: italic;
+	line-height: 1.45;
+	color: var(--merlin-accent);
 }
 
-/* Zitat-Text: <p> ohne Block-Abstände */
-.article-body :deep(blockquote.merlin-quote p) {
-	margin: 0;
-	line-height: 1.65;
-	font-size: 1.05em;
+.article-body :deep(blockquote p) {
+	margin: 0 0 0.4em;
 }
 
-/* Autor als <cite> */
-.article-body :deep(blockquote.merlin-quote cite.merlin-quote__source) {
+/* Quellenangabe (<cite class="merlin-quote__source"> aus normalizeQuotes) */
+.article-body :deep(blockquote cite),
+.article-body :deep(blockquote footer) {
 	display: block;
-	margin-top: 0.6em;
-	font-size: 0.875em;
+	width: 100%;
+	margin-top: 0.3em;
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+	font-size: 0.6em;
 	font-style: normal;
-	font-weight: 600;
-	color: var(--color-text-lighter, #666);
+	text-align: center;
+	color: var(--merlin-accent);
 }
 
-.article-body :deep(blockquote.merlin-quote cite.merlin-quote__source::before) {
-	content: '— ';
+.article-body :deep(blockquote cite em),
+.article-body :deep(blockquote cite strong) {
+	font-style: normal;
 }
 
-/* Dark mode */
-.dark-mode .article-body :deep(blockquote.merlin-quote) {
-	background: rgba(255, 255, 255, 0.05);
-	border-left-color: #58a6ff;
+/* Nur ein Folgeabsatz, der ausschließlich aus einem <cite> besteht, gilt als
+   Attribution – ein normaler Absatz nach einem Zitat darf nicht wie ein
+   Zitatgeber aussehen. */
+.article-body :deep(blockquote + p:has(> cite:only-child)) {
+	display: block;
+	width: 100%;
+	text-align: center;
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+	font-size: 0.85em;
+	color: var(--merlin-accent);
 }
 
-.dark-mode .article-body :deep(blockquote.merlin-quote cite.merlin-quote__source) {
-	color: #aaa;
+.article-body :deep(blockquote + p:has(> cite:only-child) cite),
+.article-body :deep(blockquote + p:has(> cite:only-child) cite *) {
+	font-style: normal;
 }
 
 /* <q>-Elemente: inline-Zitate (merlin-quote-inline) */
