@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace OCA\Merlin\Service\Login;
 
 use OCA\Merlin\Db\SiteCredential;
-use OCA\Merlin\Service\Http\SsrfSafeResolver;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -38,7 +37,7 @@ use Psr\Log\LoggerInterface;
  * frischen Logins im Browser, Diff gegen buildLoginBody().
  */
 class PianoJsonFormLoginProvider implements LoginProviderInterface {
-	use SsrfSafeResolver;
+	use LoginHttpClient;
 
 	private const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Merlin-Content-Extractor';
 	private const TIMEOUT_SECONDS = 15;
@@ -112,7 +111,10 @@ class PianoJsonFormLoginProvider implements LoginProviderInterface {
 	 * @return array<string,string> Cookie-Name => Wert
 	 */
 	private function primeCsrfCookies(string $pageUrl): array {
-		[, $headers] = $this->safeRequest('GET', $pageUrl, [], null);
+		[$status, $headers] = $this->safeRequest('GET', $pageUrl, [], null);
+		if ($status >= 300 && $status < 400) {
+			$this->logger->warning('Paywall-Login: unerwarteter Redirect, Login-Ablauf vermutlich geändert', ['url' => $pageUrl, 'status' => $status]);
+		}
 		$cookies = [];
 		foreach ($this->parseSetCookies($headers) as $name => $cookie) {
 			$cookies[$name] = $cookie['value'];
@@ -149,6 +151,9 @@ class PianoJsonFormLoginProvider implements LoginProviderInterface {
 		}
 
 		[$status, $responseHeaders] = $this->safeRequest('POST', $config->ajaxEndpointUrl, $headers, $body);
+		if ($status >= 300 && $status < 400) {
+			$this->logger->warning('Paywall-Login: unerwarteter Redirect, Login-Ablauf vermutlich geändert', ['url' => $config->ajaxEndpointUrl, 'status' => $status]);
+		}
 
 		return [$status, $this->parseSetCookies($responseHeaders)];
 	}
@@ -229,104 +234,5 @@ class PianoJsonFormLoginProvider implements LoginProviderInterface {
 				],
 			],
 		], JSON_THROW_ON_ERROR);
-	}
-
-	private function originOf(string $url): string {
-		$parsed = parse_url($url);
-		$scheme = $parsed['scheme'] ?? 'https';
-		$host   = $parsed['host'] ?? '';
-		return $scheme . '://' . $host;
-	}
-
-	/**
-	 * Führt einen einzelnen, SSRF-geprüften Request aus (kein Redirect-
-	 * Following - beide Schritte des Login-Ablaufs liefern laut Aufzeichnung
-	 * direkt 200; eine 3xx-Antwort ist ein Zeichen für einen geänderten
-	 * Ablauf und wird als LoginFailedException(STATUS_LOGIN_FLOW_BROKEN)
-	 * behandelt).
-	 *
-	 * @param list<string> $headers
-	 * @return array{0:int,1:string} HTTP-Status, rohe Response-Header
-	 */
-	private function safeRequest(string $method, string $url, array $headers, ?string $body): array {
-		$parsed = parse_url($url);
-		$host   = $parsed['host'] ?? '';
-		$port   = $parsed['port'] ?? (($parsed['scheme'] ?? 'https') === 'https' ? 443 : 80);
-
-		$ips   = $this->assertPublicHostAndResolve($url);
-		$pins  = $this->buildResolvePin($host, (int) $port, $ips);
-
-		$ch   = curl_init($url);
-		$opts = [
-			CURLOPT_RETURNTRANSFER => true,
-			CURLOPT_FOLLOWLOCATION => false,
-			CURLOPT_HEADER         => true,
-			CURLOPT_TIMEOUT        => self::TIMEOUT_SECONDS,
-			CURLOPT_CUSTOMREQUEST  => $method,
-			CURLOPT_HTTPHEADER     => array_merge($headers, ['User-Agent: ' . self::USER_AGENT]),
-			CURLOPT_RESOLVE        => $pins,
-			CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-		];
-		if ($body !== null) {
-			$opts[CURLOPT_POSTFIELDS] = $body;
-		}
-		curl_setopt_array($ch, $opts);
-
-		$response = curl_exec($ch);
-		if ($response === false) {
-			$error = curl_error($ch);
-			curl_close($ch);
-			throw new LoginFailedException('Login-Request fehlgeschlagen: ' . $error, SiteCredential::STATUS_LOGIN_FLOW_BROKEN);
-		}
-
-		$status     = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-		$headerSize = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
-		curl_close($ch);
-
-		$rawHeaders = substr((string) $response, 0, $headerSize);
-
-		if ($status >= 300 && $status < 400) {
-			$this->logger->warning('Paywall-Login: unerwarteter Redirect, Login-Ablauf vermutlich geändert', ['url' => $url, 'status' => $status]);
-		}
-
-		return [$status, $rawHeaders];
-	}
-
-	/**
-	 * @return array<string,array{value:string,expiresAt:?\DateTime}>
-	 */
-	private function parseSetCookies(string $rawHeaders): array {
-		$cookies = [];
-		foreach (explode("\r\n", $rawHeaders) as $line) {
-			if (stripos($line, 'Set-Cookie:') !== 0) {
-				continue;
-			}
-			$value = trim(substr($line, strlen('Set-Cookie:')));
-			$parts = explode(';', $value);
-			$nameValue = array_shift($parts) ?? '';
-			if (!str_contains($nameValue, '=')) {
-				continue;
-			}
-			[$name, $val] = explode('=', $nameValue, 2);
-			$name = trim($name);
-			$val  = trim($val);
-
-			$expiresAt = null;
-			foreach ($parts as $attr) {
-				$attr = trim($attr);
-				if (stripos($attr, 'Max-Age=') === 0) {
-					$seconds = (int) substr($attr, strlen('Max-Age='));
-					$expiresAt = (new \DateTime())->modify('+' . $seconds . ' seconds');
-				} elseif (stripos($attr, 'Expires=') === 0 && $expiresAt === null) {
-					$parsed = \DateTime::createFromFormat(\DateTimeInterface::RFC7231, substr($attr, strlen('Expires=')));
-					if ($parsed !== false) {
-						$expiresAt = $parsed;
-					}
-				}
-			}
-
-			$cookies[$name] = ['value' => $val, 'expiresAt' => $expiresAt];
-		}
-		return $cookies;
 	}
 }

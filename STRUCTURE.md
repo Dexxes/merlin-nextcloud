@@ -61,7 +61,9 @@ merlin-nextcloud/
 │   │   │   └── Provider/                      # ard-mediathek, zdf, arte, 3sat, youtube-embed, xpath, json-ld
 │   │   └── Login/                        # 🔜 geplant: Paywall-Abo-Login (siehe PLATFORMS.md)
 │   │       ├── LoginProviderInterface.php     # login(username, password): Cookie-Bundle
-│   │       └── PianoJsonFormLoginProvider.php # type="piano-json-form" (z. B. tagesspiegel.de)
+│   │       ├── LoginHttpClient.php            # gemeinsamer SSRF-sicherer Request + Set-Cookie-Parsing
+│   │       ├── PianoJsonFormLoginProvider.php # type="piano-json-form" (z. B. tagesspiegel.de)
+│   │       └── KeycloakFormPostLoginProvider.php # type="keycloak-form-post" (Funke-Keycloak, z. B. morgenpost.de)
 │   ├── Settings/             # Verwaltungs- und persönliche Einstellungen
 │   │   ├── AdminSection.php
 │   │   ├── AdminSettings.php
@@ -327,6 +329,10 @@ extrahieren kann, bekommt die content-filter-XML eine neue optionale `<login>`-S
   <persist-cookie name="__utp" />
 </login>
 ```
+
+Für Seiten, die über einen Keycloak mit OpenID-Connect-form_post einloggen (Funke-Titel wie
+morgenpost.de), gibt es `type="keycloak-form-post"` mit `<authorize-endpoint url client-id>` und
+`<redirect-endpoint url>` statt `<ajax-endpoint>`, siehe `content-filters/morgenpost.de.xml`.
 
 `type` wählt eine `Service/Login/*LoginProvider`-Implementierung (Whitelist analog
 `FETCH_HEADER_WHITELIST`); `page` dient sowohl als Einstiegs-URL für den CSRF-Cookie-Schritt als
