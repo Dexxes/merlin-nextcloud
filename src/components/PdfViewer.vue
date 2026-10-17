@@ -396,8 +396,12 @@ export default {
 	height: 0;
 }
 
-.pdf-viewer__sheet :deep(.textLayer ::selection) {
+/* Text bleibt auch markiert unsichtbar: Nextcloud färbt ::selection global
+   ein, sonst erscheint der Text-Layer doppelt über dem Canvas. */
+.pdf-viewer__sheet :deep(.textLayer ::selection),
+.pdf-viewer__sheet :deep(.textLayer::selection) {
 	background: rgba(0, 100, 255, 0.25);
+	color: transparent;
 }
 
 .pdf-viewer__sheet :deep(.textLayer br::selection) {
