@@ -425,6 +425,33 @@ $check(
 	$a('Bea Bild') + ['authors' => null]
 );
 
+echo "\n\033[1mRollen-Etikett vor dem Namen (z. B. nd-aktuell.de)\033[0m\n";
+
+$ndConfig = '<domain name="example.com"><metadata>'
+	. '<author xpath="//ul[contains(@class,\'Infoline\')]/li[contains(@class,\'Author\')]//a" />'
+	. '</metadata></domain>';
+
+$check(
+	'Domain-Regel: "Interview: Name" im Profil-Link -> Etikett entfernt, Link bleibt',
+	'<html><body><ul class="Infoline"><li class="Author"><a href="/redaktion/autor/191"> Interview: Matthias Monroy</a></li></ul></body></html>',
+	$ndConfig,
+	$a('Matthias Monroy', 'https://example.com/redaktion/autor/191')
+);
+
+$check(
+	'Domain-Regel: Name ohne Etikett bleibt unverändert',
+	'<html><body><ul class="Infoline"><li class="Author"><a href="/redaktion/autor/121">Stephan Kaufmann</a></li></ul></body></html>',
+	$ndConfig,
+	$a('Stephan Kaufmann', 'https://example.com/redaktion/autor/121')
+);
+
+$check(
+	'Generische Byline: "Interview: Name" -> Etikett entfernt',
+	'<html><body><a rel="author" href="/autor/jana">Interview: Jana Muster</a></body></html>',
+	null,
+	$a('Jana Muster', 'https://example.com/autor/jana')
+);
+
 echo "\n\033[1m<author-bio from=\"author-page\"> (Autorenseite)\033[0m\n";
 
 // Unterklasse ohne Netzwerk: liefert Autorenseiten aus $pages und merkt sich die Abrufe.

@@ -38,6 +38,17 @@
 
   <metadata>
     <donations url="https://go.nd-aktuell.de/ndbleibt" />
+    <!-- Autorenbox am Artikelende. Läuft auf dem rohen HTML, der Pre-Filter
+         "Infoline" (Byline mit Profil-Link /redaktion/autor/…) stört also nicht.
+         Foto: aus der "Mehr von …"-Box (div.Author-Box) unten im Artikel.
+         Bio: steht nur auf der Autorenseite (Redaktionsprofil, Absatz unter dem Foto). -->
+    <!-- Byline oben, ein Link je Autor*in auf die Autorenseite. Nötig, weil das
+         JSON-LD der Seite ungültig ist (Steuerzeichen) und der Name sonst nur
+         im <meta name="author"> ohne Profil-Link steht. -->
+    <author       xpath="//ul[contains(@class,'Infoline')]/li[contains(@class,'Author')]//a" />
+    <author-image xpath="//div[contains(@class,'Author-Box')]//div[contains(@class,'Author-Image')]//img" />
+    <author-image from="author-page" xpath="//div[contains(@class,'Redaktion')]//div[contains(@class,'Image')]//img" />
+    <author-bio   from="author-page" xpath="//div[contains(@class,'Redaktion')]//div[@class='Content']/p" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
     <author   xpath="//span[@class='author-name']" />
