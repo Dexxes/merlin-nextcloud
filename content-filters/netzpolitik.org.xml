@@ -33,6 +33,13 @@
     <donations url="https://netzpolitik.org/spenden/" />
     <author   xpath="//div[@class='np-intro-author-name-list']/a/text()" />
     <author-link xpath="//div[@class='np-intro-author-name-list']/a/@href" />
+    <!-- Autorenbox am Artikelende. Läuft auf dem rohen HTML.
+         Foto und Bio stehen im Artikel selbst, in der Box "Über die Autor:innen"
+         (li.np-outro-author-entry je Autor*in, Name im alt-Text des Fotos).
+         Bio: nur der erste Absatz; die folgenden ("Kontakt: E-Mail, Mastodon …",
+         "Foto: …") sind Linklisten bzw. Bildnachweise, die als Text nichts taugen. -->
+    <author-image xpath="//figure[contains(@class,'np-outro-author-image')]//img" />
+    <author-bio   xpath="//div[contains(@class,'np-outro-author-biography')]/p[1]" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
     

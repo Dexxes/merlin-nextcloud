@@ -57,6 +57,9 @@ All notable changes to Merlin are documented here. Format based on
   single quote instead of repeating the quote above each thread.
 
 ### Changed
+- netzpolitik.org: the author box at the end of an article now shows each
+  author's photo and short biography, taken from the article's own
+  "Über die Autor:innen" box.
 - Author boxes at the end of an article now have two rows: photo and name
   (or author link) centred on top, the biography left-aligned and slightly
   smaller below, separated by a subtle centred line in the accent colour.
