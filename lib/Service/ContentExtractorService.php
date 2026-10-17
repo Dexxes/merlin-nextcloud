@@ -4197,7 +4197,7 @@ class ContentExtractorService {
 					$names     = [];
 					$nameNodes = [];
 					foreach (array_values(iterator_to_array($nodes)) as $i => $node) {
-						$v = $value[$i];
+						$v = trim((string) preg_replace(self::AUTHOR_ROLE_LABEL_PATTERN, '', $value[$i]));
 						if ($this->looksLikeUrl($v)) {
 							$authorUrlFromRule ??= $this->normalizeAuthorUrl($v, $baseUrl);
 						} elseif ($v !== '') {
@@ -4832,6 +4832,13 @@ class ContentExtractorService {
 
 	/** Längere "Namen" sind fast immer eine ganze Bio-/Infobox statt einer Byline. */
 	private const AUTHOR_NAME_MAX_LENGTH = 80;
+
+	/**
+	 * Rollen-Etikett vor dem Namen ("Interview: Jana Muster"), auch in Treffern
+	 * domain-spezifischer <author>-Regeln. Nur mit Doppelpunkt, damit echte
+	 * Namen nie angeschnitten werden.
+	 */
+	private const AUTHOR_ROLE_LABEL_PATTERN = '/^(?:interview|protokoll|gespräch)\s*:\s*/iu';
 
 
 	/**
@@ -5486,6 +5493,7 @@ class ContentExtractorService {
 	private function cleanAuthorName(string $raw): ?string {
 		$name = trim((string) preg_replace('/\s+/u', ' ', $raw));
 		$name = (string) preg_replace('/^(?:von|by|text|autor(?:in)?|author)\s*:?\s+/iu', '', $name);
+		$name = (string) preg_replace(self::AUTHOR_ROLE_LABEL_PATTERN, '', $name);
 		$name = trim($name, " \t\n\r\0\x0B,;:|·–-");
 
 		if ($name === '' || mb_strlen($name) > self::AUTHOR_NAME_MAX_LENGTH || $this->looksLikeUrl($name)) {

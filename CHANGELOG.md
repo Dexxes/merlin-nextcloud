@@ -57,6 +57,11 @@ All notable changes to Merlin are documented here. Format based on
   single quote instead of repeating the quote above each thread.
 
 ### Changed
+- nd-aktuell.de: the author box at the end of an article now shows the
+  author's photo, short biography (read from the author page behind the
+  byline link) and profile link. A role label before the name
+  ("Interview: …") is no longer taken as part of the author's name, on any
+  site.
 - Reader: the subscription/donation box is never placed directly after a
   heading or a fully bold paragraph (an inline sub-heading); it moves to the
   next fitting paragraph instead.
