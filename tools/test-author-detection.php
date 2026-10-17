@@ -589,6 +589,65 @@ $checkPages(
 	['https://www.example.com/autoren/barbara-behrendt.html', 'https://www.example.com/autoren/sabine-priess.html']
 );
 
+// morgenpost.de: echte Filterdatei, gekürzte Byline bzw. Autorenseite.
+$mopoConfig = preg_replace('/<domain name="[^"]*"/', '<domain name="example.com"', (string) file_get_contents(__DIR__ . '/../content-filters/morgenpost.de.xml'));
+$mopoByline = fn (string $slug, string $name, ?string $img): string =>
+	'<figure class="flex flex-row items-center gap-2 md:gap-2.5">'
+	. ($img === null ? '' : '<a rel="author" class="inline-block" href="/autoren/' . $slug . '/" data-track-v2-parent="Autorenkennzeichnung" data-track-v2-label="Autorenbild">'
+		. '<picture class="relative isolate"><source srcset="' . $img . '_v1_1_200.webp 200w, ' . $img . '_v1_1_400.webp 400w" type="image/webp" sizes="60px"/>'
+		. '<img src="' . $img . '_v16_9_1200.jpeg" class="relative z-10 rounded-full w-[60px]" alt="' . $name . '" title="' . $name . '"/></picture></a>')
+	. '<figcaption><address class="not-italic">Von <a rel="author" href="/autoren/' . $slug . '/" data-track-v2-label="Autorenname" class="hover:underline">' . $name . '</a>, Redakteurin</address></figcaption></figure>';
+$mopoArticle = fn (string $byline, string $slug, string $name): string =>
+	'<html><head><meta name="author" content="' . $name . '"/>'
+	. '<script type="application/ld+json">{"@context":"https://schema.org","@type":"NewsArticle","author":[{"@type":"Person","name":"' . $name . '","url":"https://example.com/autoren/' . $slug . '/"}]}</script>'
+	. '</head><body><article>' . $byline . '<p>Artikeltext.</p></article></body></html>';
+
+$check(
+	'morgenpost.de: Foto aus der Byline',
+	$mopoArticle($mopoByline('nina-noire-kugler', 'Nina Noire Kugler', 'https://img.sparknews.funkemedien.de/413027162/413027162_1788263936'), 'nina-noire-kugler', 'Nina Noire Kugler'),
+	$mopoConfig,
+	$a('Nina Noire Kugler', 'https://example.com/autoren/nina-noire-kugler/') + ['authors' => [
+		['name' => 'Nina Noire Kugler', 'url' => 'https://example.com/autoren/nina-noire-kugler/',
+			'image' => 'https://img.sparknews.funkemedien.de/413027162/413027162_1788263936_v16_9_1200.jpeg'],
+	]]
+);
+
+$check(
+	'morgenpost.de: Byline ohne Foto -> kein Bild',
+	$mopoArticle($mopoByline('isabell-juergens', 'Isabell Jürgens', null), 'isabell-juergens', 'Isabell Jürgens'),
+	$mopoConfig,
+	$a('Isabell Jürgens', 'https://example.com/autoren/isabell-juergens/') + ['authors' => [
+		['name' => 'Isabell Jürgens', 'url' => 'https://example.com/autoren/isabell-juergens/'],
+	]]
+);
+
+$mopoPage = fn (string $name, string $bio): string =>
+	'<html><body><main><article class="m-4 mb-8 flex flex-col"><div class="mt-2 grow self-stretch p-4 shadow-smd"><header class="mb-2 text-center">'
+	. '<h2 class="mb-4 text-title4">' . $name . '</h2><p class="text-gray-ts mb-2 uppercase">Redakteurin, Berliner Morgenpost</p>'
+	. '<ul data-test-social-follow-bar=""><li><a href="mailto:x@funkemedien.de"><img src="/static/bmo/mail-dark.svg" alt="' . $name . ' auf E-Mail"/></a></li></ul></header>'
+	. '<p data-test-details-description="" class="mb-6">' . $bio . '</p></div></article>'
+	. '<section><article><p>Teaser-Text.</p></article></section></main></body></html>';
+
+$checkPages(
+	'morgenpost.de: Bio von der Autorenseite, leere Beschreibung bleibt weg',
+	['author' => 'Nina Noire Kugler, Isabell Jürgens', 'authors' => [
+		['name' => 'Nina Noire Kugler', 'url' => 'https://www.example.com/autoren/nina-noire-kugler/', 'image' => 'https://img.sparknews.funkemedien.de/nina.jpeg'],
+		['name' => 'Isabell Jürgens', 'url' => 'https://www.example.com/autoren/isabell-juergens/'],
+	]],
+	$mopoConfig,
+	[
+		'https://www.example.com/autoren/nina-noire-kugler/' => $mopoPage('Nina Noire Kugler',
+			'Nina Noire Kugler (Jahrgang 1988) kommt aus Stuttgart und arbeitet seit 2023 für die FUNKE Zentralredaktion in Berlin. '),
+		'https://www.example.com/autoren/isabell-juergens/' => $mopoPage('Isabell Jürgens', ''),
+	],
+	[
+		['name' => 'Nina Noire Kugler', 'url' => 'https://www.example.com/autoren/nina-noire-kugler/', 'image' => 'https://img.sparknews.funkemedien.de/nina.jpeg',
+			'bio' => 'Nina Noire Kugler (Jahrgang 1988) kommt aus Stuttgart und arbeitet seit 2023 für die FUNKE Zentralredaktion in Berlin.'],
+		['name' => 'Isabell Jürgens', 'url' => 'https://www.example.com/autoren/isabell-juergens/'],
+	],
+	['https://www.example.com/autoren/nina-noire-kugler/', 'https://www.example.com/autoren/isabell-juergens/']
+);
+
 $check(
 	'from="author-page"-Regeln laufen nicht auf der Artikelseite',
 	'<html><head><meta property="article:author" content="Bea Bild"></head><body><div class="profil-bio">Falsch: Artikelseite.</div></body></html>',

@@ -70,6 +70,9 @@ All notable changes to Merlin are documented here. Format based on
 - Sidebar: clicking the Text, Video, Audio or Files tab now opens that
   type's first view right away (Unread, Unwatched, Not listened or Not
   opened) instead of only switching the listed views.
+- morgenpost.de: the author box at the end of an article now shows the
+  author's photo from the byline and the short biography from their
+  Morgenpost author page.
 - rbb24.de: the author box at the end of an article now shows each
   author's photo and short biography from their rbb24 author page; the
   generic placeholder photo for authors without a picture is left out.
