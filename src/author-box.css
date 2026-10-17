@@ -6,37 +6,39 @@
 }
 
 .merlin-author-box {
-	display: flex;
-	align-items: center;
-	gap: 1em;
 	margin: 1em 0;
 	padding: 0.9em 1em;
-	border-left: 4px solid var(--merlin-author-accent, #FF3B30);
-	border-radius: 0 8px 8px 0;
+	border-radius: 8px;
 	background: rgba(128, 128, 128, 0.1);
 	background: color-mix(in srgb, var(--merlin-author-accent, #FF3B30) 12%, transparent);
 	font-size: 0.93em;
 	line-height: 1.55;
 }
 
+/* Zeile 1: Foto und Name nebeneinander, zusammen zentriert; bricht auf
+   schmalen Bildschirmen um. */
+.merlin-author-box__header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5em 1em;
+	text-align: center;
+}
+
 /* !important: die Artikel-Bildregeln (.article-body img: margin auto, display
    block, Breite/Höhe) dürfen das Foto nicht aufblasen oder zentrieren. */
 .merlin-author-box .merlin-author-box__photo {
 	flex: none !important;
-	width: 8em !important;
-	height: 8em !important;
-	max-width: 8em !important;
+	width: 5em !important;
+	height: 5em !important;
+	max-width: 5em !important;
 	margin: 0 !important;
 	object-fit: cover !important;
 	border-radius: 50% !important;
 }
 
-.merlin-author-box__body {
-	flex: 1;
-	min-width: 0;
-}
-
-.merlin-author-box__body p {
+.merlin-author-box p {
 	margin: 0 !important;
 }
 
@@ -44,9 +46,22 @@
 	font-weight: 600;
 }
 
-.merlin-author-box__bio {
-	margin-top: 0.25em !important;
+.merlin-author-box .merlin-author-box__bio {
+	margin-top: 0.75em !important;
+	font-size: 0.9em;
+	text-align: left;
 	white-space: pre-line;
+}
+
+/* Dezente Trennlinie zwischen Kopfzeile und Bio, zentriert in Akzentfarbe. */
+.merlin-author-box .merlin-author-box__bio::before {
+	content: '';
+	display: block;
+	width: 40%;
+	height: 1px;
+	margin: 0 auto 0.6em;
+	background: var(--merlin-author-accent, #FF3B30);
+	opacity: 0.5;
 }
 
 .merlin-author-box a {
@@ -55,4 +70,10 @@
 	text-decoration-color: var(--merlin-author-accent, #FF3B30);
 	text-decoration-thickness: 2px;
 	text-underline-offset: 2px;
+}
+
+/* Autorenlink im Namen in Akzentfarbe. !important: die Linkfarbe des Readers
+   (.article-body a, im Dark Mode noch spezifischer) soll nicht gewinnen. */
+.merlin-author-box .merlin-author-box__name a {
+	color: var(--merlin-author-accent, #FF3B30) !important;
 }

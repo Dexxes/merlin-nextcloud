@@ -57,6 +57,11 @@ All notable changes to Merlin are documented here. Format based on
   single quote instead of repeating the quote above each thread.
 
 ### Changed
+- Author boxes at the end of an article now have two rows: photo and name
+  (or author link) centred on top, the biography left-aligned and slightly
+  smaller below, separated by a subtle centred line in the accent colour.
+  The photo is smaller (5em instead of 8em), the author link is in the
+  accent colour and the coloured bar on the left is gone.
 - Reader: the subscription/donation box is never placed directly before or
   after a quote (block quote, pull quote, or a paragraph that is entirely a
   quotation).
