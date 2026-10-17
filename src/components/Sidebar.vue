@@ -17,8 +17,8 @@
 
 			<!-- Media type tabs (Text/Video/Audio/Files) like the iOS app's side menu.
 			     Below them the Unread(/Unwatched/Not listened)/Favorites/Archived
-			     views of the selected type. Switching a tab only changes which
-			     views are listed; a view loads once it is clicked. "Mixed"
+			     views of the selected type. Clicking a tab opens its first view
+			     (Unread/Unwatched/Not listened/Not opened). "Mixed"
 			     articles (text with embedded media) count as text; files saved
 			     from the phone ("Merlin files") only show under Files. -->
 			<li class="media-tabs-row">
@@ -31,7 +31,7 @@
 						class="media-tab"
 						:class="{ 'is-active': menuGroup === tab.group }"
 						:aria-selected="menuGroup === tab.group ? 'true' : 'false'"
-						@click="menuGroup = tab.group">
+						@click="selectTab(tab.group)">
 						{{ tab.label }}
 					</button>
 				</div>
@@ -347,6 +347,10 @@ export default {
 	},
 
 	methods: {
+		selectTab(group) {
+			this.menuGroup = group
+			this.$emit('filter', `${group}-unread`)
+		},
 		isTagHidden(tagId) {
 			return this.hiddenTagIds.has(tagId)
 		},

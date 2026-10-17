@@ -67,6 +67,9 @@ All notable changes to Merlin are documented here. Format based on
   single quote instead of repeating the quote above each thread.
 
 ### Changed
+- Sidebar: clicking the Text, Video, Audio or Files tab now opens that
+  type's first view right away (Unread, Unwatched, Not listened or Not
+  opened) instead of only switching the listed views.
 - rbb24.de: the author box at the end of an article now shows each
   author's photo and short biography from their rbb24 author page; the
   generic placeholder photo for authors without a picture is left out.
