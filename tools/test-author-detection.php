@@ -452,6 +452,31 @@ $check(
 	$a('Jana Muster', 'https://example.com/autor/jana')
 );
 
+echo "\n\033[1mnetzpolitik.org: Box \"Über die Autor:innen\"\033[0m\n";
+
+// Echte Filterdatei, gekürztes HTML einer Artikelseite mit zwei Autoren.
+$npConfig = preg_replace('/<domain name="[^"]*"/', '<domain name="example.com"', (string) file_get_contents(__DIR__ . '/../content-filters/netzpolitik.org.xml'));
+$npEntry  = fn (string $slug, string $name, string $img, string $bio): string =>
+	'<li class="np-outro-author-entry"><figure class="np-outro-author-image"><img src="' . $img . '" alt="' . $name . '" class="author-avatars__img"></figure>'
+	. '<div class="np-outro-authro-inner-wrapper"><div class="np-outro-author-name"><a href="https://netzpolitik.org/author/' . $slug . '/">' . $name . '</a></div>'
+	. '<div class="np-outro-author-biography"><p>' . $bio . '</p><p><strong>Kontakt: </strong><a href="mailto:x@netzpolitik.org">E-Mail</a>, <a href="https://mastodon.social/@x">Mastodon</a></p><p><strong>Foto:</strong> Jemand</p></div></div></li>';
+
+$check(
+	'Foto und erster Bio-Absatz je Autor, ohne Kontakt- und Fotonachweis-Zeile',
+	'<html><body><div class="np-intro-author"><ul class="np-intro-author-image-list"><li><img src="https://cdn.netzpolitik.org/ingo.jpg" alt="Ingo Dachwitz"></li></ul>'
+		. '<div class="np-intro-author-name-list"><div class="np-intro-author-name-list"><a href="https://netzpolitik.org/author/ingo/">Ingo Dachwitz</a> und <a href="https://netzpolitik.org/author/sebastian/">Sebastian Meineck</a></div></div></div>'
+		. '<p>Artikeltext.</p>'
+		. '<div class="np-outro-author"><h3>Über die Autor:innen</h3><ul class="np-outro-author-list">'
+		. $npEntry('ingo', 'Ingo Dachwitz', 'https://cdn.netzpolitik.org/ingo.jpg', 'Ingo ist Journalist.')
+		. $npEntry('sebastian', 'Sebastian Meineck', 'https://cdn.netzpolitik.org/seb.png', 'Sebastian Meineck ist Redakteur.')
+		. '</ul></div></body></html>',
+	$npConfig,
+	$a('Ingo Dachwitz, Sebastian Meineck') + ['authors' => [
+		['name' => 'Ingo Dachwitz', 'url' => 'https://netzpolitik.org/author/ingo/', 'image' => 'https://cdn.netzpolitik.org/ingo.jpg', 'bio' => 'Ingo ist Journalist.'],
+		['name' => 'Sebastian Meineck', 'url' => 'https://netzpolitik.org/author/sebastian/', 'image' => 'https://cdn.netzpolitik.org/seb.png', 'bio' => 'Sebastian Meineck ist Redakteur.'],
+	]]
+);
+
 echo "\n\033[1m<author-bio from=\"author-page\"> (Autorenseite)\033[0m\n";
 
 // Unterklasse ohne Netzwerk: liefert Autorenseiten aus $pages und merkt sich die Abrufe.
