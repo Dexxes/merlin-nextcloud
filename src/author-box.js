@@ -95,6 +95,10 @@ function buildBox(doc, author, accent) {
 	box.setAttribute('role', 'note')
 	box.style.setProperty('--merlin-author-accent', accent)
 
+	// Zeile 1: Foto und Name zentriert, Zeile 2: Bio linksbündig.
+	const header = doc.createElement('div')
+	header.className = 'merlin-author-box__header'
+
 	if (author.image) {
 		const img = doc.createElement('img')
 		img.className = 'merlin-author-box__photo'
@@ -103,11 +107,8 @@ function buildBox(doc, author, accent) {
 		img.setAttribute('loading', 'lazy')
 		img.setAttribute('referrerpolicy', 'no-referrer')
 		img.setAttribute('src', author.image)
-		box.appendChild(img)
+		header.appendChild(img)
 	}
-
-	const body = doc.createElement('div')
-	body.className = 'merlin-author-box__body'
 
 	const name = doc.createElement('p')
 	name.className = 'merlin-author-box__name'
@@ -121,16 +122,16 @@ function buildBox(doc, author, accent) {
 	} else {
 		name.textContent = author.name
 	}
-	body.appendChild(name)
+	header.appendChild(name)
+	box.appendChild(header)
 
 	if (author.bio) {
 		const bio = doc.createElement('p')
 		bio.className = 'merlin-author-box__bio'
 		appendLinkified(doc, bio, author.bio)
-		body.appendChild(bio)
+		box.appendChild(bio)
 	}
 
-	box.appendChild(body)
 	return box
 }
 
