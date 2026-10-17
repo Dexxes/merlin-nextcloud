@@ -57,6 +57,9 @@ All notable changes to Merlin are documented here. Format based on
   single quote instead of repeating the quote above each thread.
 
 ### Changed
+- Reader: the subscription/donation box is never placed directly before or
+  after a quote (block quote, pull quote, or a paragraph that is entirely a
+  quotation).
 - nd-aktuell.de: the author box at the end of an article now shows the
   author's photo, short biography (read from the author page behind the
   byline link) and profile link. A role label before the name
