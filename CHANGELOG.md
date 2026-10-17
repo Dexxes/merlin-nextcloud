@@ -57,6 +57,10 @@ All notable changes to Merlin are documented here. Format based on
   single quote instead of repeating the quote above each thread.
 
 ### Changed
+- Reader: quotes look like in the iOS app: centered, italic serif text in
+  the reader accent color, with the source below in small sans-serif, no
+  side bar or background. Only a paragraph consisting solely of a `<cite>`
+  right after a quote is styled as its attribution.
 - Reader: the subscription/donation box is never placed directly after a
   heading or a fully bold paragraph (an inline sub-heading); it moves to the
   next fitting paragraph instead.
