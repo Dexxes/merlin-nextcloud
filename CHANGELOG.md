@@ -60,7 +60,8 @@ All notable changes to Merlin are documented here. Format based on
 - Author boxes at the end of an article now have two rows: photo and name
   (or author link) centred on top, the biography left-aligned and slightly
   smaller below, separated by a subtle centred line in the accent colour.
-  The photo is smaller (5em instead of 8em).
+  The photo is smaller (5em instead of 8em), the author link is in the
+  accent colour and the coloured bar on the left is gone.
 - nd-aktuell.de: the author box at the end of an article now shows the
   author's photo, short biography (read from the author page behind the
   byline link) and profile link. A role label before the name
