@@ -47,10 +47,22 @@
 	font-weight: 600;
 }
 
-.merlin-author-box__bio {
-	margin-top: 0.6em !important;
+.merlin-author-box .merlin-author-box__bio {
+	margin-top: 0.75em !important;
+	font-size: 0.9em;
 	text-align: left;
 	white-space: pre-line;
+}
+
+/* Dezente Trennlinie zwischen Kopfzeile und Bio, zentriert in Akzentfarbe. */
+.merlin-author-box .merlin-author-box__bio::before {
+	content: '';
+	display: block;
+	width: 40%;
+	height: 1px;
+	margin: 0 auto 0.6em;
+	background: var(--merlin-author-accent, #FF3B30);
+	opacity: 0.5;
 }
 
 .merlin-author-box a {
