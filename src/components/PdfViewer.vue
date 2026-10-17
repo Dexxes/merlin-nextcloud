@@ -11,8 +11,13 @@
 
   Gerendert wird seitenweise als Canvas; nur Seiten in der Nähe des
   Sichtbereichs (IntersectionObserver), damit lange Dokumente schnell öffnen.
-  Kein Text-Layer (keine Textauswahl). Scheitert das Laden, erscheint statt der
-  Vorschau die PdfCard mit "PDF öffnen".
+  Über jedem Canvas liegt der Text-Layer von pdf.js (unsichtbarer Text zum
+  Auswählen) und darunter eine Ebene für Markierungen
+  (.merlin-pdf-hl-layer). Die zeichnet die HighlightEngine: sobald die Ebene
+  einer Seite steht, meldet die Seite das mit dem Ereignis `merlin-pdf-page`.
+  Beide Ebenen sind in der unrotierten Seitengröße angelegt und folgen der
+  Breite über `--scale-factor` (wie im pdf.js-Viewer). Scheitert das Laden,
+  erscheint statt der Vorschau die PdfCard mit "PDF öffnen".
 -->
 <template>
 	<div class="pdf-viewer">
@@ -44,7 +49,9 @@
 					class="pdf-viewer__page"
 					:data-page="page.number"
 					:style="{ height: page.height + 'px' }">
-					<canvas />
+					<div class="pdf-viewer__sheet">
+						<canvas />
+					</div>
 				</div>
 			</div>
 		</template>
@@ -88,10 +95,17 @@ export default {
 	mounted() {
 		this.pageEls = new Map()
 		this.rendered = new Map() // Seitennummer -> gerenderte CSS-Breite
+		this.textLayers = new Map() // Seitennummer -> pdf.js TextLayer
+		this.onSelectEnd = () => {
+			this.$refs.container?.querySelectorAll('.textLayer.selecting')
+				.forEach((el) => el.classList.remove('selecting'))
+		}
+		document.addEventListener('mouseup', this.onSelectEnd)
 		this.load()
 	},
 
 	beforeUnmount() {
+		document.removeEventListener('mouseup', this.onSelectEnd)
 		this.teardown()
 	},
 
@@ -112,6 +126,8 @@ export default {
 			clearTimeout(this.resizeTimer)
 			this.renderTasks?.forEach((task) => task.cancel())
 			this.renderTasks = new Map()
+			this.textLayers?.forEach((layer) => layer.cancel())
+			this.textLayers = new Map()
 			this.loadingTask?.destroy()
 			this.loadingTask = null
 			this.pdf = null
@@ -127,6 +143,7 @@ export default {
 				// pdf.js erst bei Bedarf laden (wie hls.js im MediaPlayer). Legacy-Build:
 				// läuft auch auf älteren Browsern, die Nextcloud noch unterstützt.
 				const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+				this.pdfjs = pdfjs
 				if (!pdfjs.GlobalWorkerOptions.workerPort) {
 					// `?worker` lässt Vite den Worker als eigene Datei vom App-Origin ausliefern
 					// (passt zu `worker-src 'self'`); ein `?url`-Import würde hier als Modul gebündelt.
@@ -232,6 +249,7 @@ export default {
 				if (entry) {
 					entry.height = Math.round(viewport.height / ratio)
 				}
+				await this.renderLayers(number, page, canvas.parentElement, page.getViewport({ scale: cssScale }))
 			} catch (e) {
 				// Abgebrochenes Rendern (Resize/Unmount) ist normal.
 				if (e?.name !== 'RenderingCancelledException') {
@@ -240,6 +258,49 @@ export default {
 			} finally {
 				this.renderTasks?.delete(number)
 			}
+		},
+
+		/**
+		 * Text-Layer und Markierungs-Ebene einer Seite anlegen bzw. an eine neue
+		 * Breite anpassen. Beim ersten Mal meldet die Seite `merlin-pdf-page`,
+		 * damit die HighlightEngine ihre Markierungen hineinzeichnet.
+		 */
+		async renderLayers(number, page, sheet, viewport) {
+			sheet.style.setProperty('--scale-factor', String(viewport.scale))
+			const existing = this.textLayers.get(number)
+			if (existing) {
+				existing.update({ viewport })
+				return
+			}
+			const hlLayer = document.createElement('div')
+			hlLayer.className = 'merlin-pdf-hl-layer'
+			this.pdfjs.setLayerDimensions(hlLayer, viewport)
+			sheet.appendChild(hlLayer)
+
+			const textDiv = document.createElement('div')
+			textDiv.className = 'textLayer'
+			sheet.appendChild(textDiv)
+			const textLayer = new this.pdfjs.TextLayer({
+				textContentSource: page.streamTextContent(),
+				container: textDiv,
+				viewport,
+			})
+			this.textLayers.set(number, textLayer)
+			try {
+				await textLayer.render()
+			} catch (e) {
+				if (e?.name !== 'AbortException') {
+					console.error('Merlin: Text der PDF-Seite ' + number + ' nicht lesbar', e)
+				}
+			}
+			// Ohne dieses Element springt die Auswahl beim Ziehen über leere
+			// Stellen an das Seitenende (wie TextLayerBuilder im pdf.js-Viewer).
+			const end = document.createElement('div')
+			end.className = 'endOfContent'
+			textDiv.appendChild(end)
+			textDiv.addEventListener('mousedown', () => textDiv.classList.add('selecting'))
+
+			sheet.dispatchEvent(new CustomEvent('merlin-pdf-page', { bubbles: true, detail: { page: number } }))
 		},
 	},
 }
@@ -293,7 +354,93 @@ export default {
 	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
 
+.pdf-viewer__sheet {
+	position: relative;
+}
+
 .pdf-viewer__page canvas {
 	display: block;
+}
+
+/* Text-Layer von pdf.js (gekürzt aus pdfjs-dist/web/pdf_viewer.css): Text
+   unsichtbar über dem Canvas, nur zum Auswählen. */
+.pdf-viewer__sheet :deep(.textLayer) {
+	position: absolute;
+	inset: 0;
+	overflow: clip;
+	line-height: 1;
+	text-align: initial;
+	text-size-adjust: none;
+	forced-color-adjust: none;
+	transform-origin: 0 0;
+	z-index: 2;
+}
+
+.pdf-viewer__sheet :deep(.textLayer span),
+.pdf-viewer__sheet :deep(.textLayer br) {
+	color: transparent;
+	position: absolute;
+	white-space: pre;
+	cursor: text;
+	transform-origin: 0% 0%;
+}
+
+/* Über .endOfContent, die beim Auswählen die ganze Ebene bedeckt. */
+.pdf-viewer__sheet :deep(.textLayer > :not(.markedContent)),
+.pdf-viewer__sheet :deep(.textLayer .markedContent span:not(.markedContent)) {
+	z-index: 1;
+}
+
+.pdf-viewer__sheet :deep(.textLayer span.markedContent) {
+	top: 0;
+	height: 0;
+}
+
+/* Text bleibt auch markiert unsichtbar: Nextcloud färbt ::selection global
+   ein, sonst erscheint der Text-Layer doppelt über dem Canvas. */
+.pdf-viewer__sheet :deep(.textLayer ::selection),
+.pdf-viewer__sheet :deep(.textLayer::selection) {
+	background: rgba(0, 100, 255, 0.25);
+	color: transparent;
+}
+
+.pdf-viewer__sheet :deep(.textLayer br::selection) {
+	background: transparent;
+}
+
+.pdf-viewer__sheet :deep(.textLayer .endOfContent) {
+	display: block;
+	position: absolute;
+	inset: 100% 0 0;
+	z-index: 0;
+	cursor: default;
+	user-select: none;
+}
+
+.pdf-viewer__sheet :deep(.textLayer.selecting .endOfContent) {
+	top: 0;
+}
+
+/* Markierungen unter dem Text-Layer, damit Text auswählbar bleibt. */
+.pdf-viewer__sheet :deep(.merlin-pdf-hl-layer) {
+	position: absolute;
+	top: 0;
+	left: 0;
+	transform-origin: 0 0;
+	pointer-events: none;
+	z-index: 1;
+}
+
+/* Gedrehte Seiten: beide Ebenen sind unrotiert angelegt (wie im pdf.js-Viewer). */
+.pdf-viewer__sheet :deep([data-main-rotation="90"]) {
+	transform: rotate(90deg) translateY(-100%);
+}
+
+.pdf-viewer__sheet :deep([data-main-rotation="180"]) {
+	transform: rotate(180deg) translate(-100%, -100%);
+}
+
+.pdf-viewer__sheet :deep([data-main-rotation="270"]) {
+	transform: rotate(270deg) translateX(-100%);
 }
 </style>

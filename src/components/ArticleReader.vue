@@ -1497,16 +1497,19 @@ export default {
 
 			const articleId = this.article.id
 			const engine = new HighlightEngine(bodyEl, {
-				onCreate: async ({ highlightedText, startXpath, startOffset, endXpath, endOffset, color, tempId, comment }) => {
+				onCreate: async ({ highlightedText, startXpath, startOffset, endXpath, endOffset, pdfPage, pdfRects, color, tempId, comment }) => {
 					try {
-						const saved = await highlightsAPI.createHighlight(articleId, {
-							highlightedText,
-							startXpath,
-							startOffset,
-							endXpath,
-							endOffset,
-							color,
-						})
+						// In PDFs: Seite und Rechtecke statt XPaths (pdf-highlights.js).
+						const saved = await highlightsAPI.createHighlight(articleId, pdfPage
+							? { highlightedText, pdfPage, pdfRects, color }
+							: {
+								highlightedText,
+								startXpath,
+								startOffset,
+								endXpath,
+								endOffset,
+								color,
+							})
 						// Replace the temp DOM id with the real server id
 						engine.updateTempId(tempId, saved.id, saved)
 						this._updateHighlightOrder()
@@ -1565,7 +1568,7 @@ export default {
 			const bodyEl = this.$el?.querySelector('.article-body')
 			if (!bodyEl) return
 			const ids = []
-			bodyEl.querySelectorAll('mark.merlin-highlight').forEach(el => {
+			bodyEl.querySelectorAll('.merlin-highlight').forEach(el => {
 				const id = parseInt(el.dataset.highlightId, 10)
 				if (!ids.includes(id)) ids.push(id)
 			})

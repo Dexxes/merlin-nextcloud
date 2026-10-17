@@ -221,6 +221,31 @@ Range-Weitergabe für pdf.js, gehärtete Antwort (`nosniff`, `CSP: sandbox`). Sc
 erscheint `PdfCard.vue`. iOS/Android rendern die PDF nativ aus der Quell-URL. Nebenbei
 begrenzt der HTML-Abruf den Body jetzt auf 20 MB (`MAX_BODY_BYTES`).
 
+### Markierungen in PDFs
+
+In PDFs gibt es keinen XPath: eine Markierung hat `pdf_page` (ab 1) und `pdf_rects`
+(JSON `[[x, y, w, h], …]`, Migration …000034), normiert auf 0..1 bezogen auf die unrotierte
+Seite (CropBox), Ursprung oben links. Rechtecke statt Zeichenpositionen, weil pdf.js und
+PDFKit den Seitentext unterschiedlich zerlegen. `start_xpath`/`end_xpath` tragen den
+Platzhalter `pdf[1]/page[N]` (`CommentRules::pdfXpath()`), Offsets 0: Spalten und Prüfung
+bleiben, ältere Clients finden den Pfad nicht und überspringen die Markierung.
+
+```
+POST /api/articles/{id}/highlights {highlightedText, pdfPage, pdfRects, color}
+POST /api/articles/{id}/comments   {body, anchor: {highlightedText, pdfPage, pdfRects}}
+     CommentRules::normalizePdfRects(): Liste, höchstens 200 Rechtecke, Werte 0..1,
+     Breite/Höhe > 0, auf 5 Stellen gerundet; Seite 1..100000. Gäste: pdf-Felder werden ignoriert
+```
+
+Web: `PdfViewer.vue` legt je gerenderter Seite in `.pdf-viewer__sheet` den Text-Layer von
+pdf.js (`TextLayer`, auswählbar) und darunter `.merlin-pdf-hl-layer` an, beide unrotiert in
+Seitengröße (`setLayerDimensions`, `--scale-factor`, gedreht per `data-main-rotation`). Steht
+die Ebene, meldet die Seite `merlin-pdf-page`; die `HighlightEngine` zeichnet dann die
+Rechtecke (`pdf-highlights.js`) als `div.merlin-highlight--pdf`. Klicks auf Markierungen
+werden per Koordinaten erkannt, weil die Ebene unter dem Text-Layer liegt. In der
+Share-Ansicht liegt die PDF außerhalb von `bodyEl`; dort zeigt eine zweite Engine mit
+`pdfReadOnly` die Markierungen nur an (Gäste markieren in PDFs nicht).
+
 ### Dateien vom Handy („Merlin Dateien“)
 
 Dateien (Bilder, Videos, Audios, PDFs, Sonstiges), die über die iOS-Share-Extension
@@ -330,6 +355,7 @@ src/
 ├── support-box.js / .css    # Support-Infobox (Abo-/Spendenlink, Seiten-Icon als eigene Spalte über die volle Boxhöhe) zur Lesezeit zwischen zwei Absätze setzen (data-hl-exclude); hideBrokenSupportBoxIcons() entfernt nicht ladbare Icons nach dem Rendern
 ├── inline-media.js / .css  # Legt auf jede figure.merlin-inline-media (Video mitten im Text) einen MediaPlayer (data-hl-exclude), idempotent nach jedem Rendern
 ├── highlight-engine.js      # Framework-unabhängige Logik zum Setzen/Wiederfinden von Textmarkierungen im DOM
+├── pdf-highlights.js        # Markierungen in PDFs: Seite + normierte Rechtecke aus der Auswahl im Text-Layer, Zeichnen in .merlin-pdf-hl-layer
 ├── comment-session.js       # Kommentar-Zustand + SSE-Verbindung
 ├── tag-tree.js              # Verschachtelte Tags im Browser: Kinder, Nachfahren, Baumreihenfolge, Pfad (Gegenstück zu TagTree.php)
 ├── App.vue                  # Hauptkomponente
@@ -354,7 +380,7 @@ src/
     ├── ShareLinkDialog.vue        # Dialog zum Anlegen/Verwalten von Share-Links
     ├── PublicArticleView.vue      # Ansicht für öffentliche Share-Links (public-main.js)
     ├── MediaPlayer.vue            # Audio-/Video-Player (HLS, Datei, Embed), siehe "Medien-Provider"
-    ├── PdfViewer.vue              # Eingebettete PDF-Vorschau (pdf.js, lazy) für PDF-Artikel; lädt über den PdfProxyService-Endpunkt
+    ├── PdfViewer.vue              # Eingebettete PDF-Vorschau (pdf.js, lazy) für PDF-Artikel; lädt über den PdfProxyService-Endpunkt; Text-Layer + Markierungs-Ebene je Seite
     ├── PdfCard.vue                # Fallback-Karte „PDF öffnen“, wenn die Vorschau nicht lädt
     ├── Settings.vue
     ├── SettingsPreview.vue

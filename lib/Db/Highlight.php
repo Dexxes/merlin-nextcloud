@@ -32,9 +32,17 @@ use OCP\AppFramework\Db\Entity;
  * @method void setAuthorName(?string $authorName)
  * @method string|null getAuthorNameKey()
  * @method void setAuthorNameKey(?string $authorNameKey)
+ * @method int|null getPdfPage()
+ * @method void setPdfPage(?int $pdfPage)
+ * @method string|null getPdfRects()
+ * @method void setPdfRects(?string $pdfRects)
  *
  * userId ist immer der Besitzer des Artikels. Gäste markieren über den
  * öffentlichen Link (authorType 'guest', authorName = gewählter Name).
+ *
+ * Markierungen in PDFs tragen pdfPage und pdfRects (JSON, normierte
+ * Rechtecke auf der Seite); start/endXpath ist dort nur der Platzhalter
+ * CommentRules::pdfXpath(), den alte Clients nicht finden und überspringen.
  */
 class Highlight extends Entity implements JsonSerializable {
 	protected $userId;
@@ -49,6 +57,8 @@ class Highlight extends Entity implements JsonSerializable {
 	protected $authorType = 'owner';
 	protected $authorName;
 	protected $authorNameKey;
+	protected $pdfPage;
+	protected $pdfRects;
 
 	public function __construct() {
 		$this->addType('userId', 'string');
@@ -63,6 +73,8 @@ class Highlight extends Entity implements JsonSerializable {
 		$this->addType('authorType', 'string');
 		$this->addType('authorName', 'string');
 		$this->addType('authorNameKey', 'string');
+		$this->addType('pdfPage', 'integer');
+		$this->addType('pdfRects', 'string');
 	}
 
 	public function jsonSerialize(): array {
@@ -78,6 +90,8 @@ class Highlight extends Entity implements JsonSerializable {
 			'createdAt'       => $this->getCreatedAt()->format('c'),
 			'authorType'      => $this->getAuthorType() ?? 'owner',
 			'authorName'      => $this->getAuthorName(),
+			'pdfPage'         => $this->getPdfPage(),
+			'pdfRects'        => $this->getPdfRects() !== null ? json_decode($this->getPdfRects(), true) : null,
 		];
 	}
 }

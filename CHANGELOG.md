@@ -7,6 +7,16 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- Highlighting in PDFs: text in a saved PDF (link or file from "Merlin
+  files") can now be selected in the web reader and highlighted in the five
+  colours or commented on, like in articles. The PDF viewer gets the pdf.js
+  text layer for this. A PDF highlight is stored with its page and the
+  rectangles it covers on that page (`pdfPage`, `pdfRects`, normalised to the
+  unrotated page), not in the file, so it shows up identically in the iOS app.
+  `POST /api/articles/{id}/highlights` and comment anchors accept
+  `pdfPage`/`pdfRects`; older clients skip such highlights. Visitors of a
+  share link see PDF highlights but cannot add their own there (database
+  migration 34, app 1.0.20).
 - Files from the phone: images, videos, audio, PDFs and other files shared
   to Merlin on iOS are stored in the Nextcloud folder "Merlin files" (named
   in the user's Nextcloud language), sorted into sub-folders by type, and
