@@ -194,7 +194,9 @@ class CommentService {
 	 * ist eine Textauswahl, die erst mit diesem Kommentar entsteht ("Kommentieren"
 	 * im Markier-Menü): Textstelle und Kommentar werden zusammen gespeichert, die
 	 * Textstelle mit der Farbe "comment" (unterstrichen statt eingefärbt). Davor
-	 * ist im Text nichts zu sehen.
+	 * ist im Text nichts zu sehen. In PDFs trägt der Besitzer statt der XPaths
+	 * `pdfPage` und `pdfRects` mit (siehe HighlightController::create()); Gäste
+	 * können in PDFs nur lesen.
 	 *
 	 * @param array<string, mixed>|null $anchor
 	 * @throws CommentException
@@ -214,6 +216,9 @@ class CommentService {
 			throw new CommentException($bodyError);
 		}
 		if ($anchor !== null && $parentId === null) {
+			$pdfPage = $authorType === Comment::AUTHOR_OWNER && isset($anchor['pdfPage'])
+				? (int) $anchor['pdfPage']
+				: null;
 			// Erst prüfen, dann speichern: scheitert die Stelle, entsteht nichts.
 			$highlight = $this->createHighlight(
 				$articleId,
@@ -226,6 +231,8 @@ class CommentService {
 				(string) ($anchor['endXpath'] ?? ''),
 				(int) ($anchor['endOffset'] ?? -1),
 				CommentRules::COLOR_COMMENT,
+				$pdfPage,
+				$pdfPage !== null ? ($anchor['pdfRects'] ?? null) : null,
 			);
 			$highlightId = $highlight->getId();
 		}
@@ -355,6 +362,10 @@ class CommentService {
 	/**
 	 * Markierung bzw. Kommentar-Textstelle prüfen, bereinigen und speichern.
 	 *
+	 * Mit `$pdfPage` ist es eine Stelle in einer PDF: dann gelten nur Seite und
+	 * Rechtecke, die XPaths werden zum Platzhalter CommentRules::pdfXpath().
+	 *
+	 * @param mixed $pdfRects
 	 * @throws CommentException
 	 */
 	private function createHighlight(
@@ -368,7 +379,18 @@ class CommentService {
 		string $endXpath,
 		int $endOffset,
 		string $color,
+		?int $pdfPage = null,
+		mixed $pdfRects = null,
 	): Highlight {
+		$rectsJson = null;
+		if ($pdfPage !== null) {
+			$rectsJson = CommentRules::normalizePdfRects($pdfRects);
+			if (!CommentRules::isValidPdfPage($pdfPage) || $rectsJson === null) {
+				throw new CommentException('highlight_invalid');
+			}
+			$startXpath = $endXpath = CommentRules::pdfXpath($pdfPage);
+			$startOffset = $endOffset = 0;
+		}
 		$maxText = $authorType === Comment::AUTHOR_GUEST
 			? CommentRules::HIGHLIGHT_TEXT_MAX
 			: CommentRules::OWNER_HIGHLIGHT_TEXT_MAX;
@@ -389,6 +411,8 @@ class CommentService {
 		$highlight->setColor(CommentRules::sanitizeColor($color));
 		$highlight->setCreatedAt(new \DateTime());
 		$highlight->setAuthorType($authorType);
+		$highlight->setPdfPage($pdfPage);
+		$highlight->setPdfRects($rectsJson);
 		if ($authorType === Comment::AUTHOR_GUEST) {
 			$highlight->setAuthorName($authorName);
 			$highlight->setAuthorNameKey(CommentRules::nameKey($authorName));

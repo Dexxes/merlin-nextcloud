@@ -21,6 +21,9 @@ final class CommentRules {
 	public const OWNER_HIGHLIGHT_TEXT_MAX = 20000;
 	public const XPATH_MAX = 1000;
 	public const OFFSET_MAX = 1_000_000;
+	/** Markierungen in PDFs: höchste Seitenzahl und Rechtecke je Markierung. */
+	public const PDF_PAGE_MAX = 100_000;
+	public const PDF_RECTS_MAX = 200;
 	public const COLORS = ['yellow', 'green', 'blue', 'pink', 'orange'];
 	/**
 	 * "Farbe" einer Textstelle, die nur für einen Kommentar angelegt wurde:
@@ -190,6 +193,58 @@ final class CommentRules {
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * Platzhalter-XPath einer PDF-Markierung. Besteht isValidXpath(), damit
+	 * Spalten und Prüfung gleich bleiben; ältere Clients finden ihn im
+	 * Artikel-HTML nicht und überspringen die Markierung.
+	 */
+	public static function pdfXpath(int $page): string {
+		return 'pdf[1]/page[' . $page . ']';
+	}
+
+	public static function isValidPdfPage(int $page): bool {
+		return $page >= 1 && $page <= self::PDF_PAGE_MAX;
+	}
+
+	/**
+	 * Rechtecke einer PDF-Markierung prüfen und als JSON speichern.
+	 *
+	 * Jedes Rechteck ist [x, y, w, h], normiert auf 0..1 bezogen auf die
+	 * CropBox der unrotierten Seite, Ursprung oben links (Web und iOS rechnen
+	 * selbst um). Werte werden auf 5 Stellen gerundet.
+	 *
+	 * @param mixed $rects
+	 * @return string|null JSON oder null, wenn ungültig
+	 */
+	public static function normalizePdfRects($rects): ?string {
+		if (!is_array($rects) || $rects === [] || count($rects) > self::PDF_RECTS_MAX || array_keys($rects) !== range(0, count($rects) - 1)) {
+			return null;
+		}
+		$out = [];
+		foreach ($rects as $rect) {
+			if (!is_array($rect) || array_keys($rect) !== [0, 1, 2, 3]) {
+				return null;
+			}
+			$values = [];
+			foreach ($rect as $value) {
+				if (!is_int($value) && !is_float($value)) {
+					return null;
+				}
+				$value = (float) $value;
+				if (!is_finite($value) || $value < 0 || $value > 1) {
+					return null;
+				}
+				$values[] = round($value, 5);
+			}
+			[$x, $y, $w, $h] = $values;
+			if ($w <= 0 || $h <= 0 || $x + $w > 1.001 || $y + $h > 1.001) {
+				return null;
+			}
+			$out[] = $values;
+		}
+		return json_encode($out);
 	}
 
 	/** Unbekannte Farben werden gelb (nur Namen aus der festen Liste). */

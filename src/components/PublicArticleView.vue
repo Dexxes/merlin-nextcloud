@@ -80,6 +80,7 @@
 
 			<!-- PDF-Artikel: Vorschau über den Durchreich-Endpunkt des Shares; die PDF liegt beim Quellserver. -->
 			<PdfViewer v-if="article.category === 'PDF' && article.url"
+				ref="pdfViewer"
 				:src="pdfProxyUrl"
 				:source-url="article.url" />
 
@@ -341,6 +342,7 @@ export default {
 		unmountInlineMedia(this._inlinePlayers ??= new Set())
 		window.removeEventListener('resize', this._onResize)
 		this._engine?.destroy()
+		this._pdfEngine?.destroy()
 		this.commentSession?.stop()
 	},
 
@@ -422,6 +424,7 @@ export default {
 
 		_initDiscussion() {
 			this._engine?.destroy()
+		this._pdfEngine?.destroy()
 			this.commentSession?.stop()
 
 			const bodyEl = this.$refs.bodyEl
@@ -461,21 +464,35 @@ export default {
 					return this.allowComments && !!h && h.authorType === 'guest'
 						&& this.guestName !== '' && guestNameKey(h.authorName) === guestNameKey(this.guestName)
 				},
-				describe: (highlightId) => {
-					const h = this._highlightById(highlightId)
-					if (!h) return null
-					const name = h.authorType === 'guest' ? h.authorName : this.article?.ownerName
-					return name ? this.t('merlin', 'Highlighted by {name}', { name }, undefined, { escape: false }) : null
-				},
+				describe: (highlightId) => this._describeHighlight(highlightId),
 				t: (text) => this.t('merlin', text),
 			})
 			this._engine = engine
+			// Die PDF liegt außerhalb von bodyEl (XPaths beziehen sich nur auf den
+			// Inhalt): eigene Engine, die Markierungen des Besitzers nur zeigt.
+			// Gäste markieren in PDFs nicht.
+			const pdfEl = this.$refs.pdfViewer?.$el
+			const pdfEngine = pdfEl
+				? new HighlightEngine(pdfEl, {
+					pdfReadOnly: true,
+					canCreate: () => false,
+					canDelete: () => false,
+					onCreate: () => {},
+					onDelete: () => {},
+					onOpenComments: (highlightId) => this.openComments(highlightId),
+					describe: (highlightId) => this._describeHighlight(highlightId),
+					t: (text) => this.t('merlin', text),
+				})
+				: null
+			this._pdfEngine = pdfEngine
 
 			const session = createCommentSession(client, {
 				onUpdate: (state) => {
 					if (this._engine !== engine) return
-					engine.setHighlights(state.highlights)
+					engine.setHighlights(state.highlights.filter(h => !h.pdfPage))
 					engine.setCommentCounts(session.countsByHighlight())
+					pdfEngine?.setHighlights(state.highlights.filter(h => h.pdfPage))
+					pdfEngine?.setCommentCounts(session.countsByHighlight())
 					this._updateHighlightOrder()
 				},
 			})
@@ -493,13 +510,21 @@ export default {
 			session.connect()
 		},
 
+		_describeHighlight(highlightId) {
+			const h = this._highlightById(highlightId)
+			if (!h) return null
+			const name = h.authorType === 'guest' ? h.authorName : this.article?.ownerName
+			return name ? this.t('merlin', 'Highlighted by {name}', { name }, undefined, { escape: false }) : null
+		},
+
 		_highlightById(id) {
 			return this.commentSession?.state.highlights.find(h => h.id === id) || null
 		},
 
 		_updateHighlightOrder() {
 			const ids = []
-			this.$refs.bodyEl?.querySelectorAll('mark.merlin-highlight').forEach(el => {
+			const roots = [this.$refs.pdfViewer?.$el, this.$refs.bodyEl].filter(Boolean)
+			roots.flatMap(root => [...root.querySelectorAll('.merlin-highlight')]).forEach(el => {
 				const id = parseInt(el.dataset.highlightId, 10)
 				if (!ids.includes(id)) ids.push(id)
 			})
@@ -539,7 +564,9 @@ export default {
 		},
 
 		focusHighlight(highlightId) {
-			this._engine?.focusHighlight(highlightId)
+			if (!this._engine?.focusHighlight(highlightId)) {
+				this._pdfEngine?.focusHighlight(highlightId)
+			}
 			this.commentFocus = highlightId
 		},
 

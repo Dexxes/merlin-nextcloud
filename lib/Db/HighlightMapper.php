@@ -101,7 +101,7 @@ class HighlightMapper extends QBMapper {
 	 */
 	public function getStorageStats(string $userId): array {
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('highlighted_text', 'start_xpath', 'end_xpath')
+		$qb->select('highlighted_text', 'start_xpath', 'end_xpath', 'pdf_rects')
 			->from($this->getTableName())
 			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)));
 

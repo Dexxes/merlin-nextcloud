@@ -103,6 +103,22 @@ $check(count(array_unique(CommentRules::GUEST_COLORS)) === count(CommentRules::G
 $check(CommentRules::sanitizeSignature('0123456789abcdef0123') === '0123456789abcdef0123', 'Gültige Änderungsmarke bleibt');
 $check(CommentRules::sanitizeSignature("x\nevent: closed") === '', 'Änderungsmarke mit Fremdinhalt verworfen');
 
+echo "PDF-Markierungen\n";
+$check(CommentRules::isValidXpath(CommentRules::pdfXpath(3)), 'Platzhalter-XPath besteht die Prüfung');
+$check(CommentRules::isValidPdfPage(1) && !CommentRules::isValidPdfPage(0), 'Seiten ab 1');
+$check(CommentRules::normalizePdfRects([[0.1, 0.2, 0.5, 0.02]]) === '[[0.1,0.2,0.5,0.02]]', 'Gültiges Rechteck als JSON');
+$check(CommentRules::normalizePdfRects([[0, 0, 1, 1]]) === '[[0,0,1,1]]', 'Ganze Seite gültig (Ganzzahlen)');
+$check(CommentRules::normalizePdfRects([[0.123456789, 0.1, 0.2, 0.01]]) === '[[0.12346,0.1,0.2,0.01]]', 'Auf 5 Stellen gerundet');
+$check(CommentRules::normalizePdfRects([]) === null, 'Leere Liste ungültig');
+$check(CommentRules::normalizePdfRects('[[0,0,1,1]]') === null, 'String statt Liste ungültig');
+$check(CommentRules::normalizePdfRects([[0.1, 0.2, 0.5]]) === null, 'Drei Werte ungültig');
+$check(CommentRules::normalizePdfRects([['x' => 0, 'y' => 0, 'w' => 1, 'h' => 1]]) === null, 'Objekt statt Liste ungültig');
+$check(CommentRules::normalizePdfRects([[0.1, 0.2, 0, 0.1]]) === null, 'Breite 0 ungültig');
+$check(CommentRules::normalizePdfRects([[-0.1, 0.2, 0.1, 0.1]]) === null, 'Negativ ungültig');
+$check(CommentRules::normalizePdfRects([[0.8, 0.2, 0.5, 0.1]]) === null, 'Über den Seitenrand ungültig');
+$check(CommentRules::normalizePdfRects([[0.1, '0.2', 0.1, 0.1]]) === null, 'String-Wert ungültig');
+$check(CommentRules::normalizePdfRects(array_fill(0, CommentRules::PDF_RECTS_MAX + 1, [0, 0, 0.1, 0.1])) === null, 'Zu viele Rechtecke ungültig');
+
 $flat = [
 	['id' => 1, 'parentId' => null],
 	['id' => 2, 'parentId' => 1],

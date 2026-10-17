@@ -71,6 +71,10 @@ class HighlightController extends Controller {
 	/**
 	 * Create a new highlight.
 	 *
+	 * In PDF articles (category 'PDF') the passage is anchored by pdfPage and
+	 * pdfRects instead of XPaths; the XPath fields are then ignored and get
+	 * the placeholder CommentRules::pdfXpath().
+	 *
 	 * @NoAdminRequired
 	 * @NoCSRFRequired
 	 */
@@ -79,11 +83,13 @@ class HighlightController extends Controller {
 	public function create(
 		int    $articleId,
 		string $highlightedText,
-		string $startXpath,
-		int    $startOffset,
-		string $endXpath,
-		int    $endOffset,
-		string $color = 'yellow'
+		string $startXpath = '',
+		int    $startOffset = 0,
+		string $endXpath = '',
+		int    $endOffset = 0,
+		string $color = 'yellow',
+		?int   $pdfPage = null,
+		mixed  $pdfRects = null
 	): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
@@ -93,9 +99,19 @@ class HighlightController extends Controller {
 		// Highlight daran gespeichert wird (verhindert Highlights auf fremden/
 		// geratenen article_ids – analog zu TagController::addToArticle()).
 		try {
-			$this->articleMapper->find($articleId, $this->userId);
+			$article = $this->articleMapper->find($articleId, $this->userId);
 		} catch (DoesNotExistException) {
 			return new DataResponse(['error' => 'Article not found'], Http::STATUS_NOT_FOUND);
+		}
+
+		$rectsJson = null;
+		if ($pdfPage !== null) {
+			$rectsJson = CommentRules::normalizePdfRects($pdfRects);
+			if ($article->getCategory() !== 'PDF' || !CommentRules::isValidPdfPage($pdfPage) || $rectsJson === null) {
+				return new DataResponse(['error' => 'highlight_invalid'], Http::STATUS_BAD_REQUEST);
+			}
+			$startXpath = $endXpath = CommentRules::pdfXpath($pdfPage);
+			$startOffset = $endOffset = 0;
 		}
 
 		// Dieselben Regeln wie für Gäste (nur mit längerem Text): Markierungen
@@ -116,6 +132,8 @@ class HighlightController extends Controller {
 		$highlight->setEndOffset($endOffset);
 		$highlight->setColor(CommentRules::sanitizeColor($color));
 		$highlight->setCreatedAt(new \DateTime());
+		$highlight->setPdfPage($pdfPage);
+		$highlight->setPdfRects($rectsJson);
 
 		$saved = $this->highlightMapper->insert($highlight);
 		return new DataResponse($saved->jsonSerialize(), Http::STATUS_CREATED);

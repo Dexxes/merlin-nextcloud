@@ -8,7 +8,13 @@
  *   const engine = new HighlightEngine(containerEl, callbacks)
  *   engine.applyHighlights(highlightsArray)   // restore saved highlights
  *   engine.destroy()                           // clean up listeners
+ *
+ * In PDFs (PdfViewer.vue im Container) wird statt <mark> eine Ebene mit
+ * Rechtecken gezeichnet, die Stelle hat pdfPage/pdfRects statt XPaths
+ * (siehe pdf-highlights.js). Selektoren nehmen deshalb `.merlin-highlight`.
  */
+
+import { pdfAnchorFor, paintPdfHighlight, pdfHighlightAt, pdfPageOf, PDF_PAGE_SELECTOR } from './pdf-highlights.js'
 
 const HIGHLIGHT_COLORS = [
 	{ id: 'yellow', hex: '#fde68a' },
@@ -73,6 +79,44 @@ if (typeof document !== 'undefined' && !document.getElementById('merlin-hl-style
 			font-weight: 600;
 			vertical-align: super;
 			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+		}
+		/* Markierungen in PDFs: Rechtecke unter dem Text-Layer. multiply auf der
+		   Ebene (sie ist ein eigener Stapelkontext) lässt die Schrift auf dem
+		   Pastell-Grund dunkel. */
+		.merlin-pdf-hl-layer {
+			mix-blend-mode: multiply;
+		}
+		div.merlin-highlight--pdf {
+			position: absolute;
+			border-radius: 2px;
+		}
+		div.merlin-highlight--pdf[data-highlight-color="yellow"] { background-color: #fde68a; }
+		div.merlin-highlight--pdf[data-highlight-color="green"]  { background-color: #bbf7d0; }
+		div.merlin-highlight--pdf[data-highlight-color="blue"]   { background-color: #bfdbfe; }
+		div.merlin-highlight--pdf[data-highlight-color="pink"]   { background-color: #fbcfe8; }
+		div.merlin-highlight--pdf[data-highlight-color="orange"] { background-color: #fed7aa; }
+		div.merlin-highlight--pdf[data-highlight-color="comment"] {
+			border-bottom: 2px solid var(--mh-author, #c2410c);
+			border-radius: 0;
+		}
+		div.merlin-highlight--pdf[data-comment-tail]::after {
+			content: attr(data-comment-count);
+			position: absolute;
+			right: -4px;
+			top: -10px;
+			padding: 0 5px;
+			min-width: 8px;
+			border-radius: 8px 8px 8px 2px;
+			background: var(--mh-author, #1c1c1e);
+			color: #fff;
+			font-size: 11px;
+			line-height: 1.5;
+			font-weight: 600;
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+		}
+		div.merlin-highlight--pdf.merlin-highlight--flash {
+			outline: 2px solid #1c1c1e;
+			outline-offset: 1px;
 		}
 		mark.merlin-highlight.merlin-highlight--flash {
 			outline: 2px solid #1c1c1e !important;
@@ -222,6 +266,20 @@ function createMarkEl(color, highlightId) {
 	return span
 }
 
+/** Rechteck einer PDF-Markierung (Farben per CSS oben, Lage setzt pdf-highlights.js). */
+function createPdfMarkEl(color, highlightId) {
+	const el = document.createElement('div')
+	el.className = 'merlin-highlight merlin-highlight--pdf'
+	el.dataset.highlightId = String(highlightId)
+	el.dataset.highlightColor = color
+	return el
+}
+
+/** Liegt der Anfang der Auswahl in einer PDF-Seite? */
+function pdfPageOfRange(range) {
+	return pdfPageOf(range.startContainer)
+}
+
 /**
  * Wraps all text portions of a Range in <mark> elements using splitText +
  * manual DOM insertion — avoids surroundContents() which throws whenever the
@@ -278,8 +336,8 @@ function wrapRange(range, color, highlightId) {
 /** Entfernt alle <mark>-Elemente einer Markierung (oder alle) aus dem Container. */
 function unwrapMarks(container, highlightId = null) {
 	const selector = highlightId === null
-		? 'mark.merlin-highlight'
-		: `mark.merlin-highlight[data-highlight-id="${highlightId}"]`
+		? '.merlin-highlight'
+		: `.merlin-highlight[data-highlight-id="${highlightId}"]`
 	const parents = new Set()
 	container.querySelectorAll(selector).forEach(el => {
 		const parent = el.parentNode
@@ -307,8 +365,9 @@ export class HighlightEngine {
 	 * @param {Function} [callbacks.describe] Zusatzzeile im Menü, z. B. „Markiert von Anna“ (id) => string|null
 	 * @param {Function} [callbacks.canCreate] darf gerade markiert werden? () => bool
 	 * @param {Function} [callbacks.t] Übersetzungsfunktion (Text) => Text
+	 * @param {boolean} [callbacks.pdfReadOnly] in PDFs nur anzeigen, nicht markieren (Gäste)
 	 */
-	constructor(container, { onCreate, onDelete, onOpenComments = null, onCommentSelection = null, canDelete = null, describe = null, canCreate = null, t = null }) {
+	constructor(container, { onCreate, onDelete, onOpenComments = null, onCommentSelection = null, canDelete = null, describe = null, canCreate = null, t = null, pdfReadOnly = false }) {
 		this._container = container
 		this._onCreate = onCreate
 		this._onCommentSelection = onCommentSelection
@@ -318,6 +377,7 @@ export class HighlightEngine {
 		this._describe = describe ?? (() => null)
 		this._canCreate = canCreate ?? (() => true)
 		this._t = t ?? (text => text)
+		this._pdfReadOnly = pdfReadOnly
 		this._highlights = []
 		this._commentCounts = {}
 
@@ -327,18 +387,22 @@ export class HighlightEngine {
 		this._onMouseUp      = this._handleMouseUp.bind(this)
 		this._onContextMenu  = this._handleContextMenu.bind(this)
 		this._onDocMouseDown = this._handleDocMouseDown.bind(this)
+		this._onPdfPage      = this._handlePdfPage.bind(this)
 
 		// mouseup on document so we catch drags that end outside the container
 		document.addEventListener('mouseup', this._onMouseUp)
 		container.addEventListener('contextmenu', this._onContextMenu)
 		// mousedown anywhere outside the toolbar dismisses it
 		document.addEventListener('mousedown', this._onDocMouseDown, true)
+		// PdfViewer meldet jede Seite, deren Markierungs-Ebene neu steht.
+		container.addEventListener('merlin-pdf-page', this._onPdfPage)
 	}
 
 	destroy() {
 		document.removeEventListener('mouseup', this._onMouseUp)
 		this._container.removeEventListener('contextmenu', this._onContextMenu)
 		document.removeEventListener('mousedown', this._onDocMouseDown, true)
+		this._container.removeEventListener('merlin-pdf-page', this._onPdfPage)
 		this._removeToolbar()
 	}
 
@@ -360,7 +424,7 @@ export class HighlightEngine {
 	 */
 	setHighlights(highlights) {
 		const known = new Set(highlights.map(h => String(h.id)))
-		const pending = Array.from(this._container.querySelectorAll('mark.merlin-highlight'))
+		const pending = Array.from(this._container.querySelectorAll('.merlin-highlight'))
 			.some(el => !known.has(el.dataset.highlightId) && !this._highlights.some(h => String(h.id) === el.dataset.highlightId))
 		if (pending) {
 			// Eine eigene Markierung wartet noch auf ihre Server-ID: nicht neu
@@ -388,8 +452,16 @@ export class HighlightEngine {
 
 	/** Zur Markierung scrollen und sie kurz hervorheben. */
 	focusHighlight(highlightId) {
-		const marks = this._container.querySelectorAll(`mark.merlin-highlight[data-highlight-id="${highlightId}"]`)
-		if (!marks.length) return false
+		const marks = this._container.querySelectorAll(`.merlin-highlight[data-highlight-id="${highlightId}"]`)
+		if (!marks.length) {
+			// PDF-Seite noch nicht gerendert: zur Seite springen, die Markierung
+			// erscheint mit ihr.
+			const h = this._highlights.find(x => String(x.id) === String(highlightId))
+			const page = h?.pdfPage && this._container.querySelector(`${PDF_PAGE_SELECTOR}[data-page="${Number(h.pdfPage)}"]`)
+			if (!page) return false
+			page.scrollIntoView({ behavior: 'smooth', block: 'start' })
+			return true
+		}
 		marks[0].scrollIntoView({ behavior: 'smooth', block: 'center' })
 		marks.forEach(el => el.classList.add('merlin-highlight--flash'))
 		setTimeout(() => marks.forEach(el => el.classList.remove('merlin-highlight--flash')), 1600)
@@ -408,7 +480,7 @@ export class HighlightEngine {
 				colors.set(String(h.id), h.authorColor)
 			}
 		}
-		this._container.querySelectorAll('mark.merlin-highlight').forEach(el => {
+		this._container.querySelectorAll('.merlin-highlight').forEach(el => {
 			const color = colors.get(el.dataset.highlightId)
 			if (color) el.style.setProperty('--mh-author', color)
 			else el.style.removeProperty('--mh-author')
@@ -417,13 +489,13 @@ export class HighlightEngine {
 
 	_paintCommentCounts() {
 		this._paintAuthorColors()
-		this._container.querySelectorAll('mark.merlin-highlight[data-comment-tail]').forEach(el => {
+		this._container.querySelectorAll('.merlin-highlight[data-comment-tail]').forEach(el => {
 			el.removeAttribute('data-comment-tail')
 			el.removeAttribute('data-comment-count')
 		})
 		for (const [id, count] of Object.entries(this._commentCounts)) {
 			if (!count) continue
-			const marks = this._container.querySelectorAll(`mark.merlin-highlight[data-highlight-id="${id}"]`)
+			const marks = this._container.querySelectorAll(`.merlin-highlight[data-highlight-id="${id}"]`)
 			const last = marks[marks.length - 1]
 			if (last) {
 				last.dataset.commentTail = ''
@@ -434,7 +506,7 @@ export class HighlightEngine {
 
 	/** Swap a temp id written by wrapRange with the real server id. */
 	updateTempId(tempId, realId, highlight = null) {
-		document.querySelectorAll(`mark.merlin-highlight[data-highlight-id="${tempId}"]`)
+		document.querySelectorAll(`.merlin-highlight[data-highlight-id="${tempId}"]`)
 			.forEach(el => { el.dataset.highlightId = String(realId) })
 		if (highlight && !this._highlights.some(h => String(h.id) === String(realId))) {
 			this._highlights.push(highlight)
@@ -458,8 +530,9 @@ export class HighlightEngine {
 		if (e.button !== 0) return
 
 		// Left-click on an existing highlight → show delete menu
-		const clickedMark = e.target.closest?.('mark.merlin-highlight')
 		const sel = window.getSelection()
+		const clickedMark = e.target.closest?.('mark.merlin-highlight')
+			?? (sel?.isCollapsed !== false ? pdfHighlightAt(e.target, e.clientX, e.clientY) : null)
 		if (clickedMark && this._container.contains(clickedMark) && (!sel || sel.isCollapsed)) {
 			this._removeToolbar()
 			const id = parseInt(clickedMark.dataset.highlightId, 10)
@@ -476,6 +549,7 @@ export class HighlightEngine {
 		if (!sel || sel.isCollapsed || sel.rangeCount === 0) return
 		const range = sel.getRangeAt(0)
 		if (!this._container.contains(range.commonAncestorContainer)) return
+		if (this._pdfReadOnly && pdfPageOfRange(range)) return
 
 		// Clone BEFORE _showColorToolbar, which calls _removeToolbar() internally
 		// and would clear _pendingRange if we set it first.
@@ -487,11 +561,25 @@ export class HighlightEngine {
 	_handleContextMenu(e) {
 		// Right-clicking an existing mark → show delete option
 		const clickedMark = e.target.closest?.('mark.merlin-highlight')
+			?? pdfHighlightAt(e.target, e.clientX, e.clientY)
 		if (clickedMark && this._container.contains(clickedMark)) {
 			e.preventDefault()
 			this._removeToolbar()
 			this._showDeleteMenu(e.clientX, e.clientY, parseInt(clickedMark.dataset.highlightId, 10))
 		}
+	}
+
+	/** Eine PDF-Seite ist gerendert: ihre Markierungen hineinzeichnen. */
+	_handlePdfPage(e) {
+		const page = Number(e.detail?.page)
+		let painted = false
+		for (const h of this._highlights) {
+			if (Number(h.pdfPage) === page) {
+				this._restoreHighlight(h)
+				painted = true
+			}
+		}
+		if (painted) this._paintCommentCounts()
 	}
 
 	_handleDocMouseDown(e) {
@@ -698,6 +786,13 @@ export class HighlightEngine {
 		const range = this._pendingRange
 		this._removeToolbar()
 		if (!range || range.collapsed) return
+		const pdf = pdfAnchorFor(range)
+		if (pdf) {
+			window.getSelection()?.removeAllRanges()
+			this._onCommentSelection(pdf)
+			return
+		}
+		if (pdfPageOfRange(range)) return
 		const startXpath = getXPathForNode(range.startContainer, this._container)
 		const endXpath   = getXPathForNode(range.endContainer,   this._container)
 		const highlightedText = range.toString().trim()
@@ -716,6 +811,17 @@ export class HighlightEngine {
 		const range = this._pendingRange
 		this._removeToolbar()
 		if (!range || range.collapsed) return
+
+		const pdf = pdfAnchorFor(range)
+		if (pdf) {
+			const tempId = Date.now()
+			paintPdfHighlight(this._container, { id: tempId, ...pdf }, () => createPdfMarkEl(color, tempId))
+			window.getSelection()?.removeAllRanges()
+			this._onCreate({ ...pdf, color, tempId, comment })
+			return
+		}
+		// In einer PDF, aber nicht messbar (z. B. Auswahl ohne Text): nichts tun.
+		if (pdfPageOfRange(range)) return
 
 		const startXpath = getXPathForNode(range.startContainer, this._container)
 		const endXpath   = getXPathForNode(range.endContainer,   this._container)
@@ -747,6 +853,10 @@ export class HighlightEngine {
 
 	/** Re-apply a single saved highlight from the server to the DOM. */
 	_restoreHighlight(h) {
+		if (h.pdfPage) {
+			paintPdfHighlight(this._container, h, () => createPdfMarkEl(h.color, h.id))
+			return
+		}
 		const startNode = resolveXPath(h.startXpath, this._container)
 		const endNode   = resolveXPath(h.endXpath,   this._container)
 		if (!startNode || !endNode) return
