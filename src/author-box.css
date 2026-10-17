@@ -8,8 +8,7 @@
 .merlin-author-box {
 	margin: 1em 0;
 	padding: 0.9em 1em;
-	border-left: 4px solid var(--merlin-author-accent, #FF3B30);
-	border-radius: 0 8px 8px 0;
+	border-radius: 8px;
 	background: rgba(128, 128, 128, 0.1);
 	background: color-mix(in srgb, var(--merlin-author-accent, #FF3B30) 12%, transparent);
 	font-size: 0.93em;
@@ -71,4 +70,10 @@
 	text-decoration-color: var(--merlin-author-accent, #FF3B30);
 	text-decoration-thickness: 2px;
 	text-underline-offset: 2px;
+}
+
+/* Autorenlink im Namen in Akzentfarbe. !important: die Linkfarbe des Readers
+   (.article-body a, im Dark Mode noch spezifischer) soll nicht gewinnen. */
+.merlin-author-box .merlin-author-box__name a {
+	color: var(--merlin-author-accent, #FF3B30) !important;
 }
