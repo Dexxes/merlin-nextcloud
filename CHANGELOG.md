@@ -57,6 +57,9 @@ All notable changes to Merlin are documented here. Format based on
   single quote instead of repeating the quote above each thread.
 
 ### Changed
+- rbb24.de: the author box at the end of an article now shows each
+  author's photo and short biography from their rbb24 author page; the
+  generic placeholder photo for authors without a picture is left out.
 - netzpolitik.org: the author box at the end of an article now shows each
   author's photo and short biography, taken from the article's own
   "Über die Autor:innen" box.

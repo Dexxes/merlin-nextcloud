@@ -52,6 +52,15 @@
 
   <metadata>
     <author   xpath="//span[@class='article__author__name']/a" />
+    <!-- Autorenbox am Artikelende. Der Artikel selbst zeigt nur den Namen;
+         Foto und Bio stehen auf der Autorenseite (/autoren/<name>.html) in
+         article.cast. Ohne eigenes Foto liefert rbb24 ein Platzhalterbild
+         (Autorenbilder/rbb24-autorenprofil-…, alt "Symbolbild: …"), das bleibt weg.
+         Bio: erster nicht leerer Absatz aus cast__additional_info; cast__text
+         ist nur die Rolle ("Autor rbb|24", "Kultur"), die letzten Absätze sind
+         oft nur "Mail an den Autor". -->
+    <author-image from="author-page" xpath="//article[contains(@class,'cast')]//figure[contains(@class,'cast__image-container')]//img[not(contains(@src,'rbb24-autorenprofil')) and not(starts-with(@alt,'Symbolbild'))]" />
+    <author-bio   from="author-page" xpath="//article[contains(@class,'cast')]//span[contains(@class,'cast__additional_info_item')][normalize-space()]" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
     

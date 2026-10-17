@@ -548,6 +548,47 @@ $checkPages(
 	['https://www.example.com/autor/carl']
 );
 
+// rbb24.de: echte Filterdatei, gekürzte Autorenseiten (article.cast).
+$rbbConfig = preg_replace('/<domain name="[^"]*"/', '<domain name="example.com"', (string) file_get_contents(__DIR__ . '/../content-filters/rbb24.de.xml'));
+$rbbPage   = fn (string $img, string $alt, string $items): string =>
+	'<html><body><main><article class="cast" aria-label=""><div class="container__cast">'
+	. '<figure class="cast__image-container"><picture><source srcset="' . $img . '.webp" type="image/webp"><img src="' . $img . '" alt="' . $alt . '" title="' . $alt . '" loading="lazy"></picture></figure>'
+	. '<h2 class="cast__name headline-xl">Name</h2><span class="cast__text body-lg"><p>Autorin rbb|24</p></span>'
+	. '<div class="cast__additional_info body-status-quo font-light">' . $items . '</div></div></article>'
+	. '<section><article class="layout_1_3 standard teaser"><figure class="teaser__image-container"><img src="/teaser.jpg" alt="Teaser"></figure><p>Teaser-Text.</p></article></section></main></body></html>';
+
+$checkPages(
+	'rbb24.de: Foto und erster Bio-Absatz von der Autorenseite, Platzhalterbild bleibt weg',
+	['author' => 'Barbara Behrendt, Sabine Priess', 'authors' => [
+		['name' => 'Barbara Behrendt', 'url' => 'https://www.example.com/autoren/barbara-behrendt.html'],
+		['name' => 'Sabine Priess', 'url' => 'https://www.example.com/autoren/sabine-priess.html'],
+	]],
+	$rbbConfig,
+	[
+		'https://www.example.com/autoren/barbara-behrendt.html' => $rbbPage(
+			'/content/dam/rbb/rbb/rbb24/2026/2026_02/rbb-reporter/barbara-behrendt-foto.jpg.jpg/quality=160/size=712x400.jpg',
+			'Barbara Behrendt',
+			'<span class="cast__additional_info_item"></span>'
+				. '<span class="cast__additional_info_item"><p>Ich komme aus dem Print-Bereich.<br></p></span>'
+				. '<span class="cast__additional_info_item"><p>Mein Schwerpunkt ist das Berliner Theaterleben.</p></span>'
+		),
+		'https://www.example.com/autoren/sabine-priess.html' => $rbbPage(
+			'/content/dam/rbb/rbb/rbb24/Autorenbilder/rbb24-autorenprofil-weiblich.png.png/quality=160/size=712x400.png',
+			'Symbolbild: rbb24 Autorinnenprofil weiblich. (Quelle: rbb24)',
+			'<span class="cast__additional_info_item"><p>Sabine Priess ist seit 2003 Redakteurin beim rbb.</p></span>'
+				. '<span class="cast__additional_info_item"><p><a href="mailto:x@rbb-online.de">Mail an die Autorin</a></p></span>'
+		),
+	],
+	[
+		['name' => 'Barbara Behrendt', 'url' => 'https://www.example.com/autoren/barbara-behrendt.html',
+			'image' => 'https://www.example.com/content/dam/rbb/rbb/rbb24/2026/2026_02/rbb-reporter/barbara-behrendt-foto.jpg.jpg/quality=160/size=712x400.jpg',
+			'bio' => 'Ich komme aus dem Print-Bereich.'],
+		['name' => 'Sabine Priess', 'url' => 'https://www.example.com/autoren/sabine-priess.html',
+			'bio' => 'Sabine Priess ist seit 2003 Redakteurin beim rbb.'],
+	],
+	['https://www.example.com/autoren/barbara-behrendt.html', 'https://www.example.com/autoren/sabine-priess.html']
+);
+
 $check(
 	'from="author-page"-Regeln laufen nicht auf der Artikelseite',
 	'<html><head><meta property="article:author" content="Bea Bild"></head><body><div class="profil-bio">Falsch: Artikelseite.</div></body></html>',
