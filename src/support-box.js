@@ -49,38 +49,67 @@ function findParagraphs(body) {
 	return best
 }
 
+/** Aller nicht leere Text von el liegt in Elementen, die selector treffen (innerhalb von el). */
+function allTextWithin(el, selector) {
+	const walker = el.ownerDocument.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+	let hasText = false
+	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+		if (node.data.trim() === '') continue
+		hasText = true
+		const match = node.parentElement.closest(selector)
+		if (!match || !el.contains(match)) return false
+	}
+	return hasText
+}
+
 /**
  * Absatz wirkt wie eine Zwischenüberschrift: enthält eine Überschrift oder sein
  * ganzer Text ist fett (<strong>/<b>, z. B. "<p><strong>Zwischenzeile</strong></p>").
  * Direkt danach darf die Box nicht stehen, sie risse Zwischenzeile und Text auseinander.
  */
 function isHeadingLike(p) {
-	if (p.querySelector('h1, h2, h3, h4, h5, h6')) return true
-	const walker = p.ownerDocument.createTreeWalker(p, NodeFilter.SHOW_TEXT)
-	let hasText = false
-	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-		if (node.data.trim() === '') continue
-		hasText = true
-		const bold = node.parentElement.closest('strong, b')
-		if (!bold || !p.contains(bold)) return false
-	}
-	return hasText
+	return !!p.querySelector('h1, h2, h3, h4, h5, h6') || allTextWithin(p, 'strong, b')
+}
+
+const QUOTE_SELECTOR = 'blockquote, [class*="quote" i], [class*="zitat" i]'
+const OPENING_QUOTES = '„"“”»«‚‘’\''
+const CLOSING_QUOTES = '"“”«»‘’\''
+
+/**
+ * Element ist ein Zitat: <blockquote> bzw. Pull-Quote (auch als Wrapper, etwa
+ * <figure><blockquote>), ein Absatz ganz in <q> oder ganz in Anführungszeichen.
+ */
+function isQuoteLike(el) {
+	if (!el) return false
+	if (el.matches(QUOTE_SELECTOR) || el.querySelector(QUOTE_SELECTOR)) return true
+	if (allTextWithin(el, 'q')) return true
+	const text = el.textContent.trim()
+	return text.length > 1
+		&& OPENING_QUOTES.includes(text[0])
+		&& CLOSING_QUOTES.includes(text[text.length - 1])
+}
+
+/** Nach paragraph darf die Box nicht stehen: Zwischenzeile, Zitat davor oder danach. */
+function isBlocked(paragraph) {
+	return isHeadingLike(paragraph)
+		|| isQuoteLike(paragraph)
+		|| isQuoteLike(paragraph.nextElementSibling)
 }
 
 /**
  * Index des Absatzes, nach dem die Box steht: ab der Seed-Position der erste
- * Absatz, der nicht wie eine Zwischenüberschrift wirkt, zuerst nach hinten,
- * dann nach vorn; nie nach dem ersten oder letzten Absatz. -1: keiner passt.
+ * Absatz, der nicht blockiert ist (isBlocked), zuerst nach hinten, dann nach
+ * vorn; nie nach dem ersten oder letzten Absatz. -1: keiner passt.
  */
 function pickIndex(paragraphs, seed) {
 	const first = 1
 	const last = paragraphs.length - 2
 	const start = first + (hashSeed(seed) % (last - first + 1))
 	for (let i = start; i <= last; i++) {
-		if (!isHeadingLike(paragraphs[i])) return i
+		if (!isBlocked(paragraphs[i])) return i
 	}
 	for (let i = start - 1; i >= first; i--) {
-		if (!isHeadingLike(paragraphs[i])) return i
+		if (!isBlocked(paragraphs[i])) return i
 	}
 	return -1
 }
@@ -127,7 +156,8 @@ function buildSentence(t, box, doc) {
 
 /**
  * Setzt die Box nach einem pseudo-zufälligen Top-Level-Absatz ein, nie direkt
- * nach einer Überschrift oder Fettung (siehe pickIndex).
+ * nach einer Überschrift oder Fettung und nie direkt vor oder nach einem Zitat
+ * (siehe pickIndex).
  *
  * @param {string} html    Artikel-HTML
  * @param {object|null} box  {siteName, subscribeUrl, donationsUrl, accentColor}
@@ -149,7 +179,8 @@ export function insertSupportBox(html, box, seed, t) {
 	const paragraphs = findParagraphs(doc.body)
 	if (paragraphs.length < MIN_PARAGRAPHS) return html
 	// Nach dem 2. bis (n-1). Absatz, nie ganz vorn oder am Ende und nie direkt
-	// nach einer Überschrift oder einem komplett fetten Absatz.
+	// nach einer Überschrift oder einem komplett fetten Absatz, nie direkt vor
+	// oder nach einem Zitat.
 	const index = pickIndex(paragraphs, seed)
 	if (index < 0) return html
 
