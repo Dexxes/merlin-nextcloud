@@ -6,6 +6,7 @@ namespace OCA\Merlin\Service;
 
 use OCA\Merlin\Db\SiteCredential;
 use OCA\Merlin\Db\SiteCredentialMapper;
+use OCA\Merlin\Service\Login\KeycloakFormPostLoginProvider;
 use OCA\Merlin\Service\Login\LoginConfig;
 use OCA\Merlin\Service\Login\LoginFailedException;
 use OCA\Merlin\Service\Login\LoginProviderInterface;
@@ -30,7 +31,8 @@ use Psr\Log\LoggerInterface;
 class SiteCredentialService {
 	/** type-Attribut der <login>-Sektion => zuständiger Provider. */
 	private const PROVIDERS = [
-		'piano-json-form' => PianoJsonFormLoginProvider::class,
+		'piano-json-form'    => PianoJsonFormLoginProvider::class,
+		'keycloak-form-post' => KeycloakFormPostLoginProvider::class,
 	];
 
 	public function __construct(
@@ -217,7 +219,7 @@ class SiteCredentialService {
 
 	/**
 	 * Alle Domains, die eine gültige <login>-Sektion im Bundle haben (aktuell
-	 * nur tagesspiegel.de) - Grundlage für die "Abo hinzufügen"-Auswahl in
+	 * tagesspiegel.de und morgenpost.de) - Grundlage für die "Abo hinzufügen"-Auswahl in
 	 * der Personal-Settings-UI. Iteriert alle Bundle-Domains einmalig; bei
 	 * der aktuellen Größenordnung (~55 Domains) unproblematisch, da nur beim
 	 * Laden der Einstellungsseite aufgerufen, nicht pro Artikel-Fetch.

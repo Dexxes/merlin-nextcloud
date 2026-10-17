@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Merlin Content-Filter: nd-aktuell.de
+  Merlin Content-Filter: morgenpost.de
 
   Verfügbare Sektionen:
+    <login>        – Paywall-Login-Ablauf für Morgenpost Plus (siehe unten)
     <pre-filter>   – Regeln, die auf das rohe HTML VOR dem Readability-Durchlauf angewendet werden
     <post-filter>  – Regeln, die auf den von Readability extrahierten HTML-Content angewendet werden
     <metadata>     – XPath-Regeln zur domain-spezifischen Metadaten-Extraktion (überschreibt Readability)
@@ -18,8 +19,53 @@
     <excerpt  xpath="..." />   – Teaser / Zusammenfassung
     <image    xpath="..." />   – Bild-URL (bei @content-Attributen: xpath="//meta[...]/@content")
     <published xpath="..." />  – Veröffentlichungsdatum (ISO 8601 oder deutsches Format)
+
+  ── Paywall-Login (Morgenpost Plus) ────────────────────────────────────────
+  Wie bei Tagesspiegel Plus eine serverseitige Paywall: unangemeldet endet
+  der Artikel nach dem Teaser, an Stelle des Texts steht
+  <div id="paywall-container">, angemeldet fehlt dieser Container und der
+  volle Text steht im HTML. Login-Cookies sind also zwingend.
+
+  Anders als Tagesspiegel (Piano-Formular auf eigener Domain) läuft der
+  Login über Funkes zentralen Keycloak login.funkemedien.de, Realm
+  funke-bmo, als OpenID-Connect-Implicit-Flow mit form_post.
+
+  Ablauf (Service\Login\KeycloakFormPostLoginProvider):
+    1. GET  authorize-endpoint  => Keycloak-Login-Formular + Auth-Session-Cookies
+    2. POST Formular-action     => username/password, Antwort ist ein
+                                   selbst-absendendes Formular mit
+                                   access_token/id_token
+    3. POST redirect-endpoint   => Morgenpost setzt sfautht (eigenes JWT mit
+                                   den Abo-Rechten) und sfauthp (id_token),
+                                   host-only auf www.morgenpost.de
+  Die Cookies haben Max-Age ~1 Jahr, die JWTs darin aber nur 24 Stunden
+  Gültigkeit - der Provider richtet den Cookie-Ablauf nach dem exp-Claim, so
+  dass nach einem Tag automatisch neu eingeloggt wird.
+
+  sfauthr=true setzt das Seiten-JS im Browser vor dem Sprung zum Login,
+  redirect.html löscht es wieder. Ob der Server es prüft, ist unbekannt -
+  es wird sicherheitshalber genauso mitgeschickt.
+
+  WARTUNG: Bricht der Login mit STATUS_LOGIN_FLOW_BROKEN ab oder greift der
+  paywall-marker nicht mehr, erster Blick: frische HAR-Aufzeichnung eines
+  echten Logins im Browser (Klick auf "Anmelden" auf einer Artikelseite),
+  Diff gegen KeycloakFormPostLoginProvider bzw. den regex unten.
+  client-id und Realm stehen auch im Anmelden-Link jeder Artikelseite.
+
+  login ist bewusst NICHT Teil von ContentFilterSchema::SECTIONS (siehe
+  tagesspiegel.de.xml und Service\Login\LoginConfig-Docblock).
 -->
 <domain name="morgenpost.de">
+
+  <login type="keycloak-form-post" page="https://www.morgenpost.de/meinaccount/">
+    <authorize-endpoint url="https://login.funkemedien.de/realms/funke-bmo/protocol/openid-connect/auth" client-id="spark-fe-bmo" />
+    <redirect-endpoint url="https://www.morgenpost.de/redirect.html?o=%2F">
+      <cookie name="sfauthr" value="true" />
+    </redirect-endpoint>
+    <persist-cookie name="sfautht" />
+    <persist-cookie name="sfauthp" />
+    <paywall-marker regex="/id=&quot;paywall-container&quot;/" />
+  </login>
 
   <pre-filter>
     <remove xpath="//section[@aria-label='Auch interessant']"/>

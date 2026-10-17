@@ -37,6 +37,24 @@ final class LoginConfig {
 		 * (Paywall-Erkennung entfällt dann, Cookie-Injektion bleibt aktiv).
 		 */
 		public readonly ?string $paywallMarkerPattern = null,
+		/** OAuth-Client-ID beim Identity-Provider (<authorize-endpoint client-id>), z. B. "spark-fe-bmo" für Morgenpost. Nur keycloak-form-post. */
+		public readonly string $clientId = '',
+		/** Authorization-Endpoint des Identity-Providers (<authorize-endpoint url>). Nur keycloak-form-post. */
+		public readonly string $authorizeUrl = '',
+		/**
+		 * redirect_uri, an die der Identity-Provider die Tokens per
+		 * form_post zurückschickt und die daraus die Session-Cookies der
+		 * Zeitung macht (<redirect-endpoint url>). Nur keycloak-form-post.
+		 */
+		public readonly string $redirectUrl = '',
+		/**
+		 * Cookies, die beim POST an redirectUrl mitgeschickt werden, weil das
+		 * Seiten-JS sie im Browser vor dem Login setzt (<redirect-endpoint>
+		 * <cookie name value>). Nur keycloak-form-post.
+		 *
+		 * @var array<string,string>
+		 */
+		public readonly array $redirectCookies = [],
 	) {
 	}
 
@@ -53,6 +71,16 @@ final class LoginConfig {
 		$markerNode = $login->{'paywall-marker'};
 		$marker     = isset($markerNode['regex']) ? trim((string) $markerNode['regex']) : '';
 
+		$authorize = $login->{'authorize-endpoint'};
+		$redirect  = $login->{'redirect-endpoint'};
+		$redirectCookies = [];
+		foreach ($redirect->cookie ?? [] as $cookie) {
+			$name = trim((string) ($cookie['name'] ?? ''));
+			if ($name !== '') {
+				$redirectCookies[$name] = trim((string) ($cookie['value'] ?? ''));
+			}
+		}
+
 		return new self(
 			type: trim((string) ($login['type'] ?? '')),
 			page: trim((string) ($login['page'] ?? '')),
@@ -60,13 +88,25 @@ final class LoginConfig {
 			persistCookieNames: $persistCookieNames,
 			service: trim((string) ($login['service'] ?? '')),
 			paywallMarkerPattern: $marker !== '' ? $marker : null,
+			clientId: trim((string) ($authorize['client-id'] ?? '')),
+			authorizeUrl: trim((string) ($authorize['url'] ?? '')),
+			redirectUrl: trim((string) ($redirect['url'] ?? '')),
+			redirectCookies: $redirectCookies,
 		);
 	}
 
 	public function isValid(): bool {
-		return $this->type !== ''
-			&& filter_var($this->page, FILTER_VALIDATE_URL) !== false
-			&& filter_var($this->ajaxEndpointUrl, FILTER_VALIDATE_URL) !== false
-			&& $this->persistCookieNames !== [];
+		if ($this->type === ''
+			|| filter_var($this->page, FILTER_VALIDATE_URL) === false
+			|| $this->persistCookieNames === []) {
+			return false;
+		}
+
+		return match ($this->type) {
+			'keycloak-form-post' => $this->clientId !== ''
+				&& filter_var($this->authorizeUrl, FILTER_VALIDATE_URL) !== false
+				&& filter_var($this->redirectUrl, FILTER_VALIDATE_URL) !== false,
+			default => filter_var($this->ajaxEndpointUrl, FILTER_VALIDATE_URL) !== false,
+		};
 	}
 }
