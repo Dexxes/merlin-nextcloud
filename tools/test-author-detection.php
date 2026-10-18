@@ -648,6 +648,54 @@ $checkPages(
 	['https://www.example.com/autoren/nina-noire-kugler/', 'https://www.example.com/autoren/isabell-juergens/']
 );
 
+// tagesspiegel.de: echte Filterdatei, gekürzte Byline bzw. Autorenseiten.
+$tspConfig = preg_replace('/<domain name="[^"]*"/', '<domain name="example.com"', (string) file_get_contents(__DIR__ . '/../content-filters/tagesspiegel.de.xml'));
+$tspLi = fn (string $href, string $name): string =>
+	'<li property="author" typeof="Person"><a href="' . $href . '" property="url name" data-gtm-class="article-author-link" class="tspBNmm"> ' . $name . '</a></li>';
+
+$check(
+	'tagesspiegel.de: mehrere Autor*innen mit Profil-Link aus der Byline',
+	'<html><body><main id="main-content"><article><header><div class="tspBGk5"><div> Von <ul class="tspBGk9">'
+		. $tspLi('/autoren/daniel-boldt', 'Daniel Böldt') . $tspLi('/berlin/autoren/ingo-salmen', 'Ingo Salmen')
+		. '</ul></div></div></header><p>Artikeltext.</p></article></main></body></html>',
+	$tspConfig,
+	$a('Daniel Böldt, Ingo Salmen') + ['authors' => [
+		['name' => 'Daniel Böldt', 'url' => 'https://example.com/autoren/daniel-boldt'],
+		['name' => 'Ingo Salmen', 'url' => 'https://example.com/berlin/autoren/ingo-salmen'],
+	]]
+);
+
+$tspPage = fn (string $name, ?string $img, string $bio): string =>
+	'<html><body><header class="tspA"><nav><p>Navigation</p></nav></header><main id="main-content" tabindex="-1" class="tspJbb"><div><div></div></div>'
+	. '<header class="tspEai">'
+	. ($img === null ? '<!---->' : '<figure class="tspBAj9 tspEaj"><div class="tspBAka"><img src="' . $img . '" alt="' . $name . '" width="160" height="160" loading="lazy" class="tspBDkq"></div></figure>')
+	. '<div class="tspEak"><div><h1 class="tspEal">' . $name . '</h1><span class="tspEam"> Redakteur </span></div><p class="tspEan"> ' . $bio . ' </p></div></header>'
+	. '<h2 class="tspEao">Aktuelle Artikel</h2><section><article><figure><img src="/images/1/teaser.jpeg" alt="Teaser"></figure><p>Teaser-Text.</p></article></section></main></body></html>';
+
+$checkPages(
+	'tagesspiegel.de: Foto und Bio von der Autorenseite, ohne Foto nur Bio',
+	['author' => 'Ingo Salmen, Simon Röhricht', 'authors' => [
+		['name' => 'Ingo Salmen', 'url' => 'https://www.example.com/berlin/autoren/ingo-salmen'],
+		['name' => 'Simon Röhricht', 'url' => 'https://www.example.com/autoren/simon-rohricht'],
+	]],
+	$tspConfig,
+	[
+		'https://www.example.com/berlin/autoren/ingo-salmen' => $tspPage('Ingo Salmen',
+			'/images/11532794/alternates/BASE_1_1_W160/1713367406000/ingo-salmen-20-3.jpeg',
+			'Ingo Salmen leitet seit Sommer 2026 das Berlin-Ressort beim Tagesspiegel.'),
+		'https://www.example.com/autoren/simon-rohricht' => $tspPage('Simon Röhricht', null,
+			'Simon Röhricht arbeitet im Berlin-Ressort des Tagesspiegels.'),
+	],
+	[
+		['name' => 'Ingo Salmen', 'url' => 'https://www.example.com/berlin/autoren/ingo-salmen',
+			'image' => 'https://www.example.com/images/11532794/alternates/BASE_1_1_W160/1713367406000/ingo-salmen-20-3.jpeg',
+			'bio' => 'Ingo Salmen leitet seit Sommer 2026 das Berlin-Ressort beim Tagesspiegel.'],
+		['name' => 'Simon Röhricht', 'url' => 'https://www.example.com/autoren/simon-rohricht',
+			'bio' => 'Simon Röhricht arbeitet im Berlin-Ressort des Tagesspiegels.'],
+	],
+	['https://www.example.com/berlin/autoren/ingo-salmen', 'https://www.example.com/autoren/simon-rohricht']
+);
+
 $check(
 	'from="author-page"-Regeln laufen nicht auf der Artikelseite',
 	'<html><head><meta property="article:author" content="Bea Bild"></head><body><div class="profil-bio">Falsch: Artikelseite.</div></body></html>',
