@@ -44,14 +44,11 @@ class ContentFilterRepository {
 	public const ADMIN_SENTINEL_USER_ID = '';
 
 	/**
-	 * Dateinamen-Präfix für Dateien im Bundle-Ordner, die keine Domain-Config sind.
-	 *
-	 * Aktuell zwei Fälle: 000.sample.com.xml ist die kommentierte Referenz aller
-	 * Regeltypen, 000dead.xml eine Parkliste toter Domains (mehrere
-	 * <domain>-Elemente, also bewusst kein gültiges XML-Dokument). Beide dürfen
-	 * weder in der Filterliste auftauchen noch geparst werden.
+	 * Kommentierte Referenz aller Regeltypen (siehe getDocumentationXml()).
+	 * Dateien mit führendem "$" sind keine Domain-Config und tauchen weder in
+	 * der Filterliste auf noch werden sie als Filter geparst.
 	 */
-	private const DOC_FILE_PREFIX = '000';
+	private const DOC_FILE = '$sample.com.xml';
 
 	/**
 	 * Parkliste von Domains, die grundsätzlich nicht gescrapt werden (siehe
@@ -245,7 +242,7 @@ class ContentFilterRepository {
 	/**
 	 * Rohes Bundle-XML einer Domain oder null.
 	 *
-	 * Die Dokumentationsdatei 000.sample.com.xml wird über getDocumentationXml()
+	 * Die Dokumentationsdatei $sample.com.xml wird über getDocumentationXml()
 	 * geladen, nicht hier – sie ist keine Domain-Config.
 	 */
 	public function readBundle(string $domain): ?string {
@@ -254,10 +251,10 @@ class ContentFilterRepository {
 		return $dir === null ? null : $this->readFile($dir . '/' . $domain . '.xml');
 	}
 
-	/** Die kommentierte Referenzdatei 000.sample.com.xml oder null. */
+	/** Die kommentierte Referenzdatei $sample.com.xml oder null. */
 	public function getDocumentationXml(): ?string {
 		$dir = $this->getBundleDir();
-		return $dir === null ? null : $this->readFile($dir . '/' . self::DOC_FILE_PREFIX . '.sample.com.xml');
+		return $dir === null ? null : $this->readFile($dir . '/' . self::DOC_FILE);
 	}
 
 	public function hasBundle(string $domain): bool {
@@ -475,8 +472,8 @@ class ContentFilterRepository {
 		if (is_string($bundleDir) && is_dir($bundleDir)) {
 			foreach ((glob($bundleDir . '/*.xml') ?: []) as $path) {
 				$name = basename($path, '.xml');
-				// "$"-Dateien sind Sonderlisten ($unsupported.xml, $caption-credits.xml).
-				if (str_starts_with($name, self::DOC_FILE_PREFIX) || str_starts_with($name, '$')) {
+				// "$"-Dateien sind keine Domain-Config ($sample.com.xml, $unsupported.xml, $caption-credits.xml).
+				if (str_starts_with($name, '$')) {
 					continue;
 				}
 				if (!$this->isValidDomain($name)) {

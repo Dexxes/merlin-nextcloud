@@ -53,7 +53,7 @@ class ContentFilterSerializer {
   ACHTUNG: Beim Speichern über die Oberfläche wird die Datei neu geschrieben.
   Eigene XML-Kommentare gehen dabei verloren – Notizen gehören in <note>.
 
-  Alle Sektionen und Regeltypen sind in content-filters/000.sample.com.xml
+  Alle Sektionen und Regeltypen sind in content-filters/$sample.com.xml
   dokumentiert.
 
 TXT;

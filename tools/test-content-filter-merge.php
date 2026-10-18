@@ -567,11 +567,11 @@ namespace {
 	$errors = $validator->validate($valid, 'example.com');
 	$t->eq($errors, [], 'Vollständige, korrekte Datei erzeugt keine Fehler');
 
-	$sample = @file_get_contents(($bundleDir ?: '.') . '/000.sample.com.xml');
+	$sample = @file_get_contents(($bundleDir ?: '.') . '/$sample.com.xml');
 	if (is_string($sample)) {
-		$t->eq($validator->validate($sample, 'sample.com'), [], 'Die Referenzdatei 000.sample.com.xml ist gültig');
+		$t->eq($validator->validate($sample, 'sample.com'), [], 'Die Referenzdatei $sample.com.xml ist gültig');
 	} else {
-		$t->ok(false, 'Referenzdatei 000.sample.com.xml gefunden');
+		$t->ok(false, 'Referenzdatei $sample.com.xml gefunden');
 	}
 
 	$bundleErrors = [];
