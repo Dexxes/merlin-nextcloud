@@ -70,7 +70,7 @@
     <remove xpath="//p[text()='Empfohlener redaktioneller Inhalt']/../../.." />
     <remove xpath="//div[@element-type='embed']" />
     <remove xpath="//div[@element-type='embedWrapper']" />
-    <infobox xpath="//aside[@data-qa-hook='story-infobox']" />
+    <infobox xpath="//aside" />
   </pre-filter>
 
   <images>
