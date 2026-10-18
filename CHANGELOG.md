@@ -67,6 +67,9 @@ All notable changes to Merlin are documented here. Format based on
   badge.
 
 ### Fixed
+- Lead image caption: typographic characters no longer turn into mojibake
+  ("life’s" became "lifeâs") on pages where non-ASCII text comes before
+  `<meta charset>`, e.g. the `<title>` on theguardian.com.
 - Long metadata values below files (for example a browser user agent as a
   PDF's creator) now wrap inside the table instead of running out of it.
 - Comments: several threads on the same passage now sit together under a

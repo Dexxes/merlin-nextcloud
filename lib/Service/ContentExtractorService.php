@@ -2658,7 +2658,11 @@ class ContentExtractorService {
 	{
 		$prev = libxml_use_internal_errors(true);
 		$dom  = new \DOMDocument('1.0', 'UTF-8');
-		$dom->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING);
+		// $html ist nach Step 0 immer UTF-8. Ohne den Hinweis liest libxml
+		// Latin-1, sobald vor <meta charset> schon Nicht-ASCII steht (z. B.
+		// typografische Anführungszeichen im <title> bei theguardian.com),
+		// und aus "life’s" wird "lifeâs".
+		$dom->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_NOERROR | LIBXML_NOWARNING);
 		libxml_clear_errors();
 		libxml_use_internal_errors($prev);
 		$xpath = new \DOMXPath($dom);
@@ -2737,7 +2741,7 @@ class ContentExtractorService {
 	private function findFigcaptionForImage(string $html, string $normalizedImageUrl, string $baseUrl): ?string {
 		$prev = libxml_use_internal_errors(true);
 		$dom  = new \DOMDocument('1.0', 'UTF-8');
-		$dom->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING);
+		$dom->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_NOERROR | LIBXML_NOWARNING); // Siehe extractHeroImageFromHtml().
 		libxml_clear_errors();
 		libxml_use_internal_errors($prev);
 		$xpath = new \DOMXPath($dom);
