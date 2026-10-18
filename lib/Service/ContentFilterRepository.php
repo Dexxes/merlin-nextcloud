@@ -62,11 +62,25 @@ class ContentFilterRepository {
 	private const UNSUPPORTED_SITES_FILE = '$unsupported.xml';
 
 	/**
+	 * Signalwörter, an denen die Bildquelle in einer Caption erkannt wird
+	 * (siehe getCaptionCreditPrefixes()). Wie $unsupported.xml mit führendem
+	 * "$", damit sie nie als Domain-Config gilt.
+	 */
+	private const CAPTION_CREDITS_FILE = '$caption-credits.xml';
+
+	/**
 	 * Gecachte Domains aus $unsupported.xml für die Dauer DIESES Requests.
 	 *
 	 * @var list<string>|null
 	 */
 	private ?array $unsupportedDomainsCache = null;
+
+	/**
+	 * Gecachte Signalwörter aus $caption-credits.xml für die Dauer DIESES Requests.
+	 *
+	 * @var list<string>|null
+	 */
+	private ?array $captionCreditPrefixesCache = null;
 
 	/**
 	 * Gecachte Merge-Ergebnisse pro (Domain, Nutzer) innerhalb eines Requests.
@@ -312,6 +326,44 @@ class ContentFilterRepository {
 		return false;
 	}
 
+	/**
+	 * Signalwörter aus $caption-credits.xml ("Foto", "Quelle", "Photo", …), an
+	 * denen ContentExtractorService::markCaptionCredit() die Bildquelle einer
+	 * Caption erkennt. Gleiches Fragment-Format wie $unsupported.xml (mehrere
+	 * <prefix>-Elemente ohne Root, siehe getUnsupportedDomains()). Leere Liste,
+	 * wenn die Datei fehlt oder nicht parsbar ist - der Aufrufer hat dann
+	 * eine eingebaute Liste.
+	 *
+	 * @return list<string>
+	 */
+	public function getCaptionCreditPrefixes(): array {
+		if ($this->captionCreditPrefixesCache !== null) {
+			return $this->captionCreditPrefixesCache;
+		}
+
+		$dir = $this->getBundleDir();
+		$raw = $dir === null ? null : $this->readFile($dir . '/' . self::CAPTION_CREDITS_FILE);
+		if ($raw === null) {
+			return $this->captionCreditPrefixesCache = [];
+		}
+
+		$fragment = preg_replace('/^\s*<\?xml[^>]*\?>/', '', $raw) ?? $raw;
+		$xml      = @simplexml_load_string('<prefixes>' . $fragment . '</prefixes>');
+		if ($xml === false) {
+			$this->logger->warning('content-filters: $caption-credits.xml ist nicht parsbar', ['file' => self::CAPTION_CREDITS_FILE]);
+			return $this->captionCreditPrefixesCache = [];
+		}
+
+		$prefixes = [];
+		foreach ($xml->prefix as $node) {
+			$value = trim((string) $node['value']);
+			if ($value !== '') {
+				$prefixes[mb_strtolower($value)] = $value;
+			}
+		}
+		return $this->captionCreditPrefixesCache = array_values($prefixes);
+	}
+
 	// ──────────────────────────────────────────────────────────────────────────
 	// Lesen: Admin-Custom (scope='admin', DB)
 	// ──────────────────────────────────────────────────────────────────────────
@@ -423,7 +475,8 @@ class ContentFilterRepository {
 		if (is_string($bundleDir) && is_dir($bundleDir)) {
 			foreach ((glob($bundleDir . '/*.xml') ?: []) as $path) {
 				$name = basename($path, '.xml');
-				if (str_starts_with($name, self::DOC_FILE_PREFIX) || basename($path) === self::UNSUPPORTED_SITES_FILE) {
+				// "$"-Dateien sind Sonderlisten ($unsupported.xml, $caption-credits.xml).
+				if (str_starts_with($name, self::DOC_FILE_PREFIX) || str_starts_with($name, '$')) {
 					continue;
 				}
 				if (!$this->isValidDomain($name)) {

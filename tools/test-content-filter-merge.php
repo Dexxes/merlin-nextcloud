@@ -211,8 +211,9 @@ namespace {
 	$drift   = [];
 	foreach (glob(($bundleDir ?: '.') . '/*.xml') ?: [] as $path) {
 		$name = basename($path, '.xml');
-		// 000-Präfix = keine Domain-Config (Referenzdatei, Parkliste toter Domains).
-		if (str_starts_with($name, '000')) {
+		// 000-Präfix = keine Domain-Config (Referenzdatei, Parkliste toter Domains),
+		// "$"-Präfix = Sonderliste ($unsupported.xml, $caption-credits.xml).
+		if (str_starts_with($name, '000') || str_starts_with($name, '$')) {
 			continue;
 		}
 		$raw = (string) file_get_contents($path);
@@ -576,7 +577,7 @@ namespace {
 	$bundleErrors = [];
 	foreach (glob(($bundleDir ?: '.') . '/*.xml') ?: [] as $path) {
 		$name = basename($path, '.xml');
-		if (str_starts_with($name, '000')) {
+		if (str_starts_with($name, '000') || str_starts_with($name, '$')) {
 			continue;
 		}
 		// <login> ist bewusst NICHT Teil von ContentFilterSchema::SECTIONS und

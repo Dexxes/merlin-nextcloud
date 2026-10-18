@@ -73,6 +73,12 @@ All notable changes to Merlin are documented here. Format based on
   single quote instead of repeating the quote above each thread.
 
 ### Changed
+- Captions: the signal words that mark the image credit in a caption
+  ("Foto:", "Quelle:", "Photo:", "Source:", …) are now a list in
+  `content-filters/$caption-credits.xml` that can be edited like the content
+  filters, instead of coming from merlin-translations
+  (`resources/caption-credit-prefixes.json` is gone). A word added there is
+  recognized for every site and every language.
 - Sidebar: clicking the Text, Video, Audio or Files tab now opens that
   type's first view right away (Unread, Unwatched, Not listened or Not
   opened) instead of only switching the listed views.
