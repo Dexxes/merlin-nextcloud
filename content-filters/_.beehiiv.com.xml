@@ -4,5 +4,12 @@
   <pre-filter>
     <remove class="_1gqvddm0"/>
   </pre-filter>
+
+  <images>
+    <caption
+        container-xpath="//div[contains(@class, 'dream-post-content-imageBlock')]"
+        caption-xpath=".//p"
+    />
+  </images>
   
 </domain>
