@@ -29,6 +29,14 @@
     <!-- Hier post-Readability-Remove-Regeln eintragen -->
   </post-filter>
 
+  <images>
+    <caption
+      container-xpath="//figure"
+      caption-xpath=".//figcaption"
+      credits-xpath=".//span[@class='media-license-caption']"
+    />
+  </images>
+
   <metadata>
     <donations url="https://netzpolitik.org/spenden/" />
     <author   xpath="//div[@class='np-intro-author-name-list']/a/text()" />
