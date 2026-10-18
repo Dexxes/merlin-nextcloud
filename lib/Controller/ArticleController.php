@@ -74,11 +74,23 @@ class ArticleController extends Controller {
 	}
 
 	/**
-	 * Returns the article's imageUrl, or the no-img.png placeholder if none is set.
+	 * Returns the article's imageUrl, or a placeholder if none is set.
+	 *
+	 * PDFs (Links wie Merlin-Dateien, beide Kategorie "PDF") haben fast nie
+	 * ein Vorschaubild: statt no-img.png bekommen sie wie Bluesky-/Instagram-
+	 * Posts ein Icon (img/pdf-preview.png, aus img/pdf-preview.svg). Hier statt
+	 * beim Speichern, damit auch schon gespeicherte PDFs es zeigen. Absolut wie
+	 * ContentExtractorService::platformIconUrl(), weil iOS/Android es über die
+	 * normale Bild-Pipeline laden.
 	 */
-	private function resolveImageUrl(?string $imageUrl): string {
+	private function resolveImageUrl(?string $imageUrl, ?string $category = null): string {
 		if (!empty($imageUrl)) {
 			return $imageUrl;
+		}
+		if ($category === ContentExtractorService::PDF_CATEGORY) {
+			return $this->urlGenerator->getAbsoluteURL(
+				$this->urlGenerator->imagePath('merlin', 'pdf-preview.png')
+			);
 		}
 		return $this->urlGenerator->imagePath('merlin', 'no-img.png');
 	}
@@ -157,7 +169,7 @@ class ArticleController extends Controller {
 		$articlesWithTags = array_map(function ($article) {
 			$tags = $this->tagMapper->findByArticleId($article->getId());
 			$articleData = $article->jsonSerialize();
-			$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl']);
+			$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl'], $articleData['category'] ?? null);
 			$articleData['tags'] = array_map(fn($tag) => $tag->jsonSerialize(), $tags);
 			return $articleData;
 		}, $articles);
@@ -188,7 +200,7 @@ class ArticleController extends Controller {
 			$tags = $this->tagMapper->findByArticleId($article->getId());
 
 			$articleData = $article->jsonSerialize();
-			$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl']);
+			$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl'], $articleData['category'] ?? null);
 			$articleData['tags'] = array_map(fn($tag) => $tag->jsonSerialize(), $tags);
 			// Daten für die Support-Infobox (Abo-/Spendenlink), null wenn die Domain
 			// keine URL hinterlegt hat oder der Nutzer dort einen aktiven Login hat.
@@ -262,7 +274,7 @@ class ArticleController extends Controller {
 
 			// 3. Return 202 Accepted immediately.
 			$articleData             = $savedArticle->jsonSerialize();
-			$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl']);
+			$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl'], $articleData['category'] ?? null);
 			$articleData['tags']     = [];
 			return new DataResponse($articleData, Http::STATUS_ACCEPTED);
 		} catch (\Throwable $e) {
@@ -399,7 +411,7 @@ class ArticleController extends Controller {
 				// Already extracting – don't kick off a second run.
 				$tags = $this->tagMapper->findByArticleId($article->getId());
 				$articleData = $article->jsonSerialize();
-				$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl']);
+				$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl'], $articleData['category'] ?? null);
 				$articleData['tags'] = array_map(fn($tag) => $tag->jsonSerialize(), $tags);
 				return new DataResponse($articleData);
 			}
@@ -412,7 +424,7 @@ class ArticleController extends Controller {
 
 			$tags = $this->tagMapper->findByArticleId($updatedArticle->getId());
 			$articleData = $updatedArticle->jsonSerialize();
-			$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl']);
+			$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl'], $articleData['category'] ?? null);
 			$articleData['tags'] = array_map(fn($tag) => $tag->jsonSerialize(), $tags);
 			return new DataResponse($articleData);
 		} catch (\Exception $e) {
@@ -605,7 +617,7 @@ class ArticleController extends Controller {
 		$articlesWithTags = array_map(function ($article) {
 			$tags = $this->tagMapper->findByArticleId($article->getId());
 			$articleData = $article->jsonSerialize();
-			$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl']);
+			$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl'], $articleData['category'] ?? null);
 			$articleData['tags'] = array_map(fn($tag) => $tag->jsonSerialize(), $tags);
 			return $articleData;
 		}, $articles);
@@ -724,7 +736,7 @@ class ArticleController extends Controller {
 					if (!$article->getIsProcessing()) {
 						$tags = $this->tagMapper->findByArticleId($articleId);
 						$data = $article->jsonSerialize();
-						$data['imageUrl'] = $this->resolveImageUrl($data['imageUrl']);
+						$data['imageUrl'] = $this->resolveImageUrl($data['imageUrl'], $data['category'] ?? null);
 						$data['tags'] = array_map(fn($t) => $t->jsonSerialize(), $tags);
 
 						echo "event: article-ready\n";
