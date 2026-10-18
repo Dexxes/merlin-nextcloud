@@ -59,6 +59,7 @@ return [
         // Highlight API routes
         ['name' => 'highlight#index',   'url' => '/api/articles/{articleId}/highlights', 'verb' => 'GET'],
         ['name' => 'highlight#create',  'url' => '/api/articles/{articleId}/highlights', 'verb' => 'POST'],
+        ['name' => 'highlight#update',  'url' => '/api/highlights/{id}',                 'verb' => 'PUT'],
         ['name' => 'highlight#destroy', 'url' => '/api/highlights/{id}',                 'verb' => 'DELETE'],
 
         // Kommentare (Besitzer): Threads an Markierungen oder am ganzen Artikel.

@@ -17,3 +17,10 @@ export async function deleteHighlight(id) {
 	const url = generateUrl(`/apps/merlin/api/highlights/${id}`)
 	await axios.delete(url)
 }
+
+/** Stelle (länger/kürzer gezogen) und optional Farbe einer Markierung ändern. */
+export async function updateHighlight(id, data) {
+	const url = generateUrl(`/apps/merlin/api/highlights/${id}`)
+	const response = await axios.put(url, data)
+	return response.data
+}

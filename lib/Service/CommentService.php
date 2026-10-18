@@ -64,7 +64,7 @@ class CommentService {
 	 * CommentRules::OWNER_COLOR/GUEST_COLORS); `guests` listet die vergebenen
 	 * Gast-Farben, damit der Namensdialog belegte Farben sperren kann.
 	 *
-	 * @return array{signature: string, generatedAt: int, ownerColor: string, guestColors: string[], guests: array, comments: array, highlights: array}
+	 * @return array{signature: string, generatedAt: int, ownerColor: string, guestColors: string[], guests: array, comments: array, highlights: array, highlightUpdate: bool}
 	 */
 	public function payload(int $articleId, string $ownerId): array {
 		$generatedAt = (int)floor(microtime(true) * 1000000);
@@ -98,6 +98,8 @@ class CommentService {
 			),
 			'comments'    => CommentRules::nest($comments),
 			'highlights'  => $highlights,
+			// Clients dürfen Markierungen per PUT ändern (statt löschen und neu anlegen).
+			'highlightUpdate' => true,
 		];
 	}
 
@@ -419,6 +421,20 @@ class CommentService {
 		}
 
 		return $this->highlightMapper->insert($highlight);
+	}
+
+	/**
+	 * Geänderte Markierung speichern (länger/kürzer gezogen oder umgefärbt).
+	 * revision bewegt die Änderungsmarke, damit der Push-Kanal die neue
+	 * Länge an andere Geräte schickt; die Zitate der Kommentare daran ziehen
+	 * mit.
+	 */
+	public function updateHighlight(Highlight $highlight): Highlight {
+		$highlight->setRevision((int) $highlight->getRevision() + 1);
+		$saved = $this->highlightMapper->update($highlight);
+		$this->commentMapper->updateQuotedText(
+			$saved->getId(), $saved->getUserId(), (string) $saved->getHighlightedText());
+		return $saved;
 	}
 
 	/**

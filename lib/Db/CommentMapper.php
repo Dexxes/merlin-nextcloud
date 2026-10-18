@@ -117,6 +117,19 @@ class CommentMapper extends QBMapper {
 	}
 
 	/**
+	 * Zitat aller Kommentare an einer Markierung nachziehen, nachdem sie
+	 * länger oder kürzer gezogen wurde.
+	 */
+	public function updateQuotedText(int $highlightId, string $userId, string $quotedText): void {
+		$qb = $this->db->getQueryBuilder();
+		$qb->update($this->getTableName())
+			->set('quoted_text', $qb->createNamedParameter($quotedText))
+			->where($qb->expr()->eq('highlight_id', $qb->createNamedParameter($highlightId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+			->executeStatement();
+	}
+
+	/**
 	 * Änderungsmarke für den Push-Kanal: ändert sich bei jedem neuen,
 	 * bearbeiteten oder gelöschten Kommentar.
 	 */

@@ -81,19 +81,21 @@ class HighlightMapper extends QBMapper {
 	}
 
 	/**
-	 * Änderungsmarke für den Push-Kanal (neue oder gelöschte Markierungen).
+	 * Änderungsmarke für den Push-Kanal (neue, geänderte oder gelöschte
+	 * Markierungen).
 	 */
 	public function signature(int $articleId, string $userId): string {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select($qb->func()->count('*', 'cnt'))
 			->selectAlias($qb->func()->max('id'), 'max_id')
+			->selectAlias($qb->func()->sum('revision'), 'revisions')
 			->from($this->getTableName())
 			->where($qb->expr()->eq('article_id', $qb->createNamedParameter($articleId, IQueryBuilder::PARAM_INT)))
 			->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)));
 		$result = $qb->executeQuery();
 		$row = $result->fetch() ?: [];
 		$result->closeCursor();
-		return ($row['cnt'] ?? 0) . ':' . ($row['max_id'] ?? 0);
+		return ($row['cnt'] ?? 0) . ':' . ($row['max_id'] ?? 0) . ':' . ($row['revisions'] ?? 0);
 	}
 
 	/**

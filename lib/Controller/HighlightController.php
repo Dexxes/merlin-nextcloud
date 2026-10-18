@@ -140,6 +140,88 @@ class HighlightController extends Controller {
 	}
 
 	/**
+	 * Change an existing highlight in place: its passage (dragged longer or
+	 * shorter in the reader) and optionally its colour. The id stays, so
+	 * comment threads stay attached; their quoted text follows the new
+	 * passage (CommentService::updateHighlight()).
+	 *
+	 * Only the owner's own colour highlights change their passage or colour.
+	 * Guest highlights and comment anchors ('comment') may only be
+	 * re-anchored with the same text: their XPaths are relative to the marks
+	 * of all older highlights, so resizing one shifts the anchors of newer
+	 * ones in the same paragraph, and the client sends those along.
+	 * A PDF highlight stays a PDF highlight (pdfPage and pdfRects required),
+	 * an HTML one stays an HTML one.
+	 *
+	 * @NoAdminRequired
+	 * @NoCSRFRequired
+	 */
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function update(
+		int     $id,
+		string  $highlightedText,
+		string  $startXpath = '',
+		int     $startOffset = 0,
+		string  $endXpath = '',
+		int     $endOffset = 0,
+		?string $color = null,
+		?int    $pdfPage = null,
+		mixed   $pdfRects = null
+	): DataResponse {
+		if ($this->userId === null) {
+			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
+		}
+		try {
+			$highlight = $this->highlightMapper->findById($id, $this->userId);
+		} catch (DoesNotExistException) {
+			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
+		}
+		$ownColour = ($highlight->getAuthorType() ?? 'owner') === 'owner'
+			&& $highlight->getColor() !== CommentRules::COLOR_COMMENT;
+		if (!$ownColour && ($color !== null || $highlight->getPdfPage() !== null
+			|| CommentRules::normalizeHighlightText($highlightedText) !== $highlight->getHighlightedText())) {
+			return new DataResponse(['error' => 'highlight_not_editable'], Http::STATUS_FORBIDDEN);
+		}
+		if ($color !== null && !in_array($color, CommentRules::COLORS, true)) {
+			return new DataResponse(['error' => 'highlight_invalid'], Http::STATUS_BAD_REQUEST);
+		}
+
+		$rectsJson = null;
+		if ($highlight->getPdfPage() !== null) {
+			$rectsJson = CommentRules::normalizePdfRects($pdfRects);
+			if ($pdfPage === null || !CommentRules::isValidPdfPage($pdfPage) || $rectsJson === null) {
+				return new DataResponse(['error' => 'highlight_invalid'], Http::STATUS_BAD_REQUEST);
+			}
+			$startXpath = $endXpath = CommentRules::pdfXpath($pdfPage);
+			$startOffset = $endOffset = 0;
+		} elseif ($pdfPage !== null) {
+			return new DataResponse(['error' => 'highlight_invalid'], Http::STATUS_BAD_REQUEST);
+		}
+
+		$error = CommentRules::validateHighlight(
+			$highlightedText, $startXpath, $startOffset, $endXpath, $endOffset, CommentRules::OWNER_HIGHLIGHT_TEXT_MAX);
+		if ($error !== null) {
+			return new DataResponse(['error' => $error], Http::STATUS_BAD_REQUEST);
+		}
+
+		$highlight->setHighlightedText(CommentRules::normalizeHighlightText($highlightedText));
+		$highlight->setStartXpath($startXpath);
+		$highlight->setStartOffset($startOffset);
+		$highlight->setEndXpath($endXpath);
+		$highlight->setEndOffset($endOffset);
+		if ($color !== null) {
+			$highlight->setColor($color);
+		}
+		if ($rectsJson !== null) {
+			$highlight->setPdfPage($pdfPage);
+			$highlight->setPdfRects($rectsJson);
+		}
+		$saved = $this->comments->updateHighlight($highlight);
+		return new DataResponse($saved->jsonSerialize());
+	}
+
+	/**
 	 * Delete a highlight – also one a guest set via the public share link
 	 * (the owner moderates everything on their article). Comment threads on it
 	 * stay, keeping the quoted text (CommentService::deleteHighlight()).

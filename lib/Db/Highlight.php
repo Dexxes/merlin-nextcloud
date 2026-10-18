@@ -36,6 +36,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setPdfPage(?int $pdfPage)
  * @method string|null getPdfRects()
  * @method void setPdfRects(?string $pdfRects)
+ * @method int getRevision()
+ * @method void setRevision(int $revision)
  *
  * userId ist immer der Besitzer des Artikels. Gäste markieren über den
  * öffentlichen Link (authorType 'guest', authorName = gewählter Name).
@@ -59,6 +61,7 @@ class Highlight extends Entity implements JsonSerializable {
 	protected $authorNameKey;
 	protected $pdfPage;
 	protected $pdfRects;
+	protected $revision = 0;
 
 	public function __construct() {
 		$this->addType('userId', 'string');
@@ -75,6 +78,7 @@ class Highlight extends Entity implements JsonSerializable {
 		$this->addType('authorNameKey', 'string');
 		$this->addType('pdfPage', 'integer');
 		$this->addType('pdfRects', 'string');
+		$this->addType('revision', 'integer');
 	}
 
 	public function jsonSerialize(): array {
