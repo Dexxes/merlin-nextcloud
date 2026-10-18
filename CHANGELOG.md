@@ -7,6 +7,17 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- Resize highlights: `PUT /api/highlights/{id}` changes an existing highlight
+  in place (passage and optionally colour), for the owner's own colour
+  highlights in articles and PDFs. The id stays, so comment threads stay
+  attached, and their quoted text follows the new passage. Other highlights
+  (also guest ones and comment anchors) may be re-anchored with unchanged
+  text, because resizing one shifts the XPaths of newer highlights in the
+  same paragraph. The iOS app uses it when a highlight is dragged longer or
+  shorter with the selection handles. A new `revision` counter feeds the
+  push signature, so other devices and the web reader redraw the changed
+  highlight; the comment payload announces the route as
+  `highlightUpdate: true` (database migration 35, app 1.0.21).
 - PDF placeholder: saved PDFs (links and files from "Merlin files") without
   a preview image now show an orange PDF icon in the article list instead of
   the generic no-image placeholder, like Bluesky or Instagram posts show their

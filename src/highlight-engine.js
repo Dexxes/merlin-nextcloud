@@ -350,6 +350,13 @@ function unwrapMarks(container, highlightId = null) {
 
 // ─── HighlightEngine class ────────────────────────────────────────────────────
 
+/** Was eine Markierung im Text ausmacht: id, Farbe und Stelle. */
+function highlightKey(h) {
+	if (!h) return ''
+	return [h.id, h.color, h.authorColor ?? '', h.startXpath, h.startOffset, h.endXpath, h.endOffset,
+		h.pdfPage ?? '', JSON.stringify(h.pdfRects ?? null)].join('|')
+}
+
 export class HighlightEngine {
 	/**
 	 * @param {HTMLElement} container
@@ -431,8 +438,10 @@ export class HighlightEngine {
 			// zeichnen, sonst ginge sie verloren. Der nächste Push holt es nach.
 			return false
 		}
+		// Nicht nur die ids vergleichen: eine Markierung kann in einer anderen
+		// App länger/kürzer gezogen oder umgefärbt worden sein (PUT).
 		const same = highlights.length === this._highlights.length
-			&& highlights.every((h, i) => String(h.id) === String(this._highlights[i]?.id))
+			&& highlights.every((h, i) => highlightKey(h) === highlightKey(this._highlights[i]))
 		if (!same) {
 			unwrapMarks(this._container)
 			for (const h of highlights) {
