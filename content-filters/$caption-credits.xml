@@ -35,9 +35,12 @@
 <prefix value="Quellen" />
 <prefix value="Grafik" />
 <prefix value="Illustration" />
+<prefix value="Video" />
+<prefix value="Montage" />
 
 <!-- Englisch -->
 <prefix value="Photo" />
+<prefix value="Photograph" />
 <prefix value="Photos" />
 <prefix value="Photograph" />
 <prefix value="Photographs" />
@@ -52,3 +55,4 @@
 <prefix value="Credit" />
 <prefix value="Credits" />
 <prefix value="Copyright" />
+<prefix value="Animation" />
