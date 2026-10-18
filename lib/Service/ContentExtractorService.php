@@ -1915,9 +1915,13 @@ class ContentExtractorService {
 			// und Breite derselben Aufnahme, z. B.
 			// ".../alternates/BASE_16_9_W1400/<ts>/foto.jpeg" (og:image) vs.
 			// ".../alternates/BASE_21_9_W1000/<ts>/foto.jpeg" (Content-<figure>).
-			// Das Segment entfernen, damit beide Varianten auf denselben Basispfad
-			// normalisieren.
-			$url = preg_replace('#/[A-Z0-9]+_\d+_\d+_W\d+(?=/)#i', '', $url) ?? $url;
+			// Der folgende Zeitstempel gehört zum jeweiligen Beschnitt und kann
+			// sich zwischen den Varianten unterscheiden, wenn die Redaktion nur
+			// einen Crop nachbearbeitet hat (z. B. ".../BASE_16_9_W1400/1792265949000/…"
+			// vs. ".../BASE_21_9_W1000/1792300160000/…"). Segment samt
+			// Zeitstempel entfernen, damit beide Varianten auf denselben
+			// Basispfad (Bild-ID + Dateiname) normalisieren.
+			$url = preg_replace('#/[A-Z0-9]+_\d+_\d+_W\d+(?:/\d{10,})?(?=/)#i', '', $url) ?? $url;
 
 			// TYPO3-Bildserver-Renditions (z. B. lto.de): "csm_"-verarbeitete
 			// Dateien kodieren pro Crop/Skalierung einen eigenen Hash hinter der
