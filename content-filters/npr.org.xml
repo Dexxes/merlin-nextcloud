@@ -29,7 +29,7 @@
   hide-caption/toggle-caption: der komplette Ursprungscontainer wird durch
   die neue <figure> ersetzt, bevor der Pre-Filter überhaupt läuft.
 
-  Die verfügbaren Sektionen und Regeltypen sind in 000.sample.com.xml
+  Die verfügbaren Sektionen und Regeltypen sind in $sample.com.xml
   dokumentiert.
 -->
 <domain name="npr.org">

@@ -211,8 +211,9 @@ namespace {
 	$drift   = [];
 	foreach (glob(($bundleDir ?: '.') . '/*.xml') ?: [] as $path) {
 		$name = basename($path, '.xml');
-		// 000-Präfix = keine Domain-Config (Referenzdatei, Parkliste toter Domains).
-		if (str_starts_with($name, '000')) {
+		// 000-Präfix = keine Domain-Config (Referenzdatei, Parkliste toter Domains),
+		// "$"-Präfix = Sonderliste ($unsupported.xml, $caption-credits.xml).
+		if (str_starts_with($name, '000') || str_starts_with($name, '$')) {
 			continue;
 		}
 		$raw = (string) file_get_contents($path);
@@ -566,17 +567,17 @@ namespace {
 	$errors = $validator->validate($valid, 'example.com');
 	$t->eq($errors, [], 'Vollständige, korrekte Datei erzeugt keine Fehler');
 
-	$sample = @file_get_contents(($bundleDir ?: '.') . '/000.sample.com.xml');
+	$sample = @file_get_contents(($bundleDir ?: '.') . '/$sample.com.xml');
 	if (is_string($sample)) {
-		$t->eq($validator->validate($sample, 'sample.com'), [], 'Die Referenzdatei 000.sample.com.xml ist gültig');
+		$t->eq($validator->validate($sample, 'sample.com'), [], 'Die Referenzdatei $sample.com.xml ist gültig');
 	} else {
-		$t->ok(false, 'Referenzdatei 000.sample.com.xml gefunden');
+		$t->ok(false, 'Referenzdatei $sample.com.xml gefunden');
 	}
 
 	$bundleErrors = [];
 	foreach (glob(($bundleDir ?: '.') . '/*.xml') ?: [] as $path) {
 		$name = basename($path, '.xml');
-		if (str_starts_with($name, '000')) {
+		if (str_starts_with($name, '000') || str_starts_with($name, '$')) {
 			continue;
 		}
 		// <login> ist bewusst NICHT Teil von ContentFilterSchema::SECTIONS und

@@ -113,7 +113,7 @@ final class ContentFilterSchema {
 
 	/**
 	 * Sektionen in der Reihenfolge, in der sie in einer Datei stehen sollen.
-	 * Entspricht der Pipeline-Reihenfolge aus 000.sample.com.xml, damit eine
+	 * Entspricht der Pipeline-Reihenfolge aus $sample.com.xml, damit eine
 	 * generierte Datei genauso zu lesen ist wie eine handgeschriebene.
 	 */
 	public const SECTION_ORDER = [

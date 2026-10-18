@@ -12,18 +12,28 @@ declare(strict_types=1);
  * Geprüft wird der komplette letzte Pipeline-Schritt über die private Methode
  * sanitizeHtml() – also inklusive Allowlist-Durchlauf, so wie der Reader den
  * Inhalt später bekommt. Der Service wird ohne Konstruktor instanziiert
- * (newInstanceWithoutConstructor): sanitizeHtml() nutzt weder Logger noch
- * Repository, ein Nextcloud-Bootstrap ist deshalb nicht nötig. Composer-Autoload
- * wird von ContentExtractorService.php selbst geladen.
+ * (newInstanceWithoutConstructor), ein Nextcloud-Bootstrap ist deshalb nicht
+ * nötig. Das Repository (ebenfalls ohne Konstruktor) liefert nur die
+ * Signalwörter aus content-filters/$caption-credits.xml und braucht dafür
+ * keine Datenbank. Composer-Autoload wird von ContentExtractorService.php
+ * selbst geladen.
  *
  * Exit-Code 0 = alle Prüfungen bestanden, 1 = mindestens eine fehlgeschlagen.
  */
 
 use OCA\Merlin\Service\ContentExtractorService;
+use OCA\Merlin\Service\ContentFilterRepository;
 
 require_once __DIR__ . '/../lib/Service/ContentExtractorService.php';
+require_once __DIR__ . '/../lib/Service/ContentFilterRepository.php';
 
 $service    = (new ReflectionClass(ContentExtractorService::class))->newInstanceWithoutConstructor();
+$repository = (new ReflectionClass(ContentFilterRepository::class))->newInstanceWithoutConstructor();
+foreach (['contentFilters' => $repository, 'logger' => new \Psr\Log\NullLogger()] as $prop => $value) {
+	$ref = new ReflectionProperty(ContentExtractorService::class, $prop);
+	$ref->setAccessible(true);
+	$ref->setValue($service, $value);
+}
 $sanitize   = new ReflectionMethod(ContentExtractorService::class, 'sanitizeHtml');
 $sanitize->setAccessible(true);
 
@@ -154,7 +164,7 @@ $check(
 );
 
 $check(
-	'Englischer Klammerzusatz "(Photo: …)" (Präfix aus resources/caption-credit-prefixes.json)',
+	'Englischer Klammerzusatz "(Photo: …)" (Signalwort aus content-filters/$caption-credits.xml)',
 	'<figcaption>Protesters in Paris (Photo: Reuters)</figcaption>',
 	'Protesters in Paris <cite>Photo: Reuters</cite>'
 );
@@ -169,6 +179,24 @@ $check(
 	'Schlusspunkt der Caption bleibt vor der Quelle stehen',
 	'<figcaption><div>Der Saal ist voll.</div><div>© Agentur</div></figcaption>',
 	'Der Saal ist voll. <cite>© Agentur</cite>'
+);
+
+$check(
+	'Quelle als Satz am Ende hinter <span> (theguardian.com)',
+	'<figcaption><span>Isabella Weber in Berlin’s Institute for Advanced Study in September.</span> Photograph: Steffen Roth/The Guardian</figcaption>',
+	'<span>Isabella Weber in Berlin’s Institute for Advanced Study in September.</span> <cite>Photograph: Steffen Roth/The Guardian</cite>'
+);
+
+$check(
+	'Quelle als Satz am Ende im selben Textknoten',
+	'<figcaption>Der Saal ist voll. Foto: dpa</figcaption>',
+	'Der Saal ist voll. <cite>Foto: dpa</cite>'
+);
+
+$check(
+	'Signalwort mitten im Satz bleibt Text',
+	'<figcaption>Sie nennt als Quelle: das Archiv</figcaption>',
+	'Sie nennt als Quelle: das Archiv'
 );
 
 $check(

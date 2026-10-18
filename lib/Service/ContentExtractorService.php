@@ -2658,7 +2658,11 @@ class ContentExtractorService {
 	{
 		$prev = libxml_use_internal_errors(true);
 		$dom  = new \DOMDocument('1.0', 'UTF-8');
-		$dom->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING);
+		// $html ist nach Step 0 immer UTF-8. Ohne den Hinweis liest libxml
+		// Latin-1, sobald vor <meta charset> schon Nicht-ASCII steht (z. B.
+		// typografische Anführungszeichen im <title> bei theguardian.com),
+		// und aus "life’s" wird "lifeâs".
+		$dom->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_NOERROR | LIBXML_NOWARNING);
 		libxml_clear_errors();
 		libxml_use_internal_errors($prev);
 		$xpath = new \DOMXPath($dom);
@@ -2737,7 +2741,7 @@ class ContentExtractorService {
 	private function findFigcaptionForImage(string $html, string $normalizedImageUrl, string $baseUrl): ?string {
 		$prev = libxml_use_internal_errors(true);
 		$dom  = new \DOMDocument('1.0', 'UTF-8');
-		$dom->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING);
+		$dom->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_NOERROR | LIBXML_NOWARNING); // Siehe extractHeroImageFromHtml().
 		libxml_clear_errors();
 		libxml_use_internal_errors($prev);
 		$xpath = new \DOMXPath($dom);
@@ -6020,6 +6024,40 @@ class ContentExtractorService {
 			return;
 		}
 
+		// Quelle als eigener Satz am Ende, ohne Trenner und Klammern:
+		// "Ein Bild. Photograph: Steffen Roth/The Guardian" (theguardian.com,
+		// Bildtext oft in einem eigenen <span>). Das Signalwort zählt nur
+		// direkt nach einem Satzende, damit "… nennt als Quelle: …" mitten im
+		// Text nicht abgeschnitten wird. Wie oben nur im letzten Textknoten
+		// auf oberster Ebene; ein Trenner davor ist Sache der Logik unten.
+		if ($last instanceof \DOMText && preg_match_all(
+			'/(?:^|(?<=\s))(?:' . $this->captionCreditPrefixPattern() . ')\s*:/iu',
+			(string) $last->nodeValue,
+			$matches,
+			PREG_OFFSET_CAPTURE
+		) > 0) {
+			$value = (string) $last->nodeValue;
+			$prefixText = '';
+			for ($node = $caption->firstChild; $node !== null && $node !== $last; $node = $node->nextSibling) {
+				$prefixText .= $node->textContent;
+			}
+			foreach (array_reverse($matches[0]) as [, $offset]) {
+				$before = substr($value, 0, $offset);
+				$tail   = trim(substr($value, $offset));
+				if ($tail === '' || preg_match('/[.!?…"“”«»’)]\s*$/u', $prefixText . $before) !== 1) {
+					continue;
+				}
+				while ($last->nextSibling !== null) {
+					$caption->removeChild($last->nextSibling);
+				}
+				$last->nodeValue = rtrim($before) . self::CAPTION_SEPARATOR;
+				$cite = $dom->createElement('cite');
+				$cite->appendChild($dom->createTextNode($tail));
+				$caption->appendChild($cite);
+				return;
+			}
+		}
+
 		$topLevelSplit = null;
 		$topLevelCount = 0;
 		foreach ($caption->childNodes as $child) {
@@ -6102,36 +6140,24 @@ class ContentExtractorService {
 	/**
 	 * Regex-Alternation der Wörter, an denen markCaptionCredit() eine
 	 * Bildquelle erkennt ("Foto", "Quelle", "Photo", "Source", …). Kommt aus
-	 * resources/caption-credit-prefixes.json, die merlin-translations
-	 * (export.py --platform nextcloud, Namespace captionCreditPrefixes.*)
-	 * für ALLE Sprachen gemeinsam erzeugt: die Sprache eines Artikels hängt
-	 * nicht an der UI-Sprache des Nutzers. Fehlt die Datei oder ist sie
-	 * ungültig, greift die frühere deutsche Liste als Fallback.
+	 * content-filters/$caption-credits.xml (siehe
+	 * ContentFilterRepository::getCaptionCreditPrefixes()), für alle Sprachen
+	 * gemeinsam: die Sprache eines Artikels hängt nicht an der UI-Sprache des
+	 * Nutzers. Fehlt die Datei oder ist sie ungültig, greift die frühere
+	 * deutsche Liste als Fallback.
 	 */
 	private function captionCreditPrefixPattern(): string {
 		if ($this->captionCreditPrefixPattern !== null) {
 			return $this->captionCreditPrefixPattern;
 		}
 
-		$words = [];
-		$json = @file_get_contents(__DIR__ . '/../../resources/caption-credit-prefixes.json');
-		$byLang = $json !== false ? json_decode($json, true) : null;
-		if (is_array($byLang)) {
-			foreach ($byLang as $list) {
-				foreach (is_array($list) ? $list : [] as $word) {
-					if (is_string($word) && trim($word) !== '') {
-						$words[mb_strtolower(trim($word))] = trim($word);
-					}
-				}
-			}
-		}
+		$words = $this->contentFilters->getCaptionCreditPrefixes();
 		if ($words === []) {
-			$this->logger->warning('caption-credit-prefixes.json fehlt oder ist ungültig, nutze eingebaute Liste');
+			$this->logger->warning('content-filters/$caption-credits.xml fehlt oder ist leer, nutze eingebaute Liste');
 			return $this->captionCreditPrefixPattern = 'Fotos?|Bilder?|Quellen?|Credits?|Copyright|Grafik|Illustration';
 		}
 
 		// Längere Wörter zuerst, damit "Fotos" nicht schon an "Foto" hängen bleibt.
-		$words = array_values($words);
 		usort($words, static fn(string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
 		return $this->captionCreditPrefixPattern = implode('|', array_map(
 			static fn(string $word): string => preg_quote($word, '/'),

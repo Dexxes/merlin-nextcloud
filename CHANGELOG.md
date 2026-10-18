@@ -67,12 +67,24 @@ All notable changes to Merlin are documented here. Format based on
   badge.
 
 ### Fixed
+- Lead image caption: typographic characters no longer turn into mojibake
+  ("life’s" became "lifeâs") on pages where non-ASCII text comes before
+  `<meta charset>`, e.g. the `<title>` on theguardian.com.
 - Long metadata values below files (for example a browser user agent as a
   PDF's creator) now wrap inside the table instead of running out of it.
 - Comments: several threads on the same passage now sit together under a
   single quote instead of repeating the quote above each thread.
 
 ### Changed
+- Captions: the signal words that mark the image credit in a caption
+  ("Foto:", "Quelle:", "Photo:", "Source:", …) are now a list in
+  `content-filters/$caption-credits.xml` that can be edited like the content
+  filters, instead of coming from merlin-translations
+  (`resources/caption-credit-prefixes.json` is gone). A word added there is
+  recognized for every site and every language. A credit written as its own
+  sentence at the end ("… in September. Photograph: Steffen Roth/The
+  Guardian", as on theguardian.com) is now split off as well, and
+  "Photograph" and "Composite" are on the list.
 - Sidebar: clicking the Text, Video, Audio or Files tab now opens that
   type's first view right away (Unread, Unwatched, Not listened or Not
   opened) instead of only switching the listed views.

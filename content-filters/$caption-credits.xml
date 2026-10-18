@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+	Signalwörter für die Bildquelle in Bildunterschriften (siehe
+	ContentFilterRepository::getCaptionCreditPrefixes(),
+	ContentExtractorService::markCaptionCredit()).
+
+	Steht eines dieser Wörter mit Doppelpunkt in einer Caption, wird der Teil
+	ab dem Wort als Bildquelle gewertet und als <cite> ausgezeichnet, damit
+	die Clients ihn getrennt vom Bildtext darstellen (kursiv, abgeblendet):
+
+	  "Foto: dpa"                    → ganze Caption ist Quelle
+	  "Ein Bild (Quelle: privat)"    → "Ein Bild" + <cite>Quelle: privat</cite>
+	  "Ein Bild. Foto: dpa"          → "Ein Bild." + <cite>Foto: dpa</cite>
+	                                   (nur direkt nach einem Satzende)
+
+	Das Copyright-Zeichen "©" ist fest eingebaut und braucht keinen Eintrag.
+
+	Die Liste gilt für alle Domains und alle Sprachen gemeinsam: die Sprache
+	eines Artikels hängt nicht an der UI-Sprache des Nutzers. Gross-/
+	Kleinschreibung spielt keine Rolle. Pluralformen brauchen einen eigenen
+	Eintrag ("Foto" trifft nicht automatisch "Fotos").
+
+	Format wie $unsupported.xml: mehrere <prefix value="..."/>-Elemente,
+	absichtlich ohne gemeinsames Root-Element. Fehlt die Datei oder ist sie
+	nicht lesbar, greift eine eingebaute deutsche Liste.
+-->
+
+<!-- Deutsch -->
+<prefix value="Foto" />
+<prefix value="Fotos" />
+<prefix value="Bild" />
+<prefix value="Bilder" />
+<prefix value="Quelle" />
+<prefix value="Quellen" />
+<prefix value="Grafik" />
+<prefix value="Illustration" />
+<prefix value="Video" />
+<prefix value="Montage" />
+
+<!-- Englisch -->
+<prefix value="Photo" />
+<prefix value="Photograph" />
+<prefix value="Photos" />
+<prefix value="Photographs" />
+<prefix value="Image" />
+<prefix value="Images" />
+<prefix value="Source" />
+<prefix value="Sources" />
+<prefix value="Graphic" />
+<prefix value="Composite" />
+
+<!-- Sprachübergreifend -->
+<prefix value="Credit" />
+<prefix value="Credits" />
+<prefix value="Copyright" />
+<prefix value="Animation" />

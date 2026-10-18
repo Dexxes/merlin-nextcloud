@@ -635,6 +635,16 @@ $checkFigcaption(
 	'Auch die Deutsche Nationalbibliothek archiviert deutsche Websites.  – Alle Rechte vorbehalten: IMAGO / Stefan Noebel-Heise'
 );
 
+// theguardian.com: typografische Anführungszeichen im <title> stehen vor
+// <meta charset>, libxml las das Dokument dann als Latin-1 ("lifeâs").
+$checkFigcaption(
+	'UTF-8 bleibt erhalten, wenn vor <meta charset> schon Nicht-ASCII steht (theguardian.com)',
+	'<!doctype html><html><head><title>‘People’s dignity’</title><meta charset="utf-8"></head><body>'
+		. '<figure><img src="https://i.guim.co.uk/img/media/weber.jpg"><figcaption>Making life’s necessities affordable.</figcaption></figure></body></html>',
+	'https://i.guim.co.uk/img/media/weber.jpg',
+	'Making life’s necessities affordable.'
+);
+
 $checkFigcaption(
 	'Treffer über srcset-Variante, wenn src ein Lazy-Load-Platzhalter ist',
 	'<html><body><figure><img src="data:image/gif;base64,R0lGOD" srcset="https://example.com/foto-800x450.jpg 800w"><figcaption>Foto: Jane Doe</figcaption></figure></body></html>',

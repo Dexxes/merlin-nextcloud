@@ -14,7 +14,7 @@
   mit einer Weiterleitung auf die Zustimmungsseite ab, ist hier der erste Blick.
   Referenz: https://github.com/fivefilters/ftr-site-config → golem.de.txt
 
-  Die verfügbaren Sektionen und Regeltypen sind in 000.sample.com.xml dokumentiert.
+  Die verfügbaren Sektionen und Regeltypen sind in $sample.com.xml dokumentiert.
 -->
 <domain name="golem.de">
 
