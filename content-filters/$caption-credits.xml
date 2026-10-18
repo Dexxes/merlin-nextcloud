@@ -11,6 +11,8 @@
 
 	  "Foto: dpa"                    → ganze Caption ist Quelle
 	  "Ein Bild (Quelle: privat)"    → "Ein Bild" + <cite>Quelle: privat</cite>
+	  "Ein Bild. Foto: dpa"          → "Ein Bild." + <cite>Foto: dpa</cite>
+	                                   (nur direkt nach einem Satzende)
 
 	Das Copyright-Zeichen "©" ist fest eingebaut und braucht keinen Eintrag.
 
@@ -37,11 +39,14 @@
 <!-- Englisch -->
 <prefix value="Photo" />
 <prefix value="Photos" />
+<prefix value="Photograph" />
+<prefix value="Photographs" />
 <prefix value="Image" />
 <prefix value="Images" />
 <prefix value="Source" />
 <prefix value="Sources" />
 <prefix value="Graphic" />
+<prefix value="Composite" />
 
 <!-- Sprachübergreifend -->
 <prefix value="Credit" />

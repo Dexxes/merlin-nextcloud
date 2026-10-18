@@ -6020,6 +6020,40 @@ class ContentExtractorService {
 			return;
 		}
 
+		// Quelle als eigener Satz am Ende, ohne Trenner und Klammern:
+		// "Ein Bild. Photograph: Steffen Roth/The Guardian" (theguardian.com,
+		// Bildtext oft in einem eigenen <span>). Das Signalwort zählt nur
+		// direkt nach einem Satzende, damit "… nennt als Quelle: …" mitten im
+		// Text nicht abgeschnitten wird. Wie oben nur im letzten Textknoten
+		// auf oberster Ebene; ein Trenner davor ist Sache der Logik unten.
+		if ($last instanceof \DOMText && preg_match_all(
+			'/(?:^|(?<=\s))(?:' . $this->captionCreditPrefixPattern() . ')\s*:/iu',
+			(string) $last->nodeValue,
+			$matches,
+			PREG_OFFSET_CAPTURE
+		) > 0) {
+			$value = (string) $last->nodeValue;
+			$prefixText = '';
+			for ($node = $caption->firstChild; $node !== null && $node !== $last; $node = $node->nextSibling) {
+				$prefixText .= $node->textContent;
+			}
+			foreach (array_reverse($matches[0]) as [, $offset]) {
+				$before = substr($value, 0, $offset);
+				$tail   = trim(substr($value, $offset));
+				if ($tail === '' || preg_match('/[.!?…"“”«»’)]\s*$/u', $prefixText . $before) !== 1) {
+					continue;
+				}
+				while ($last->nextSibling !== null) {
+					$caption->removeChild($last->nextSibling);
+				}
+				$last->nodeValue = rtrim($before) . self::CAPTION_SEPARATOR;
+				$cite = $dom->createElement('cite');
+				$cite->appendChild($dom->createTextNode($tail));
+				$caption->appendChild($cite);
+				return;
+			}
+		}
+
 		$topLevelSplit = null;
 		$topLevelCount = 0;
 		foreach ($caption->childNodes as $child) {

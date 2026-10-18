@@ -182,6 +182,24 @@ $check(
 );
 
 $check(
+	'Quelle als Satz am Ende hinter <span> (theguardian.com)',
+	'<figcaption><span>Isabella Weber in Berlin’s Institute for Advanced Study in September.</span> Photograph: Steffen Roth/The Guardian</figcaption>',
+	'<span>Isabella Weber in Berlin’s Institute for Advanced Study in September.</span> <cite>Photograph: Steffen Roth/The Guardian</cite>'
+);
+
+$check(
+	'Quelle als Satz am Ende im selben Textknoten',
+	'<figcaption>Der Saal ist voll. Foto: dpa</figcaption>',
+	'Der Saal ist voll. <cite>Foto: dpa</cite>'
+);
+
+$check(
+	'Signalwort mitten im Satz bleibt Text',
+	'<figcaption>Sie nennt als Quelle: das Archiv</figcaption>',
+	'Sie nennt als Quelle: das Archiv'
+);
+
+$check(
 	'Klammer ohne Quellen-Präfix bleibt Text',
 	'<figcaption>Angela Merkel (CDU) im Bundestag</figcaption>',
 	'Angela Merkel (CDU) im Bundestag'

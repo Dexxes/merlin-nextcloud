@@ -78,7 +78,10 @@ All notable changes to Merlin are documented here. Format based on
   `content-filters/$caption-credits.xml` that can be edited like the content
   filters, instead of coming from merlin-translations
   (`resources/caption-credit-prefixes.json` is gone). A word added there is
-  recognized for every site and every language.
+  recognized for every site and every language. A credit written as its own
+  sentence at the end ("… in September. Photograph: Steffen Roth/The
+  Guardian", as on theguardian.com) is now split off as well, and
+  "Photograph" and "Composite" are on the list.
 - Sidebar: clicking the Text, Video, Audio or Files tab now opens that
   type's first view right away (Unread, Unwatched, Not listened or Not
   opened) instead of only switching the listed views.
