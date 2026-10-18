@@ -7,6 +7,12 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- PDF placeholder: saved PDFs (links and files from "Merlin files") without
+  a preview image now show an orange PDF icon in the article list instead of
+  the generic no-image placeholder, like Bluesky or Instagram posts show their
+  platform icon (`img/pdf-preview.png`, rendered from the Font Awesome Free
+  "file-pdf" icon in `img/pdf-preview.svg`). It is set when the API returns
+  the article, so already saved PDFs get it too, also in the apps.
 - Highlighting in PDFs: text in a saved PDF (link or file from "Merlin
   files") can now be selected in the web reader and highlighted in the five
   colours or commented on, like in articles. The PDF viewer gets the pdf.js
