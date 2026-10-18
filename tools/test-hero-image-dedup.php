@@ -466,6 +466,13 @@ $checkMatch(
 );
 
 $checkMatch(
+	'tagesspiegel.de-CDN "alternates"-Renditions mit unterschiedlichem Crop-Zeitstempel, gleiche Bild-ID',
+	'https://www.tagesspiegel.de/images/16173503/alternates/BASE_21_9_W1000/1792300160000/press-conference-on-a-possible-coalition-government-for-berlin-s-house-of-representatives.jpeg',
+	'https://www.tagesspiegel.de/images/16173503/alternates/BASE_16_9_W1400/1792265949000/press-conference-on-a-possible-coalition-government-for-berlin-s-house-of-representatives.jpeg',
+	true
+);
+
+$checkMatch(
 	'tagesspiegel.de-CDN-Rendition eines ANDEREN Artikelbilds (andere Bild-ID) matcht nicht',
 	'https://www.tagesspiegel.de/images/16093924/alternates/BASE_21_9_W1000/1790325574000/bearb1-223137136.jpeg',
 	'https://www.tagesspiegel.de/images/99999999/alternates/BASE_16_9_W1400/1790325574000/anderes-foto.jpeg',
