@@ -67,6 +67,10 @@ All notable changes to Merlin are documented here. Format based on
   badge.
 
 ### Fixed
+- Article list API: articles with the same timestamp are now always returned
+  in the same order (newest id first), so paging with `limit`/`offset` (the
+  iOS app loads older articles while scrolling down) neither repeats nor
+  skips an article between pages.
 - Lead image caption: typographic characters no longer turn into mojibake
   ("life’s" became "lifeâs") on pages where non-ASCII text comes before
   `<meta charset>`, e.g. the `<title>` on theguardian.com.

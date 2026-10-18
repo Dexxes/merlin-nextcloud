@@ -138,6 +138,9 @@ class ArticleMapper extends QBMapper {
 		} else {
 			$qb->orderBy('a.created_at', 'DESC');
 		}
+		// Eindeutige Reihenfolge bei gleichem Zeitstempel, damit limit/offset-
+		// Seiten (Nachladen in der iOS-App) nichts doppelt liefern oder auslassen.
+		$qb->addOrderBy('a.id', 'DESC');
 
 		return $this->findEntities($qb);
 	}
