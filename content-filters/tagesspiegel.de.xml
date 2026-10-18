@@ -93,6 +93,15 @@
          (siehe extractDomainMetadata()). -->
     <author xpath="//li[@property='author']/a" />
     <author xpath="//a[@data-gtm-class='article-author-link']" />
+    <!-- Autorenbox am Artikelende. Foto und Bio stehen auf der Autorenseite
+         (/autoren/<name> bzw. /<ressort>/autoren/<name>) im Kopf von
+         main#main-content: figure mit Foto (fehlt bei Autor*innen ohne Bild),
+         h1 Name, span Rolle ("Redakteur"), p Kurzbiografie. Die Klassen sind
+         generiert (tspEai …) und taugen nicht als Anker. Die Byline im Artikel
+         zeigt ein Foto nur bei genau einem Autor, deshalb beides von der
+         Autorenseite. -->
+    <author-image from="author-page" xpath="//main[@id='main-content']/header//figure//img" />
+    <author-bio   from="author-page" xpath="//main[@id='main-content']/header//p[normalize-space()]" />
     <image xpath="//meta[@property='og:image']/@content" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
