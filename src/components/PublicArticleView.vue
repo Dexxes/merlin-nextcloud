@@ -158,6 +158,7 @@
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { loadState } from '@nextcloud/initial-state'
+import { showSuccess } from '@nextcloud/dialogs'
 import { markRaw } from 'vue'
 import { HighlightEngine } from '../highlight-engine'
 import { guestCommentsClient } from '../api/comments'
@@ -465,6 +466,7 @@ export default {
 						&& this.guestName !== '' && guestNameKey(h.authorName) === guestNameKey(this.guestName)
 				},
 				describe: (highlightId) => this._describeHighlight(highlightId),
+				onCopied: () => showSuccess(this.t('merlin', 'Text copied to clipboard')),
 				t: (text) => this.t('merlin', text),
 			})
 			this._engine = engine
@@ -481,6 +483,7 @@ export default {
 					onDelete: () => {},
 					onOpenComments: (highlightId) => this.openComments(highlightId),
 					describe: (highlightId) => this._describeHighlight(highlightId),
+					onCopied: () => showSuccess(this.t('merlin', 'Text copied to clipboard')),
 					t: (text) => this.t('merlin', text),
 				})
 				: null
