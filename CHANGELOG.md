@@ -7,6 +7,10 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- Copy highlighted text: the menu of a highlight (click or right-click, in
+  articles, PDFs and on public share pages) has a new "Copy text" entry that
+  puts the highlighted passage into the clipboard and confirms it with a
+  toast.
 - Resize highlights: `PUT /api/highlights/{id}` changes an existing highlight
   in place (passage and optionally colour), for the owner's own colour
   highlights in articles and PDFs. The id stays, so comment threads stay

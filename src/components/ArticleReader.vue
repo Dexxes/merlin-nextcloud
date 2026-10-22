@@ -1537,6 +1537,7 @@ export default {
 						? this.t('merlin', 'Highlighted by {name}', { name: h.authorName }, undefined, { escape: false })
 						: null
 				},
+				onCopied: () => showSuccess(this.t('merlin', 'Text copied to clipboard')),
 				t: (text) => this.t('merlin', text),
 			})
 			// markRaw: _highlightEngine steht in data(), ein reaktiver Proxy wäre

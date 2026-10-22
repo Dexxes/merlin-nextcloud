@@ -357,6 +357,24 @@ function highlightKey(h) {
 		h.pdfPage ?? '', JSON.stringify(h.pdfRects ?? null)].join('|')
 }
 
+/**
+ * Text in die Zwischenablage. Ohne Clipboard-API (kein HTTPS) über ein
+ * verstecktes Textfeld, wie beim Link-Kopieren im Reader.
+ */
+async function copyToClipboard(text) {
+	try {
+		await navigator.clipboard.writeText(text)
+	} catch {
+		const el = document.createElement('textarea')
+		el.value = text
+		el.style.cssText = 'position:fixed;top:0;left:0;opacity:0;'
+		document.body.appendChild(el)
+		el.select()
+		document.execCommand('copy')
+		document.body.removeChild(el)
+	}
+}
+
 export class HighlightEngine {
 	/**
 	 * @param {HTMLElement} container
@@ -371,10 +389,11 @@ export class HighlightEngine {
 	 * @param {Function} [callbacks.canDelete] darf diese Markierung gelöscht werden? (id) => bool
 	 * @param {Function} [callbacks.describe] Zusatzzeile im Menü, z. B. „Markiert von Anna“ (id) => string|null
 	 * @param {Function} [callbacks.canCreate] darf gerade markiert werden? () => bool
+	 * @param {Function} [callbacks.onCopied] Text einer Markierung liegt in der Zwischenablage () => void
 	 * @param {Function} [callbacks.t] Übersetzungsfunktion (Text) => Text
 	 * @param {boolean} [callbacks.pdfReadOnly] in PDFs nur anzeigen, nicht markieren (Gäste)
 	 */
-	constructor(container, { onCreate, onDelete, onOpenComments = null, onCommentSelection = null, canDelete = null, describe = null, canCreate = null, t = null, pdfReadOnly = false }) {
+	constructor(container, { onCreate, onDelete, onOpenComments = null, onCommentSelection = null, canDelete = null, describe = null, canCreate = null, onCopied = null, t = null, pdfReadOnly = false }) {
 		this._container = container
 		this._onCreate = onCreate
 		this._onCommentSelection = onCommentSelection
@@ -383,6 +402,7 @@ export class HighlightEngine {
 		this._canDelete = canDelete ?? (() => true)
 		this._describe = describe ?? (() => null)
 		this._canCreate = canCreate ?? (() => true)
+		this._onCopied = onCopied
 		this._t = t ?? (text => text)
 		this._pdfReadOnly = pdfReadOnly
 		this._highlights = []
@@ -740,6 +760,14 @@ export class HighlightEngine {
 			menu.appendChild(btn)
 		}
 
+		const text = this._highlightText(highlightId)
+		if (text) {
+			addItem(this._t('Copy text'), '#1c1c1e', '#f0f0f0', () => {
+				this._removeToolbar()
+				copyToClipboard(text).then(() => this._onCopied?.())
+			})
+		}
+
 		if (this._onOpenComments) {
 			const count = this._commentCounts[highlightId] || 0
 			const label = count > 0
@@ -771,6 +799,14 @@ export class HighlightEngine {
 			if (r.right  > window.innerWidth  - 8) menu.style.left = `${x - r.width}px`
 			if (r.bottom > window.innerHeight - 8) menu.style.top  = `${y - r.height}px`
 		})
+	}
+
+	/** Markierter Text: wie gespeichert, sonst aus den <mark> im Text zusammengesetzt. */
+	_highlightText(highlightId) {
+		const h = this._highlights.find(x => String(x.id) === String(highlightId))
+		if (h?.highlightedText) return h.highlightedText
+		const marks = this._container.querySelectorAll(`mark.merlin-highlight[data-highlight-id="${highlightId}"]`)
+		return Array.from(marks).map(el => el.textContent).join('').trim()
 	}
 
 	_removeToolbar() {
