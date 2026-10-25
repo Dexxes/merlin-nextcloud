@@ -194,6 +194,24 @@ $check(
 );
 
 $check(
+	'Quelle nach "/ ©" am Satzende, Lizenz-Link danach (entwicklungsstadt.de)',
+	'<figcaption>Auch am Breitscheidplatz fuhren die Bahnen. / © Foto: Wikimedia Commons, Willy Pragher, <a href="https://creativecommons.org/licenses/by/3.0/deed.de">CC BY 3.0</a></figcaption>',
+	'Auch am Breitscheidplatz fuhren die Bahnen. <cite>© Foto: Wikimedia Commons, Willy Pragher, <a href="https://creativecommons.org/licenses/by/3.0/deed.de">CC BY 3.0</a></cite>'
+);
+
+$check(
+	'Quelle nach "/ ©" am Satzende, nur Text',
+	'<figcaption>Der Wagen blieb bis 1967 im Einsatz. / © Foto: Wikimedia Commons, Michael Weinland, CC0</figcaption>',
+	'Der Wagen blieb bis 1967 im Einsatz. <cite>© Foto: Wikimedia Commons, Michael Weinland, CC0</cite>'
+);
+
+$check(
+	'Quelle als Satz am Ende mit Link in der Quelle',
+	'<figcaption>Der Saal ist voll. Foto: <a href="https://example.org/">Max Muster</a></figcaption>',
+	'Der Saal ist voll. <cite>Foto: <a href="https://example.org/">Max Muster</a></cite>'
+);
+
+$check(
 	'Signalwort mitten im Satz bleibt Text',
 	'<figcaption>Sie nennt als Quelle: das Archiv</figcaption>',
 	'Sie nennt als Quelle: das Archiv'

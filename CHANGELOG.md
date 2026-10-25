@@ -82,6 +82,12 @@ All notable changes to Merlin are documented here. Format based on
   badge.
 
 ### Fixed
+- Image credits after "/ ©": a credit like "… eingestellt wurde. / © Foto:
+  Wikimedia Commons, Willy Pragher, CC BY 3.0" (entwicklungsstadt.de) is now
+  recognised as the image source. A "/" or "|" between the sentence end and
+  the signal word no longer blocks it, the "©" stays part of the credit, and
+  a licence link after the credit text moves into the credit instead of
+  hiding it.
 - Article list API: articles with the same timestamp are now always returned
   in the same order (newest id first), so paging with `limit`/`offset` (the
   iOS app loads older articles while scrolling down) neither repeats nor
