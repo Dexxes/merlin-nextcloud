@@ -6032,33 +6032,53 @@ class ContentExtractorService {
 		// "Ein Bild. Photograph: Steffen Roth/The Guardian" (theguardian.com,
 		// Bildtext oft in einem eigenen <span>). Das Signalwort zählt nur
 		// direkt nach einem Satzende, damit "… nennt als Quelle: …" mitten im
-		// Text nicht abgeschnitten wird. Wie oben nur im letzten Textknoten
-		// auf oberster Ebene; ein Trenner davor ist Sache der Logik unten.
-		if ($last instanceof \DOMText && preg_match_all(
-			'/(?:^|(?<=\s))(?:' . $this->captionCreditPrefixPattern() . ')\s*:/iu',
-			(string) $last->nodeValue,
-			$matches,
-			PREG_OFFSET_CAPTURE
-		) > 0) {
-			$value = (string) $last->nodeValue;
-			$prefixText = '';
-			for ($node = $caption->firstChild; $node !== null && $node !== $last; $node = $node->nextSibling) {
-				$prefixText .= $node->textContent;
+		// Text nicht abgeschnitten wird. Dazwischen darf ein "/" oder "|"
+		// stehen, und ein "©" direkt vor dem Signalwort gehört zur Quelle
+		// ("Ein Bild. / © Foto: …", entwicklungsstadt.de). Gesucht wird in den
+		// Textknoten auf oberster Ebene von hinten; Inline-Auszeichnung danach
+		// (etwa ein Lizenz-Link "<a>CC BY 3.0</a>") wandert mit in die Quelle.
+		// Ein Trenner dahinter ist Sache der Logik unten.
+		for ($node = $caption->lastChild; $node !== null; $node = $node->previousSibling) {
+			if (!$node instanceof \DOMText) {
+				if (str_contains($node->textContent, self::CAPTION_BULLET)) {
+					break;
+				}
+				continue;
 			}
-			foreach (array_reverse($matches[0]) as [, $offset]) {
-				$before = substr($value, 0, $offset);
-				$tail   = trim(substr($value, $offset));
-				if ($tail === '' || preg_match('/[.!?…"“”«»’)]\s*$/u', $prefixText . $before) !== 1) {
-					continue;
+			$value = (string) $node->nodeValue;
+			if (preg_match_all(
+				'/(?:^|(?<=\s))(?:©\s*)?(?:' . $this->captionCreditPrefixPattern() . ')\s*:/iu',
+				$value,
+				$matches,
+				PREG_OFFSET_CAPTURE
+			) > 0) {
+				$prefixText = '';
+				for ($prev = $caption->firstChild; $prev !== null && $prev !== $node; $prev = $prev->nextSibling) {
+					$prefixText .= $prev->textContent;
 				}
-				while ($last->nextSibling !== null) {
-					$caption->removeChild($last->nextSibling);
+				// Leerraum ganz am Ende gehört nicht zur Quelle.
+				while ($caption->lastChild !== $node && $caption->lastChild instanceof \DOMText && trim((string) $caption->lastChild->nodeValue) === '') {
+					$caption->removeChild($caption->lastChild);
 				}
-				$last->nodeValue = rtrim($before) . self::CAPTION_SEPARATOR;
-				$cite = $dom->createElement('cite');
-				$cite->appendChild($dom->createTextNode($tail));
-				$caption->appendChild($cite);
-				return;
+				$hasFollowing = $node->nextSibling !== null;
+				foreach (array_reverse($matches[0]) as [, $offset]) {
+					$before = preg_replace('/\s*[\/|]\s*$/u', '', substr($value, 0, $offset)) ?? '';
+					$tail   = $hasFollowing ? ltrim(substr($value, $offset)) : trim(substr($value, $offset));
+					if (($tail === '' && !$hasFollowing) || preg_match('/[.!?…"“”«»’)]\s*$/u', $prefixText . $before) !== 1) {
+						continue;
+					}
+					$cite = $dom->createElement('cite');
+					$cite->appendChild($dom->createTextNode($tail));
+					while (($next = $node->nextSibling) !== null) {
+						$cite->appendChild($next);
+					}
+					$node->nodeValue = rtrim($before) . self::CAPTION_SEPARATOR;
+					$caption->appendChild($cite);
+					return;
+				}
+			}
+			if (str_contains($value, self::CAPTION_BULLET)) {
+				break;
 			}
 		}
 
