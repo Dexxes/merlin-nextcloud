@@ -29,6 +29,7 @@
     <remove xpath="//*[contains(@class,'author-container')]" />
     <remove xpath="//div[contains(@class,'force-full-dotted')]" />
     <remove xpath="//p[contains(@class,'typo-r-subline-detail')]" />
+    <remove xpath="//p[contains(@class,'typo-subline-detail')]" /> <!-- Teaser unter der Überschrift (neues Layout) -->
     <remove xpath="//span[contains(@class,'citation_report_redhov')]" />
     <remove xpath="//p[contains(@class,'Korrespondent')]" />
     <remove xpath="//h2[contains(@class,'seiteneinstieg-longread')]" />
