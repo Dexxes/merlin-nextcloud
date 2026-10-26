@@ -71,21 +71,34 @@
 				</div>
 			</header>
 
-			<!-- Nur Medien mit stabiler Quelle im Marker (Datei/Embed) - ohne
-				Login gibt es keinen /media-Endpunkt für Mediathek-Streams. -->
-			<MediaPlayer
-				:content="article.content || ''"
-				:category="article.category || null"
-				@state-change="mediaPlayable = $event.playable" />
-
 			<!-- PDF-Artikel: Vorschau über den Durchreich-Endpunkt des Shares; die PDF liegt beim Quellserver. -->
 			<PdfViewer v-if="article.category === 'PDF' && article.url"
 				ref="pdfViewer"
 				:src="pdfProxyUrl"
 				:source-url="article.url" />
 
-			<!-- eslint-disable-next-line vue/no-v-html -->
-			<div ref="bodyEl" class="pav-body" :class="{ 'has-native-media': mediaPlayable }" v-html="bodyHtml" />
+			<!-- Aufbau wie in ArticleReader.vue: bei abspielbarem Medium ersetzt der
+				MediaPlayer das Hero-Bild (Poster bei Video, Cover bei Audio,
+				Bildunterschrift im Player). data-hl-flatten/data-hl-exclude halten
+				die Highlight-XPaths unverändert (siehe hero-content.js). -->
+			<div ref="bodyEl" class="pav-body" :class="{ 'has-native-media': mediaPlayable }">
+				<!-- eslint-disable-next-line vue/no-v-html -->
+				<div v-if="heroAndRestContent.heroHtml && !mediaPlayable" data-hl-flatten v-html="heroAndRestContent.heroHtml" />
+
+				<!-- Nur Medien mit stabiler Quelle im Marker (Datei/Embed) - ohne
+					Login gibt es keinen /media-Endpunkt für Mediathek-Streams. -->
+				<MediaPlayer
+					data-hl-exclude
+					:content="article.content || ''"
+					:category="article.category || null"
+					:poster-url="heroAndRestContent.heroImageUrl"
+					:caption="heroAndRestContent.heroCaption"
+					hero
+					@state-change="mediaPlayable = $event.playable" />
+
+				<!-- eslint-disable-next-line vue/no-v-html -->
+				<div data-hl-flatten v-html="heroAndRestContent.restHtml" />
+			</div>
 
 			<p v-if="footerByline" class="pav-footer-byline">– {{ footerByline }}</p>
 		</article>
@@ -168,6 +181,7 @@ import MediaPlayer from './MediaPlayer.vue'
 import { hideBrokenSupportBoxIcons, insertSupportBox } from '../support-box'
 import { appendAuthorBoxes, authorBoxEntries, hideBrokenAuthorPhotos } from '../author-box'
 import { mountInlineMedia, unmountInlineMedia } from '../inline-media'
+import { splitHeroContent } from '../hero-content'
 import PdfViewer from './PdfViewer.vue'
 
 // "Listen"-Button (Vorlesen per TTS) in der Public-Link-Ansicht. Vorerst aus;
@@ -275,13 +289,15 @@ export default {
 				.join(', ')
 		},
 
-		// Artikeltext inkl. Support-Infobox (Abo-/Spendenlink der Quelle) und
+		// Hero/Rest-Split wie im ArticleReader (siehe hero-content.js); das
+		// Rest-HTML inkl. Support-Infobox (Abo-/Spendenlink der Quelle) und
 		// Autorenboxen am Ende (author-box.js). Seed der Support-Box ist
 		// der Titel, weil die Share-Antwort keine Artikel-ID enthält.
-		bodyHtml() {
-			const content = this.article?.content || ''
-			const withSupportBox = insertSupportBox(content, this.article?.supportBox, this.article?.title || '', this.t)
-			return appendAuthorBoxes(withSupportBox, this.article?.authors, this.article?.accentColor, this.t)
+		heroAndRestContent() {
+			const base = splitHeroContent(this.article?.content || '')
+			const withSupportBox = insertSupportBox(base.restHtml, this.article?.supportBox, this.article?.title || '', this.t)
+			const restHtml = appendAuthorBoxes(withSupportBox, this.article?.authors, this.article?.accentColor, this.t)
+			return { ...base, restHtml }
 		},
 
 		/** Durchreich-Endpunkt für die PDF eines PDF-Artikels (siehe PdfProxyService). */
@@ -929,6 +945,7 @@ export default {
 /* Medien-Marker samt Fallback-Link ausblenden, sobald der MediaPlayer
    darüber die Quelle abspielt (siehe ArticleReader.vue). */
 .pav-body.has-native-media :deep(.merlin-media),
+.pav-body.has-native-media :deep(.merlin-media-fallback-link),
 .pav-body.has-native-media :deep(.merlin-video-fallback-link) {
 	display: none;
 }

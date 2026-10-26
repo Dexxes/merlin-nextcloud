@@ -590,6 +590,7 @@ import MediaPlayer from './MediaPlayer.vue'
 import { hideBrokenSupportBoxIcons, insertSupportBox } from '../support-box'
 import { appendAuthorBoxes, authorBoxEntries, hideBrokenAuthorPhotos } from '../author-box'
 import { mountInlineMedia, unmountInlineMedia } from '../inline-media'
+import { splitHeroContent } from '../hero-content'
 import PdfViewer from './PdfViewer.vue'
 import { generateUrl } from '@nextcloud/router'
 
@@ -916,11 +917,8 @@ export default {
 			return this.article.content || ''
 		},
 
-		// Trennt eine führende <figure class="merlin-hero-image"> (siehe
-		// ContentExtractorService Step 12) vom restlichen Content ab, damit der
-		// MediaPlayer zwischen Hero-Bild und Rest platziert werden kann statt
-		// immer ganz oben. Nur ein Split, wenn die Figure wirklich das erste
-		// Element ist - sonst bleibt alles wie zuvor in restHtml.
+		// Hero/Rest-Split (siehe hero-content.js), damit der MediaPlayer
+		// zwischen Hero-Bild und Rest platziert werden kann.
 		// Support-Infobox (Abo-/Spendenlink) zwischen zwei Absätzen des Rest-HTML,
 		// siehe support-box.js. Der Hero-Split darüber bleibt unverändert.
 		// Autorenboxen (Foto/Bio, siehe author-box.js) am Ende des Rest-HTML.
@@ -935,23 +933,7 @@ export default {
 		},
 
 		baseHeroAndRestContent() {
-			const html = this.processedContent
-			if (!html) return { heroHtml: '', heroImageUrl: '', heroCaption: '', restHtml: html }
-
-			const doc = new DOMParser().parseFromString(html, 'text/html')
-			const hero = doc.body.firstElementChild
-			if (!hero || hero.tagName !== 'FIGURE' || !hero.classList.contains('merlin-hero-image')) {
-				return { heroHtml: '', heroImageUrl: '', heroCaption: '', restHtml: html }
-			}
-
-			const heroHtml = hero.outerHTML
-			// Dient bei einem abspielbaren Video als Poster-Bild statt separat
-			// über der Figure angezeigt zu werden (siehe MediaPlayer-Bindung
-			// unten) - deshalb schon hier mit heraustrennen.
-			const heroImageUrl = hero.querySelector('img')?.src ?? ''
-			const heroCaption = hero.querySelector('figcaption')?.textContent?.trim() ?? ''
-			hero.remove()
-			return { heroHtml, heroImageUrl, heroCaption, restHtml: doc.body.innerHTML }
+			return splitHeroContent(this.processedContent)
 		},
 	},
 
