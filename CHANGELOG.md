@@ -82,6 +82,9 @@ All notable changes to Merlin are documented here. Format based on
   badge.
 
 ### Fixed
+- Highlighting a selection that was extended after letting go (selection
+  handles on touch devices, Shift+arrow keys) now colours and saves the whole
+  selection instead of only the part selected at first.
 - Image credits after "/ ©": a credit like "… eingestellt wurde. / © Foto:
   Wikimedia Commons, Willy Pragher, CC BY 3.0" (entwicklungsstadt.de) is now
   recognised as the image source. A "/" or "|" between the sentence end and
