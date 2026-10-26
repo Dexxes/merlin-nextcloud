@@ -761,6 +761,92 @@ $check(
 	]]
 );
 
+echo "\n\033[1mspiegel.de: Byline, Kasten \"Zum Autor\" und Autorenseite\033[0m\n";
+
+// Echte Filterdatei, gekürztes Markup echter SPIEGEL-Seiten (Kolumne mit Foto in
+// der Byline und Kasten "Zum Autor", Nachricht mit zwei Autoren, Agenturmeldung).
+$spiegelConfig = preg_replace('/<domain name="[^"]*"/', '<domain name="example.com"', (string) file_get_contents(__DIR__ . '/../content-filters/spiegel.de.xml'));
+$spAuthorUrl   = fn (string $id): string => 'https://www.spiegel.de/impressum/autor-' . $id;
+$spCdn         = 'https://cdn.prod.www.spiegel.de/images/';
+$spLink        = fn (string $id, string $name): string =>
+	'<a class="text-black font-bold border-b" href="https://www.spiegel.de/impressum/autor-' . $id . '" target="_self" title="' . $name . '"> ' . $name . '</a>';
+$spPage = fn (string $metaAuthor, string $byline, string $body): string =>
+	'<html><head><meta name="author" content="' . $metaAuthor . '">'
+	. '<script type="application/ld+json">[{"@context":"http://schema.org","@type":"NewsArticle","author":{"@type":"Person","name":"Christian Stöcker"},"headline":"Titel"}]</script>'
+	. '</head><body><main id="Inhalt"><article aria-label="Titel"><header data-area="intro"><div><div>'
+	. '<h2><span class="align-middle">Titel</span></h2>' . $byline
+	. '<time class="timeformat" datetime="2026-10-25 17:07:00">25.10.2026, 17.07 Uhr</time></div></div></header>'
+	. '<div class="relative" data-article-el="body">' . $body . '</div></article></main></body></html>';
+$spColumnByline = '<div class="flex items-center mb-24"><div class="lg:hidden md:hidden shrink-0 mr-16"><div class="relative bg-transparent"><picture>'
+	. '<source data-srcset="' . $spCdn . '4e33b173_w72_r1_fpx56_fpy51.webp 1x, ' . $spCdn . '4e33b173_w144_r1_fpx56_fpy51.webp 2x" type="image/webp">'
+	. '<img data-image-el="img" class="lazyload w-auto mx-auto rounded-circle" src="data:image/svg+xml,%3Csvg%3E%3C/svg%3E" data-src="' . $spCdn . '4e33b173_w72_r1_fpx56_fpy51.jpg" width="72" height="72" title="Christian Stöcker" alt="Christian Stöcker">'
+	. '</picture></div></div><div class="font-sansUI"> Eine Kolumne von ' . $spLink('0ab8a756-0001-0003-0000-000000001562', 'Christian Stöcker') . '</div></div>';
+$spAuthorBox = '<div><aside class="lg:float-right" data-area="contentbox"><section class="flow-root bg-tertiary-base rounded" data-area="contentbox">'
+	. '<a href="https://www.spiegel.de/impressum/autor-0ab8a756-0001-0003-0000-000000001562" title="Zum Autor" target="_self"><span class="block font-extrabold"> Zum Autor </span></a>'
+	. '<div class="RichText RichText--small RichText--sans"><p><strong>Christian Stöcker, </strong>Jahrgang 1973, ist Kognitions&shy;psychologe.</p></div></section></aside></div>';
+$spInfoBox = '<div><aside data-area="contentbox"><section data-area="contentbox"><span class="block font-extrabold">Mehr zum Thema</span>'
+	. '<div class="RichText"><p>Ein ganz anderer Kasten.</p></div></section></aside></div>';
+$spText = '<div data-area="text"><div class="RichText"><p>Artikeltext.</p></div></div>';
+
+$check(
+	'spiegel.de: Kolumne -> Profil-Link aus der Byline, Foto (144 px) aus der Byline, Bio aus "Zum Autor"',
+	$spPage('Christian Stöcker, DER SPIEGEL', $spColumnByline, $spText . $spInfoBox . $spAuthorBox . $spText),
+	$spiegelConfig,
+	$a('Christian Stöcker', $spAuthorUrl('0ab8a756-0001-0003-0000-000000001562')) + ['authors' => [
+		['name' => 'Christian Stöcker', 'url' => $spAuthorUrl('0ab8a756-0001-0003-0000-000000001562'),
+			'image' => $spCdn . '4e33b173_w144_r1_fpx56_fpy51.jpg',
+			'bio' => 'Christian Stöcker, Jahrgang 1973, ist Kognitions­psychologe.'],
+	]]
+);
+
+$check(
+	'spiegel.de: Nachricht mit zwei Autoren -> beide mit Profil-Link, kein fremder Kasten als Bio',
+	$spPage('Andreas Landberg, Martin Jäschke, DER SPIEGEL',
+		'<div class="font-sansUI mb-4"> Eine Videoreportage von ' . $spLink('9199f9ff-0001-0003-0000-000000018934', 'Martin Jäschke')
+			. '<span> und </span> ' . $spLink('e983b371-0001-0003-0000-000000021740', 'Andreas Landberg') . '</div>',
+		$spText . $spInfoBox),
+	$spiegelConfig,
+	$a('Martin Jäschke, Andreas Landberg') + ['authors' => [
+		['name' => 'Martin Jäschke', 'url' => $spAuthorUrl('9199f9ff-0001-0003-0000-000000018934')],
+		['name' => 'Andreas Landberg', 'url' => $spAuthorUrl('e983b371-0001-0003-0000-000000021740')],
+	]]
+);
+
+$check(
+	'spiegel.de: Agenturmeldung ohne Autorenlink -> keine Autorenbox',
+	str_replace('"Christian Stöcker"', '"DER SPIEGEL"', $spPage('DER SPIEGEL', '<div class="font-sansUI mb-4"></div>', $spText . $spInfoBox)),
+	$spiegelConfig,
+	$a('DER SPIEGEL')
+);
+
+$spProfile = fn (string $img, string $name, string $bio): string =>
+	'<html><body><main id="Inhalt"><section><header class="bg-white shadow rounded"><div class="flex items-center"><div class="shrink-0">'
+	. '<div class="relative bg-transparent"><picture><img data-image-el="img" class="lazyload rounded-circle sm:hidden" src="data:image/svg+xml,%3Csvg%3E%3C/svg%3E" data-src="' . $img . '_w72_r1_fpx50_fpy37.5.jpg" width="72" height="72" title="' . $name . '" alt="' . $name . '"></picture></div>'
+	. '<div class="relative bg-transparent"><picture><img data-image-el="img" class="lazyload rounded-circle lg:hidden md:hidden" src="data:image/svg+xml,%3Csvg%3E%3C/svg%3E" data-src="' . $img . '_w56_r1_fpx50_fpy37.5.jpg" width="56" height="56" title="' . $name . '" alt="' . $name . '"></picture></div>'
+	. '</div><div class="flex grow"><h1 class="font-brandUI">' . $name . '</h1></div></div>'
+	. '<div class="pb-24"><div class="RichText RichText--sans RichText--listCompact"><p>' . $bio . '</p></div></div></header>'
+	. '<section data-area="block>iframe"><p>Newsletter</p></section></section>'
+	. '<section><article><img class="rounded-circle" src="' . $spCdn . 'teaser_w72_r1.jpg" alt="Teaser"><p>Teaser-Text.</p></article></section></main></body></html>';
+$exUrl = fn (string $id): string => 'https://example.com/impressum/autor-' . $id;
+
+$checkPages(
+	'spiegel.de: Autorenseite liefert Foto (144 px) und Bio, je Autor',
+	['author' => 'Martin Jäschke, Andreas Landberg', 'authors' => [
+		['name' => 'Martin Jäschke', 'url' => $exUrl('9199f9ff')],
+		['name' => 'Andreas Landberg', 'url' => $exUrl('e983b371')],
+	]],
+	$spiegelConfig,
+	[
+		$exUrl('9199f9ff') => $spProfile($spCdn . '09d24181', 'Martin Jäschke', 'Jahrgang 1982, aufgewachsen in Hildesheim.'),
+		$exUrl('e983b371') => $spProfile($spCdn . '8f6c462e', 'Andreas Landberg', 'Geboren 1991 in Werne, NRW.'),
+	],
+	[
+		['name' => 'Martin Jäschke', 'url' => $exUrl('9199f9ff'), 'image' => $spCdn . '09d24181_w144_r1_fpx50_fpy37.5.jpg', 'bio' => 'Jahrgang 1982, aufgewachsen in Hildesheim.'],
+		['name' => 'Andreas Landberg', 'url' => $exUrl('e983b371'), 'image' => $spCdn . '8f6c462e_w144_r1_fpx50_fpy37.5.jpg', 'bio' => 'Geboren 1991 in Werne, NRW.'],
+	],
+	[$exUrl('9199f9ff'), $exUrl('e983b371')]
+);
+
 echo "\n" . str_repeat('─', 72) . "\n";
 if ($failures === []) {
 	echo "\033[32mAlle " . $passed . " Prüfungen bestanden.\033[0m\n";

@@ -31,6 +31,8 @@
     <remove xpath="//*[@data-area='related_articles']" />
     <remove xpath="//section[@data-is-unsupported-smartarticle-summary-hidden]" />
     <remove xpath="//section[contains(@data-sara-component, 'Noch mehr Wirtschaft für SPIEGEL-Abonnenten')]" />
+    <!-- Kasten "Zum Autor" im Text: steht jetzt in der Autorenbox am Ende -->
+    <remove xpath="//aside[@data-area='contentbox'][section[@data-area='contentbox']/a[contains(@href,'/impressum/autor-')]]" />
   </pre-filter>
 
   <post-filter>
@@ -45,9 +47,25 @@
 </images>
 
   <metadata>
+    <!-- Autorenbox am Artikelende. Läuft auf dem rohen HTML, der Pre-Filter
+         für //article/header stört also nicht.
+         Name und Profil-Link: die Byline im Artikelkopf ("Eine Kolumne von …",
+         "Aus São Paulo berichtet …", "… von A und B"), je Autor ein Link auf
+         /impressum/autor-<id>. Ohne diese Links (Agenturmeldungen, "DER
+         SPIEGEL") bleibt es beim bisherigen Autor aus den Meta-Daten.
+         Foto: bei Kolumnen steht es in der Byline (img mit alt = Name, das
+         eigentliche Bild in data-src), sonst auf der Autorenseite im Kopf.
+         Merlin fordert statt der eingebetteten 56–96 px die 144-px-Variante an.
+         Bio: bei Kolumnen der Kasten "Zum Autor" im Text (contentbox, deren
+         Überschrift auf die Autorenseite verlinkt), sonst der Text im Kopf der
+         Autorenseite. Der Kasten fliegt per Pre-Filter aus dem Artikeltext. -->
+    <author       xpath="//article/header//a[contains(@href,'/impressum/autor-')]" />
+    <author-image xpath="//article/header//img[contains(@class,'rounded-circle')][@alt != '']" />
+    <author-image from="author-page" xpath="//main/section/header//img[@alt]" />
+    <author-bio   xpath="//section[@data-area='contentbox'][a[contains(@href,'/impressum/autor-')]]/div[contains(@class,'RichText')]" />
+    <author-bio   from="author-page" xpath="//main/section/header//div[contains(@class,'RichText')]" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
-    <author   xpath="//span[@class='author-name']" />
     <excerpt  xpath="//p[@class='article-intro']" />
     <image    xpath="//meta[@property='og:image']/@content" />
     <published xpath="//time[@itemprop='datePublished']/@datetime" />

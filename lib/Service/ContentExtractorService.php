@@ -5001,6 +5001,9 @@ class ContentExtractorService {
 	/** Kantenlänge (px), in der Medium-Autorenfotos angefordert werden (Box: 5em, Retina). */
 	private const AUTHOR_IMAGE_MEDIUM_SIZE = 176;
 
+	/** Breite (px), in der SPIEGEL-Autorenfotos angefordert werden (vom CDN angebotene Größe). */
+	private const AUTHOR_IMAGE_SPIEGEL_WIDTH = 144;
+
 	/** Längere Kurzbiografien werden abgeschnitten (Autorenbox, nicht Autorenseite). */
 	private const AUTHOR_BIO_MAX_LENGTH = 1000;
 
@@ -5140,6 +5143,12 @@ class ContentExtractorService {
 		// größere Variante desselben Bilds anfordern.
 		if (strtolower((string) parse_url($url, PHP_URL_HOST)) === 'miro.medium.com') {
 			$url = (string) preg_replace('#/resize:fill:\d+:\d+(?=/)#', '/resize:fill:' . self::AUTHOR_IMAGE_MEDIUM_SIZE . ':' . self::AUTHOR_IMAGE_MEDIUM_SIZE, $url);
+		}
+		// SPIEGEL (cdn.prod.www.spiegel.de) bettet Autorenfotos mit 56 bis 96 px ein
+		// ("…_w72_r1_fpx56_fpy51.jpg"); der CDN liefert nur feste Breiten, die
+		// 144-px-Variante (Retina-srcset) gibt es immer.
+		if (strtolower((string) parse_url($url, PHP_URL_HOST)) === 'cdn.prod.www.spiegel.de') {
+			$url = (string) preg_replace('#_w(?:56|72|96)_r1_#', '_w' . self::AUTHOR_IMAGE_SPIEGEL_WIDTH . '_r1_', $url);
 		}
 		return (string) preg_replace('#^http://#i', 'https://', $url);
 	}
