@@ -914,6 +914,25 @@ export default {
 	height: auto;
 }
 
+/* Bilder mit Bildunterschrift (figure/figcaption, auch das Hero-Bild) wie im
+   ArticleReader.vue darstellen. */
+.pav-body :deep(figure) {
+	margin: 2em 0;
+	text-align: center;
+}
+
+.pav-body :deep(figure img) {
+	margin: 0 auto;
+}
+
+.pav-body :deep(figcaption) {
+	margin-top: 0.5em;
+	font-size: 0.85em;
+	font-style: italic;
+	color: var(--color-text-lighter, #888);
+	line-height: 1.4;
+}
+
 /* Self-hosted <video> (GIF-Ersatz mancher Blogs, siehe sanitizeHtml()) bringt
    keine sinnvolle Default-Breite mit – ohne diese Regel rendert es in seiner
    nativen Pixelbreite und sprengt die Artikelspalte. */
