@@ -36,7 +36,7 @@
 			<p>{{ t('merlin', 'Please try again later.') }}</p>
 		</div>
 
-		<article v-else-if="state === 'ready'" class="pav-article">
+		<article v-else-if="state === 'ready'" class="pav-article" :style="articleStyles">
 			<!-- Vorlese-Button vorerst ausgeblendet; Funktion bleibt erhalten (siehe SHOW_LISTEN_BUTTON). -->
 			<div v-if="showListenButton" class="pav-toolbar">
 				<button type="button" class="pav-btn" @click="toggleAudio">
@@ -71,21 +71,34 @@
 				</div>
 			</header>
 
-			<!-- Nur Medien mit stabiler Quelle im Marker (Datei/Embed) - ohne
-				Login gibt es keinen /media-Endpunkt für Mediathek-Streams. -->
-			<MediaPlayer
-				:content="article.content || ''"
-				:category="article.category || null"
-				@state-change="mediaPlayable = $event.playable" />
-
 			<!-- PDF-Artikel: Vorschau über den Durchreich-Endpunkt des Shares; die PDF liegt beim Quellserver. -->
 			<PdfViewer v-if="article.category === 'PDF' && article.url"
 				ref="pdfViewer"
 				:src="pdfProxyUrl"
 				:source-url="article.url" />
 
-			<!-- eslint-disable-next-line vue/no-v-html -->
-			<div ref="bodyEl" class="pav-body" :class="{ 'has-native-media': mediaPlayable }" v-html="bodyHtml" />
+			<!-- Aufbau wie in ArticleReader.vue: bei abspielbarem Medium ersetzt der
+				MediaPlayer das Hero-Bild (Poster bei Video, Cover bei Audio,
+				Bildunterschrift im Player). data-hl-flatten/data-hl-exclude halten
+				die Highlight-XPaths unverändert (siehe hero-content.js). -->
+			<div ref="bodyEl" class="article-body pav-body" :class="{ 'has-native-media': mediaPlayable }">
+				<!-- eslint-disable-next-line vue/no-v-html -->
+				<div v-if="heroAndRestContent.heroHtml && !mediaPlayable" data-hl-flatten v-html="heroAndRestContent.heroHtml" />
+
+				<!-- Nur Medien mit stabiler Quelle im Marker (Datei/Embed) - ohne
+					Login gibt es keinen /media-Endpunkt für Mediathek-Streams. -->
+				<MediaPlayer
+					data-hl-exclude
+					:content="article.content || ''"
+					:category="article.category || null"
+					:poster-url="heroAndRestContent.heroImageUrl"
+					:caption="heroAndRestContent.heroCaption"
+					hero
+					@state-change="mediaPlayable = $event.playable" />
+
+				<!-- eslint-disable-next-line vue/no-v-html -->
+				<div data-hl-flatten v-html="heroAndRestContent.restHtml" />
+			</div>
 
 			<p v-if="footerByline" class="pav-footer-byline">– {{ footerByline }}</p>
 		</article>
@@ -168,6 +181,7 @@ import MediaPlayer from './MediaPlayer.vue'
 import { hideBrokenSupportBoxIcons, insertSupportBox } from '../support-box'
 import { appendAuthorBoxes, authorBoxEntries, hideBrokenAuthorPhotos } from '../author-box'
 import { mountInlineMedia, unmountInlineMedia } from '../inline-media'
+import { splitHeroContent } from '../hero-content'
 import PdfViewer from './PdfViewer.vue'
 
 // "Listen"-Button (Vorlesen per TTS) in der Public-Link-Ansicht. Vorerst aus;
@@ -260,6 +274,12 @@ export default {
 			return (this.article.siteName || this.articleDomain || '').trim()
 		},
 
+		// Zitate (blockquote) in der Akzentfarbe wie im ArticleReader, siehe
+		// article-body.css.
+		articleStyles() {
+			return { '--merlin-accent': this.article.accentColor || '#FF3B30' }
+		},
+
 		// Dachzeile in der Akzentfarbe des Nutzers (wie Dock und Fortschrittsbalken).
 		kickerStyle() {
 			return { color: this.article.accentColor || '#FF3B30' }
@@ -275,13 +295,15 @@ export default {
 				.join(', ')
 		},
 
-		// Artikeltext inkl. Support-Infobox (Abo-/Spendenlink der Quelle) und
+		// Hero/Rest-Split wie im ArticleReader (siehe hero-content.js); das
+		// Rest-HTML inkl. Support-Infobox (Abo-/Spendenlink der Quelle) und
 		// Autorenboxen am Ende (author-box.js). Seed der Support-Box ist
 		// der Titel, weil die Share-Antwort keine Artikel-ID enthält.
-		bodyHtml() {
-			const content = this.article?.content || ''
-			const withSupportBox = insertSupportBox(content, this.article?.supportBox, this.article?.title || '', this.t)
-			return appendAuthorBoxes(withSupportBox, this.article?.authors, this.article?.accentColor, this.t)
+		heroAndRestContent() {
+			const base = splitHeroContent(this.article?.content || '')
+			const withSupportBox = insertSupportBox(base.restHtml, this.article?.supportBox, this.article?.title || '', this.t)
+			const restHtml = appendAuthorBoxes(withSupportBox, this.article?.authors, this.article?.accentColor, this.t)
+			return { ...base, restHtml }
 		},
 
 		/** Durchreich-Endpunkt für die PDF eines PDF-Artikels (siehe PdfProxyService). */
@@ -655,6 +677,10 @@ export default {
 }
 </style>
 
+<!-- Darstellung des Artikeltexts wie im ArticleReader (Bilder, Bildunterschriften,
+	Zitate, Listen, Links, Embeds …), siehe article-body.css. -->
+<style scoped src="../article-body.css"></style>
+
 <style scoped>
 .public-article-view {
 	/* #content.app-public ist jetzt display:block (siehe oben) – width:100%
@@ -891,163 +917,6 @@ export default {
 .pav-body {
 	font-size: 1.1em;
 	line-height: 1.65;
-}
-
-.pav-body :deep(img) {
-	max-width: 100%;
-	height: auto;
-}
-
-/* Self-hosted <video> (GIF-Ersatz mancher Blogs, siehe sanitizeHtml()) bringt
-   keine sinnvolle Default-Breite mit – ohne diese Regel rendert es in seiner
-   nativen Pixelbreite und sprengt die Artikelspalte. */
-.pav-body :deep(video) {
-	max-width: 100%;
-	height: auto;
-	display: block;
-	margin: 2em auto;
-}
-
-/* Tabellen aus dem Artikel-HTML bringen oft feste Spaltenbreiten mit und
-   sprengen sonst die Artikelspalte statt zu umbrechen; block+auto-Scroll
-   hält sie innerhalb der Spaltenbreite. */
-.pav-body :deep(table) {
-	display: block;
-	max-width: 100%;
-	width: max-content;
-	overflow-x: auto;
-	margin: 2em 0;
-	border-collapse: collapse;
-}
-
-.pav-body :deep(th),
-.pav-body :deep(td) {
-	border: 1px solid var(--color-border);
-	padding: 0.5em 0.75em;
-}
-
-/* Medien-Marker samt Fallback-Link ausblenden, sobald der MediaPlayer
-   darüber die Quelle abspielt (siehe ArticleReader.vue). */
-.pav-body.has-native-media :deep(.merlin-media),
-.pav-body.has-native-media :deep(.merlin-video-fallback-link) {
-	display: none;
-}
-
-/* PDF-Marker + Fallback-Link: die PdfCard übernimmt die Darstellung. */
-.pav-body :deep(.merlin-pdf) {
-	display: none;
-}
-
-/* Video-Embeds (YouTube/Vimeo/Twitch/TikTok/Facebook/Arte), siehe
-   isAllowedVideoEmbedSrc() im Backend. */
-.pav-body :deep(iframe) {
-	display: block;
-	width: 100%;
-	max-width: 100%;
-	aspect-ratio: 16 / 9;
-	border: 0;
-	margin: 2em auto;
-}
-
-/* Instagram-/X-/Bluesky-/TikTok-Embeds (siehe isAllowedWidgetScriptSrc())
-   rendern sich nach dem Laden des Widget-Skripts selbst neu und bringen ihr
-   eigenes Kartendesign mit. */
-.pav-body :deep(blockquote.instagram-media),
-.pav-body :deep(blockquote.twitter-tweet),
-.pav-body :deep(blockquote.bluesky-embed),
-.pav-body :deep(blockquote.tiktok-embed) {
-	max-width: 100%;
-	overflow: hidden;
-	margin: 2em auto;
-}
-
-/* Mastodon-Post-Karte (siehe MastodonPostResolverService/
-   buildMastodonThreadHtml()): kein Drittanbieter-Widget wie Instagram/X/
-   Bluesky/TikTok (föderiert, kein zentraler Embed-Host), sondern eigenes,
-   statisches Markup - braucht deshalb echtes Styling. */
-.pav-body :deep(.merlin-mastodon-post) {
-	display: block;
-	border: 1px solid var(--color-border, #ccc);
-	border-radius: 8px;
-	padding: 1em 1.2em;
-	margin: 1.2em 0;
-	color: inherit;
-	font-style: normal;
-}
-
-.pav-body :deep(.merlin-mastodon-post + .merlin-mastodon-post) {
-	margin-top: 0.5em;
-}
-
-.pav-body :deep(.merlin-mastodon-post__header) {
-	display: flex;
-	align-items: center;
-	gap: 0.6em;
-	text-decoration: none;
-	color: inherit;
-	margin-bottom: 0.6em;
-}
-
-.pav-body :deep(.merlin-mastodon-post__avatar) {
-	width: 40px;
-	height: 40px;
-	border-radius: 50%;
-	object-fit: cover;
-	flex-shrink: 0;
-	margin: 0;
-}
-
-.pav-body :deep(.merlin-mastodon-post__author) {
-	display: flex;
-	flex-direction: column;
-	line-height: 1.3;
-	min-width: 0;
-}
-
-.pav-body :deep(.merlin-mastodon-post__name) {
-	font-weight: 600;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.pav-body :deep(.merlin-mastodon-post__handle) {
-	color: var(--color-text-lighter, #888);
-	font-size: 0.9em;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.pav-body :deep(.merlin-mastodon-post__content p) {
-	margin: 0.5em 0;
-}
-
-.pav-body :deep(.merlin-mastodon-post__content p:first-child) {
-	margin-top: 0;
-}
-
-.pav-body :deep(.merlin-mastodon-post__content p:last-child) {
-	margin-bottom: 0;
-}
-
-.pav-body :deep(.merlin-mastodon-post__media) {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-	gap: 0.5em;
-	margin-top: 0.6em;
-}
-
-.pav-body :deep(.merlin-mastodon-post__media-item) {
-	width: 100%;
-	height: 160px;
-	object-fit: cover;
-	border-radius: 4px;
-	margin: 0;
-}
-
-.pav-body :deep(p) {
-	margin: 1.4em 0;
 }
 
 .pav-body :deep(mark.merlin-highlight) {
