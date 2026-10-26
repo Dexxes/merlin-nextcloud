@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<domain name="medium.com">
+
+  <pre-filter>
+    <remove xpath="//span[text()='Press enter or click to view image in full size']" />
+    <remove xpath="//h2[text()='Like this:']" />
+    <remove xpath="//h2[text()='Related']" />
+    <remove xpath="//p[text()='Like Loading…']" />
+  </pre-filter>
+
+  <post-filter>
+    <!-- Hier post-Readability-Remove-Regeln eintragen -->
+  </post-filter>
+
+  <metadata>
+    <!-- Beispiele:<author xpath="////header//a[contains(@href, 'https://www.akweb.de/autor-in/')]/text()"/>
+    <title    xpath="//h1[@class='article-title']" />
+    <author   xpath="//span[@class='author-name']" />
+    <excerpt  xpath="//p[@class='article-intro']" />
+    <image    xpath="//meta[@property='og:image']/@content" />
+    <published xpath="//time[@itemprop='datePublished']/@datetime" />
+    -->
+  </metadata>
+
+</domain>
