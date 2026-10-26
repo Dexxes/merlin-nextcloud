@@ -7,6 +7,12 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- spiegel.de: author box at the end of the article with name and profile link
+  for every author in the byline (`/impressum/autor-…`). Columns take photo
+  and bio from the byline and the "Zum Autor" box in the text (which no longer
+  shows up inside the article); other articles load them from the author page.
+  Agency reports without an author link get no box. SPIEGEL avatars are
+  requested at 144 px instead of the embedded 56–96 px.
 - medium.com: author box at the end of the article with name, profile link
   (`medium.com/@handle`, from `article:author`/JSON-LD), photo and short bio
   from the "Written by" box below the article (photo falls back to the byline
