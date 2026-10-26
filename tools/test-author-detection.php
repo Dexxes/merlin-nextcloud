@@ -703,6 +703,64 @@ $check(
 	$a('Bea Bild') + ['authors' => null]
 );
 
+echo "\n\033[1mmedium.com: Byline und Kasten \"Written by\"\033[0m\n";
+
+// Echte Filterdatei, nachgebautes Medium-Markup (die Seite blockt Abrufe aus
+// der Testumgebung): Byline mit data-testid="authorPhoto", Kasten unter dem
+// Artikel mit ?source=post_page---post_author_info--…-Links.
+$mediumConfig = preg_replace('/<domain name="[^"]*"/', '<domain name="example.com"', (string) file_get_contents(__DIR__ . '/../content-filters/medium.com.xml'));
+$mediumSrc    = '?source=post_page---post_author_info--b405357e1198---------------------------------------';
+$mediumPage   = fn (string $byline, string $box): string =>
+	'<html><head><meta name="author" content="Guy Phenix"><meta property="article:author" content="https://medium.com/@GuyPhenix">'
+	. '<script type="application/ld+json">{"@context":"http://schema.org","@type":"NewsArticle","headline":"That Time The X-Files &amp; Twin Peaks Merged","author":{"@type":"Person","name":"Guy Phenix","url":"https://medium.com/@GuyPhenix"},"creator":["Guy Phenix"],"publisher":{"@type":"Organization","name":"Medium","url":"https://medium.com/"}}</script>'
+	. '</head><body><div id="root"><article><div class="l"><section><div><h1 data-testid="storyTitle">That Time The X-Files &amp; Twin Peaks Merged</h1>'
+	. '<div class="speechify-ignore ab cp">' . $byline . '</div>'
+	. '<p class="pw-post-body-paragraph">Artikeltext.</p></div></section></div></article>'
+	. $box . '</div></body></html>';
+$mediumByline = '<div class="ab"><a href="/@GuyPhenix?source=post_page---byline--b405357e1198---------------------------------------" rel="noopener follow">'
+	. '<div class="m fn dc"><div class="m dz"><img alt="Guy Phenix" class="m eu bw ff fg dp" src="https://miro.medium.com/v2/resize:fill:64:64/1*Gp3x_AbC.jpeg" width="32" height="32" loading="lazy" data-testid="authorPhoto"></div></div></a>'
+	. '<div class="ab q"><span><a class="ag ah" data-testid="authorName" href="/@GuyPhenix?source=post_page---byline--b405357e1198---------------------------------------" rel="noopener follow">Guy Phenix</a></span></div></div>';
+$mediumBox = fn (string $bio): string =>
+	'<div class="ou ov ow ox oy"><div class="ab co"><div class="ab"><a href="/@GuyPhenix' . $mediumSrc . '" rel="noopener follow">'
+	. '<div class="m pa"><img alt="Guy Phenix" class="m eu bw pb pc dp" src="https://miro.medium.com/v2/resize:fill:96:96/1*Gp3x_AbC.jpeg" width="48" height="48" loading="lazy"></div></a></div>'
+	. '<div class="ab pd"><button class="be b">Follow</button></div></div>'
+	. '<div class="pe"><div class="ab"><a href="/@GuyPhenix' . $mediumSrc . '" rel="noopener follow"><h2 class="be uu uv"><span class="">Written by Guy Phenix</span></h2></a></div>'
+	. '<div class="ab"><span class="pi"><a href="/@GuyPhenix/followers' . $mediumSrc . '" rel="noopener follow">1.4K followers</a></span>'
+	. '<span>·</span><a href="/@GuyPhenix/following' . $mediumSrc . '" rel="noopener follow">190 following</a></div>'
+	. $bio . '</div></div>'
+	. '<div class="ap"><h2 class="be">No responses yet</h2><p class="be b">What are your thoughts?</p></div>';
+
+$check(
+	'medium.com: Foto (größere Variante) und Bio aus dem Kasten "Written by", Link aus JSON-LD',
+	$mediumPage($mediumByline, $mediumBox('<div class="pj"><p class="be b dy"><span class="m">Writer, podcaster &amp; lifelong fan of all things weird.</span></p></div>')),
+	$mediumConfig,
+	$a('Guy Phenix', 'https://medium.com/@GuyPhenix') + ['authors' => [
+		['name' => 'Guy Phenix', 'url' => 'https://medium.com/@GuyPhenix',
+			'image' => 'https://miro.medium.com/v2/resize:fill:176:176/1*Gp3x_AbC.jpeg',
+			'bio' => 'Writer, podcaster & lifelong fan of all things weird.'],
+	]]
+);
+
+$check(
+	'medium.com: Kasten ohne Bio -> keine Bio, kein fremder Absatz',
+	$mediumPage($mediumByline, $mediumBox('')),
+	$mediumConfig,
+	$a('Guy Phenix', 'https://medium.com/@GuyPhenix') + ['authors' => [
+		['name' => 'Guy Phenix', 'url' => 'https://medium.com/@GuyPhenix',
+			'image' => 'https://miro.medium.com/v2/resize:fill:176:176/1*Gp3x_AbC.jpeg'],
+	]]
+);
+
+$check(
+	'medium.com: ohne Kasten -> Foto aus der Byline',
+	$mediumPage($mediumByline, ''),
+	$mediumConfig,
+	$a('Guy Phenix', 'https://medium.com/@GuyPhenix') + ['authors' => [
+		['name' => 'Guy Phenix', 'url' => 'https://medium.com/@GuyPhenix',
+			'image' => 'https://miro.medium.com/v2/resize:fill:176:176/1*Gp3x_AbC.jpeg'],
+	]]
+);
+
 echo "\n" . str_repeat('─', 72) . "\n";
 if ($failures === []) {
 	echo "\033[32mAlle " . $passed . " Prüfungen bestanden.\033[0m\n";
