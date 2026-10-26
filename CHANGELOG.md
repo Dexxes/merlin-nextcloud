@@ -87,6 +87,10 @@ All notable changes to Merlin are documented here. Format based on
   badge.
 
 ### Fixed
+- Quotes wrapped in a `<figure>` (`<figure><blockquote>…</blockquote>
+  <figcaption><cite>Source</cite></figcaption></figure>`, e.g. swr.de's
+  `figure.quote`) are now recognised as one quote: the figcaption becomes the
+  quote's source and the figure wrapper is dropped.
 - Tiny images in the reader: responsive images (`srcset` with width
   descriptors) lose their `width`/`height` attributes during sanitizing.
   Those only describe the smallest variant (swr.de sets `width="160"` on a
