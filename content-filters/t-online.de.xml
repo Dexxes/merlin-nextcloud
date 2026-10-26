@@ -42,7 +42,7 @@
   </post-filter>
 
   <metadata>
-    <author   xpath="//span[@data-tb-author]" />
+    <author   xpath="//div[@data-external-tb-readmore='Article']//span[@data-tb-author]" />
     <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
     <author   xpath="//span[@class='author-name']" />
