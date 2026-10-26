@@ -87,6 +87,12 @@ All notable changes to Merlin are documented here. Format based on
   badge.
 
 ### Fixed
+- Tiny images in the reader: responsive images (`srcset` with width
+  descriptors) lose their `width`/`height` attributes during sanitizing.
+  Those only describe the smallest variant (swr.de sets `width="160"` on a
+  720 px image), and since `srcset` itself is dropped, the reader showed the
+  image at 160 px. Images with `x` density descriptors keep their size.
+  Already saved articles are fixed when they are fetched again.
 - Teaser no longer repeated in the article text: when one of the first three
   paragraphs duplicates the excerpt (og:description or `<metadata><excerpt>`),
   it is removed from the content, since the clients already show the excerpt

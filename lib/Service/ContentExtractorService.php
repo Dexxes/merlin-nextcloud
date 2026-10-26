@@ -5844,6 +5844,9 @@ class ContentExtractorService {
 		// bevor wir es je zu Gesicht bekommen.
 		$this->resolvePictureElements($dom);
 
+		// Ebenfalls vor dem Allowlist-Durchlauf, weil er `srcset` braucht.
+		$this->dropResponsiveImageDimensions($dom);
+
 		// Läuft hier statt als eigener Pipeline-Schritt, weil der Content dafür
 		// sonst ein zweites Mal komplett geparst werden müsste – und weil erst
 		// jetzt ALLE Bildunterschriften im Baum stehen (die aus der Quellseite,
@@ -6348,6 +6351,29 @@ class ContentExtractorService {
 
 			$picture->removeChild($img);
 			$picture->parentNode->replaceChild($img, $picture);
+		}
+	}
+
+	/**
+	 * Entfernt width/height an <img>-Elementen mit `srcset` in "Nw"-Breiten.
+	 *
+	 * Bei solchen responsiven Bildern bestimmt auf der Quellseite das CSS
+	 * (zusammen mit `sizes`) die Darstellungsgröße; width/height sind dort nur
+	 * Seitenverhältnis bzw. die Maße der kleinsten Variante. swr.de etwa setzt
+	 * width="160" height="90" an ein 720px breites Bild. Da `srcset` die
+	 * Allowlist nicht passiert, bliebe im Reader nur die feste Breite von
+	 * 160px übrig. Ohne die Attribute gilt die Reader-Regel (max-width: 100%,
+	 * height: auto) und das Bild erscheint in seiner tatsächlichen Größe.
+	 *
+	 * Bilder mit "x"-Pixeldichte-Deskriptoren (z. B. Icons in 2x) behalten
+	 * ihre Maße: dort sind width/height die gewollte Darstellungsgröße.
+	 */
+	private function dropResponsiveImageDimensions(\DOMDocument $dom): void {
+		foreach ($dom->getElementsByTagName('img') as $img) {
+			if ($img instanceof \DOMElement && preg_match('/\s\d+w\s*(,|$)/', $img->getAttribute('srcset')) === 1) {
+				$img->removeAttribute('width');
+				$img->removeAttribute('height');
+			}
 		}
 	}
 
