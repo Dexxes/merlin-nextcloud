@@ -522,6 +522,20 @@ $checkMatch(
 );
 
 $checkMatch(
+	'medium.com: og:image (resize:fit:1200) vs. <picture>-Variante (resize:fit:1400/format:webp), gleiche Bild-ID',
+	'https://miro.medium.com/v2/resize:fit:1400/format:webp/1*Ab3dE_fG.jpeg',
+	'https://miro.medium.com/v2/resize:fit:1200/1*Ab3dE_fG.jpeg',
+	true
+);
+
+$checkMatch(
+	'medium.com: andere Bild-ID matcht nicht',
+	'https://miro.medium.com/v2/resize:fit:1400/format:webp/1*Ab3dE_fG.jpeg',
+	'https://miro.medium.com/v2/resize:fit:1200/1*Xy9zZ_qQ.jpeg',
+	false
+);
+
+$checkMatch(
 	'zeit.de-Bildserver: Fullwidth-Kopfbild "super__767x511" vs. og:image "wide__1300x731" derselben Aufnahme',
 	'https://img.zeit.de/feuilleton/2026-07/uwe-steimler-afd-diskursverchiebung-bild/super__767x511',
 	'https://img.zeit.de/feuilleton/2026-07/uwe-steimler-afd-diskursverchiebung-bild/wide__1300x731',

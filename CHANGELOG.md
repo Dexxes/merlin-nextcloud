@@ -87,6 +87,12 @@ All notable changes to Merlin are documented here. Format based on
   badge.
 
 ### Fixed
+- Medium articles keep all their images, not only the hero image. Medium
+  puts the image URLs only on the `<source>` elements of a `<picture>`; the
+  fallback `<img>` has no `src`, and Readability removed it as a lazy-load
+  placeholder. Such an `<img>` now gets the widest `srcset` candidate as its
+  `src` before Readability runs. The hero image's caption is also matched
+  again across Medium's size and format variants.
 - Quotes wrapped in a `<figure>` (`<figure><blockquote>…</blockquote>
   <figcaption><cite>Source</cite></figcaption></figure>`, e.g. swr.de's
   `figure.quote`) are now recognised as one quote: the figcaption becomes the
