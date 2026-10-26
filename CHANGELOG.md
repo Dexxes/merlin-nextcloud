@@ -7,6 +7,11 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- swr.de: new content filter with a `<media>` source, so SWR articles and
+  podcast pages (e.g. SWR1 "Meilensteine") get their audio as a player above
+  the text. The mp3 comes from the schema.org microdata of the page's
+  `figure.asset-audio` or the `twitter:player:stream` meta tag when it is
+  declared as audio, limited to `ard-mcdn.de`/`swr.de`.
 - Copy highlighted text: the menu of a highlight (click or right-click, in
   articles, PDFs and on public share pages) has a new "Copy text" entry that
   puts the highlighted passage into the clipboard and confirms it with a
