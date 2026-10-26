@@ -82,6 +82,14 @@ All notable changes to Merlin are documented here. Format based on
   badge.
 
 ### Fixed
+- Teaser no longer repeated in the article text: when one of the first three
+  paragraphs duplicates the excerpt (og:description or `<metadata><excerpt>`),
+  it is removed from the content, since the clients already show the excerpt
+  above the article. Paragraph and excerpt must cover each other almost fully
+  (85 % of the words in both directions, soft hyphens ignored), so a real first
+  paragraph that only starts like the excerpt is kept. The comparison uses the
+  untruncated excerpt. taz.de additionally drops the teaser in its new layout
+  (`typo-subline-detail`) via a pre-filter (e.g. https://taz.de/!vn6218101/).
 - Highlighting a selection that was extended after letting go (selection
   handles on touch devices, Shift+arrow keys) now colours and saves the whole
   selection instead of only the part selected at first.

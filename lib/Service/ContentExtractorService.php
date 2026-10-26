@@ -394,6 +394,11 @@ class ContentExtractorService {
 		// unveränderten HTML lesen, JSON-LD/Player-Payloads stehen in <script>.
 		$mediaDurationMinutes = $this->extractMediaDurationMinutes($rawHtml);
 
+		// Ungekürzter Teaser für den Abgleich in stripDuplicateMetadata(): die
+		// 300-Zeichen-Kürzung unten würde sonst jeden längeren Teaser zu einem
+		// bloßen Präfix des Absatzes im Content machen.
+		$fullExcerpt = !empty($domainMeta['excerpt']) ? $domainMeta['excerpt'] : null;
+
 		//When the excerpt is too long, short it
 		if(isset($domainMeta) && key_exists("excerpt", $domainMeta) && strlen($domainMeta['excerpt']) > 300)
 			$domainMeta['excerpt'] = substr($domainMeta['excerpt'],0,300) . "...";
@@ -945,7 +950,11 @@ class ContentExtractorService {
 			}
 		}
 
-		$content = $this->stripDuplicateMetadata($content, $title, $excerpt);
+		$content = $this->stripDuplicateMetadata(
+			$content,
+			$title,
+			($fullExcerpt !== null && $excerpt === $domainMeta['excerpt']) ? $fullExcerpt : $excerpt
+		);
 
 		// ── Step 13: HTML-Sanitizing (XSS-Schutz) ──────────────────────────────
 		// Letzter Schritt vor der Rückgabe: Der Inhalt wird im Web-Reader und in
@@ -6874,8 +6883,10 @@ class ContentExtractorService {
 	 * Matching is intentionally fuzzy:
 	 *   - Heading: ≥ 70 % of its normalised words appear in the normalised title.
 	 *     Handles shortened headings (e.g. taz.de omits the kicker prefix).
-	 *   - Teaser paragraph: ≥ 75 % word-overlap in either direction with the
-	 *     excerpt (og:description / meta description).
+	 *   - Teaser paragraph: see removeTeaserParagraph(); the paragraph and the
+	 *     excerpt must largely cover each other, so a real first paragraph that
+	 *     merely starts like the excerpt (sites that auto-fill og:description
+	 *     from the body) is kept.
 	 *
 	 * Both checks are limited to the first few occurrences so that legitimate
 	 * sub-headings and body paragraphs deep in the article are never touched.
@@ -6947,6 +6958,11 @@ class ContentExtractorService {
 			}
 		}
 
+		// --- Pass 2: teaser paragraph that duplicates the excerpt -----------
+		if ($this->removeTeaserParagraph($xpath, $body, (string) $excerpt)) {
+			$changed = true;
+		}
+
 		if (!$changed) {
 			return $content;
 		}
@@ -6959,12 +6975,87 @@ class ContentExtractorService {
 	}
 
 	/**
+	 * Remove the first leading <p> whose text duplicates the excerpt
+	 * (og:description / <metadata><excerpt>), e.g. the taz.de subline that
+	 * Readability keeps in the body.
+	 *
+	 * Only the first three non-empty paragraphs outside figures/quotes are
+	 * looked at. A paragraph counts as duplicate when, after normalisation,
+	 *   - it equals the excerpt, or
+	 *   - ≥ 85 % of its words are in the excerpt AND ≥ 85 % of the excerpt's
+	 *     words are in it (both directions, so neither side may carry much
+	 *     text the other lacks).
+	 * A trailing ellipsis ("…"/"...") is ignored, but the two-way rule still
+	 * applies: losing body text is worse than showing a teaser twice. The
+	 * caller passes the untruncated excerpt where it has one. Excerpts under
+	 * five words are ignored to avoid removing short legitimate paragraphs.
+	 */
+	private function removeTeaserParagraph(\DOMXPath $xpath, \DOMNode $body, string $excerpt): bool {
+		$excerpt = (string) preg_replace('/(\.\.\.|…)\s*$/u', '', trim($excerpt));
+		$normalExcerpt = $this->normalizeForComparison($excerpt);
+		$excerptWords  = array_values(array_filter(explode(' ', $normalExcerpt), 'strlen'));
+		if (count($excerptWords) < 5) {
+			return false;
+		}
+
+		$checked = 0;
+		$paras = $xpath->query('.//p[not(ancestor::figure) and not(ancestor::blockquote) and not(ancestor::figcaption)]', $body);
+		foreach ($paras ?: [] as $para) {
+			$normalPara = $this->normalizeForComparison($para->textContent);
+			if ($normalPara === '') {
+				continue;
+			}
+			if (++$checked > 3) {
+				break;
+			}
+
+			$match = ($normalPara === $normalExcerpt);
+			if (!$match) {
+				$paraWords = array_values(array_filter(explode(' ', $normalPara), 'strlen'));
+				$match = $this->wordCoverage($paraWords, $excerptWords) >= 0.85
+					&& $this->wordCoverage($excerptWords, $paraWords) >= 0.85;
+			}
+
+			if ($match) {
+				$para->parentNode?->removeChild($para);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Share of the words in $words (with multiplicity) that also occur in
+	 * $other, each occurrence in $other used at most once.
+	 *
+	 * @param list<string> $words
+	 * @param list<string> $other
+	 */
+	private function wordCoverage(array $words, array $other): float {
+		if ($words === []) {
+			return 0.0;
+		}
+		$pool = array_count_values($other);
+		$hits = 0;
+		foreach ($words as $word) {
+			if (($pool[$word] ?? 0) > 0) {
+				$pool[$word]--;
+				$hits++;
+			}
+		}
+		return $hits / count($words);
+	}
+
+	/**
 	 * Normalise a string for text-similarity comparison:
 	 * strip HTML tags, decode entities, lowercase, remove punctuation,
 	 * collapse whitespace.
 	 */
 	private function normalizeForComparison(string $text): string {
 		$text = html_entity_decode(strip_tags($text), ENT_QUOTES, 'UTF-8');
+		// Soft hyphens and zero-width characters (taz.de: "Abon&shy;nen&shy;t:innen")
+		// would otherwise split words on one side only.
+		$text = (string) preg_replace('/[\x{00AD}\x{200B}-\x{200D}\x{2060}\x{FEFF}]/u', '', $text);
 		$text = mb_strtolower($text, 'UTF-8');
 		// Keep only Unicode letters, digits and spaces
 		$text = (string) preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $text);
