@@ -3383,6 +3383,7 @@ class ContentExtractorService {
 				if (str_contains($class, 'merlin-quote')) continue; // already processed
 
 				$bq->setAttribute('class', trim('merlin-quote ' . $class));
+				$this->unwrapQuoteFigure($dom, $bq);
 				$this->normalizeBlockquoteAttribution($dom, $bq);
 			}
 
@@ -3469,6 +3470,52 @@ class ContentExtractorService {
 			if ($n === $ancestor) return true;
 		}
 		return false;
+	}
+
+	/**
+	 * Löst ein Zitat der Form
+	 * <figure><blockquote>…</blockquote><figcaption><cite>Quelle</cite></figcaption></figure>
+	 * (z. B. swr.de: figure.quote > blockquote.quote-blockquote + figcaption.quote-footer)
+	 * auf: Die Bildunterschrift wird als Quelle in das <blockquote> übernommen und
+	 * das <figure> durch das <blockquote> ersetzt. Greift nur, wenn das <figure>
+	 * außer Leerraum genau dieses <blockquote> und höchstens eine <figcaption> enthält.
+	 */
+	private function unwrapQuoteFigure(\DOMDocument $dom, \DOMElement $bq): void {
+		$figure = $bq->parentNode;
+		if (!$figure instanceof \DOMElement || strtolower($figure->nodeName) !== 'figure') return;
+
+		$caption = null;
+		foreach ($figure->childNodes as $child) {
+			if ($child === $bq) continue;
+			if ($child instanceof \DOMElement) {
+				if (strtolower($child->nodeName) !== 'figcaption' || $caption !== null) return;
+				$caption = $child;
+			} elseif ($child instanceof \DOMText && trim($child->textContent) !== '') {
+				return;
+			}
+		}
+
+		if ($caption !== null && trim(str_replace("\u{00A0}", ' ', $caption->textContent)) !== '') {
+			// <figcaption><cite>…</cite></figcaption> → das <cite> direkt übernehmen,
+			// sonst den Inhalt als <footer> anhängen (wird später zur Quelle).
+			$els = [];
+			$hasText = false;
+			foreach ($caption->childNodes as $c) {
+				if ($c instanceof \DOMElement) $els[] = $c;
+				elseif (trim($c->textContent) !== '') $hasText = true;
+			}
+			if (!$hasText && count($els) === 1 && strtolower($els[0]->nodeName) === 'cite') {
+				$source = $els[0];
+			} else {
+				$source = $dom->createElement('footer');
+				while ($caption->firstChild) {
+					$source->appendChild($caption->firstChild);
+				}
+			}
+			$bq->appendChild($source);
+		}
+
+		$figure->parentNode?->replaceChild($bq, $figure);
 	}
 
 	/**
