@@ -14,9 +14,23 @@
   </post-filter>
 
   <metadata>
-    <!-- Beispiele:<author xpath="////header//a[contains(@href, 'https://www.akweb.de/autor-in/')]/text()"/>
+    <!-- Autorenbox am Artikelende. Name und Profil-Link (https://medium.com/@handle)
+         liefern schon article:author bzw. das JSON-LD (author.name/author.url).
+         Foto: bevorzugt aus dem Kasten "Written by …" unter dem Artikel (Links mit
+         ?source=post_page-…-post_author_info-…), sonst das kleine Byline-Foto oben
+         (img data-testid="authorPhoto"). Die miro-URLs tragen eine feste Größe
+         (resize:fill:64:64), Merlin fordert eine größere Variante an.
+         Bio: der Textabsatz im selben Kasten hinter der Überschrift "Written by …"
+         (h2 im bzw. um den post_author_info-Link), Absätze mit Links (Follower-/
+         Following-Zahlen) bleiben weg. Der Kasten ist der Bereich um diese
+         Überschrift, der keine weitere h2 enthält; so rutscht ohne Bio kein
+         Absatz aus den Kommentaren oder Empfehlungen darunter hinein, die Box
+         zeigt dann nur Foto, Name und Link. -->
+    <author-image xpath="//a[contains(@href,'post_author_info')]//img[contains(@src,'miro.medium.com')]" />
+    <author-image xpath="//img[@data-testid='authorPhoto']" />
+    <author-bio   xpath="//h2[ancestor::a[contains(@href,'post_author_info')] or .//a[contains(@href,'post_author_info')]]/ancestor::div[count(.//h2) = 1][.//p[not(.//a)][normalize-space()]][1]//p[not(.//a)][normalize-space()][preceding::h2[ancestor::a[contains(@href,'post_author_info')] or .//a[contains(@href,'post_author_info')]]]" />
+    <!-- Beispiele:
     <title    xpath="//h1[@class='article-title']" />
-    <author   xpath="//span[@class='author-name']" />
     <excerpt  xpath="//p[@class='article-intro']" />
     <image    xpath="//meta[@property='og:image']/@content" />
     <published xpath="//time[@itemprop='datePublished']/@datetime" />

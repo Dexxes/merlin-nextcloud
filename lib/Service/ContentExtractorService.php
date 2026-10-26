@@ -4998,6 +4998,9 @@ class ContentExtractorService {
 		return [];
 	}
 
+	/** Kantenlänge (px), in der Medium-Autorenfotos angefordert werden (Box: 5em, Retina). */
+	private const AUTHOR_IMAGE_MEDIUM_SIZE = 176;
+
 	/** Längere Kurzbiografien werden abgeschnitten (Autorenbox, nicht Autorenseite). */
 	private const AUTHOR_BIO_MAX_LENGTH = 1000;
 
@@ -5131,6 +5134,12 @@ class ContentExtractorService {
 		$url = $this->normalizeAuthorUrl($src, $baseUrl);
 		if ($url === null) {
 			return null;
+		}
+		// Medium (miro.medium.com) liefert Autorenfotos in fester Größe
+		// (".../v2/resize:fill:64:64/1*abc.jpeg"); für die Autorenbox eine
+		// größere Variante desselben Bilds anfordern.
+		if (strtolower((string) parse_url($url, PHP_URL_HOST)) === 'miro.medium.com') {
+			$url = (string) preg_replace('#/resize:fill:\d+:\d+(?=/)#', '/resize:fill:' . self::AUTHOR_IMAGE_MEDIUM_SIZE . ':' . self::AUTHOR_IMAGE_MEDIUM_SIZE, $url);
 		}
 		return (string) preg_replace('#^http://#i', 'https://', $url);
 	}

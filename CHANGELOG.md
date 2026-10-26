@@ -7,6 +7,11 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- medium.com: author box at the end of the article with name, profile link
+  (`medium.com/@handle`, from `article:author`/JSON-LD), photo and short bio
+  from the "Written by" box below the article (photo falls back to the byline
+  avatar). Medium avatars are requested in a larger size than the 64 px the
+  page embeds.
 - swr.de: new content filter with a `<media>` source, so SWR articles and
   podcast pages (e.g. SWR1 "Meilensteine") get their audio as a player above
   the text. The mp3 comes from the schema.org microdata of the page's
