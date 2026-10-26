@@ -294,6 +294,39 @@ namespace {
 	$t->eq($save['result']?->defaultUrl(), 'https://rbbmediapmdp-a.akamaihd.net/content/1e/4e/x_mp3-256k.mp3', 'rbb24: fremder Host übersprungen, nächstes Objekt gewinnt');
 
 	// ══════════════════════════════════════════════════════════════════════════
+	$t->group('4b. swr.de: Audio aus den schema.org-Mikrodaten');
+
+	// Nachbau der SWR-Struktur (swr1/podcast/die-aerzte-le-frisur-100.html):
+	// Playerbar im Kopf und Teaser auf andere Folgen mit eigenem <audio>, das
+	// Beitrags-Audio steht als AudioObject in figure.asset-audio.
+	$swrEpisode = 'https://swr-pd.ard-mcdn.de/swr/swr1/podcast/meilensteine/2323105.mp3';
+	$swrPage = static fn (string $head, string $figure): string => '<html><head>' . $head . '</head><body>
+		<div class="playerbar"><audio controls><source src="https://liveradio.swr.de/sw282p3/swr1bw/play.mp3"></audio></div>
+		<article class="detail" id="audio" itemscope itemtype="https://schema.org/Article">
+		<div class="container detail-body">' . $figure . '
+			<div class="bodytext"><p>Text.</p></div>
+		</div></article>
+		<div class="teaser" data-config="https://www.swr.de/~mediaplayer/swr1/podcast/andere-folge-102.json"><audio controls><source src="https://swr-pd.ard-mcdn.de/swr/swr1/podcast/meilensteine/1111111.mp3"></audio></div>
+	</body></html>';
+	$swrFigure = '<figure class="asset asset-audio" itemscope itemprop="isPartOf" itemtype="https://schema.org/AudioObject">
+		<link itemprop="thumbnailUrl" href="https://images.swr.de/image/x/16x9-L/cover.jpg">
+		<link itemprop="contentUrl" href="' . $swrEpisode . '"/>
+		<div class="audio-player"><audio controls><source src="' . $swrEpisode . '" type="audio/mpeg"/></audio></div>
+	</figure>';
+	$swrStream = static fn (string $url, string $type): string => '<meta name="twitter:player:stream" content="' . $url . '"><meta name="twitter:player:stream:content_type" content="' . $type . '">';
+
+	$swrConfig = $bundleConfig('swr.de');
+	$t->ok($swrConfig !== null && isset($swrConfig->media->source), 'swr.de.xml deklariert eine <media><source>');
+	$save = $resolver->resolveOnSave('https://www.swr.de/swr1/podcast/die-aerzte-le-frisur-100.html', $swrConfig, $swrPage('', $swrFigure));
+	$t->eq([$save['kind'] ?? null, $save['result']?->delivery, $save['result']?->defaultUrl()], ['audio', 'file', $swrEpisode], 'swr: contentUrl der figure.asset-audio, nicht Playerbar oder Teaser');
+	$save = $resolver->resolveOnSave('https://www.swr.de/a.html', $swrConfig, $swrPage($swrStream($swrEpisode, 'audio/mpeg'), ''));
+	$t->eq($save['result']?->defaultUrl(), $swrEpisode, 'swr: ohne Mikrodaten → Twitter-Player-Stream (audio/*)');
+	$save = $resolver->resolveOnSave('https://www.swr.de/a.html', $swrConfig, $swrPage($swrStream('https://swr-pd.ard-mcdn.de/swr/x.mp4', 'video/mp4'), ''));
+	$t->eq($save, null, 'swr: Video-Stream im Kopf wird nicht als Audio übernommen');
+	$save = $resolver->resolveOnSave('https://www.swr.de/a.html', $swrConfig, $swrPage('', str_replace($swrEpisode, 'https://evil.example/x.mp3', $swrFigure)));
+	$t->eq($save, null, 'swr: fremder Host wird verworfen');
+
+	// ══════════════════════════════════════════════════════════════════════════
 	$t->group('5. Marker: bauen, parsen, Mediathek-Provider erst beim Öffnen');
 
 	$fileResult = MediaResult::single('audio', 'file', 'https://ondemand-mp3.dradio.de/a.mp3');
@@ -437,6 +470,7 @@ namespace {
 			['https://www.tagesschau.de/tagesschau_in_100_sekunden/video-1656878.html', 'tagesschau.de', 'video', 'file'],
 			['https://www.tagesschau.de/multimedia/audio/audio-3503736.html', 'tagesschau.de', 'audio', 'file'],
 			['https://www.rbb24.de/panorama/av/av24/forscher-aus-senftenberg-entwickeln-sternestaub-fuer-supercomput.html', 'rbb24.de', 'video', 'file'],
+			['https://www.swr.de/swr1/podcast/die-aerzte-le-frisur-100.html', 'swr.de', 'audio', 'file'],
 		];
 		foreach ($liveCases as [$url, $domain, $kind, $delivery]) {
 			$config = $bundleConfig($domain);

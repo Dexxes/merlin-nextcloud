@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Merlin Content-Filter: swr.de
+  Siehe $sample.com.xml für alle verfügbaren Optionen.
+-->
+<domain name="swr.de">
+  <!-- Aufmacher-Audio (Kategorie wird automatisch "Mixed", wenn eins gefunden
+       wird). SWR liefert kein JSON-LD, das Audio steht als schema.org-
+       Mikrodaten in der figure.asset-audio im Artikelrumpf (div.detail-body):
+       <link itemprop="contentUrl" href="…mp3">, die Datei liegt auf
+       swr-pd.ard-mcdn.de. Playerbar und Teaser auf andere Folgen tragen
+       eigene <audio>-Elemente und zählen deshalb nicht.
+       Zweiter Zweig: der Twitter-Player-Stream im Kopf, aber nur, wenn er als
+       audio/* ausgewiesen ist (Videoseiten bleiben so außen vor). Beide
+       zeigen auf dieselbe Datei; es gilt der erste Treffer im Dokument, der
+       host-allow erfüllt. Nur EINE xpath-Quelle, weil <source> beim Merge je
+       type ersetzt wird. -->
+  <media>
+    <source type="xpath" kind="audio"
+            xpath="//meta[@name='twitter:player:stream'][../meta[@name='twitter:player:stream:content_type'][starts-with(@content,'audio/')]]/@content | //div[contains(@class,'detail-body')]//figure[contains(@class,'asset-audio')]//link[@itemprop='contentUrl']/@href"
+            host-allow="ard-mcdn.de swr.de" />
+  </media>
+</domain>
