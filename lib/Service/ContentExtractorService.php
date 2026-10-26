@@ -454,6 +454,12 @@ class ContentExtractorService {
 		// DOM-Roundtrip zu entfernen umgeht den Bug, statt ihn zu reparieren.
 		$rawHtml = $this->stripScriptAndStyleTags($rawHtml);
 
+		// Muss VOR Readability laufen: dessen unwrapNoscriptImages() wirft
+		// jedes <img> ohne src/srcset/data-src weg, auch das Fallback-<img>
+		// eines <picture>, dessen Bildquellen nur in den <source>-Kindern
+		// stehen (z. B. medium.com). Siehe fillEmptyPictureFallbacks().
+		$rawHtml = $this->fillEmptyPictureFallbacks($rawHtml);
+
 		// ── Step 2e: Inline-Videos ───────────────────────────────────────────
 		// Videos mitten im Text (<media><inline>, z. B. der ARD-Player bei
 		// rbb24.de) werden VOR der Caption-Normalisierung und den Pre-Filtern
@@ -2008,6 +2014,15 @@ class ContentExtractorService {
 			// "[^/]*" (auch 0 Zeichen), nicht "[^/]+". Das Segment entfernen,
 			// damit beide auf denselben Pfad unter "files/" normalisieren.
 			$url = preg_replace('#/styles/[^/]*/public(?=/)#i', '', $url) ?? $url;
+
+			// Medium-Bildserver (miro.medium.com): Größe und Format stehen als
+			// "schlüssel:wert"-Pfadsegmente hinter "/v2", z. B.
+			// ".../v2/resize:fit:1200/1*abc.jpeg" (og:image) vs.
+			// ".../v2/resize:fit:1400/format:webp/1*abc.jpeg" (<picture>-
+			// <source>, siehe fillEmptyPictureFallbacks()), bei GIFs zusätzlich
+			// "da:true". Die Segmente entfernen, damit beide auf die Bild-ID
+			// normalisieren.
+			$url = preg_replace('#/v2(?:/[a-z]+:[^/]+)+(?=/)#i', '/v2', $url) ?? $url;
 
 			// Die Rendition oben hängt zusätzlich das Zielformat als weitere
 			// Endung an die ursprüngliche Dateiendung an (z. B. ".jpeg.webp"
@@ -6422,6 +6437,64 @@ class ContentExtractorService {
 				$img->removeAttribute('height');
 			}
 		}
+	}
+
+	/**
+	 * Gibt dem Fallback-<img> eines <picture> ein src, wenn es selbst keine
+	 * Bildquelle trägt und die Bilder nur in den <source srcset> stehen.
+	 *
+	 * medium.com liefert jedes Artikelbild so aus:
+	 * <picture><source srcset="… 640w, … 1400w" type="image/webp">
+	 * <source srcset="… 640w, … 1400w"><img alt="" width="700" …></picture>.
+	 * Readabilitys unwrapNoscriptImages() entfernt ein <img> ohne
+	 * src/srcset/data-src/data-srcset (und ohne Attributwert mit Bildendung)
+	 * als vermeintlichen Lazy-Load-Platzhalter; das leere <picture> fällt
+	 * danach als leerer Absatz weg. Übrig blieb nur das Hero-Bild, das
+	 * Step 12 separat einfügt. resolvePictureElements() in sanitizeHtml()
+	 * käme für diese Bilder zu spät.
+	 *
+	 * Gewählt wird wie dort der Kandidat mit der größten Breite über alle
+	 * <source>-Kinder. Arbeitet auf dem rohen String statt per DOM-Roundtrip
+	 * (siehe Step 2d in processHtml()); der Attributwert wird unverändert
+	 * übernommen, Entities bleiben also korrekt codiert.
+	 */
+	private function fillEmptyPictureFallbacks(string $html): string {
+		if (stripos($html, '<picture') === false) {
+			return $html;
+		}
+
+		return preg_replace_callback(
+			'#(<picture\b[^>]*>)(.*?)(</picture\s*>)#is',
+			function (array $m): string {
+				if (preg_match('#<img\b[^>]*>#i', $m[2], $img, PREG_OFFSET_CAPTURE) !== 1) {
+					return $m[0];
+				}
+				$imgTag = $img[0][0];
+				if (preg_match('#\s(?:src|srcset|data-src|data-srcset)\s*=#i', $imgTag) === 1) {
+					return $m[0];
+				}
+
+				$best = null;
+				preg_match_all('#<source\b[^>]*>#i', $m[2], $sources);
+				foreach ($sources[0] as $source) {
+					if (preg_match('#\ssrcset\s*=\s*(["\'])(.*?)\1#is', $source, $attr) !== 1) {
+						continue;
+					}
+					$candidate = $this->bestSrcsetCandidate($attr[2]);
+					if ($candidate !== null && ($best === null
+						|| ($candidate['width'] !== null && ($best['width'] === null || $candidate['width'] > $best['width'])))) {
+						$best = $candidate;
+					}
+				}
+				if ($best === null) {
+					return $m[0];
+				}
+
+				$newImg = substr($imgTag, 0, 4) . ' src="' . str_replace('"', '&quot;', $best['url']) . '"' . substr($imgTag, 4);
+				return $m[1] . substr_replace($m[2], $newImg, $img[0][1], strlen($imgTag)) . $m[3];
+			},
+			$html
+		) ?? $html;
 	}
 
 	/**
