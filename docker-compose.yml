@@ -32,6 +32,8 @@ services:
       context: .
       args:
         NEXTCLOUD_VERSION: ${NEXTCLOUD_VERSION:-35-apache}
+        # Only used when building outside a merlin-nextcloud checkout.
+        MERLIN_REF: ${MERLIN_REF:-main}
     image: merlin-nextcloud:dev
     # Locally built only, never pulled from a registry.
     pull_policy: build

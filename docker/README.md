@@ -7,6 +7,11 @@ production** (default passwords, no TLS, no backups).
 
 ## Quick start
 
+Either inside a checkout of this repository (builds the local code), or in
+any empty directory that contains just `Dockerfile`, `docker-compose.yml` and
+`docker/` - then the app is cloned from GitHub (branch `main`, or any
+branch/tag/commit via `MERLIN_REF` in `.env`). Then:
+
 ```bash
 docker compose up --build
 ```
@@ -29,6 +34,7 @@ Put overrides in a `.env` file next to `docker-compose.yml` (it's gitignored):
 
 ```dotenv
 NEXTCLOUD_VERSION=34-apache        # any version from appinfo/info.xml (30-35)
+MERLIN_REF=main                    # only without a checkout: branch, tag or commit
 NEXTCLOUD_PORT=8080
 NEXTCLOUD_ADMIN_USER=admin
 NEXTCLOUD_ADMIN_PASSWORD=admin
@@ -46,7 +52,8 @@ start. To start over completely: `docker compose down -v`.
 docker compose up --build -d
 ```
 
-The image contains the built app (frontend via Node, PHP dependencies via
+Without a checkout, the same command fetches the latest commit of
+`MERLIN_REF`. The image contains the built app (frontend via Node, PHP dependencies via
 Composer). On every container start, `docker/merlin-hook.sh` syncs it into the
 persistent `custom_apps/merlin`, runs `occ upgrade` if the app version changed
 (database migrations) and enables the app.
