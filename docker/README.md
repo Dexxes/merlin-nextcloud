@@ -43,8 +43,27 @@ MYSQL_PASSWORD=nextcloud
 MYSQL_ROOT_PASSWORD=root
 ```
 
-Admin user, database and trusted domains only take effect on the **first**
-start. To start over completely: `docker compose down -v`.
+Admin user and database only take effect on the **first** start; trusted
+domains are re-applied on every start (`docker compose up -d`). To start over
+completely: `docker compose down -v`.
+
+### Behind a reverse proxy
+
+Example for `https://merlin.example.org` proxied to `NEXTCLOUD_PORT`:
+
+```dotenv
+NEXTCLOUD_TRUSTED_DOMAINS=merlin.example.org localhost
+TRUSTED_PROXIES=172.16.0.0/12 192.168.0.0/16 10.0.0.0/8
+OVERWRITEHOST=merlin.example.org
+OVERWRITEPROTOCOL=https
+OVERWRITECLIURL=https://merlin.example.org
+```
+
+`TRUSTED_PROXIES` must contain the address the proxy connects from, as seen
+by the container (with Docker's port publishing usually the bridge gateway,
+e.g. `172.18.0.1`). The proxy should send `Host` and `X-Forwarded-Proto`/
+`X-Forwarded-For`. Leave `OVERWRITEHOST` empty if the proxy already passes
+the original `Host` header.
 
 ## Updating Merlin after code changes
 
