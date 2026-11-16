@@ -9,3 +9,7 @@
 /src export-ignore
 /tools export-ignore
 /vite.config.mjs export-ignore
+/.dockerignore export-ignore
+/Dockerfile export-ignore
+/docker-compose.yml export-ignore
+/docker export-ignore

@@ -1,0 +1,13 @@
+.git
+node_modules
+vendor
+js
+build
+dist
+coverage
+*.log
+.env
+.env.local
+.vscode
+.idea
+.DS_Store
