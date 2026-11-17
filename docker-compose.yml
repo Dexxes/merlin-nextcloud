@@ -1,0 +1,93 @@
+# Local development/test setup: Nextcloud + Merlin, MariaDB, Redis, cron.
+#
+#   docker compose up --build
+#   -> http://localhost:8080  (admin / admin, see .env overrides in docker/README.md)
+#
+# Not meant for production: default passwords, no TLS.
+
+services:
+  db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    command: --transaction-isolation=READ-COMMITTED --log-bin=binlog --binlog-format=ROW
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: nextcloud
+      MYSQL_USER: nextcloud
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-nextcloud}
+    volumes:
+      - db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      args:
+        NEXTCLOUD_VERSION: ${NEXTCLOUD_VERSION:-35-apache}
+        # Only used when building outside a merlin-nextcloud checkout.
+        MERLIN_REF: ${MERLIN_REF:-main}
+    image: merlin-nextcloud:dev
+    # Locally built only, never pulled from a registry.
+    pull_policy: build
+    restart: unless-stopped
+    ports:
+      - "${NEXTCLOUD_PORT:-8080}:80"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment: &nc-env
+      MYSQL_HOST: db
+      MYSQL_DATABASE: nextcloud
+      MYSQL_USER: nextcloud
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-nextcloud}
+      REDIS_HOST: redis
+      NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER:-admin}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD:-admin}
+      # Space-separated, re-applied on every start (docker/merlin-hook.sh).
+      NEXTCLOUD_TRUSTED_DOMAINS: ${NEXTCLOUD_TRUSTED_DOMAINS:-localhost 127.0.0.1}
+      # Behind a reverse proxy (see docker/README.md); empty = not set.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      OVERWRITEHOST: ${OVERWRITEHOST:-}
+      OVERWRITEPROTOCOL: ${OVERWRITEPROTOCOL:-}
+      OVERWRITECLIURL: ${OVERWRITECLIURL:-}
+      # The browser extension may post several MB of page HTML per article
+      # (see INSTALLATION.md, "HTTP 413"); raise PHP and Apache body limits.
+      PHP_UPLOAD_LIMIT: 64M
+      PHP_MEMORY_LIMIT: 512M
+    volumes:
+      - nextcloud:/var/www/html
+    # Healthy once Nextcloud is installed and Merlin is set up (the hook runs
+    # before Apache starts), so cron doesn't run against a half-filled volume.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost/status.php | grep -q '\"installed\":true'"]
+      interval: 10s
+      timeout: 5s
+      start_period: 5m
+      retries: 5
+
+  cron:
+    # Same image as app, built by the app service above.
+    image: merlin-nextcloud:dev
+    pull_policy: never
+    restart: unless-stopped
+    entrypoint: /cron.sh
+    depends_on:
+      app:
+        condition: service_healthy
+    environment: *nc-env
+    volumes:
+      - nextcloud:/var/www/html
+
+volumes:
+  db:
+  nextcloud:

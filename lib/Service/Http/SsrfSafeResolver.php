@@ -103,17 +103,26 @@ trait SsrfSafeResolver {
 	 * Verbindungsaufbau eine private Adresse liefern. TLS-SNI und der Host-Header
 	 * bleiben unberührt, da curl den Hostnamen für beides weiterverwendet.
 	 *
+	 * Alle IPs gehen in EINEN Eintrag ("host:port:ip1,ip2,[v6]"). Getrennte
+	 * Einträge für denselben host:port überschreiben sich in libcurl - es gewinnt
+	 * der letzte, und das ist wegen der Reihenfolge (IPv4, dann IPv6) eine IPv6-
+	 * Adresse. Auf Hosts ohne funktionierendes IPv6 (z. B. Docker-Standard-
+	 * Netzwerk) scheiterte dann JEDER Abruf sofort mit "Failed to connect ...
+	 * after 0 ms". Mit einer Liste probiert curl alle Adressen und weicht aus.
+	 *
 	 * @param list<string> $ips
 	 * @return list<string>
 	 */
 	private function buildResolvePin(string $host, int $port, array $ips): array {
-		$bareHost = trim($host, '[]');
-		$pins     = [];
+		$bareHost  = trim($host, '[]');
+		$addresses = [];
 		foreach ($ips as $ip) {
 			// IPv6-Adressen müssen in CURLOPT_RESOLVE in eckigen Klammern stehen.
-			$formatted = str_contains($ip, ':') ? '[' . $ip . ']' : $ip;
-			$pins[]    = $bareHost . ':' . $port . ':' . $formatted;
+			$addresses[] = str_contains($ip, ':') ? '[' . $ip . ']' : $ip;
 		}
-		return $pins;
+		if ($addresses === []) {
+			return [];
+		}
+		return [$bareHost . ':' . $port . ':' . implode(',', $addresses)];
 	}
 }
