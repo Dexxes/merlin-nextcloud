@@ -3420,6 +3420,16 @@ class ContentExtractorService {
 				$out .= $dom->saveHTML($child);
 			}*/
 			//return $out ?: $html;
+			// Die vorangestellte Encoding-PI (xml encoding="utf-8") vor dem Serialisieren entfernen.
+			// Ältere libxml2-Versionen legen sie als PI-Knoten an, neuere (HTML5-Tokenizer)
+			// als Kommentar "?xml …", der als "<!--?xml …" im Ergebnis landet und den der
+			// spätere str_replace() in sanitizeHtml() nicht erkennt.
+			foreach (iterator_to_array($dom->childNodes) as $node) {
+				if ($node->nodeType === XML_PI_NODE
+					|| ($node->nodeType === XML_COMMENT_NODE && str_starts_with(ltrim((string) $node->nodeValue), '?xml'))) {
+					$dom->removeChild($node);
+				}
+			}
 			$out = $dom->saveHTML();
 			return $out ?: $html;
 		} catch (\Throwable $e) {
