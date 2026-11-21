@@ -86,7 +86,14 @@ export default {
 				showSuccess(this.t('merlin', 'Article added successfully'))
 				this.$emit('added')
 			} catch (error) {
-				showError(this.t('merlin', 'Failed to add article: {error}', { error: error.message }))
+				const data = error.response ? error.response.data : null
+				if (data && data.error === 'unsupported_site') {
+					// Domain steht in content-filters/$unsupported.xml: kein
+					// Artikel angelegt, Dialog bleibt offen (andere URL möglich).
+					showError(this.t('merlin', 'This site ({domain}) is not supported by Merlin: it does not provide readable article text to fetch.', { domain: data.domain }))
+				} else {
+					showError(this.t('merlin', 'Failed to add article: {error}', { error: error.message }))
+				}
 			} finally {
 				this.loading = false
 			}

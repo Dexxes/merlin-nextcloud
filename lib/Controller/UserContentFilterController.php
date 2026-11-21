@@ -11,6 +11,7 @@ use OCA\Merlin\Service\ContentFilterSchema;
 use OCA\Merlin\Service\ContentFilterSerializer;
 use OCA\Merlin\Service\ContentFilterTrace;
 use OCA\Merlin\Service\ContentFilterValidator;
+use OCA\Merlin\Service\UnsupportedSiteException;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -251,6 +252,10 @@ class UserContentFilterController extends Controller {
 		} catch (\Throwable $e) {
 			return new DataResponse([
 				'message' => $e->getMessage(),
+				// Maschinenlesbar, damit die Oberfläche eine übersetzte
+				// Meldung statt des deutschen Exception-Texts zeigen kann.
+				'error'   => $e instanceof UnsupportedSiteException ? 'unsupported_site' : null,
+				'unsupportedDomain' => $e instanceof UnsupportedSiteException ? $e->domain : null,
 				'url'     => $url,
 				'domain'  => $domain,
 				'draft'   => $draftApplied,

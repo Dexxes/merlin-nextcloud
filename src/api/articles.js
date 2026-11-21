@@ -55,6 +55,10 @@ export async function createArticle(articleUrl, tagIds = []) {
 	const response = await axios.post(url, {
 		url: articleUrl,
 		tagIds,
+		// Domains aus content-filters/$unsupported.xml sofort mit HTTP 422
+		// ablehnen (siehe ArticleController::create()), damit der Dialog eine
+		// verständliche Meldung zeigen kann statt eines leeren Artikels.
+		rejectUnsupported: true,
 	})
 	return response.data
 }

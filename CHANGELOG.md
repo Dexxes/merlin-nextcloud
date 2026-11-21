@@ -98,6 +98,14 @@ All notable changes to Merlin are documented here. Format based on
   badge.
 
 ### Fixed
+- Adding an article from a site Merlin does not support (listed in
+  `content-filters/$unsupported.xml`, e.g. zeit.de) now shows a clear error
+  in the "Add article" dialog right away ("This site (…) is not supported by
+  Merlin …"), instead of reporting success and leaving an empty article.
+  `POST /api/articles` accepts an optional `rejectUnsupported` flag for this
+  (HTTP 422, `error: "unsupported_site"`, `domain`); iOS/Android keep the
+  previous behaviour. The content filter test run shows the same translated
+  message instead of the raw German server text.
 - Medium articles keep all their images, not only the hero image. Medium
   puts the image URLs only on the `<source>` elements of a `<picture>`; the
   fallback `<img>` has no `src`, and Readability removed it as a lazy-load

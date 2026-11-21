@@ -161,7 +161,9 @@ export default {
 				this.report = await testFilter(this.domain, this.url.trim(), this.draft)
 			} catch (e) {
 				const data = e.response ? e.response.data : null
-				if (data && Array.isArray(data.errors) && data.errors.length) {
+				if (data && data.error === 'unsupported_site') {
+					this.error = this.t('merlin', 'This site ({domain}) is not supported by Merlin: it does not provide readable article text to fetch.', { domain: data.unsupportedDomain })
+				} else if (data && Array.isArray(data.errors) && data.errors.length) {
 					this.error = `${data.message || ''} ${data.errors.map(x => x.message).join(' · ')}`.trim()
 				} else {
 					this.error = (data && data.message) || e.message || String(e)
