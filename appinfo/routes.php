@@ -145,6 +145,10 @@ return [
         ['name' => 'siteCredential#destroy', 'url' => '/api/user/site-credentials/{domain}', 'verb' => 'DELETE',
             'requirements' => ['domain' => '[a-z0-9.\-]+']],
 
+        // merlin-reports-Meldungsbackend, serverseitig (kein CORS am Backend nötig).
+        ['name' => 'report#ping',   'url' => '/api/report-backend/ping', 'verb' => 'GET'],
+        ['name' => 'report#report', 'url' => '/api/report-backend/report', 'verb' => 'POST'],
+
         // PWA: Web App Manifest + Service Worker
         ['name' => 'manifest#index',       'url' => '/manifest.webmanifest', 'verb' => 'GET'],
         ['name' => 'service_worker#index', 'url' => '/sw.js',                'verb' => 'GET'],

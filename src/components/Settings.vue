@@ -404,9 +404,15 @@
 							<span v-else-if="reportUrlStatus === 'ok'" class="report-url-status__badge report-url-status__badge--ok">
 								✓ {{ t('merlin', 'Reachable') }}
 							</span>
+							<span v-else-if="reportUrlStatus === 'auth'" class="report-url-status__badge report-url-status__badge--error">
+								✗ {{ t('merlin', 'Login required') }}
+							</span>
 							<span v-else class="report-url-status__badge report-url-status__badge--error">
 								✗ {{ t('merlin', 'Not reachable') }}
 							</span>
+						</div>
+						<div v-if="reportUrlStatus === 'auth'" class="field__hint">
+							{{ t('merlin', 'The report backend asks for a login (HTTP Basic Auth). Add the credentials to the URL, e.g. https://user:password@example.com/merlin-reports/') }}
 						</div>
 					</div>
 				</div>
@@ -568,6 +574,7 @@ import Close from 'vue-material-design-icons/Close.vue'
 import InformationOutline from 'vue-material-design-icons/InformationOutline.vue'
 import LockOutline from 'vue-material-design-icons/LockOutline.vue'
 import SettingsPreview from './SettingsPreview.vue'
+import { pingReportBackend } from '../report-backend.js'
 import {
 	deleteSiteCredential,
 	listSiteCredentials,
@@ -676,7 +683,7 @@ export default {
 			credError: '',
 			credNotice: '',
 			_flashTimer: null,
-			reportUrlStatus: null, // null | 'checking' | 'ok' | 'error'
+			reportUrlStatus: null, // null | 'checking' | 'ok' | 'auth' | 'error'
 			// Letzte tatsächlich geprüfte reportBackendUrl: verhindert, dass der
 			// settings-Watcher bei jedem Save (z.B. Theme-Wechsel) erneut pingt,
 			// obwohl sich die URL gar nicht geändert hat.
@@ -982,24 +989,10 @@ export default {
 				return
 			}
 			this.reportUrlStatus = 'checking'
-			try {
-				const pingUrl = trimmed.replace(/\/?$/, '/') + 'index.php?action=ping'
-				const res = await fetch(pingUrl, {
-					method: 'GET',
-					signal: AbortSignal.timeout(5000),
-				})
-				// Eine neuere Prüfung ist inzwischen gestartet — diese Antwort ist veraltet.
-				if (token !== this._reportCheckToken) return
-				if (res.ok) {
-					const json = await res.json().catch(() => null)
-					this.reportUrlStatus = (json && json.ok) ? 'ok' : 'error'
-				} else {
-					this.reportUrlStatus = 'error'
-				}
-			} catch {
-				if (token !== this._reportCheckToken) return
-				this.reportUrlStatus = 'error'
-			}
+			const status = await pingReportBackend(trimmed)
+			// Eine neuere Prüfung ist inzwischen gestartet — diese Antwort ist veraltet.
+			if (token !== this._reportCheckToken) return
+			this.reportUrlStatus = status
 		},
 
 		async saveSettings() {

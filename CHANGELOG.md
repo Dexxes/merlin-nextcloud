@@ -98,6 +98,14 @@ All notable changes to Merlin are documented here. Format based on
   badge.
 
 ### Fixed
+- Report backend: the connection test in Settings and "Report faulty rendered
+  article" no longer call the merlin-reports backend from the browser, which
+  failed with a CORS error when the backend sits on another domain (e.g.
+  `merlin.example.com` → `example.com/tools/merlin-reports/`). Both now go
+  through Merlin's server (`/api/report-backend/ping` and `/report`, with the
+  same SSRF guard as article fetching). Credentials in the URL
+  (`https://user:password@…`) are sent as HTTP Basic Auth, and Settings shows
+  "Login required" instead of "Not reachable" when the backend answers 401/403.
 - Adding an article from a site Merlin does not support (listed in
   `content-filters/$unsupported.xml`, e.g. zeit.de) now shows a clear error
   in the "Add article" dialog right away ("This site (…) is not supported by

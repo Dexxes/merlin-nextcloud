@@ -546,6 +546,7 @@
 <script>
 import { mapState, mapActions } from 'vuex'
 import { showSuccess, showError } from '@nextcloud/dialogs'
+import { sendArticleReport } from '../report-backend.js'
 import { NcButton, NcNoteCard } from '@nextcloud/vue'
 import ArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
 import WeatherNight from 'vue-material-design-icons/WeatherNight.vue'
@@ -1257,20 +1258,14 @@ export default {
 			}
 			this.reportDialog.sending = true
 			try {
-				const res = await fetch(this.reportBackendUrl + '?action=report', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						url: this.article.url,
-						comment: this.reportDialog.comment.trim(),
-					}),
-				})
-				if (!res.ok) throw new Error(`HTTP ${res.status}`)
+				await sendArticleReport(this.article.url, this.reportDialog.comment.trim())
 				showSuccess(this.t('merlin', 'Article reported'))
 				this.reportDialog.visible = false
 			} catch (err) {
 				console.error('Failed to report article:', err)
-				showError(this.t('merlin', 'Could not send report — please try again.'))
+				showError(err.reportStatus === 'auth'
+					? this.t('merlin', 'The report backend rejected the login. Check the URL in Settings.')
+					: this.t('merlin', 'Could not send report — please try again.'))
 			} finally {
 				this.reportDialog.sending = false
 			}

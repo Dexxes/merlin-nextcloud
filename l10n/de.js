@@ -431,6 +431,9 @@ OC.L10N.register(
     "New name (the extension .{extension} stays):" : "Neuer Name (die Endung .{extension} bleibt):",
     "New name:" : "Neuer Name:",
     "Recognized text" : "Erkannter Text",
+    "Login required" : "Anmeldung erforderlich",
+    "The report backend asks for a login (HTTP Basic Auth). Add the credentials to the URL, e.g. https://user:password@example.com/merlin-reports/" : "Das Meldungs-Backend verlangt eine Anmeldung (HTTP Basic Auth). Trage die Zugangsdaten in die URL ein, z.B. https://nutzer:passwort@example.com/merlin-reports/",
+    "The report backend rejected the login. Check the URL in Settings." : "Das Meldungs-Backend hat die Anmeldung abgelehnt. Prüfe die URL in den Einstellungen.",
     "Rename…" : "Umbenennen…",
     "— empty —" : "— leer —"
 },
