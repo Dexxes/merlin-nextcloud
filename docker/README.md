@@ -33,7 +33,7 @@ What runs:
 Put overrides in a `.env` file next to `docker-compose.yml` (it's gitignored):
 
 ```dotenv
-NEXTCLOUD_VERSION=34-apache        # any version from appinfo/info.xml (30-35)
+NEXTCLOUD_VERSION=34-apache        # any version from nextcloud/appinfo/info.xml (30-35)
 MERLIN_REF=main                    # only without a checkout: branch, tag or commit
 NEXTCLOUD_PORT=8080
 NEXTCLOUD_ADMIN_USER=admin
