@@ -1,0 +1,6 @@
+# Dev-only files of the Nextcloud app that must not end up in the app store
+# release tarball. `make dist` builds the release via `git archive` of this
+# directory, which honors export-ignore.
+/.gitattributes export-ignore
+/Makefile export-ignore
+/tools export-ignore

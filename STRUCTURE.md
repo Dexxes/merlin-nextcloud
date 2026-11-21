@@ -2,10 +2,32 @@
 
 Zentrale Dateien für UI und Logik der Nextcloud-App.
 
-## Backend (PHP)
+## Repository-Layout
+
+Das Repo wird schrittweise zum gemeinsamen Repo für die Nextcloud-App und den
+Standalone-Server umgebaut. Aktueller Stand (Etappe 1 von 7):
 
 ```
 merlin-nextcloud/
+├── nextcloud/      # die Nextcloud-App (App-ID merlin): appinfo/, lib/, templates/, l10n/, img/, css/,
+│                   # content-filters/, resources/, tools/ (Testharnesses), composer.json, Makefile (make dist)
+├── frontend/       # Vue-3-Quellen (src/), fonts/, package.json, vite.config.mjs;
+│                   # `npm run build` schreibt nach nextcloud/js und nextcloud/css
+├── docker/, Dockerfile, docker-compose.yml   # Entwicklungs-Setup der Nextcloud-Variante
+├── .github/workflows/ci.yml                  # PHP-Lint, Testharnesses, Frontend-Build, Appstore-Tarball
+└── README.md, CHANGELOG.md, LICENSE, NOTICE  # werden beim Release in den Tarball kopiert
+```
+
+Geplant: `core/` (framework-freier PHP-Kern, gemeinsam genutzt) und
+`standalone/` (eigener Server ohne Nextcloud, ersetzt `merlin-standalone-server`).
+
+Release-Tarball: `cd nextcloud && make dist` (Frontend-Build, `git archive`
+von `nextcloud/`, `vendor/` ohne Dev-Abhängigkeiten).
+
+## Backend (PHP)
+
+```
+nextcloud/
 ├── lib/
 │   ├── Controller/          # HTTP-Controller
 │   │   ├── ArticleController.php
@@ -354,7 +376,7 @@ Vier Vite-Entry-Points (siehe `vite.config.mjs`): Reader, öffentliche Share-Ans
 Verwaltungseinstellungen und persönliche Einstellungen.
 
 ```
-src/
+frontend/src/
 ├── main.js                  # Einstiegspunkt Reader
 ├── public-main.js           # Einstiegspunkt öffentliche Share-Ansicht
 ├── admin-main.js            # Einstiegspunkt Verwaltungseinstellungen
