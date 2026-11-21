@@ -225,10 +225,33 @@ class ArticleController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function create(string $url): DataResponse {
+	public function create(string $url, bool $rejectUnsupported = false): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
 		}
+
+		// Opt-in-Vorab-Check gegen content-filters/$unsupported.xml (wie
+		// ExtensionController::add()): der Web-Client schickt
+		// rejectUnsupported=true, damit der "Artikel hinzufügen"-Dialog sofort
+		// eine verständliche Fehlermeldung zeigen kann, statt "Artikel
+		// hinzugefügt" zu melden und einen Artikel anzulegen, der nie Inhalt
+		// bekommt. iOS/Android schicken den Parameter nicht und behalten das
+		// bisherige Verhalten (Platzhalter + asynchrones unsupportedSiteDomain,
+		// siehe assertUrlIsSupported()).
+		if ($rejectUnsupported) {
+			try {
+				$this->contentExtractor->assertUrlIsSupported($url);
+			} catch (UnsupportedSiteException $e) {
+				return new DataResponse([
+					'error'  => 'unsupported_site',
+					'domain' => $e->domain,
+				], Http::STATUS_UNPROCESSABLE_ENTITY);
+			} catch (\Throwable) {
+				// Andere Fehler (z. B. Shortener-Auflösung) hier ignorieren -
+				// extract() prüft im Hintergrund ohnehin erneut.
+			}
+		}
+
 		try {
 			// Resolve tagIds – check query-string params first (most reliable), then JSON body.
 			// Both paths are inside try so any parsing exception is caught rather than becoming a 500.
