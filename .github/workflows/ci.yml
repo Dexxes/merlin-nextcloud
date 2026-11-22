@@ -1,0 +1,115 @@
+# Checks for every pull request and every push to main.
+#
+# Layout (see STRUCTURE.md): nextcloud/ is the Nextcloud app, frontend/ the
+# Vue source that builds into nextcloud/js and nextcloud/css.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  php-lint:
+    name: PHP lint (${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Lowest PHP of the supported Nextcloud versions (30) and the newest.
+        php: ['8.1', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: php -l
+        run: |
+          find nextcloud -name '*.php' -not -path '*/vendor/*' -print0 \
+            | xargs -0 -n1 -P4 php -l > /dev/null
+
+  harnesses:
+    name: Test harnesses
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: dom, mbstring, curl, sodium
+          coverage: none
+          tools: composer:v2
+      - name: composer install
+        working-directory: nextcloud
+        run: composer install --no-dev --no-interaction --no-progress
+      - name: Run tools/test-*.php
+        working-directory: nextcloud
+        # Offline only: harnesses with a --live mode run without it.
+        # KNOWN_FAILING already failed on main before CI existed (content
+        # filters with wrong name/XML declaration, a stale taz.de expectation,
+        # MediaProviderRegistry constructor changed without the harness). They
+        # still run and show up as warnings; remove them here once fixed.
+        env:
+          KNOWN_FAILING: tools/test-content-filter-merge.php tools/test-inline-media.php
+        run: |
+          status=0
+          for f in tools/test-*.php; do
+            echo "::group::$f"
+            if php "$f"; then
+              echo "ok $f"
+              case " $KNOWN_FAILING " in *" $f "*) echo "::notice file=nextcloud/$f::$f passes now, remove it from KNOWN_FAILING";; esac
+            else
+              case " $KNOWN_FAILING " in
+                *" $f "*) echo "::warning file=nextcloud/$f::$f failed (known, pre-existing)";;
+                *) echo "::error file=nextcloud/$f::$f failed"; status=1;;
+              esac
+            fi
+            echo "::endgroup::"
+          done
+          exit $status
+
+  frontend:
+    name: Frontend build and app store tarball
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - name: npm install
+        working-directory: frontend
+        # No package-lock.json is committed (see .gitignore).
+        run: npm install --no-audit --no-fund
+      - name: vite build
+        working-directory: frontend
+        run: npm run build
+      - name: Assemble app store tarball
+        working-directory: nextcloud
+        run: |
+          make build-source
+          tar -czf build/artifacts/merlin.tar.gz -C build/artifacts merlin
+      - name: Check tarball contents
+        working-directory: nextcloud/build/artifacts
+        run: |
+          for f in merlin/appinfo/info.xml merlin/js/merlin-main.mjs merlin/css/merlin-main.css \
+                   merlin/vendor/autoload.php merlin/content-filters/spiegel.de.xml \
+                   merlin/CHANGELOG.md merlin/LICENSE merlin/README.md; do
+            test -e "$f" || { echo "::error::missing in tarball: $f"; exit 1; }
+          done
+          for f in merlin/tools merlin/Makefile merlin/src merlin/frontend; do
+            test ! -e "$f" || { echo "::error::must not be in tarball: $f"; exit 1; }
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: merlin-appstore-tarball
+          path: nextcloud/build/artifacts/merlin.tar.gz
+          retention-days: 14

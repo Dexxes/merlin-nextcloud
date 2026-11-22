@@ -1,11 +1,11 @@
 # Dependencies
-/vendor/
-/node_modules/
+vendor/
+node_modules/
 
 # Build artifacts
-/js/
-/css/
-appinfo/build.txt
+/nextcloud/js/
+/nextcloud/css/
+/nextcloud/appinfo/build.txt
 
 # Development
 .vscode/
@@ -31,6 +31,7 @@ package-lock.json
 .npm/
 
 # Build
+/nextcloud/build/
 /build/
 /dist/
 /test/

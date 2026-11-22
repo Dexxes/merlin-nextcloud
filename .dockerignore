@@ -1,8 +1,8 @@
 .git
-node_modules
-vendor
-js
-build
+**/node_modules
+nextcloud/vendor
+nextcloud/js
+nextcloud/build
 dist
 coverage
 *.log

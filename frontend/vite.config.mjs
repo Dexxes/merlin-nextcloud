@@ -13,6 +13,12 @@ export default createAppConfig({
     personal: 'src/personal-main.js',
 }, {
     config: {
+        // Die Build-Ausgabe (js/, css/) gehört zur Nextcloud-App, nicht zum
+        // Frontend-Quellordner: ../nextcloud/js und ../nextcloud/css.
+        build: {
+            outDir: '../nextcloud',
+            emptyOutDir: false,
+        },
         // pdf.js-Worker (PdfViewer.vue, Import mit ?worker) landet sonst in
         // assets/, das weder im Tarball (Makefile kopiert nur js/) noch im
         // Repo vorgesehen ist - er gehört zu den Build-Artefakten in js/.

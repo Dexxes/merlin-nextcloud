@@ -165,6 +165,12 @@ All notable changes to Merlin are documented here. Format based on
   single quote instead of repeating the quote above each thread.
 
 ### Changed
+- Repository layout: the Nextcloud app now lives in `nextcloud/`, the Vue
+  sources in `frontend/` (first step towards one repository for the Nextcloud
+  app and the standalone server). `make dist` is run from `nextcloud/`. The
+  release tarball now also contains the built stylesheets (`css/merlin-*.css`),
+  which `make dist` did not copy before. A GitHub Actions workflow checks PHP
+  syntax, runs the test harnesses and builds the frontend and the tarball.
 - Captions: the signal words that mark the image credit in a caption
   ("Foto:", "Quelle:", "Photo:", "Source:", …) are now a list in
   `content-filters/$caption-credits.xml` that can be edited like the content
