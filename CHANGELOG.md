@@ -193,7 +193,9 @@ All notable changes to Merlin are documented here. Format based on
   the retention run, the paywall logins, comments and highlights and the
   access check of public share links, the content-filter storage and the
   article deletion, with their storage, settings, session and encryption
-  behind interfaces as well. No change
+  behind interfaces as well. Last came the links, content and download of
+  file entries ("Merlin files"); folders, upload target and registration
+  stay in the app because they are Nextcloud Files and WebDAV. No change
   in behaviour. The minimum PHP version is now 8.1, which
   Nextcloud 30 already required.
 - Captions: the signal words that mark the image credit in a caption

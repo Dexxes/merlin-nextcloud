@@ -30,7 +30,9 @@ use Merlin\Core\Port\ContentFilterSource;
 use Merlin\Core\Port\ContentFilterStore;
 use Merlin\Core\Port\Crypto;
 use Merlin\Core\Port\Database;
+use Merlin\Core\Port\FilePreviews;
 use Merlin\Core\Port\HighlightStore;
+use Merlin\Core\Port\InstanceSecret;
 use Merlin\Core\Port\RetentionStore;
 use Merlin\Core\Port\Session;
 use Merlin\Core\Port\ShareStore;
@@ -42,6 +44,7 @@ use Merlin\Core\Port\UserSettings;
 use Merlin\Core\Service\ArticleDeletionService;
 use Merlin\Core\Service\CommentService;
 use Merlin\Core\Service\ExportService;
+use Merlin\Core\Service\FileEntryService;
 use Merlin\Core\Service\PdfProxyService;
 use Merlin\Core\Service\ReportBackendService;
 use Merlin\Core\Service\RetentionService;
@@ -55,7 +58,9 @@ use OCA\Merlin\Adapter\NextcloudCommentStore;
 use OCA\Merlin\Adapter\NextcloudContentFilterStore;
 use OCA\Merlin\Adapter\NextcloudCrypto;
 use OCA\Merlin\Adapter\NextcloudDatabase;
+use OCA\Merlin\Adapter\NextcloudFilePreviews;
 use OCA\Merlin\Adapter\NextcloudHighlightStore;
+use OCA\Merlin\Adapter\NextcloudInstanceSecret;
 use OCA\Merlin\Adapter\NextcloudRetentionStore;
 use OCA\Merlin\Adapter\NextcloudSession;
 use OCA\Merlin\Adapter\NextcloudShareStore;
@@ -93,7 +98,9 @@ class Application extends App implements IBootstrap {
 		ContentFilterStore::class  => NextcloudContentFilterStore::class,
 		Crypto::class              => NextcloudCrypto::class,
 		Database::class            => NextcloudDatabase::class,
+		FilePreviews::class        => NextcloudFilePreviews::class,
 		HighlightStore::class      => NextcloudHighlightStore::class,
+		InstanceSecret::class      => NextcloudInstanceSecret::class,
 		RetentionStore::class      => NextcloudRetentionStore::class,
 		Session::class             => NextcloudSession::class,
 		ShareStore::class          => NextcloudShareStore::class,
@@ -140,6 +147,7 @@ class Application extends App implements IBootstrap {
 		CommentService::class,
 		ShareAccessService::class,
 		ArticleDeletionService::class,
+		FileEntryService::class,
 	];
 
 	public function __construct(array $urlParams = []) {

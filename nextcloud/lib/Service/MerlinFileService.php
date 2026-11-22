@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Service;
 
-use Merlin\Core\Extraction\ContentExtractorService;
-use Merlin\Core\Extraction\Media\MediaResolverService;
-use Merlin\Core\Extraction\Media\MediaResult;
-use Merlin\Core\Service\FileMetadata;
+use Merlin\Core\Domain\FileEntry;
+use Merlin\Core\Service\FileEntryService;
 use Merlin\Core\Service\FileRules;
+use OCA\Merlin\Adapter\NextcloudStoredFile;
+use OCA\Merlin\Adapter\NextcloudTranslator;
 use OCA\Merlin\Db\Article;
 use OCA\Merlin\Db\ArticleMapper;
 use OCP\Files\AlreadyExistsException;
@@ -18,12 +18,9 @@ use OCP\Files\IRootFolder;
 use OCP\Files\NotFoundException;
 use OCP\IConfig;
 use OCP\IL10N;
-use OCP\IPreview;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
 use OCP\L10N\IFactory;
-use OCP\Util;
-use Psr\Log\LoggerInterface;
 
 /**
  * Dateien vom Handy in „Merlin Dateien“ und ihre Einträge in der Leseliste.
@@ -37,17 +34,18 @@ use Psr\Log\LoggerInterface;
  *   3. register(): legt den Eintrag an (Kategorie nach Dateiart, Inhalt zeigt
  *      die Datei über signierte Links).
  *
+ * Ordner, Upload-Ziel und Registrierung sind Nextcloud-Files/WebDAV-Sache und
+ * stehen hier. Inhalt des Eintrags, signierte Links und das Ausliefern der
+ * Datei stehen im Kern (Merlin\Core\Service\FileEntryService).
+ *
  * Ordner: Name in der Nextcloud-Sprache des Nutzers. Die Datei-IDs werden in den
  * Nutzereinstellungen gemerkt, damit ein Sprachwechsel, Umbenennen oder
  * Verschieben keinen zweiten Ordner erzeugt; nur ein gelöschter Ordner wird neu
  * angelegt.
  *
- * Datei-Links: /api/articles/{id}/file?t=… ist ohne Login abrufbar, das Token
- * (FileRules::sign) bindet ihn an Eintrag, Datei und Besitzer. So funktionieren
- * dieselben Links in der Web-Oberfläche, im iOS-Reader (Bild-Cache, Player,
- * PDF-Cache laden ohne Zugangsdaten) und hinter öffentlichen Share-Links.
- * Löschen des Eintrags macht die Links ungültig; die Datei selbst bleibt in
- * Nextcloud liegen (auch bei der Löschfrist).
+ * Datei-Links (siehe FileEntryService): Löschen des Eintrags macht die Links
+ * ungültig; die Datei selbst bleibt in Nextcloud liegen (auch bei der
+ * Löschfrist).
  */
 class MerlinFileService {
 	private const USER_SETTINGS_APP = 'merlin';
@@ -55,8 +53,8 @@ class MerlinFileService {
 	private const ROOT_KEY = 'root';
 
 	/** Kantenlänge der Vorschaubilder: Listen/Karten bzw. Bild im Reader. */
-	public const THUMBNAIL_SIZE = 512;
-	public const READER_IMAGE_SIZE = 2048;
+	public const THUMBNAIL_SIZE = FileEntryService::THUMBNAIL_SIZE;
+	public const READER_IMAGE_SIZE = FileEntryService::READER_IMAGE_SIZE;
 
 	public function __construct(
 		private IRootFolder $rootFolder,
@@ -64,9 +62,8 @@ class MerlinFileService {
 		private IFactory $l10nFactory,
 		private IUserManager $userManager,
 		private IURLGenerator $urlGenerator,
-		private IPreview $preview,
 		private ArticleMapper $articleMapper,
-		private LoggerInterface $logger,
+		private FileEntryService $entries,
 	) {
 	}
 
@@ -118,7 +115,7 @@ class MerlinFileService {
 		$kind = FileRules::kindFor($mime);
 		$name = (string) $node->getName();
 		$extension = strtoupper(pathinfo($name, PATHINFO_EXTENSION));
-		$size = Util::humanFileSize((int) $node->getSize());
+		$size = FileRules::humanSize((int) $node->getSize());
 		$now = new \DateTime();
 
 		$article = new Article();
@@ -144,11 +141,7 @@ class MerlinFileService {
 		$article = $this->articleMapper->insert($article);
 
 		// Die Links brauchen die Eintrags-ID (Token), deshalb erst nach dem Insert.
-		$hasPreview = $this->hasPreview($node);
-		$article->setImageUrl($hasPreview ? $this->fileUrl($article, self::THUMBNAIL_SIZE) : '');
-		$article->setContent($this->buildContent($article, $kind, $name, $size, $hasPreview, $l)
-			. $this->textHtml($article, $l)
-			. $this->metadataHtml($article, $node, $l));
+		$this->render($article, $node, $l);
 		return $this->articleMapper->update($article);
 	}
 
@@ -163,17 +156,9 @@ class MerlinFileService {
 	 */
 	public function refresh(Article $article): Article {
 		$file = $this->fileOf($article);
-		$l = $this->l10n((string) $article->getUserId());
-		$mime = (string) $file->getMimetype();
-		$kind = FileRules::kindFor($mime);
-		$name = (string) $file->getName();
-		$hasPreview = $this->hasPreview($file);
-		$article->setTitle($name);
-		$article->setFileMime($mime);
-		$article->setImageUrl($hasPreview ? $this->fileUrl($article, self::THUMBNAIL_SIZE) : '');
-		$article->setContent($this->buildContent($article, $kind, $name, Util::humanFileSize((int) $file->getSize()), $hasPreview, $l)
-			. $this->textHtml($article, $l)
-			. $this->metadataHtml($article, $file, $l));
+		$article->setTitle((string) $file->getName());
+		$article->setFileMime((string) $file->getMimetype());
+		$this->render($article, $file, $this->l10n((string) $article->getUserId()));
 		$article->setUpdatedAt(new \DateTime());
 		return $this->articleMapper->update($article);
 	}
@@ -226,22 +211,11 @@ class MerlinFileService {
 	 * @param int|null $size Vorschaubild mit dieser Kantenlänge statt der Originaldatei
 	 */
 	public function fileUrl(Article $article, ?int $size = null, bool $download = false): string {
-		$params = [
-			'id' => (int) $article->getId(),
-			't'  => FileRules::sign($this->secret(), (int) $article->getId(), (int) $article->getFileId(), (string) $article->getUserId()),
-		];
-		if ($size !== null) {
-			$params['size'] = $size;
-		}
-		if ($download) {
-			$params['download'] = 1;
-		}
-		return $this->urlGenerator->linkToRouteAbsolute('merlin.file.content', $params);
+		return $this->entries->fileUrl($this->entryOf($article), $size, $download);
 	}
 
 	public function verifyToken(Article $article, string $token): bool {
-		return $article->getFileId() !== null
-			&& FileRules::verify($this->secret(), (int) $article->getId(), (int) $article->getFileId(), (string) $article->getUserId(), $token);
+		return $this->entries->verifyToken($this->entryOf($article), $token);
 	}
 
 	/**
@@ -261,67 +235,17 @@ class MerlinFileService {
 	}
 
 	/**
-	 * Gibt die Datei (oder ein Vorschaubild) aus und beendet den Prozess wie
-	 * PdfProxyService/TtsStreamService per exit(), damit Nextcloud keine eigenen
+	 * Gibt die Datei (oder ein Vorschaubild) aus und beendet den Prozess per
+	 * exit() (FileEntryService::stream()), damit Nextcloud keine eigenen
 	 * Bytes anhängt. Unterstützt einfache Range-Anfragen (Video-Spulen, pdf.js).
 	 */
 	public function stream(Article $article, ?int $size = null, bool $download = false): never {
 		try {
-			$file = $this->fileOf($article);
+			$file = new NextcloudStoredFile($this->fileOf($article));
 		} catch (NotFoundException) {
-			$this->fail(404, 'File not found');
+			$file = null;
 		}
-
-		if ($size !== null && $size > 0 && !$download) {
-			$this->streamPreview($file, min($size, self::READER_IMAGE_SIZE));
-		}
-
-		$mime = (string) $file->getMimetype();
-		$inline = !$download && FileRules::isInlineMime($mime);
-		$total = (int) $file->getSize();
-		$range = FileRules::parseRange($_SERVER['HTTP_RANGE'] ?? null, $total);
-		if ($range === false) {
-			http_response_code(416);
-			header('Content-Range: bytes */' . $total);
-			exit();
-		}
-
-		$handle = $file->fopen('rb');
-		if ($handle === false) {
-			$this->fail(500, 'File could not be opened');
-		}
-		[$start, $end] = $range ?? [0, max(0, $total - 1)];
-		if ($start > 0 && fseek($handle, $start) !== 0) {
-			// Speicher ohne Seek (selten): dann eben die ganze Datei.
-			rewind($handle);
-			[$start, $end] = [0, max(0, $total - 1)];
-			$range = null;
-		}
-		$length = $total === 0 ? 0 : $end - $start + 1;
-
-		$this->prepareOutput();
-		http_response_code($range !== null ? 206 : 200);
-		header('Content-Type: ' . ($inline ? $mime : 'application/octet-stream'));
-		header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . '; filename*=UTF-8\'\'' . rawurlencode((string) $file->getName()));
-		header('Content-Length: ' . $length);
-		header('Accept-Ranges: bytes');
-		if ($range !== null) {
-			header('Content-Range: bytes ' . $start . '-' . $end . '/' . $total);
-		}
-		$this->hardeningHeaders();
-
-		$remaining = $length;
-		while ($remaining > 0 && !feof($handle) && !connection_aborted()) {
-			$chunk = fread($handle, min(65536, $remaining));
-			if ($chunk === false || $chunk === '') {
-				break;
-			}
-			echo $chunk;
-			flush();
-			$remaining -= strlen($chunk);
-		}
-		fclose($handle);
-		exit();
+		$this->entries->stream($file, $size, $download);
 	}
 
 	// ── Ordner ──────────────────────────────────────────────────────────────
@@ -384,137 +308,16 @@ class MerlinFileService {
 
 	// ── Inhalt des Eintrags ─────────────────────────────────────────────────
 
-	/**
-	 * HTML des Eintrags: dieselben Marker wie bei Web-Artikeln, damit Web-Reader,
-	 * Share-Ansicht und iOS die Datei ohne Sonderweg anzeigen (Bild als Figure,
-	 * Audio/Video als Medien-Marker mit Auslieferung "file", PDF als .merlin-pdf).
-	 */
-	private function buildContent(Article $article, string $kind, string $name, string $size, bool $hasPreview, IL10N $l): string {
-		$esc = static fn(string $v): string => htmlspecialchars($v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-		$fileUrl = $this->fileUrl($article);
-		$poster = $hasPreview
-			? '<figure><img src="' . $esc($this->fileUrl($article, self::READER_IMAGE_SIZE)) . '" alt="' . $esc($name) . '"></figure>'
-			: '';
-
-		switch ($kind) {
-			case FileRules::KIND_IMAGE:
-				// Vorschaubild (JPEG, auch für HEIC), sonst die Originaldatei.
-				$src = $hasPreview ? $this->fileUrl($article, self::READER_IMAGE_SIZE) : $fileUrl;
-				return '<figure><img src="' . $esc($src) . '" alt="' . $esc($name) . '"></figure>';
-			case FileRules::KIND_VIDEO:
-			case FileRules::KIND_AUDIO:
-				$media = MediaResult::single($kind, MediaResult::DELIVERY_FILE, $fileUrl);
-				return $poster . MediaResolverService::buildMarkerHtml($kind, $media, $fileUrl);
-			case FileRules::KIND_PDF:
-				return '<div class="' . ContentExtractorService::PDF_MARKER_CLASS . '" data-pdf-src="' . $esc($fileUrl) . '">'
-					. '<a href="' . $esc($fileUrl) . '" target="_blank" class="merlin-pdf-fallback-link">PDF</a>'
-					. '</div>';
-			default:
-				return '<p><a class="merlin-file-download" href="' . $esc($this->fileUrl($article, null, true)) . '">'
-					. $esc($l->t('Download file')) . '</a> · ' . $esc($name) . ' · ' . $esc($size) . '</p>';
-		}
+	/** Vorschaubild und Inhalt des Eintrags neu aus der Datei (Kern). */
+	private function render(Article $article, File $file, IL10N $l): void {
+		$rendered = $this->entries->render($this->entryOf($article), new NextcloudStoredFile($file), new NextcloudTranslator($l));
+		$article->setImageUrl($rendered['imageUrl']);
+		$article->setContent($rendered['content']);
 	}
 
-	/**
-	 * Abschnitt „Metadaten“ unter der Datei: Dateiangaben aus Nextcloud und
-	 * alle eingebetteten Metadaten (FileMetadata). Jede Gruppe als
-	 * aufgeklappte <details> mit einer Tabelle, damit Web-Reader, Share-Ansicht
-	 * und iOS sie ohne eigenen Code anzeigen (iOS liest den Abschnitt bei PDFs
-	 * zusätzlich nativ aus, siehe FileMetadataSection.swift).
-	 *
-	 * data-download-src: signierter Download-Link der Originaldatei, mit dem
-	 * iOS beim Teilen die Datei selbst statt des Links weitergibt.
-	 */
-	private function metadataHtml(Article $article, File $file, IL10N $l): string {
-		$esc = static fn(string $v): string => htmlspecialchars($v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-		$size = (int) $file->getSize();
-		$groups = [[
-			'key' => 'file',
-			'title' => $l->t('File'),
-			'entries' => array_values(array_filter([
-				['label' => $l->t('Name'), 'value' => (string) $file->getName()],
-				['label' => $l->t('Type'), 'value' => (string) $file->getMimetype()],
-				['label' => $l->t('Size'), 'value' => Util::humanFileSize($size) . ' (' . number_format($size, 0, ',', '.') . ' B)'],
-				['label' => $l->t('Modified'), 'value' => $file->getMTime() > 0 ? gmdate('Y-m-d H:i:s', $file->getMTime()) . ' UTC' : ''],
-			], static fn(array $e): bool => $e['value'] !== '')),
-		]];
-
-		$handle = null;
-		try {
-			$handle = $file->fopen('r');
-			if (is_resource($handle)) {
-				array_push($groups, ...FileMetadata::extract($handle, $size, (string) $file->getMimetype()));
-			}
-		} catch (\Throwable $e) {
-			// Metadaten sind Beiwerk: ohne sie wird der Eintrag trotzdem angelegt.
-			$this->logger->info('Merlin: could not read file metadata', ['exception' => $e]);
-		} finally {
-			if (is_resource($handle)) {
-				fclose($handle);
-			}
-		}
-
-		$html = '<section class="merlin-file-metadata" data-download-src="' . $esc($this->fileUrl($article, null, true)) . '"><h2>' . $esc($l->t('Metadata')) . '</h2>';
-		foreach ($groups as $group) {
-			$html .= '<details open data-group="' . $esc($group['key']) . '"><summary>' . $esc($group['title']) . '</summary><table><tbody>';
-			foreach ($group['entries'] as $entry) {
-				$value = $esc($entry['value']);
-				// GPS-Position: Link auf die Karte.
-				if ($group['key'] === 'gps' && $entry['label'] === 'Position'
-					&& preg_match('/^(-?\d+\.\d+), (-?\d+\.\d+)$/', $entry['value'], $m) === 1) {
-					$value = '<a href="' . $esc('https://www.openstreetmap.org/?mlat=' . $m[1] . '&mlon=' . $m[2] . '#map=16/' . $m[1] . '/' . $m[2])
-						. '" target="_blank" rel="noopener noreferrer">' . $value . '</a>';
-				}
-				$html .= '<tr><th>' . $esc($entry['label']) . '</th><td>' . $value . '</td></tr>';
-			}
-			$html .= '</tbody></table></details>';
-		}
-		return $html . '</section>';
-	}
-
-	/**
-	 * Abschnitt „Erkannter Text“ (OCR der iOS-Share-Extension) zwischen Datei
-	 * und Metadaten; leer ohne Text.
-	 */
-	private function textHtml(Article $article, IL10N $l): string {
-		$text = (string) $article->getFileText();
-		if ($text === '') {
-			return '';
-		}
-		$esc = static fn(string $v): string => htmlspecialchars($v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-		$paragraphs = preg_split('/\n\s*\n/u', $text) ?: [$text];
-		$html = '<section class="merlin-file-text"><h2>' . $esc($l->t('Recognized text')) . '</h2>';
-		foreach ($paragraphs as $paragraph) {
-			$paragraph = trim($paragraph);
-			if ($paragraph !== '') {
-				$html .= '<p>' . nl2br($esc($paragraph), false) . '</p>';
-			}
-		}
-		return $html . '</section>';
-	}
-
-	private function hasPreview(File $file): bool {
-		try {
-			return $this->preview->isAvailable($file);
-		} catch (\Throwable) {
-			return false;
-		}
-	}
-
-	private function streamPreview(File $file, int $size): never {
-		try {
-			$preview = $this->preview->getPreview($file, $size, $size);
-		} catch (\Throwable $e) {
-			$this->logger->debug('Merlin: no preview for file entry', ['exception' => $e]);
-			$this->fail(404, 'No preview');
-		}
-		$this->prepareOutput();
-		http_response_code(200);
-		header('Content-Type: ' . $preview->getMimeType());
-		header('Content-Length: ' . $preview->getSize());
-		$this->hardeningHeaders();
-		echo $preview->getContent();
-		exit();
+	private function entryOf(Article $article): FileEntry {
+		$fileId = $article->getFileId();
+		return new FileEntry((int) $article->getId(), $fileId === null ? null : (int) $fileId, (string) $article->getUserId(), $article->getFileText());
 	}
 
 	// ── Hilfen ──────────────────────────────────────────────────────────────
@@ -527,30 +330,5 @@ class MerlinFileService {
 	private function l10n(string $userId): IL10N {
 		$user = $this->userManager->get($userId);
 		return $this->l10nFactory->get('merlin', $this->l10nFactory->getUserLanguage($user));
-	}
-
-	private function secret(): string {
-		return $this->config->getSystemValueString('secret', '') . '|merlin-file-links';
-	}
-
-	private function hardeningHeaders(): void {
-		header('X-Content-Type-Options: nosniff');
-		header("Content-Security-Policy: sandbox; default-src 'none'");
-		header('Cache-Control: private, max-age=86400');
-		header('X-Accel-Buffering: no');
-	}
-
-	private function prepareOutput(): void {
-		set_time_limit(0);
-		while (ob_get_level()) {
-			ob_end_clean();
-		}
-	}
-
-	private function fail(int $status, string $message): never {
-		http_response_code($status);
-		header('Content-Type: application/json');
-		echo json_encode(['error' => $message]);
-		exit();
 	}
 }
