@@ -9,8 +9,10 @@ declare(strict_types=1);
  *   bin/merlin migrate                                   fehlende Migrationen anwenden
  *   bin/merlin create-admin --username=… --email=… [--password=…]
  *                                                        Admin-Konto anlegen (ohne --password: Abfrage)
+ *   bin/merlin extract <url> [--user=<id>] [--content]   Artikel extrahieren wie beim Speichern, Ergebnis als JSON
  */
 
+use Merlin\Core\Extraction\ContentExtractorService;
 use Merlin\Standalone\App;
 use Merlin\Standalone\Auth\PasswordHasher;
 use Merlin\Standalone\Db\MigrationRunner;
@@ -71,10 +73,60 @@ try {
 			fwrite(STDOUT, "Admin-Konto '{$user['username']}' (ID {$user['id']}) angelegt.\n");
 			exit(0);
 
+		case 'extract':
+			// Prüfwerkzeug: dieselbe Extraktion wie beim Speichern eines Artikels,
+			// mit den Content-Filtern und Adaptern des Servers. Speichert nichts.
+			$url = '';
+			$userId = null;
+			$withContent = false;
+			foreach (array_slice($argv, 2) as $arg) {
+				if (str_starts_with($arg, '--user=')) {
+					$userId = substr($arg, 7);
+				} elseif ($arg === '--content') {
+					$withContent = true;
+				} elseif ($url === '') {
+					$url = $arg;
+				}
+			}
+			if ($url === '') {
+				fwrite(STDERR, "Aufruf: bin/merlin extract <url> [--user=<id>] [--content]\n");
+				exit(1);
+			}
+			$app = App::fromConfigFile();
+			(new MigrationRunner($app->connection()))->migrate();
+			$started = microtime(true);
+			$result = $app->get(ContentExtractorService::class)->extract($url, null, $userId);
+			$content = (string) ($result['content'] ?? '');
+			$summary = $result;
+			unset($summary['content']);
+			foreach ($summary as $key => $value) {
+				if ($value instanceof \DateTimeInterface) {
+					$summary[$key] = $value->format(DATE_ATOM);
+				}
+			}
+			$summary['contentLength'] = strlen($content);
+			$summary['contentStats'] = [
+				'paragraphs' => substr_count($content, '<p'),
+				'figures' => substr_count($content, '<figure'),
+				'images' => substr_count($content, '<img'),
+				'captionCredits' => substr_count($content, '<cite'),
+				'blockquotes' => substr_count($content, '<blockquote'),
+				'quotes' => substr_count($content, 'class="merlin-quote'),
+				'heroImage' => substr_count($content, 'merlin-hero-image'),
+				'media' => substr_count($content, 'class="merlin-media') + substr_count($content, 'class="merlin-inline-media'),
+				'socialPosts' => preg_match_all('/class="merlin-(bluesky|mastodon|tiktok|instagram|x)-/', $content),
+			];
+			$summary['seconds'] = round(microtime(true) - $started, 2);
+			if ($withContent) {
+				$summary['content'] = $content;
+			}
+			fwrite(STDOUT, json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n");
+			exit(0);
+
 		case 'help':
 		case '--help':
 		case '-h':
-			fwrite(STDOUT, "Aufruf: bin/merlin <befehl>\n\n  migrate        fehlende Migrationen anwenden\n  create-admin   Admin-Konto anlegen (--username, --email, --password)\n");
+			fwrite(STDOUT, "Aufruf: bin/merlin <befehl>\n\n  migrate        fehlende Migrationen anwenden\n  create-admin   Admin-Konto anlegen (--username, --email, --password)\n  extract        Artikel extrahieren und als JSON ausgeben (<url> [--user=<id>] [--content])\n");
 			exit(0);
 
 		default:

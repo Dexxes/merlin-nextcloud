@@ -84,7 +84,12 @@ final class App {
 	/** @var array<class-string, object> */
 	private array $instances = [];
 
-	public function __construct(private Config $config) {
+	/**
+	 * @param array<class-string, object> $instances vorgegebene Instanzen, z. B.
+	 *        In-Memory-Stores in Testharnesses
+	 */
+	public function __construct(private Config $config, array $instances = []) {
+		$this->instances = $instances;
 	}
 
 	public static function fromConfigFile(?string $file = null): self {

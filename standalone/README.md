@@ -14,7 +14,15 @@ cp config/config.sample.php config/config.php   # anpassen, vor allem 'secret'
 bin/merlin migrate                              # SQLite-Datenbank anlegen
 bin/merlin create-admin --username=admin --email=admin@example.org
 php -S localhost:8080 -t public public/index.php
+bin/merlin extract https://netzpolitik.org/… --content   # Extraktion prüfen (JSON)
 ```
+
+`bin/merlin extract <url> [--user=<id>] [--content]` läuft die Extraktion des
+Kerns mit den Standalone-Adaptern (Content-Filter, Zugangsdaten) und gibt Titel,
+Autoren, Bild, Paywall-Status und Kennzahlen zum Inhalt als JSON aus.
+`tests/test-extraction.php` prüft offline Filter, Nutzer-Filter und abgelehnte
+Seiten; mit `--live` vergleicht es echte Artikel-Links mit einer Referenz ohne
+Standalone-Adapter (Titel, Autoren, Bild, Paywall, Inhaltslänge ±5 %).
 
 Mit Apache zeigt der DocumentRoot auf `public/` (dort liegt die
 `.htaccess`), oder `.htaccess` im Ordner `standalone/` leitet alles nach

@@ -88,7 +88,10 @@ in Nextcloud). `/api/capabilities` meldet `backend`, die gemeinsame `version`
 (aus `nextcloud/appinfo/info.xml`), `apiVersion` und `features`; `files` fehlt
 dort bewusst. `standalone/tests/test-http.php` startet den eingebauten
 PHP-Server und spielt Login Flow, Basic Auth, Admin-API und Kontolöschung
-durch.
+durch. `standalone/bin/merlin extract <url>` ruft die Kern-Extraktion mit den
+Standalone-Adaptern auf; `standalone/tests/test-extraction.php --live` vergleicht
+das für echte Artikel-Links mit einer Referenz ohne diese Adapter (ohne `--live`
+nur offline, so läuft es in CI).
 
 Die Nextcloud-App bindet den Kern über ein Composer-Path-Repository ein
 (`nextcloud/composer.json`: `"merlin/core": "*@dev"` aus `../core`). Im Checkout
