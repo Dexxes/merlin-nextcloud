@@ -132,24 +132,25 @@ class ArticleApiTest extends ApiTestCase {
 		}
 	}
 
-	public function testCreateWithTagsFailedExtractionAndRetry(): void {
+	public function testCreateWithTagsUnsupportedSiteAndRetry(): void {
 		$user = self::user();
 		$tag = self::expect(201, self::api('POST', '/api/tags', ['name' => 'Beim Speichern'], $user));
 		$foreign = self::expect(201, self::api('POST', '/api/tags', ['name' => 'Fremd'], self::user('-b')));
 
-		// example.invalid never resolves: the extraction fails and must still
-		// clear isProcessing (no content, no spinner forever).
+		// t3n.de is in $unsupported.xml: without rejectUnsupported the article
+		// is stored and the background extraction marks it (no network).
 		$placeholder = self::expect(202, self::api('POST', '/api/articles', [
-			'url'    => 'https://example.invalid/merlin-ci',
+			'url'    => 'https://t3n.de/news/merlin-ci-placeholder/',
 			'tagIds' => [$tag['id'], $foreign['id']],
 		], $user));
 		$this->assertTrue($placeholder['isProcessing']);
-		$this->assertSame('example.invalid', $placeholder['title']);
+		$this->assertSame('t3n.de', $placeholder['title']);
 		$this->assertSame([], $placeholder['tags']);
 		$this->assertStringEndsWith('/img/no-img.png', $placeholder['imageUrl']);
 
 		$article = self::waitForExtraction($user, $placeholder['id']);
 		$this->assertSame('', $article['content']);
+		$this->assertSame('t3n.de', $article['unsupportedSiteDomain']);
 		$this->assertSame(['Beim Speichern'], array_column($article['tags'], 'name'), 'only the own tag is linked');
 		$this->assertArrayHasKey('supportBox', $article);
 

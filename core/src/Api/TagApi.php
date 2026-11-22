@@ -6,6 +6,7 @@ namespace Merlin\Core\Api;
 
 use Merlin\Core\Domain\Tag;
 use Merlin\Core\Port\ArticleStore;
+use Merlin\Core\Port\DuplicateEntryException;
 use Merlin\Core\Port\TagStore;
 use Merlin\Core\Service\TagTree;
 use Psr\Log\LoggerInterface;
@@ -50,6 +51,9 @@ final class TagApi {
 			$tag->setCreatedAt(new \DateTime());
 
 			return ApiResult::json($this->tags->insert($tag)->jsonSerialize(), 201);
+		} catch (DuplicateEntryException) {
+			// Name schon vergeben: Eingabefehler, kein Serverfehler fürs Log.
+			return ApiResult::error('Bad request', 400);
 		} catch (\Exception $e) {
 			$this->logger->error('Merlin: tag creation failed', ['exception' => $e]);
 			return ApiResult::error('Bad request', 400);
