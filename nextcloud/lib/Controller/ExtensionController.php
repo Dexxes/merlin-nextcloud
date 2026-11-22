@@ -6,9 +6,9 @@ namespace OCA\Merlin\Controller;
 
 use Merlin\Core\Extraction\ContentExtractorService;
 use Merlin\Core\Extraction\UnsupportedSiteException;
+use Merlin\Core\Service\ArticleDeletionService;
 use OCA\Merlin\Db\Article;
 use OCA\Merlin\Db\ArticleMapper;
-use OCA\Merlin\Service\ArticleDeletionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;

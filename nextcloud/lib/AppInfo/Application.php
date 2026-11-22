@@ -27,7 +27,9 @@ use Merlin\Core\Port\ArticleDeletion;
 use Merlin\Core\Port\CommentGuestStore;
 use Merlin\Core\Port\CommentStore;
 use Merlin\Core\Port\ContentFilterSource;
+use Merlin\Core\Port\ContentFilterStore;
 use Merlin\Core\Port\Crypto;
+use Merlin\Core\Port\Database;
 use Merlin\Core\Port\HighlightStore;
 use Merlin\Core\Port\RetentionStore;
 use Merlin\Core\Port\Session;
@@ -37,6 +39,7 @@ use Merlin\Core\Port\SiteSessions;
 use Merlin\Core\Port\UrlGenerator;
 use Merlin\Core\Port\UserDirectory;
 use Merlin\Core\Port\UserSettings;
+use Merlin\Core\Service\ArticleDeletionService;
 use Merlin\Core\Service\CommentService;
 use Merlin\Core\Service\ExportService;
 use Merlin\Core\Service\PdfProxyService;
@@ -49,7 +52,9 @@ use Merlin\Core\Service\TtsStreamService;
 use OCA\Merlin\Adapter\NextcloudAppSettings;
 use OCA\Merlin\Adapter\NextcloudCommentGuestStore;
 use OCA\Merlin\Adapter\NextcloudCommentStore;
+use OCA\Merlin\Adapter\NextcloudContentFilterStore;
 use OCA\Merlin\Adapter\NextcloudCrypto;
+use OCA\Merlin\Adapter\NextcloudDatabase;
 use OCA\Merlin\Adapter\NextcloudHighlightStore;
 use OCA\Merlin\Adapter\NextcloudRetentionStore;
 use OCA\Merlin\Adapter\NextcloudSession;
@@ -62,7 +67,6 @@ use OCA\Merlin\Listener\AddContentSecurityPolicyListener;
 use OCA\Merlin\Listener\UserDeletedListener;
 use OCA\Merlin\Middleware\CsrfCookieAuthMiddleware;
 use OCA\Merlin\Search\ArticleSearchProvider;
-use OCA\Merlin\Service\ArticleDeletionService;
 use OCA\Merlin\Service\ContentFilterRepository;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
@@ -86,7 +90,9 @@ class Application extends App implements IBootstrap {
 		CommentGuestStore::class   => NextcloudCommentGuestStore::class,
 		CommentStore::class        => NextcloudCommentStore::class,
 		ContentFilterSource::class => ContentFilterRepository::class,
+		ContentFilterStore::class  => NextcloudContentFilterStore::class,
 		Crypto::class              => NextcloudCrypto::class,
+		Database::class            => NextcloudDatabase::class,
 		HighlightStore::class      => NextcloudHighlightStore::class,
 		RetentionStore::class      => NextcloudRetentionStore::class,
 		Session::class             => NextcloudSession::class,
@@ -133,6 +139,7 @@ class Application extends App implements IBootstrap {
 		SiteCredentialService::class,
 		CommentService::class,
 		ShareAccessService::class,
+		ArticleDeletionService::class,
 	];
 
 	public function __construct(array $urlParams = []) {
