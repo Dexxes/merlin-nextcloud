@@ -6,6 +6,7 @@ namespace OCA\Merlin\Service;
 
 use Merlin\Core\ContentFilter\ContentFilterMerger;
 use Merlin\Core\ContentFilter\ContentFilterSchema;
+use Merlin\Core\Port\ContentFilterSource;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use Psr\Log\LoggerInterface;
@@ -30,7 +31,7 @@ use Psr\Log\LoggerInterface;
  * werden NICHT migriert (siehe tasks/content-filter-db-scopes-todo.md,
  * Entscheidungstabelle) — sie werden schlicht ignoriert.
  */
-class ContentFilterRepository {
+class ContentFilterRepository implements ContentFilterSource {
 
 	private const TABLE = 'merlin_cfilter';
 

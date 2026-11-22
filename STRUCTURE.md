@@ -5,15 +5,16 @@ Zentrale Dateien für UI und Logik der Nextcloud-App.
 ## Repository-Layout
 
 Das Repo wird schrittweise zum gemeinsamen Repo für die Nextcloud-App und den
-Standalone-Server umgebaut. Aktueller Stand (Etappe 2 von 7, erster Teil):
+Standalone-Server umgebaut. Aktueller Stand (Etappe 2 von 7, zweiter Teil):
 
 ```
 merlin-nextcloud/
 ├── core/           # framework-freier PHP-Kern, Composer-Paket merlin/core, Namespace Merlin\Core\, PHP ≥ 8.1,
-│                   # kein OCP: src/ContentFilter/ (Schema, Merger, Validator, Serializer, Trace), tests/
+│                   # kein OCP: src/ContentFilter/, src/Extraction/ (Extraktor, Medien, Login, Social, SSRF),
+│                   # src/Port/ (Schnittstellen zu den Adaptern), resources/, tests/
 ├── content-filters/  # mitgelieferte Content-Filter, einzige Kopie für alle Varianten
 ├── nextcloud/      # die Nextcloud-App (App-ID merlin): appinfo/, lib/, templates/, l10n/, img/, css/,
-│                   # resources/, tools/ (Testharnesses), composer.json, Makefile (make dist)
+│                   # tools/ (Testharnesses), composer.json, Makefile (make dist); lib/Adapter/ implementiert die Ports
 ├── frontend/       # Vue-3-Quellen (src/), fonts/, package.json, vite.config.mjs;
 │                   # `npm run build` schreibt nach nextcloud/js und nextcloud/css
 ├── docker/, Dockerfile, docker-compose.yml   # Entwicklungs-Setup der Nextcloud-Variante
@@ -21,16 +22,25 @@ merlin-nextcloud/
 └── README.md, CHANGELOG.md, LICENSE, NOTICE  # werden beim Release in den Tarball kopiert
 ```
 
-Geplant: weitere Teile im Kern (Extraktor, Medien-, Login- und Social-Resolver,
-Services hinter Ports) und `standalone/` (eigener Server ohne Nextcloud,
-ersetzt `merlin-standalone-server`).
+Geplant: die übrigen Services hinter Ports im Kern und `standalone/` (eigener
+Server ohne Nextcloud, ersetzt `merlin-standalone-server`).
 
 Die Nextcloud-App bindet den Kern über ein Composer-Path-Repository ein
 (`nextcloud/composer.json`: `"merlin/core": "*@dev"` aus `../core`). Im Checkout
 ist `nextcloud/vendor/merlin/core` ein Symlink, Änderungen im Kern wirken also
 sofort; nur neue Klassen brauchen ein `composer dump-autoload` (die App nutzt
 `classmap-authoritative`). Psr\Log stellt Nextcloud bereit, der Kern verlangt es
-deshalb nicht selbst.
+deshalb nicht selbst. Den Vendor-Autoloader lädt `Application::__construct()`.
+
+Was der Kern von der Plattform braucht, steht als Schnittstelle in
+`core/src/Port/`. Die Nextcloud-App bindet die Implementierungen in
+`Application::register()` per `registerServiceAlias()`:
+
+| Port | Nextcloud-Implementierung |
+|---|---|
+| `UrlGenerator` | `Adapter\NextcloudUrlGenerator` (IURLGenerator) |
+| `ContentFilterSource` | `Service\ContentFilterRepository` (Bundle + `merlin_cfilter`) |
+| `SiteSessions` | `Service\SiteCredentialService` (Paywall-Logins, `merlin_site_credentials`) |
 
 Release-Tarball: `cd nextcloud && make dist` (Frontend-Build, `git archive`
 von `nextcloud/` und `core/`, `content-filters/` nach `merlin/content-filters/`,
@@ -67,8 +77,9 @@ nextcloud/
 │   │   ├── ContentFilterController.php        # Admin-API für Content-Filter
 │   │   ├── UserContentFilterController.php    # Personal-API: eigener Override
 │   │   └── PageController.php
+│   ├── Adapter/
+│   │   └── NextcloudUrlGenerator.php     # Port UrlGenerator über IURLGenerator
 │   ├── Service/              # Geschäftslogik
-│   │   ├── ContentExtractorService.php
 │   │   ├── ContentFilterRepository.php   # Bundle (Datei) + Admin-/User-Custom (DB), Merge-Cache
 │   │   │                                 # (Schema, Merger, Validator, Serializer, Trace liegen im Kern, siehe unten)
 │   │   ├── SupportBoxService.php         # Daten der Support-Infobox (<paywall><subscribe> + <metadata><donations>, Seiten-Icon, Akzentfarbe); Reader: entfällt bei aktivem Abo-Login, Share: immer
@@ -85,18 +96,7 @@ nextcloud/
 │   │   ├── MerlinFileService.php         # „Merlin Dateien“: Ordner (lokalisiert, per ID gemerkt), Datei-Einträge, Streamen mit Range
 │   │   ├── FileRules.php                 # Reine Regeln dazu: Dateiart/Kategorie, Dateinamen, signierte Links, Range
 │   │   ├── FileMetadata.php              # Eingebettete Metadaten einer Datei (EXIF, GPS, IPTC, XMP, ID3, MP4/MOV, PDF) für die Anzeige im Reader
-│   │   ├── Media/                        # Audio/Video, siehe Abschnitt "Medien-Provider" unten
-│   │   │   ├── MediaResolverService.php       # <media>-Sektion lesen, Provider aufrufen, Marker bauen/lesen
-│   │   │   ├── MediaProviderRegistry.php      # type → Provider (einzige Registrierungsstelle)
-│   │   │   ├── MediaSourceProviderInterface.php / DescriptionProviderInterface.php
-│   │   │   ├── MediaContext.php / MediaResult.php / MediaHttpClient.php / VariantHelper.php
-│   │   │   ├── InlineMediaService.php         # <media><inline>: Videos mitten im Text (ARD-Player) → Figure mit Vorschaubild + Quellen-Marker
-│   │   │   └── Provider/                      # ard-mediathek, zdf, arte, 3sat, youtube-embed, xpath, json-ld
-│   │   └── Login/                        # 🔜 geplant: Paywall-Abo-Login (siehe PLATFORMS.md)
-│   │       ├── LoginProviderInterface.php     # login(username, password): Cookie-Bundle
-│   │       ├── LoginHttpClient.php            # gemeinsamer SSRF-sicherer Request + Set-Cookie-Parsing
-│   │       ├── PianoJsonFormLoginProvider.php # type="piano-json-form" (z. B. tagesspiegel.de)
-│   │       └── KeycloakFormPostLoginProvider.php # type="keycloak-form-post" (Funke-Keycloak, z. B. morgenpost.de)
+│   │   └── SiteCredentialService.php     # Paywall-Zugangsdaten je Nutzer/Domain (Port SiteSessions); Login-Provider im Kern
 │   ├── Settings/             # Verwaltungs- und persönliche Einstellungen
 │   │   ├── AdminSection.php
 │   │   ├── AdminSettings.php
@@ -135,13 +135,34 @@ nextcloud/
 ```
 core/                          # Composer-Paket merlin/core, Namespace Merlin\Core\
 ├── composer.json
+├── resources/
+│   └── url-shorteners.json           # bekannte Shortener/Tracker, vor dem Abruf aufgelöst
 ├── src/
-│   └── ContentFilter/
-│       ├── ContentFilterSchema.php       # Grammatik der Filter-XML (eine Quelle)
-│       ├── ContentFilterMerger.php       # Bundle-, Admin- und User-Filter vereinen
-│       ├── ContentFilterValidator.php    # Prüfung vor dem Speichern
-│       ├── ContentFilterSerializer.php   # JSON ↔ XML für den Regel-Builder
-│       └── ContentFilterTrace.php        # Trefferzähler für den Testlauf
+│   ├── ContentFilter/
+│   │   ├── ContentFilterSchema.php       # Grammatik der Filter-XML (eine Quelle)
+│   │   ├── ContentFilterMerger.php       # Bundle-, Admin- und User-Filter vereinen
+│   │   ├── ContentFilterValidator.php    # Prüfung vor dem Speichern
+│   │   ├── ContentFilterSerializer.php   # JSON ↔ XML für den Regel-Builder
+│   │   └── ContentFilterTrace.php        # Trefferzähler für den Testlauf
+│   ├── Extraction/
+│   │   ├── ContentExtractorService.php   # Abruf, Readability, Content-Filter, Metadaten, Bilder, Paywall
+│   │   ├── UnsupportedSiteException.php
+│   │   ├── Http/SsrfSafeResolver.php     # SSRF-Schutz (Trait), auch für PDF-Proxy und Support-Box
+│   │   ├── Media/                        # Audio/Video, siehe Abschnitt "Medien-Provider" unten
+│   │   │   ├── MediaResolverService.php       # <media>-Sektion lesen, Provider aufrufen, Marker bauen/lesen
+│   │   │   ├── MediaProviderRegistry.php      # type → Provider (einzige Registrierungsstelle)
+│   │   │   ├── MediaSourceProviderInterface.php / DescriptionProviderInterface.php
+│   │   │   ├── MediaContext.php / MediaResult.php / MediaHttpClient.php / VariantHelper.php
+│   │   │   ├── InlineMediaService.php         # <media><inline>: Videos mitten im Text (ARD-Player) → Figure mit Vorschaubild + Quellen-Marker
+│   │   │   └── Provider/                      # ard-mediathek, zdf, arte, 3sat, youtube-embed, xpath, json-ld
+│   │   ├── Login/                        # Paywall-Abo-Login
+│   │   │   ├── LoginProviderInterface.php     # login(username, password): Cookie-Bundle
+│   │   │   ├── LoginHttpClient.php            # gemeinsamer SSRF-sicherer Request + Set-Cookie-Parsing
+│   │   │   ├── LoginStatus.php                # Werte von last_login_status (ok, invalid_credentials, …)
+│   │   │   ├── PianoJsonFormLoginProvider.php # type="piano-json-form" (z. B. tagesspiegel.de)
+│   │   │   └── KeycloakFormPostLoginProvider.php # type="keycloak-form-post" (Funke-Keycloak, z. B. morgenpost.de)
+│   │   └── Social/                       # Bluesky-Threads, Mastodon, TikTok
+│   └── Port/                         # UrlGenerator, ContentFilterSource, SiteSessions
 └── tests/
     └── test-content-filter-merge.php     # Testharness (pures PHP, ohne Composer)
 
@@ -183,7 +204,7 @@ Drei-Ebenen-Erweiterung drei Werte (`bundle`/`admin`/`user`) statt zwei.
 Welche Audio-/Video-Quelle eine Domain hat, steht deklarativ in der
 `<media>`-Sektion ihres Content-Filters (Schema: `ContentFilterSchema`,
 Merge wie alle anderen Sektionen, `<source>` je `type`). Die Logik je
-Quellen-Typ liegt in `lib/Service/Media/Provider/`:
+Quellen-Typ liegt in `core/src/Extraction/Media/Provider/`:
 
 ```
 <media>
@@ -382,7 +403,7 @@ Für Seiten, die über einen Keycloak mit OpenID-Connect-form_post einloggen (Fu
 morgenpost.de), gibt es `type="keycloak-form-post"` mit `<authorize-endpoint url client-id>` und
 `<redirect-endpoint url>` statt `<ajax-endpoint>`, siehe `content-filters/morgenpost.de.xml`.
 
-`type` wählt eine `Service/Login/*LoginProvider`-Implementierung (Whitelist analog
+`type` wählt eine `core/src/Extraction/Login/*LoginProvider`-Implementierung (Whitelist analog
 `FETCH_HEADER_WHITELIST`); `page` dient sowohl als Einstiegs-URL für den CSRF-Cookie-Schritt als
 auch als UI-Link ("Zugangsdaten bei Tagesspiegel prüfen"). Nutzername/Passwort werden verschlüsselt
 pro Nutzer/Domain in `Db\SiteCredential` abgelegt (`OCP\Security\ICrypto`), der gewonnene

@@ -46,9 +46,10 @@ namespace Merlin\MediaTest {
 
 	// Vor der Unterklasse unten nötig – der Autoloader wird erst im
 	// Test-Block registriert.
+	require_once __DIR__ . '/../../core/src/Port/ContentFilterSource.php';
 	require_once __DIR__ . '/../lib/Service/ContentFilterRepository.php';
-	require_once __DIR__ . '/../lib/Service/Http/SsrfSafeResolver.php';
-	require_once __DIR__ . '/../lib/Service/Media/MediaHttpClient.php';
+	require_once __DIR__ . '/../../core/src/Extraction/Http/SsrfSafeResolver.php';
+	require_once __DIR__ . '/../../core/src/Extraction/Media/MediaHttpClient.php';
 
 	final class NullLogger implements LoggerInterface {
 		public function emergency($message, array $context = []) {}
@@ -63,7 +64,7 @@ namespace Merlin\MediaTest {
 	}
 
 	/** Antwortet mit festen JSON-Daten je URL-Präfix, sonst wie bei einem 404 mit null. */
-	final class FakeMediaHttpClient extends \OCA\Merlin\Service\Media\MediaHttpClient {
+	final class FakeMediaHttpClient extends \Merlin\Core\Extraction\Media\MediaHttpClient {
 		/** @var list<string> */
 		public array $requested = [];
 
@@ -153,19 +154,19 @@ namespace {
 	use Merlin\MediaTest\FakeMediaHttpClient;
 	use Merlin\MediaTest\NullLogger;
 	use Merlin\MediaTest\TestRunner;
-	use OCA\Merlin\Service\Media\MediaContext;
-	use OCA\Merlin\Service\Media\MediaHttpClient;
-	use OCA\Merlin\Service\Media\MediaProviderRegistry;
-	use OCA\Merlin\Service\Media\MediaResolverService;
-	use OCA\Merlin\Service\Media\MediaResult;
-	use OCA\Merlin\Service\Media\Provider\ArdMediathekProvider;
-	use OCA\Merlin\Service\Media\Provider\ArteProvider;
-	use OCA\Merlin\Service\Media\Provider\DreiSatProvider;
-	use OCA\Merlin\Service\Media\Provider\JsonLdMediaProvider;
-	use OCA\Merlin\Service\Media\Provider\XPathMediaProvider;
-	use OCA\Merlin\Service\Media\Provider\YoutubeEmbedProvider;
-	use OCA\Merlin\Service\Media\Provider\ZdfProvider;
-	use OCA\Merlin\Service\Media\VariantHelper;
+	use Merlin\Core\Extraction\Media\MediaContext;
+	use Merlin\Core\Extraction\Media\MediaHttpClient;
+	use Merlin\Core\Extraction\Media\MediaProviderRegistry;
+	use Merlin\Core\Extraction\Media\MediaResolverService;
+	use Merlin\Core\Extraction\Media\MediaResult;
+	use Merlin\Core\Extraction\Media\Provider\ArdMediathekProvider;
+	use Merlin\Core\Extraction\Media\Provider\ArteProvider;
+	use Merlin\Core\Extraction\Media\Provider\DreiSatProvider;
+	use Merlin\Core\Extraction\Media\Provider\JsonLdMediaProvider;
+	use Merlin\Core\Extraction\Media\Provider\XPathMediaProvider;
+	use Merlin\Core\Extraction\Media\Provider\YoutubeEmbedProvider;
+	use Merlin\Core\Extraction\Media\Provider\ZdfProvider;
+	use Merlin\Core\Extraction\Media\VariantHelper;
 
 	// App-Klassen aus lib/, Kern-Klassen aus core/src/ (Repository-Wurzel).
 	spl_autoload_register(static function (string $class): void {

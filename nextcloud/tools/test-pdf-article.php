@@ -15,9 +15,9 @@ declare(strict_types=1);
  * Exit-Code 0 = alle Prüfungen bestanden, 1 = mindestens eine fehlgeschlagen.
  */
 
-use OCA\Merlin\Service\ContentExtractorService;
+use Merlin\Core\Extraction\ContentExtractorService;
 
-require_once __DIR__ . '/../lib/Service/ContentExtractorService.php';
+require_once __DIR__ . '/../vendor/autoload.php';
 
 $service = (new ReflectionClass(ContentExtractorService::class))->newInstanceWithoutConstructor();
 $call = function (string $method, mixed ...$args) use ($service): mixed {

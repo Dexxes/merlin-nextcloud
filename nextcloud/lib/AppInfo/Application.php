@@ -4,10 +4,16 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\AppInfo;
 
+use Merlin\Core\Port\ContentFilterSource;
+use Merlin\Core\Port\SiteSessions;
+use Merlin\Core\Port\UrlGenerator;
+use OCA\Merlin\Adapter\NextcloudUrlGenerator;
 use OCA\Merlin\Listener\AddContentSecurityPolicyListener;
 use OCA\Merlin\Listener\UserDeletedListener;
 use OCA\Merlin\Middleware\CsrfCookieAuthMiddleware;
 use OCA\Merlin\Search\ArticleSearchProvider;
+use OCA\Merlin\Service\ContentFilterRepository;
+use OCA\Merlin\Service\SiteCredentialService;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -29,6 +35,13 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function register(IRegistrationContext $context): void {
+		// Ports des framework-freien Kerns (core/, Merlin\Core\Port) und ihre
+		// Nextcloud-Implementierungen. Die übrigen Kern-Klassen löst das
+		// Autowiring direkt über ihren Klassennamen auf.
+		$context->registerServiceAlias(ContentFilterSource::class, ContentFilterRepository::class);
+		$context->registerServiceAlias(SiteSessions::class, SiteCredentialService::class);
+		$context->registerServiceAlias(UrlGenerator::class, NextcloudUrlGenerator::class);
+
 		$context->registerSearchProvider(ArticleSearchProvider::class);
 		$context->registerEventListener(
 			AddContentSecurityPolicyEvent::class,

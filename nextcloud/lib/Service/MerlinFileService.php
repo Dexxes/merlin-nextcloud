@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Service;
 
+use Merlin\Core\Extraction\ContentExtractorService;
+use Merlin\Core\Extraction\Media\MediaResolverService;
+use Merlin\Core\Extraction\Media\MediaResult;
 use OCA\Merlin\Db\Article;
 use OCA\Merlin\Db\ArticleMapper;
-use OCA\Merlin\Service\Media\MediaResolverService;
-use OCA\Merlin\Service\Media\MediaResult;
 use OCP\Files\AlreadyExistsException;
 use OCP\Files\File;
 use OCP\Files\Folder;

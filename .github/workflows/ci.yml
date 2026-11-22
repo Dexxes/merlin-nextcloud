@@ -105,6 +105,8 @@ jobs:
           for f in merlin/appinfo/info.xml merlin/js/merlin-main.mjs merlin/css/merlin-main.css \
                    merlin/vendor/autoload.php merlin/content-filters/spiegel.de.xml \
                    merlin/vendor/merlin/core/src/ContentFilter/ContentFilterSchema.php \
+                   merlin/vendor/merlin/core/src/Extraction/ContentExtractorService.php \
+                   merlin/vendor/merlin/core/resources/url-shorteners.json \
                    merlin/CHANGELOG.md merlin/LICENSE merlin/README.md; do
             test -e "$f" || { echo "::error::missing in tarball: $f"; exit 1; }
           done

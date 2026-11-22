@@ -16,7 +16,6 @@
     ],
     "require": {
         "php": "^8.1",
-        "fivefilters/readability.php": "^3.3",
         "patrickschur/language-detection": "^5.3",
         "merlin/core": "*@dev"
     },

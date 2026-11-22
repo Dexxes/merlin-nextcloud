@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
-use OCA\Merlin\Service\Login\LoginFailedException;
+use Merlin\Core\Extraction\Login\LoginFailedException;
 use OCA\Merlin\Service\SiteCredentialService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;

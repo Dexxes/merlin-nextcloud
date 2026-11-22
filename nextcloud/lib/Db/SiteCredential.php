@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Db;
 
+use Merlin\Core\Extraction\Login\LoginStatus;
 use OCP\AppFramework\Db\Entity;
 
 /**
@@ -34,14 +35,16 @@ use OCP\AppFramework\Db\Entity;
  * @method void setCreatedAt(\DateTime $createdAt)
  */
 class SiteCredential extends Entity {
+	// Werte kommen aus dem Kern (Merlin\Core\Extraction\Login\LoginStatus),
+	// weil die Login-Provider dort sie als Fehlergrund setzen.
 	/** Letzter Login-Versuch war erfolgreich, Cookie (falls vorhanden) gilt als gültig. */
-	public const STATUS_OK = 'ok';
+	public const STATUS_OK = LoginStatus::OK;
 	/** Letzter Login-Versuch ist an falschen Zugangsdaten gescheitert. */
-	public const STATUS_INVALID_CREDENTIALS = 'invalid_credentials';
+	public const STATUS_INVALID_CREDENTIALS = LoginStatus::INVALID_CREDENTIALS;
 	/** Login-Ablauf der Seite konnte nicht (mehr) durchlaufen werden (Formular/Endpoint geändert). */
-	public const STATUS_LOGIN_FLOW_BROKEN = 'login_flow_broken';
+	public const STATUS_LOGIN_FLOW_BROKEN = LoginStatus::LOGIN_FLOW_BROKEN;
 	/** Noch nie versucht (frisch angelegter Eintrag). */
-	public const STATUS_PENDING = 'pending';
+	public const STATUS_PENDING = LoginStatus::PENDING;
 
 	protected $userId;
 	protected $domain;

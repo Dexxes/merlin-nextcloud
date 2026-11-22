@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Service;
 
+use Merlin\Core\Extraction\Login\KeycloakFormPostLoginProvider;
+use Merlin\Core\Extraction\Login\LoginConfig;
+use Merlin\Core\Extraction\Login\LoginFailedException;
+use Merlin\Core\Extraction\Login\LoginProviderInterface;
+use Merlin\Core\Extraction\Login\PianoJsonFormLoginProvider;
+use Merlin\Core\Port\SiteSessions;
 use OCA\Merlin\Db\SiteCredential;
 use OCA\Merlin\Db\SiteCredentialMapper;
-use OCA\Merlin\Service\Login\KeycloakFormPostLoginProvider;
-use OCA\Merlin\Service\Login\LoginConfig;
-use OCA\Merlin\Service\Login\LoginFailedException;
-use OCA\Merlin\Service\Login\LoginProviderInterface;
-use OCA\Merlin\Service\Login\PianoJsonFormLoginProvider;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\Security\ICrypto;
 use Psr\Log\LoggerInterface;
@@ -28,7 +29,7 @@ use Psr\Log\LoggerInterface;
  * merlin-server hat dafür mangels ICrypto eine eigene CredentialCipher-Klasse
  * (sodium_crypto_secretbox).
  */
-class SiteCredentialService {
+class SiteCredentialService implements SiteSessions {
 	/** type-Attribut der <login>-Sektion => zuständiger Provider. */
 	private const PROVIDERS = [
 		'piano-json-form'    => PianoJsonFormLoginProvider::class,
@@ -253,7 +254,7 @@ class SiteCredentialService {
 		);
 	}
 
-	private function login(string $username, string $password, LoginConfig $config): \OCA\Merlin\Service\Login\LoginResult {
+	private function login(string $username, string $password, LoginConfig $config): \Merlin\Core\Extraction\Login\LoginResult {
 		$providerClass = self::PROVIDERS[$config->type] ?? null;
 		if ($providerClass === null) {
 			throw new LoginFailedException('Unbekannter Login-Typ: ' . $config->type, SiteCredential::STATUS_LOGIN_FLOW_BROKEN);

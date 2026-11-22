@@ -21,7 +21,7 @@ declare(strict_types=1);
 namespace Merlin\InlineMediaTest {
 
 	use OCA\Merlin\Service\ContentFilterRepository;
-	use OCA\Merlin\Service\Media\MediaHttpClient;
+	use Merlin\Core\Extraction\Media\MediaHttpClient;
 	require_once __DIR__ . '/../vendor/autoload.php';
 	// App-Klassen aus lib/, Kern-Klassen aus core/src/ (Repository-Wurzel).
 	spl_autoload_register(static function (string $class): void {
@@ -75,19 +75,19 @@ namespace {
 	use Merlin\Core\ContentFilter\ContentFilterValidator;
 	use Merlin\InlineMediaTest\BundleOnlyRepository;
 	use Merlin\InlineMediaTest\StubHttpClient;
-	use OCA\Merlin\Service\ContentExtractorService;
-	use OCA\Merlin\Service\MastodonPostResolverService;
-	use OCA\Merlin\Service\Media\InlineMediaService;
-	use OCA\Merlin\Service\Media\MediaProviderRegistry;
-	use OCA\Merlin\Service\Media\MediaResolverService;
-	use OCA\Merlin\Service\Media\MediaResult;
-	use OCA\Merlin\Service\Media\Provider\ArdMediathekProvider;
-	use OCA\Merlin\Service\Media\Provider\ArteProvider;
-	use OCA\Merlin\Service\Media\Provider\DreiSatProvider;
-	use OCA\Merlin\Service\Media\Provider\JsonLdMediaProvider;
-	use OCA\Merlin\Service\Media\Provider\XPathMediaProvider;
-	use OCA\Merlin\Service\Media\Provider\YoutubeEmbedProvider;
-	use OCA\Merlin\Service\Media\Provider\ZdfProvider;
+	use Merlin\Core\Extraction\ContentExtractorService;
+	use Merlin\Core\Extraction\Social\MastodonPostResolverService;
+	use Merlin\Core\Extraction\Media\InlineMediaService;
+	use Merlin\Core\Extraction\Media\MediaProviderRegistry;
+	use Merlin\Core\Extraction\Media\MediaResolverService;
+	use Merlin\Core\Extraction\Media\MediaResult;
+	use Merlin\Core\Extraction\Media\Provider\ArdMediathekProvider;
+	use Merlin\Core\Extraction\Media\Provider\ArteProvider;
+	use Merlin\Core\Extraction\Media\Provider\DreiSatProvider;
+	use Merlin\Core\Extraction\Media\Provider\JsonLdMediaProvider;
+	use Merlin\Core\Extraction\Media\Provider\XPathMediaProvider;
+	use Merlin\Core\Extraction\Media\Provider\YoutubeEmbedProvider;
+	use Merlin\Core\Extraction\Media\Provider\ZdfProvider;
 	use Psr\Log\NullLogger;
 
 	$passed   = 0;
