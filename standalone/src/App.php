@@ -25,7 +25,10 @@ use Merlin\Standalone\Adapter\StandaloneTranslator;
 use Merlin\Standalone\Adapter\StandaloneUrlGenerator;
 use Merlin\Standalone\Adapter\StandaloneUserDirectory;
 use Merlin\Standalone\Adapter\StandaloneUserSettings;
+use Merlin\Standalone\Auth\PasswordResetService;
 use Merlin\Standalone\Db\Sqlite;
+use Merlin\Standalone\Mail\MailerInterface;
+use Merlin\Standalone\Mail\PhpMailMailer;
 use Merlin\Standalone\Logging\FileLogger;
 use Psr\Log\LoggerInterface;
 
@@ -66,6 +69,7 @@ final class App {
 		Port\UserDirectory::class       => StandaloneUserDirectory::class,
 		Port\UserSettings::class        => StandaloneUserSettings::class,
 		LoggerInterface::class          => FileLogger::class,
+		MailerInterface::class          => PhpMailMailer::class,
 	];
 
 	/**
@@ -120,11 +124,21 @@ final class App {
 				$this->config->string('log_level', 'info')),
 			ConfigInstanceSecret::class => new ConfigInstanceSecret($this->config->string('secret')),
 			StandaloneUrlGenerator::class => new StandaloneUrlGenerator($this->config->string('base_url', 'http://localhost')),
+			\PDO::class => $this->connection()->pdo(),
+			PhpMailMailer::class => new PhpMailMailer(
+				(string) ($this->config->section('mail')['from_address'] ?? 'merlin@localhost'),
+				(string) ($this->config->section('mail')['from_name'] ?? 'Merlin'),
+			),
+			PasswordResetService::class => $this->autowire($class, [
+				'baseUrl' => $this->config->string('base_url'),
+				'ttlSeconds' => $this->config->int('password_reset_ttl', 3600),
+			]),
 			default => $this->autowire($class),
 		};
 	}
 
-	private function autowire(string $class): object {
+	/** @param array<string, mixed> $scalars Werte für Parameter ohne Klassentyp, nach Name */
+	private function autowire(string $class, array $scalars = []): object {
 		if (!str_starts_with($class, 'Merlin\\Core\\') && !str_starts_with($class, 'Merlin\\Standalone\\')) {
 			throw new \LogicException("Kein Adapter für {$class}");
 		}
@@ -135,7 +149,9 @@ final class App {
 		$args = [];
 		foreach ($reflection->getConstructor()?->getParameters() ?? [] as $parameter) {
 			$type = $parameter->getType();
-			if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
+			if (array_key_exists($parameter->getName(), $scalars)) {
+				$args[] = $scalars[$parameter->getName()];
+			} elseif ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
 				$args[] = $this->get($type->getName());
 			} elseif ($parameter->isDefaultValueAvailable()) {
 				$args[] = $parameter->getDefaultValue();
