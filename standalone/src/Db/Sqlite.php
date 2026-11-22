@@ -4,20 +4,17 @@ declare(strict_types=1);
 
 namespace Merlin\Standalone\Db;
 
+use Merlin\Core\Persistence\PdoConnection;
 use PDO;
 
 /**
- * Die eine PDO-Verbindung des Servers. Vorerst nur SQLite (MySQL/MariaDB und
- * PostgreSQL kommen später, das SQL des Kerns bleibt dafür portabel).
+ * Öffnet die SQLite-Datenbank des Servers als Connection-Port des Kerns
+ * (Merlin\Core\Persistence\PdoConnection, ohne Tabellenpräfix). Vorerst nur
+ * SQLite; MySQL/MariaDB und PostgreSQL kommen später, das SQL des Kerns
+ * bleibt dafür portabel.
  */
-final class Connection {
-	public function __construct(private PDO $pdo) {
-		$this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-		$this->pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-		$this->pdo->setAttribute(PDO::ATTR_STRINGIFY_FETCHES, false);
-	}
-
-	public static function sqlite(string $path): self {
+final class Sqlite {
+	public static function open(string $path): PdoConnection {
 		if ($path !== ':memory:') {
 			$dir = dirname($path);
 			if (!is_dir($dir) && !mkdir($dir, 0770, true) && !is_dir($dir)) {
@@ -25,7 +22,7 @@ final class Connection {
 			}
 		}
 		$pdo = new PDO('sqlite:' . $path);
-		$connection = new self($pdo);
+		$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 		// Fremdschlüssel (Konto-Tabellen, ON DELETE CASCADE) gelten in SQLite nur,
 		// wenn sie je Verbindung eingeschaltet werden.
 		$pdo->exec('PRAGMA foreign_keys = ON');
@@ -34,14 +31,6 @@ final class Connection {
 			// Lesende Requests blockieren schreibende nicht (Extraktion nach der Antwort).
 			$pdo->exec('PRAGMA journal_mode = WAL');
 		}
-		return $connection;
-	}
-
-	public function pdo(): PDO {
-		return $this->pdo;
-	}
-
-	public function driver(): string {
-		return (string) $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+		return new PdoConnection($pdo);
 	}
 }

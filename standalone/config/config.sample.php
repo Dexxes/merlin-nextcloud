@@ -34,8 +34,6 @@ return [
 	// Zugangsdaten unlesbar.
 	'secret' => '',
 
-	// Piper-TTS-Daemon für die Vorlesefunktion.
-	'tts' => [
-		'daemon_url' => 'http://127.0.0.1:5051',
-	],
+	// Mindeststufe für die Logdatei: debug, info, notice, warning, error.
+	'log_level' => 'info',
 ];

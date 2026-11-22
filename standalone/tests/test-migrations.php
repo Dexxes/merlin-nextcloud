@@ -10,7 +10,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 
-use Merlin\Standalone\Db\Connection;
+use Merlin\Standalone\Db\Sqlite;
 use Merlin\Standalone\Db\MigrationRunner;
 
 $failures = 0;
@@ -23,7 +23,7 @@ function check(bool $ok, string $label): void {
 }
 
 $dir = sys_get_temp_dir() . '/merlin-test-' . bin2hex(random_bytes(4));
-$connection = Connection::sqlite($dir . '/merlin.sqlite');
+$connection = Sqlite::open($dir . '/merlin.sqlite');
 $runner = new MigrationRunner($connection);
 
 $first = $runner->migrate();
