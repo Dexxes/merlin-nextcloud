@@ -455,7 +455,7 @@ $check(
 echo "\n\033[1mnetzpolitik.org: Box \"Über die Autor:innen\"\033[0m\n";
 
 // Echte Filterdatei, gekürztes HTML einer Artikelseite mit zwei Autoren.
-$npConfig = preg_replace('/<domain name="[^"]*"/', '<domain name="example.com"', (string) file_get_contents(__DIR__ . '/../content-filters/netzpolitik.org.xml'));
+$npConfig = preg_replace('/<domain name="[^"]*"/', '<domain name="example.com"', (string) file_get_contents(__DIR__ . '/../../content-filters/netzpolitik.org.xml'));
 $npEntry  = fn (string $slug, string $name, string $img, string $bio): string =>
 	'<li class="np-outro-author-entry"><figure class="np-outro-author-image"><img src="' . $img . '" alt="' . $name . '" class="author-avatars__img"></figure>'
 	. '<div class="np-outro-authro-inner-wrapper"><div class="np-outro-author-name"><a href="https://netzpolitik.org/author/' . $slug . '/">' . $name . '</a></div>'
@@ -549,7 +549,7 @@ $checkPages(
 );
 
 // rbb24.de: echte Filterdatei, gekürzte Autorenseiten (article.cast).
-$rbbConfig = preg_replace('/<domain name="[^"]*"/', '<domain name="example.com"', (string) file_get_contents(__DIR__ . '/../content-filters/rbb24.de.xml'));
+$rbbConfig = preg_replace('/<domain name="[^"]*"/', '<domain name="example.com"', (string) file_get_contents(__DIR__ . '/../../content-filters/rbb24.de.xml'));
 $rbbPage   = fn (string $img, string $alt, string $items): string =>
 	'<html><body><main><article class="cast" aria-label=""><div class="container__cast">'
 	. '<figure class="cast__image-container"><picture><source srcset="' . $img . '.webp" type="image/webp"><img src="' . $img . '" alt="' . $alt . '" title="' . $alt . '" loading="lazy"></picture></figure>'
@@ -590,7 +590,7 @@ $checkPages(
 );
 
 // morgenpost.de: echte Filterdatei, gekürzte Byline bzw. Autorenseite.
-$mopoConfig = preg_replace('/<domain name="[^"]*"/', '<domain name="example.com"', (string) file_get_contents(__DIR__ . '/../content-filters/morgenpost.de.xml'));
+$mopoConfig = preg_replace('/<domain name="[^"]*"/', '<domain name="example.com"', (string) file_get_contents(__DIR__ . '/../../content-filters/morgenpost.de.xml'));
 $mopoByline = fn (string $slug, string $name, ?string $img): string =>
 	'<figure class="flex flex-row items-center gap-2 md:gap-2.5">'
 	. ($img === null ? '' : '<a rel="author" class="inline-block" href="/autoren/' . $slug . '/" data-track-v2-parent="Autorenkennzeichnung" data-track-v2-label="Autorenbild">'
@@ -649,7 +649,7 @@ $checkPages(
 );
 
 // tagesspiegel.de: echte Filterdatei, gekürzte Byline bzw. Autorenseiten.
-$tspConfig = preg_replace('/<domain name="[^"]*"/', '<domain name="example.com"', (string) file_get_contents(__DIR__ . '/../content-filters/tagesspiegel.de.xml'));
+$tspConfig = preg_replace('/<domain name="[^"]*"/', '<domain name="example.com"', (string) file_get_contents(__DIR__ . '/../../content-filters/tagesspiegel.de.xml'));
 $tspLi = fn (string $href, string $name): string =>
 	'<li property="author" typeof="Person"><a href="' . $href . '" property="url name" data-gtm-class="article-author-link" class="tspBNmm"> ' . $name . '</a></li>';
 
@@ -708,7 +708,7 @@ echo "\n\033[1mmedium.com: Byline und Kasten \"Written by\"\033[0m\n";
 // Echte Filterdatei, nachgebautes Medium-Markup (die Seite blockt Abrufe aus
 // der Testumgebung): Byline mit data-testid="authorPhoto", Kasten unter dem
 // Artikel mit ?source=post_page---post_author_info--…-Links.
-$mediumConfig = preg_replace('/<domain name="[^"]*"/', '<domain name="example.com"', (string) file_get_contents(__DIR__ . '/../content-filters/medium.com.xml'));
+$mediumConfig = preg_replace('/<domain name="[^"]*"/', '<domain name="example.com"', (string) file_get_contents(__DIR__ . '/../../content-filters/medium.com.xml'));
 $mediumSrc    = '?source=post_page---post_author_info--b405357e1198---------------------------------------';
 $mediumPage   = fn (string $byline, string $box): string =>
 	'<html><head><meta name="author" content="Guy Phenix"><meta property="article:author" content="https://medium.com/@GuyPhenix">'
@@ -765,7 +765,7 @@ echo "\n\033[1mspiegel.de: Byline, Kasten \"Zum Autor\" und Autorenseite\033[0m\
 
 // Echte Filterdatei, gekürztes Markup echter SPIEGEL-Seiten (Kolumne mit Foto in
 // der Byline und Kasten "Zum Autor", Nachricht mit zwei Autoren, Agenturmeldung).
-$spiegelConfig = preg_replace('/<domain name="[^"]*"/', '<domain name="example.com"', (string) file_get_contents(__DIR__ . '/../content-filters/spiegel.de.xml'));
+$spiegelConfig = preg_replace('/<domain name="[^"]*"/', '<domain name="example.com"', (string) file_get_contents(__DIR__ . '/../../content-filters/spiegel.de.xml'));
 $spAuthorUrl   = fn (string $id): string => 'https://www.spiegel.de/impressum/autor-' . $id;
 $spCdn         = 'https://cdn.prod.www.spiegel.de/images/';
 $spLink        = fn (string $id, string $name): string =>

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Service;
 
+use Merlin\Core\ContentFilter\ContentFilterMerger;
+use Merlin\Core\ContentFilter\ContentFilterSchema;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use Psr\Log\LoggerInterface;
@@ -128,12 +130,22 @@ class ContentFilterRepository {
 	/**
 	 * Absoluter Pfad des Bundle-Ordners oder null, wenn er nicht auflösbar ist.
 	 *
+	 * Die Bundle-Filter liegen im Repository an der Wurzel (content-filters/,
+	 * gemeinsam für alle Varianten). Appstore-Tarball und Docker-Image kopieren
+	 * sie in das App-Verzeichnis (merlin/content-filters/), das hat Vorrang.
+	 * Im Checkout ohne Kopie greift der Ordner an der Repository-Wurzel.
+	 *
 	 * realpath() löst die ../..-Traversierung auf, damit open_basedir-
 	 * Beschränkungen und symlinkte App-Verzeichnisse nicht stören.
 	 */
 	public function getBundleDir(): ?string {
-		$dir = realpath(__DIR__ . '/../../content-filters');
-		return $dir === false ? null : $dir;
+		foreach ([__DIR__ . '/../../content-filters', __DIR__ . '/../../../content-filters'] as $candidate) {
+			$dir = realpath($candidate);
+			if ($dir !== false && is_dir($dir)) {
+				return $dir;
+			}
+		}
+		return null;
 	}
 
 	// ──────────────────────────────────────────────────────────────────────────

@@ -1,0 +1,5 @@
+# Dev-only files of the core package that must not end up in the app store
+# release tarball (nextcloud/Makefile copies core/ via `git archive`, which
+# honors export-ignore, and composer then mirrors it into vendor/merlin/core).
+/.gitattributes export-ignore
+/tests export-ignore

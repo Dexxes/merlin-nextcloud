@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace OCA\Merlin\Service;
+namespace Merlin\Core\ContentFilter;
 
 use Psr\Log\LoggerInterface;
 

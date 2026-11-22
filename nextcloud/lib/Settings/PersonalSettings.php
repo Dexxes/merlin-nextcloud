@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Settings;
 
+use Merlin\Core\ContentFilter\ContentFilterSchema;
 use OCA\Merlin\AppInfo\Application;
 use OCA\Merlin\Service\ContentFilterRepository;
-use OCA\Merlin\Service\ContentFilterSchema;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IGroupManager;

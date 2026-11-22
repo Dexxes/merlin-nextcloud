@@ -179,6 +179,13 @@ All notable changes to Merlin are documented here. Format based on
   release tarball now also contains the built stylesheets (`css/merlin-*.css`),
   which `make dist` did not copy before. A GitHub Actions workflow checks PHP
   syntax, runs the test harnesses and builds the frontend and the tarball.
+- Repository layout: the content-filter classes (schema, merger, validator,
+  serializer, trace) moved into a framework-free core package (`core/`,
+  `Merlin\Core\`) that the standalone server will share, and the bundled
+  content filters into `content-filters/` at the repository root. The app
+  pulls the core in via Composer; the release tarball contains both as
+  before. No change in behaviour. The minimum PHP version is now 8.1, which
+  Nextcloud 30 already required.
 - Captions: the signal words that mark the image credit in a caption
   ("Foto:", "Quelle:", "Photo:", "Source:", …) are now a list in
   `content-filters/$caption-credits.xml` that can be edited like the content

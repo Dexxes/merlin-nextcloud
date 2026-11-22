@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace OCA\Merlin\Service;
+namespace Merlin\Core\ContentFilter;
 
 /**
  * Deklarative Grammatik der Content-Filter-XML-Dateien.

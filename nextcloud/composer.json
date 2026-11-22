@@ -8,10 +8,17 @@
             "name": "Julian von Bülow"
         }
     ],
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../core"
+        }
+    ],
     "require": {
-        "php": "^8.0",
+        "php": "^8.1",
         "fivefilters/readability.php": "^3.3",
-        "patrickschur/language-detection": "^5.3"
+        "patrickschur/language-detection": "^5.3",
+        "merlin/core": "*@dev"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.0",

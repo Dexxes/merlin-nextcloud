@@ -5,24 +5,39 @@ Zentrale Dateien für UI und Logik der Nextcloud-App.
 ## Repository-Layout
 
 Das Repo wird schrittweise zum gemeinsamen Repo für die Nextcloud-App und den
-Standalone-Server umgebaut. Aktueller Stand (Etappe 1 von 7):
+Standalone-Server umgebaut. Aktueller Stand (Etappe 2 von 7, erster Teil):
 
 ```
 merlin-nextcloud/
+├── core/           # framework-freier PHP-Kern, Composer-Paket merlin/core, Namespace Merlin\Core\, PHP ≥ 8.1,
+│                   # kein OCP: src/ContentFilter/ (Schema, Merger, Validator, Serializer, Trace), tests/
+├── content-filters/  # mitgelieferte Content-Filter, einzige Kopie für alle Varianten
 ├── nextcloud/      # die Nextcloud-App (App-ID merlin): appinfo/, lib/, templates/, l10n/, img/, css/,
-│                   # content-filters/, resources/, tools/ (Testharnesses), composer.json, Makefile (make dist)
+│                   # resources/, tools/ (Testharnesses), composer.json, Makefile (make dist)
 ├── frontend/       # Vue-3-Quellen (src/), fonts/, package.json, vite.config.mjs;
 │                   # `npm run build` schreibt nach nextcloud/js und nextcloud/css
 ├── docker/, Dockerfile, docker-compose.yml   # Entwicklungs-Setup der Nextcloud-Variante
-├── .github/workflows/ci.yml                  # PHP-Lint, Testharnesses, Frontend-Build, Appstore-Tarball
+├── .github/workflows/ci.yml                  # PHP-Lint, Kern ohne OCP, Testharnesses, Frontend-Build, Appstore-Tarball
 └── README.md, CHANGELOG.md, LICENSE, NOTICE  # werden beim Release in den Tarball kopiert
 ```
 
-Geplant: `core/` (framework-freier PHP-Kern, gemeinsam genutzt) und
-`standalone/` (eigener Server ohne Nextcloud, ersetzt `merlin-standalone-server`).
+Geplant: weitere Teile im Kern (Extraktor, Medien-, Login- und Social-Resolver,
+Services hinter Ports) und `standalone/` (eigener Server ohne Nextcloud,
+ersetzt `merlin-standalone-server`).
+
+Die Nextcloud-App bindet den Kern über ein Composer-Path-Repository ein
+(`nextcloud/composer.json`: `"merlin/core": "*@dev"` aus `../core`). Im Checkout
+ist `nextcloud/vendor/merlin/core` ein Symlink, Änderungen im Kern wirken also
+sofort; nur neue Klassen brauchen ein `composer dump-autoload` (die App nutzt
+`classmap-authoritative`). Psr\Log stellt Nextcloud bereit, der Kern verlangt es
+deshalb nicht selbst.
 
 Release-Tarball: `cd nextcloud && make dist` (Frontend-Build, `git archive`
-von `nextcloud/`, `vendor/` ohne Dev-Abhängigkeiten).
+von `nextcloud/` und `core/`, `content-filters/` nach `merlin/content-filters/`,
+`vendor/` ohne Dev-Abhängigkeiten, der Kern dabei kopiert statt verlinkt über
+`COMPOSER_MIRROR_PATH_REPOS=1`). Das Docker-Image macht dasselbe.
+`ContentFilterRepository::getBundleDir()` sucht die Bundle-Filter zuerst im
+App-Verzeichnis (Tarball, Image), dann an der Repository-Wurzel (Checkout).
 
 ## Backend (PHP)
 
@@ -54,12 +69,8 @@ nextcloud/
 │   │   └── PageController.php
 │   ├── Service/              # Geschäftslogik
 │   │   ├── ContentExtractorService.php
-│   │   ├── ContentFilterSchema.php       # Grammatik der Filter-XML (eine Quelle)
 │   │   ├── ContentFilterRepository.php   # Bundle (Datei) + Admin-/User-Custom (DB), Merge-Cache
-│   │   ├── ContentFilterMerger.php       # Bundle-, Admin- und User-Filter vereinen
-│   │   ├── ContentFilterValidator.php    # Prüfung vor dem Speichern
-│   │   ├── ContentFilterSerializer.php   # JSON ↔ XML für den Regel-Builder
-│   │   ├── ContentFilterTrace.php        # Trefferzähler für den Testlauf
+│   │   │                                 # (Schema, Merger, Validator, Serializer, Trace liegen im Kern, siehe unten)
 │   │   ├── SupportBoxService.php         # Daten der Support-Infobox (<paywall><subscribe> + <metadata><donations>, Seiten-Icon, Akzentfarbe); Reader: entfällt bei aktivem Abo-Login, Share: immer
 │   │   ├── PdfProxyService.php           # PDF-Durchreichung für PdfController und öffentlichen Share-Endpunkt (SSRF-Guard je Hop, %PDF-Prüfung, Range, 100-MB-Limit)
 │   │   ├── TtsStreamService.php          # Ausgelagert aus TtsController: gemeinsamer Stream-Pfad für authentifizierten und öffentlichen (Share-)Endpunkt
@@ -107,13 +118,7 @@ nextcloud/
 │   │   ├── Tag.php / TagMapper.php
 │   │   └── SiteCredential.php / SiteCredentialMapper.php  # 🔜 geplant: verschlüsselte Paywall-Zugangsdaten je Nutzer/Domain
 │   └── Migration/            # Datenbank-Migrationen (Version1000Date20240101000000 … 000032)
-├── content-filters/          # Mitgelieferte Filter, eine Datei je Domain (~55 Domains, z. B. spiegel.de, zeit.de, taz.de, youtube.com)
-│   ├── $sample.com.xml       # Kommentierte Referenz aller Regeltypen
-│   ├── 000dead.xml           # Parkliste toter Domains (kein gültiges XML)
-│   ├── $unsupported.xml      # Domains, die grundsätzlich nicht gescrapt werden (siehe UnsupportedSiteException)
-│   └── $caption-credits.xml  # Signalwörter für die Bildquelle in Captions ("Foto:", "Quelle:", …)
 └── tools/
-    ├── test-content-filter-merge.php  # Testharness (pures PHP, ohne Composer)
     ├── test-caption-credits.php       # Testharness: <images><caption credits-xpath> → <cite>
     ├── test-caption-flatten.php       # Testharness: Bildunterschriften einzeilig ("•")
     ├── test-media-providers.php       # Testharness Medien-Provider (--live: gegen echte Sender)
@@ -125,6 +130,26 @@ nextcloud/
     ├── test-tag-tree.php              # Testharness TagTree (Nachfahren, Kreisprüfung)
     ├── test-file-rules.php            # Testharness FileRules (Dateiart, Namen, Token, Range)
     └── test-site-icon.php             # Testharness ContentExtractorService::extractSiteIconUrl() (Apple > SVG > Bitmap > ICO, <base>, data:/javascript:, kein og:image)
+```
+
+```
+core/                          # Composer-Paket merlin/core, Namespace Merlin\Core\
+├── composer.json
+├── src/
+│   └── ContentFilter/
+│       ├── ContentFilterSchema.php       # Grammatik der Filter-XML (eine Quelle)
+│       ├── ContentFilterMerger.php       # Bundle-, Admin- und User-Filter vereinen
+│       ├── ContentFilterValidator.php    # Prüfung vor dem Speichern
+│       ├── ContentFilterSerializer.php   # JSON ↔ XML für den Regel-Builder
+│       └── ContentFilterTrace.php        # Trefferzähler für den Testlauf
+└── tests/
+    └── test-content-filter-merge.php     # Testharness (pures PHP, ohne Composer)
+
+content-filters/              # Mitgelieferte Filter, eine Datei je Domain (~55 Domains, z. B. spiegel.de, zeit.de, taz.de, youtube.com)
+├── $sample.com.xml           # Kommentierte Referenz aller Regeltypen
+├── 000dead.xml               # Parkliste toter Domains (kein gültiges XML)
+├── $unsupported.xml          # Domains, die grundsätzlich nicht gescrapt werden (siehe UnsupportedSiteException)
+└── $caption-credits.xml      # Signalwörter für die Bildquelle in Captions ("Foto:", "Quelle:", …)
 ```
 
 Hinweis: `FeedController`/`FeedService`/`Feed(Mapper)` aus einer früheren Version existieren nicht mehr.

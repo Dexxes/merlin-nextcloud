@@ -10,6 +10,8 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 use fivefilters\Readability\Configuration;
 use fivefilters\Readability\ParseException;
 use fivefilters\Readability\Readability;
+use Merlin\Core\ContentFilter\ContentFilterSchema;
+use Merlin\Core\ContentFilter\ContentFilterTrace;
 use OCA\Merlin\Service\Http\SsrfSafeResolver;
 use OCA\Merlin\Service\Login\PaywallLoginRequiredException;
 use OCA\Merlin\Service\Media\InlineMediaService;

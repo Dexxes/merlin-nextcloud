@@ -5,13 +5,14 @@ declare(strict_types=1);
 /**
  * Testharness für das Content-Filter-Merge-System.
  *
- * Aufruf (auf dem Server, im App-Verzeichnis):
- *   php tools/test-content-filter-merge.php
+ * Aufruf (im Repository):
+ *   php core/tests/test-content-filter-merge.php
  *
- * Bewusst ohne Composer-Autoload, PHPUnit oder Nextcloud-Bootstrap: das Skript
- * soll per SSH auf einem NAS laufen, wo nur die PHP-CLI der Nextcloud-Instanz
- * vorhanden ist. Die beiden externen Abhängigkeiten der geprüften Klassen
- * (Psr\Log\LoggerInterface, OCP\IConfig) werden unten als Stubs deklariert.
+ * Bewusst ohne Composer-Autoload, PHPUnit oder Framework-Bootstrap: die
+ * geprüften Klassen liegen im framework-freien Kern (core/src/ContentFilter),
+ * die Bundle-Filter in content-filters/ an der Repository-Wurzel. Die einzige
+ * externe Abhängigkeit (Psr\Log\LoggerInterface) wird unten als Stub
+ * deklariert.
  *
  * Exit-Code 0 = alle Prüfungen bestanden, 1 = mindestens eine fehlgeschlagen.
  */
@@ -136,18 +137,18 @@ namespace Merlin\FilterTest {
 
 namespace {
 
+	use Merlin\Core\ContentFilter\ContentFilterMerger;
+	use Merlin\Core\ContentFilter\ContentFilterSchema;
+	use Merlin\Core\ContentFilter\ContentFilterSerializer;
+	use Merlin\Core\ContentFilter\ContentFilterValidator;
 	use Merlin\FilterTest\CollectingLogger;
 	use Merlin\FilterTest\TestRunner;
-	use OCA\Merlin\Service\ContentFilterMerger;
-	use OCA\Merlin\Service\ContentFilterSchema;
-	use OCA\Merlin\Service\ContentFilterSerializer;
-	use OCA\Merlin\Service\ContentFilterValidator;
 
-	require_once __DIR__ . '/../lib/Service/ContentFilterSchema.php';
-	require_once __DIR__ . '/../lib/Service/ContentFilterTrace.php';
-	require_once __DIR__ . '/../lib/Service/ContentFilterMerger.php';
-	require_once __DIR__ . '/../lib/Service/ContentFilterValidator.php';
-	require_once __DIR__ . '/../lib/Service/ContentFilterSerializer.php';
+	require_once __DIR__ . '/../src/ContentFilter/ContentFilterSchema.php';
+	require_once __DIR__ . '/../src/ContentFilter/ContentFilterTrace.php';
+	require_once __DIR__ . '/../src/ContentFilter/ContentFilterMerger.php';
+	require_once __DIR__ . '/../src/ContentFilter/ContentFilterValidator.php';
+	require_once __DIR__ . '/../src/ContentFilter/ContentFilterSerializer.php';
 
 	// ContentFilterRepository wird hier bewusst NICHT mehr geladen/getestet: seit
 	// der DB-Umstellung (tasks/content-filter-db-scopes-todo.md) braucht ihr
@@ -204,8 +205,8 @@ namespace {
 	// ══════════════════════════════════════════════════════════════════════════
 	$t->group('1. Regression: Merge ohne Custom-Filter lässt das Bundle unverändert');
 
-	$bundleDir = realpath(__DIR__ . '/../content-filters');
-	$t->ok($bundleDir !== false, 'Bundle-Ordner gefunden', 'Pfad: ' . __DIR__ . '/../content-filters');
+	$bundleDir = realpath(__DIR__ . '/../../content-filters');
+	$t->ok($bundleDir !== false, 'Bundle-Ordner gefunden', 'Pfad: ' . __DIR__ . '/../../content-filters');
 
 	$checked = 0;
 	$drift   = [];
@@ -913,7 +914,7 @@ namespace {
 	'));
 	$rules = $traceConfig->xpath('pre-filter/remove') ?: [];
 
-	$trace = new \OCA\Merlin\Service\ContentFilterTrace();
+	$trace = new \Merlin\Core\ContentFilter\ContentFilterTrace();
 	$trace->record('pre-filter', $rules[0], 3);
 	$trace->record('pre-filter', $rules[1], 0);
 	$entries = $trace->toArray();
@@ -943,7 +944,7 @@ namespace {
 	// Identische Regeln aus Bundle und Custom laufen beide – sie dürfen im Bericht
 	// nicht zu einer Zeile verschmelzen, sonst hält der Admin seine eigene Regel
 	// für verschwunden.
-	$dupTrace = new \OCA\Merlin\Service\ContentFilterTrace();
+	$dupTrace = new \Merlin\Core\ContentFilter\ContentFilterTrace();
 	$dupTrace->recordRaw('pre-filter', 'remove', ['class' => 'ads'], 'bundle', 2);
 	$dupTrace->recordRaw('pre-filter', 'remove', ['class' => 'ads'], 'custom', 0);
 	$t->eq(count($dupTrace->toArray()), 2, 'Gleiche Regel aus Bundle und Custom bleibt getrennt');
