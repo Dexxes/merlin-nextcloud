@@ -6,11 +6,15 @@ declare(strict_types=1);
 /**
  * Kommandozeile des Standalone-Servers.
  *
- *   bin/merlin migrate     fehlende Migrationen aus migrations/ anwenden
+ *   bin/merlin migrate                                   fehlende Migrationen anwenden
+ *   bin/merlin create-admin --username=… --email=… [--password=…]
+ *                                                        Admin-Konto anlegen (ohne --password: Abfrage)
  */
 
 use Merlin\Standalone\App;
+use Merlin\Standalone\Auth\PasswordHasher;
 use Merlin\Standalone\Db\MigrationRunner;
+use Merlin\Standalone\Db\UserRepository;
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 
@@ -29,10 +33,48 @@ try {
 			}
 			exit(0);
 
+		case 'create-admin':
+			// Übernommen aus merlin-standalone-server (tools/create-admin.php, fe8ed23).
+			$options = [];
+			foreach (array_slice($argv, 2) as $arg) {
+				if (preg_match('/^--([a-z]+)=(.*)$/s', $arg, $m)) {
+					$options[$m[1]] = $m[2];
+				}
+			}
+			$username = trim((string) ($options['username'] ?? ''));
+			$email = trim((string) ($options['email'] ?? ''));
+			$password = isset($options['password']) ? (string) $options['password'] : null;
+			if ($username === '' || $email === '') {
+				fwrite(STDERR, "Aufruf: bin/merlin create-admin --username=<name> --email=<email> [--password=<passwort>]\n");
+				exit(1);
+			}
+			if ($password === null) {
+				fwrite(STDOUT, 'Passwort (mind. 8 Zeichen): ');
+				$password = trim((string) fgets(STDIN));
+			}
+			if (strlen($password) < 8) {
+				fwrite(STDERR, "Das Passwort muss mindestens 8 Zeichen lang sein.\n");
+				exit(1);
+			}
+			$app = App::fromConfigFile();
+			(new MigrationRunner($app->connection()))->migrate();
+			$users = $app->get(UserRepository::class);
+			if ($users->findByUsername($username) !== null) {
+				fwrite(STDERR, "Benutzername '{$username}' ist bereits vergeben.\n");
+				exit(1);
+			}
+			if ($users->findByEmail($email) !== null) {
+				fwrite(STDERR, "E-Mail '{$email}' wird bereits verwendet.\n");
+				exit(1);
+			}
+			$user = $users->create($username, $email, $app->get(PasswordHasher::class)->hash($password), 'admin');
+			fwrite(STDOUT, "Admin-Konto '{$user['username']}' (ID {$user['id']}) angelegt.\n");
+			exit(0);
+
 		case 'help':
 		case '--help':
 		case '-h':
-			fwrite(STDOUT, "Aufruf: bin/merlin <befehl>\n\n  migrate   fehlende Migrationen anwenden\n");
+			fwrite(STDOUT, "Aufruf: bin/merlin <befehl>\n\n  migrate        fehlende Migrationen anwenden\n  create-admin   Admin-Konto anlegen (--username, --email, --password)\n");
 			exit(0);
 
 		default:

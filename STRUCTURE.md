@@ -5,7 +5,7 @@ Zentrale Dateien für UI und Logik der Nextcloud-App.
 ## Repository-Layout
 
 Das Repo wird schrittweise zum gemeinsamen Repo für die Nextcloud-App und den
-Standalone-Server umgebaut. Aktueller Stand (Etappe 3 von 7, zweiter Teil):
+Standalone-Server umgebaut. Aktueller Stand (Etappe 3 von 7, dritter Teil):
 
 ```
 merlin-nextcloud/
@@ -76,6 +76,19 @@ Port in einer der beiden Listen steht und alle Kern-Dienste baubar sind.
 | `ContentFilterSource` | `Adapter\StandaloneContentFilterRepository` |
 | `SiteSessions`, `ArticleDeletion` | `SiteCredentialService`, `ArticleDeletionService` aus dem Kern |
 | `FilePreviews`, `StoredFile` | nicht verfügbar (Merlin Dateien folgt später) |
+
+Standalone-HTTP: `standalone/public/index.php` baut die Routen aus
+`src/Http/Routes.php` (bisher nur die Standalone-eigenen: Login, Registrierung,
+Passwort-Reset, Konto mit API-Tokens, Admin-Nutzer, Login Flow v2 unter
+`/login/v2`, dazu `/api/capabilities` und `/img/{datei}` aus `nextcloud/img/`).
+Pfade und Antworten wie in `merlin-standalone-server`, damit Clients mit
+`backendKind: 'standalone'` sie unverändert finden. Die merlin_*-Daten eines
+gelöschten Kontos räumt `Account\UserDataCleaner` ab (wie `UserDeletedListener`
+in Nextcloud). `/api/capabilities` meldet `backend`, die gemeinsame `version`
+(aus `nextcloud/appinfo/info.xml`), `apiVersion` und `features`; `files` fehlt
+dort bewusst. `standalone/tests/test-http.php` startet den eingebauten
+PHP-Server und spielt Login Flow, Basic Auth, Admin-API und Kontolöschung
+durch.
 
 Die Nextcloud-App bindet den Kern über ein Composer-Path-Repository ein
 (`nextcloud/composer.json`: `"merlin/core": "*@dev"` aus `../core`). Im Checkout
