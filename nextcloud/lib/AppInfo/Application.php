@@ -4,19 +4,83 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\AppInfo;
 
+use Merlin\Core\ContentFilter\ContentFilterMerger;
+use Merlin\Core\ContentFilter\ContentFilterSerializer;
+use Merlin\Core\ContentFilter\ContentFilterValidator;
+use Merlin\Core\Extraction\ContentExtractorService;
+use Merlin\Core\Extraction\Media\InlineMediaService;
+use Merlin\Core\Extraction\Media\MediaHttpClient;
+use Merlin\Core\Extraction\Media\MediaProviderRegistry;
+use Merlin\Core\Extraction\Media\MediaResolverService;
+use Merlin\Core\Extraction\Media\Provider\ArdMediathekProvider;
+use Merlin\Core\Extraction\Media\Provider\ArteProvider;
+use Merlin\Core\Extraction\Media\Provider\DreiSatProvider;
+use Merlin\Core\Extraction\Media\Provider\JsonLdMediaProvider;
+use Merlin\Core\Extraction\Media\Provider\XPathMediaProvider;
+use Merlin\Core\Extraction\Media\Provider\YoutubeEmbedProvider;
+use Merlin\Core\Extraction\Media\Provider\ZdfProvider;
+use Merlin\Core\Extraction\Social\BlueskyThreadResolverService;
+use Merlin\Core\Extraction\Social\MastodonPostResolverService;
+use Merlin\Core\Extraction\Social\TikTokPostResolverService;
+use Merlin\Core\Port\ContentFilterSource;
+use Merlin\Core\Port\SiteSessions;
+use Merlin\Core\Port\UrlGenerator;
+use OCA\Merlin\Adapter\NextcloudUrlGenerator;
 use OCA\Merlin\Listener\AddContentSecurityPolicyListener;
 use OCA\Merlin\Listener\UserDeletedListener;
 use OCA\Merlin\Middleware\CsrfCookieAuthMiddleware;
 use OCA\Merlin\Search\ArticleSearchProvider;
+use OCA\Merlin\Service\ContentFilterRepository;
+use OCA\Merlin\Service\SiteCredentialService;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\Security\CSP\AddContentSecurityPolicyEvent;
 use OCP\User\Events\UserDeletedEvent;
+use Psr\Container\ContainerInterface;
 
 class Application extends App implements IBootstrap {
 	public const APP_ID = 'merlin';
+
+	/**
+	 * Port des Kerns => Nextcloud-Implementierung.
+	 *
+	 * @var array<class-string, class-string>
+	 */
+	public const CORE_PORTS = [
+		ContentFilterSource::class => ContentFilterRepository::class,
+		SiteSessions::class        => SiteCredentialService::class,
+		UrlGenerator::class        => NextcloudUrlGenerator::class,
+	];
+
+	/**
+	 * Kern-Klassen, die per Dependency Injection gebaut werden (direkt oder als
+	 * Abhängigkeit einer anderen). tools/test-core-wiring.php prüft, dass die
+	 * Liste vollständig ist.
+	 *
+	 * @var list<class-string>
+	 */
+	public const CORE_SERVICES = [
+		ContentFilterMerger::class,
+		ContentFilterSerializer::class,
+		ContentFilterValidator::class,
+		ContentExtractorService::class,
+		InlineMediaService::class,
+		MediaHttpClient::class,
+		MediaProviderRegistry::class,
+		MediaResolverService::class,
+		ArdMediathekProvider::class,
+		ArteProvider::class,
+		DreiSatProvider::class,
+		JsonLdMediaProvider::class,
+		XPathMediaProvider::class,
+		YoutubeEmbedProvider::class,
+		ZdfProvider::class,
+		BlueskyThreadResolverService::class,
+		MastodonPostResolverService::class,
+		TikTokPostResolverService::class,
+	];
 
 	public function __construct(array $urlParams = []) {
 		parent::__construct(self::APP_ID, $urlParams);
@@ -29,6 +93,20 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function register(IRegistrationContext $context): void {
+		// Ports des framework-freien Kerns (core/, Merlin\Core\Port) und ihre
+		// Nextcloud-Implementierungen.
+		foreach (self::CORE_PORTS as $port => $implementation) {
+			$context->registerServiceAlias($port, $implementation);
+		}
+		// Kern-Klassen liegen nicht im Namespace OCA\Merlin. Ohne eigene
+		// Registrierung würde Nextcloud sie im Server-Container auflösen: der
+		// kennt die Ports oben nicht und gibt einen Logger ohne App-Kennung.
+		// Deshalb baut der App-Container sie selbst, per Reflection wie das
+		// normale Autowiring.
+		foreach (self::CORE_SERVICES as $class) {
+			$context->registerService($class, static fn (ContainerInterface $c): object => self::autowire($c, $class));
+		}
+
 		$context->registerSearchProvider(ArticleSearchProvider::class);
 		$context->registerEventListener(
 			AddContentSecurityPolicyEvent::class,
@@ -45,6 +123,25 @@ class Application extends App implements IBootstrap {
 		// cookie-authentifizierte Web-UI-Writes, lässt native Clients (Basic/Bearer)
 		// unangetastet. Ohne globalen Flag → gilt nur für Merlin-Controller.
 		$context->registerMiddleware(CsrfCookieAuthMiddleware::class);
+	}
+
+	/**
+	 * Baut $class mit den Konstruktor-Abhängigkeiten aus dem App-Container.
+	 */
+	private static function autowire(ContainerInterface $container, string $class): object {
+		$constructor = (new \ReflectionClass($class))->getConstructor();
+		$args = [];
+		foreach ($constructor?->getParameters() ?? [] as $parameter) {
+			$type = $parameter->getType();
+			if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
+				$args[] = $container->get($type->getName());
+			} elseif ($parameter->isDefaultValueAvailable()) {
+				$args[] = $parameter->getDefaultValue();
+			} else {
+				throw new \LogicException('Kann ' . $class . '::$' . $parameter->getName() . ' nicht auflösen');
+			}
+		}
+		return new $class(...$args);
 	}
 
 	public function boot(IBootContext $context): void {

@@ -19,9 +19,9 @@ declare(strict_types=1);
 
 use fivefilters\Readability\Configuration;
 use fivefilters\Readability\Readability;
-use OCA\Merlin\Service\ContentExtractorService;
+use Merlin\Core\Extraction\ContentExtractorService;
 
-require_once __DIR__ . '/../lib/Service/ContentExtractorService.php';
+require_once __DIR__ . '/../vendor/autoload.php';
 
 $service = (new ReflectionClass(ContentExtractorService::class))->newInstanceWithoutConstructor();
 $fill    = new ReflectionMethod(ContentExtractorService::class, 'fillEmptyPictureFallbacks');

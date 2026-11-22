@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
+use Merlin\Core\Extraction\ContentExtractorService;
+use Merlin\Core\Extraction\UnsupportedSiteException;
 use OCA\Merlin\Db\Article;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Service\ArticleDeletionService;
-use OCA\Merlin\Service\ContentExtractorService;
-use OCA\Merlin\Service\UnsupportedSiteException;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;

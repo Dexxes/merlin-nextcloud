@@ -20,8 +20,6 @@ declare(strict_types=1);
 use OCA\Merlin\Service\PdfProxyService;
 
 require_once __DIR__ . '/../vendor/autoload.php';
-require_once __DIR__ . '/../lib/Service/Http/SsrfSafeResolver.php';
-require_once __DIR__ . '/../lib/Service/ContentExtractorService.php';
 require_once __DIR__ . '/../lib/Service/PdfProxyService.php';
 
 final class ProxyDone extends \RuntimeException {}

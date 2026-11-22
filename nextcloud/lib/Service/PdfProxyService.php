@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Service;
 
+use Merlin\Core\Extraction\ContentExtractorService;
+use Merlin\Core\Extraction\Http\SsrfSafeResolver;
 use OCA\Merlin\Db\Article;
-use OCA\Merlin\Service\Http\SsrfSafeResolver;
 
 /**
  * Reicht die PDF eines PDF-Artikels (category "PDF") pro Request vom Quellserver

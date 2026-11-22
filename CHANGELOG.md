@@ -184,7 +184,10 @@ All notable changes to Merlin are documented here. Format based on
   `Merlin\Core\`) that the standalone server will share, and the bundled
   content filters into `content-filters/` at the repository root. The app
   pulls the core in via Composer; the release tarball contains both as
-  before. No change in behaviour. The minimum PHP version is now 8.1, which
+  before. The article extraction (with media providers, paywall logins and
+  the Bluesky, Mastodon and TikTok resolvers) followed into the core; what it
+  needs from Nextcloud (URLs, content filters, stored logins) goes through
+  small interfaces. No change in behaviour. The minimum PHP version is now 8.1, which
   Nextcloud 30 already required.
 - Captions: the signal words that mark the image credit in a caption
   ("Foto:", "Quelle:", "Photo:", "Source:", …) are now a list in

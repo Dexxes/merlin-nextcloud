@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Service;
 
-use OCA\Merlin\Service\Http\SsrfSafeResolver;
+use Merlin\Core\Extraction\Http\SsrfSafeResolver;
 use Psr\Log\LoggerInterface;
 
 /**
