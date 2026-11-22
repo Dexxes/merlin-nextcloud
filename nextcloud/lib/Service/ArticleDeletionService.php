@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Service;
 
+use Merlin\Core\Port\ArticleDeletion;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
@@ -16,7 +17,7 @@ use OCP\IDBConnection;
  * Benutzt von ArticleController::destroy(), der Pocket-API (ExtensionController),
  * dem Löschfrist-Job (RetentionService) und UserDeletedListener.
  */
-class ArticleDeletionService {
+class ArticleDeletionService implements ArticleDeletion {
 	/** IN-Listen klein halten (Oracle erlaubt höchstens 1000 Einträge). */
 	private const CHUNK = 500;
 

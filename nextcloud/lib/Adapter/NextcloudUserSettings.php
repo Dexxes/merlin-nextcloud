@@ -20,4 +20,8 @@ class NextcloudUserSettings implements UserSettings {
 	public function get(string $userId, string $section, string $key, string $default = ''): string {
 		return (string) $this->config->getUserValue($userId, $section, $key, $default);
 	}
+
+	public function set(string $userId, string $section, string $key, string $value): void {
+		$this->config->setUserValue($userId, $section, $key, $value);
+	}
 }

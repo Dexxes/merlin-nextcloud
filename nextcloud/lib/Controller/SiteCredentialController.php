@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace OCA\Merlin\Controller;
 
 use Merlin\Core\Extraction\Login\LoginFailedException;
-use OCA\Merlin\Service\SiteCredentialService;
+use Merlin\Core\Service\SiteCredentialService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;

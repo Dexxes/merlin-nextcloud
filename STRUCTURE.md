@@ -44,12 +44,19 @@ beide Listen vollständig sind.
 |---|---|
 | `UrlGenerator` | `Adapter\NextcloudUrlGenerator` (IURLGenerator) |
 | `ContentFilterSource` | `Service\ContentFilterRepository` (Bundle + `merlin_cfilter`) |
-| `SiteSessions` | `Service\SiteCredentialService` (Paywall-Logins, `merlin_site_credentials`) |
+| `SiteSessions` | `Merlin\Core\Service\SiteCredentialService` (liegt selbst im Kern) |
+| `SiteCredentialStore` | `Adapter\NextcloudSiteCredentialStore` (`merlin_site_credentials`) |
 | `UserSettings` | `Adapter\NextcloudUserSettings` (IConfig, Nutzerwerte) |
+| `AppSettings` | `Adapter\NextcloudAppSettings` (IAppConfig, App-Werte) |
+| `Crypto` | `Adapter\NextcloudCrypto` (ICrypto mit dem Instanz-Secret) |
+| `RetentionStore` | `Adapter\NextcloudRetentionStore` (ArticleMapper, ArticleShareMapper) |
+| `ArticleDeletion` | `Service\ArticleDeletionService` |
 
 Kern-Services, die einen gespeicherten Artikel ausgeben (Export, PDF, Vorlesen,
 Support-Box), bekommen ihn als `Merlin\Core\Domain\ArticleSnapshot`
-(`Db\Article::toSnapshot()`), nicht als Nextcloud-Entity.
+(`Db\Article::toSnapshot()`), nicht als Nextcloud-Entity. Ebenso arbeitet
+`SiteCredentialService` mit `Merlin\Core\Domain\SiteCredential`; der Adapter
+`NextcloudSiteCredentialStore` übersetzt zum Entity `Db\SiteCredential`.
 
 Release-Tarball: `cd nextcloud && make dist` (Frontend-Build, `git archive`
 von `nextcloud/` und `core/`, `content-filters/` nach `merlin/content-filters/`,
@@ -88,16 +95,18 @@ nextcloud/
 │   │   └── PageController.php
 │   ├── Adapter/
 │   │   ├── NextcloudUrlGenerator.php     # Port UrlGenerator über IURLGenerator
-│   │   └── NextcloudUserSettings.php     # Port UserSettings über IConfig::getUserValue()
+│   │   ├── NextcloudUserSettings.php     # Port UserSettings über IConfig (User-Values)
+│   │   ├── NextcloudAppSettings.php      # Port AppSettings über IAppConfig
+│   │   ├── NextcloudCrypto.php           # Port Crypto über ICrypto
+│   │   ├── NextcloudRetentionStore.php   # Port RetentionStore über ArticleMapper/ArticleShareMapper
+│   │   └── NextcloudSiteCredentialStore.php # Port SiteCredentialStore über SiteCredentialMapper
 │   ├── Service/              # Geschäftslogik
 │   │   ├── ContentFilterRepository.php   # Bundle (Datei) + Admin-/User-Custom (DB), Merge-Cache
 │   │   │                                 # (Schema, Merger, Validator, Serializer, Trace liegen im Kern, siehe unten)
 │   │   ├── ArticleDeletionService.php    # Einziger Löschweg für Artikel: mit Highlights, Tag-Zuordnungen, Shares; Nutzerlöschung; Waisen
-│   │   ├── RetentionService.php          # Löschfrist: Admin-/Nutzerwerte, Lauf, Vorschau, Hinweis
 │   │   ├── CommentService.php            # Kommentare/Gast-Markierungen anlegen, ändern, löschen; SSE-Schleife
 │   │   ├── ShareAccessService.php        # Share-Token + Passwort-Unlock prüfen (Share-Ansicht und Gast-Kommentare)
-│   │   ├── MerlinFileService.php         # „Merlin Dateien“: Ordner (lokalisiert, per ID gemerkt), Datei-Einträge, Streamen mit Range
-│   │   └── SiteCredentialService.php     # Paywall-Zugangsdaten je Nutzer/Domain (Port SiteSessions); Login-Provider im Kern
+│   │   └── MerlinFileService.php         # „Merlin Dateien“: Ordner (lokalisiert, per ID gemerkt), Datei-Einträge, Streamen mit Range
 │   ├── Settings/             # Verwaltungs- und persönliche Einstellungen
 │   │   ├── AdminSection.php
 │   │   ├── AdminSettings.php
@@ -160,7 +169,8 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │   │   │   └── KeycloakFormPostLoginProvider.php # type="keycloak-form-post" (Funke-Keycloak, z. B. morgenpost.de)
 │   │   └── Social/                       # Bluesky-Threads, Mastodon, TikTok
 │   ├── Domain/
-│   │   └── ArticleSnapshot.php           # Artikelfelder für Export, PDF, Vorlesen, Support-Box
+│   │   ├── ArticleSnapshot.php           # Artikelfelder für Export, PDF, Vorlesen, Support-Box
+│   │   └── SiteCredential.php            # Paywall-Zugangsdaten (verschlüsselt) eines Nutzers für eine Domain
 │   ├── Service/
 │   │   ├── SupportBoxService.php         # Daten der Support-Infobox (<paywall><subscribe> + <metadata><donations>, Seiten-Icon, Akzentfarbe); Reader: entfällt bei aktivem Abo-Login, Share: immer
 │   │   ├── PdfProxyService.php           # PDF-Durchreichung für PdfController und öffentlichen Share-Endpunkt (SSRF-Guard je Hop, %PDF-Prüfung, Range, 100-MB-Limit)
@@ -168,16 +178,21 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │   │   ├── ExportService.php             # Artikel als eigenständiges HTML
 │   │   ├── ReportBackendService.php / ReportBackendRules.php  # „Fehlerhaft dargestellt melden“
 │   │   ├── CommentRules.php / CommentException.php  # Reine Regeln: Namen, Längen, Thread-Position, Gast-Rechte
+│   │   ├── RetentionService.php          # Löschfrist: Admin-/Nutzerwerte, Lauf, Vorschau, Hinweis
+│   │   ├── SiteCredentialService.php     # Paywall-Zugangsdaten je Nutzer/Domain (Port SiteSessions): Ablage, Login, Cookie-Cache
 │   │   ├── RetentionPolicy.php           # Reine Rechenregeln der Löschfrist (Minimum, Stichtag, Hinweis fällig?)
 │   │   ├── TagTree.php                   # Reine Baumregeln verschachtelter Tags (Nachfahren, Kreisprüfung beim Verschieben)
 │   │   ├── FileRules.php                 # „Merlin Dateien“: Dateiart/Kategorie, Dateinamen, signierte Links, Range
 │   │   └── FileMetadata.php              # Eingebettete Metadaten einer Datei (EXIF, GPS, IPTC, XMP, ID3, MP4/MOV, PDF) für die Anzeige im Reader
-│   └── Port/                         # UrlGenerator, ContentFilterSource, SiteSessions, UserSettings
+│   └── Port/                         # UrlGenerator, ContentFilterSource, SiteSessions, SiteCredentialStore,
+│                                     # UserSettings, AppSettings, Crypto, RetentionStore, ArticleDeletion
 └── tests/                            # Testharnesses (pures PHP, ohne Composer; autoload.php lädt Merlin\Core\)
     ├── test-content-filter-merge.php
     ├── test-support-box.php           # SupportBoxService (URL-Auswahl, Login-Ausblendung, Share, Seiten-Icon)
     ├── test-pdf-proxy.php             # PdfProxyService (lokaler Quellserver: Range, Redirect, Nicht-PDF, Größe, SSRF)
     ├── test-retention.php             # RetentionPolicy (effektive Frist, Stichtag, Hinweis)
+    ├── test-retention-service.php     # RetentionService (Einstellungen, Vorschau, Trockenlauf, Lauf, Share-Karenz)
+    ├── test-site-credentials.php      # SiteCredentialService (Login-Config aus dem Bundle, Cookie-Cache, Status, Löschen)
     ├── test-tag-tree.php              # TagTree (Nachfahren, Kreisprüfung)
     ├── test-file-rules.php            # FileRules (Dateiart, Namen, Token, Range)
     ├── test-file-metadata.php         # FileMetadata (fixtures/metadata/)

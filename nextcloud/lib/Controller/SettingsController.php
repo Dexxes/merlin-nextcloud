@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace OCA\Merlin\Controller;
 
 use Merlin\Core\Service\RetentionPolicy;
-use OCA\Merlin\Service\RetentionService;
+use Merlin\Core\Service\RetentionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;

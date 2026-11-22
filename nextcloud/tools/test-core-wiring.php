@@ -77,7 +77,14 @@ foreach ($ports as $port => $impl) {
 	if (!interface_exists($port)) {
 		$errors[] = "CORE_PORTS: $port ist keine Schnittstelle";
 	}
-	if (!is_file($libDir . '/' . str_replace('\\', '/', substr((string) $impl, strlen('OCA\\Merlin\\'))) . '.php')) {
+	if (str_starts_with((string) $impl, 'Merlin\\Core\\')) {
+		// Implementierung im Kern: muss selbst per DI gebaut werden.
+		if (!class_exists($impl) || !is_subclass_of($impl, $port)) {
+			$errors[] = "CORE_PORTS: $impl implementiert $port nicht";
+		} elseif (!isset($services[$impl])) {
+			$errors[] = "CORE_PORTS: $impl fehlt in Application::CORE_SERVICES";
+		}
+	} elseif (!is_file($libDir . '/' . str_replace('\\', '/', substr((string) $impl, strlen('OCA\\Merlin\\'))) . '.php')) {
 		$errors[] = "CORE_PORTS: Implementierung $impl nicht gefunden";
 	} elseif (!preg_match('/class \w+[^{]*implements[^{]*\b' . preg_quote(substr(strrchr('\\' . $port, '\\'), 1), '/') . '\b/', (string) file_get_contents($libDir . '/' . str_replace('\\', '/', substr((string) $impl, strlen('OCA\\Merlin\\'))) . '.php'))) {
 		$errors[] = "CORE_PORTS: $impl implementiert $port nicht";

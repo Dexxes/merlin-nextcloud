@@ -31,6 +31,8 @@ namespace Merlin\SupportBoxTest {
 		}
 		public function isUnsupportedDomain(string $urlDomain): bool { return false; }
 		public function getCaptionCreditPrefixes(): array { return []; }
+		public function readBundle(string $domain): ?string { return null; }
+		public function listFilters(): array { return []; }
 	}
 	final class Sessions implements SiteSessions {
 		public function __construct(public bool $active) {}
@@ -43,6 +45,7 @@ namespace Merlin\SupportBoxTest {
 		/** @param array<string, string> $values */
 		public function __construct(private array $values) {}
 		public function get(string $userId, string $section, string $key, string $default = ''): string { return $this->values[$key] ?? $default; }
+		public function set(string $userId, string $section, string $key, string $value): void { $this->values[$key] = $value; }
 	}
 }
 

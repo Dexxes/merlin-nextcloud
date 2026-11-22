@@ -37,4 +37,17 @@ interface ContentFilterSource {
 	 * @return list<string>
 	 */
 	public function getCaptionCreditPrefixes(): array;
+
+	/**
+	 * Rohes Bundle-XML einer Domain (nur die mitgelieferte Datei, ohne
+	 * Admin- und User-Ebene) oder null.
+	 */
+	public function readBundle(string $domain): ?string;
+
+	/**
+	 * Alle bekannten Domains mit ihrer Herkunft, alphabetisch sortiert.
+	 *
+	 * @return list<array{domain:string,hasBundle:bool,hasCustom:bool,userOverrideCount:int}>
+	 */
+	public function listFilters(): array;
 }

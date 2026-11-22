@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
-use OCA\Merlin\Service\RetentionService;
+use Merlin\Core\Service\RetentionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;

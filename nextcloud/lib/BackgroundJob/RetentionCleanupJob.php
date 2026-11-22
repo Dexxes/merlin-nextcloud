@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\BackgroundJob;
 
-use OCA\Merlin\Service\RetentionService;
+use Merlin\Core\Service\RetentionService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\IJob;
 use OCP\BackgroundJob\TimedJob;
