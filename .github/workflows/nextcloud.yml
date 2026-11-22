@@ -168,6 +168,9 @@ jobs:
         run: |
           docker compose up --build --detach --wait --wait-timeout 600
           docker compose exec -T -u www-data app php occ app:list --enabled | grep -E '^\s+- merlin:'
+          # The first run wizard opens a modal on the first login and blocks
+          # clicks in the browser tests.
+          docker compose exec -T -u www-data app php occ app:disable firstrunwizard || true
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ env.BUILD_PHP }}
