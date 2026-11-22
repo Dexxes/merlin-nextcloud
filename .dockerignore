@@ -1,6 +1,9 @@
 .git
 **/node_modules
 nextcloud/vendor
+standalone/vendor
+standalone/data
+standalone/config/config.php
 nextcloud/js
 nextcloud/build
 dist

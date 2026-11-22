@@ -2,8 +2,9 @@
 #
 # Layout (see STRUCTURE.md): nextcloud/ is the Nextcloud app, frontend/ the
 # Vue source that builds into nextcloud/js and nextcloud/css, core/ the
-# framework-free PHP core (composer package merlin/core) and content-filters/
-# the bundled content filters shared by all variants.
+# framework-free PHP core (composer package merlin/core), standalone/ the
+# server without Nextcloud, content-filters/ the bundled content filters
+# shared by all variants and tools/ the checks across variants.
 name: CI
 
 on:
@@ -31,8 +32,9 @@ jobs:
           coverage: none
       - name: php -l
         run: |
-          find nextcloud core -name '*.php' -not -path '*/vendor/*' -print0 \
+          find nextcloud core standalone tools -name '*.php' -not -path '*/vendor/*' -print0 \
             | xargs -0 -n1 -P4 php -l > /dev/null
+          php -l standalone/bin/merlin > /dev/null
 
   core-boundary:
     name: Core stays framework-free
@@ -48,6 +50,13 @@ jobs:
             echo "::error::core/ must not depend on Nextcloud (OCP/OCA) or the standalone server"
             exit 1
           fi
+      - name: No Nextcloud imports in standalone/
+        run: |
+          if grep -rnE '(^|[^A-Za-z0-9_])\\?(OCP|OCA)\\' standalone --include='*.php' --exclude-dir=vendor \
+               | grep -vE '^[^:]+:[0-9]+:\s*(\*|//|/\*)'; then
+            echo "::error::standalone/ must not depend on Nextcloud (OCP/OCA)"
+            exit 1
+          fi
 
   harnesses:
     name: Test harnesses
@@ -57,17 +66,21 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: dom, mbstring, curl, sodium
+          extensions: dom, mbstring, curl, sodium, pdo_sqlite
           coverage: none
           tools: composer:v2
-      - name: composer install
+      - name: composer install (nextcloud)
         working-directory: nextcloud
         run: composer install --no-dev --no-interaction --no-progress
-      - name: Run nextcloud/tools/test-*.php and core/tests/test-*.php
-        # Offline only: harnesses with a --live mode run without it.
+      - name: composer install (standalone)
+        working-directory: standalone
+        run: composer install --no-dev --no-interaction --no-progress
+      - name: Run all test-*.php harnesses
+        # nextcloud/tools, core/tests, standalone/tests and tools/ (schema
+        # parity). Offline only: harnesses with a --live mode run without it.
         run: |
           status=0
-          for f in nextcloud/tools/test-*.php core/tests/test-*.php; do
+          for f in nextcloud/tools/test-*.php core/tests/test-*.php standalone/tests/test-*.php tools/test-*.php; do
             echo "::group::$f"
             if php "$f"; then echo "ok $f"; else echo "::error file=$f::$f failed"; status=1; fi
             echo "::endgroup::"

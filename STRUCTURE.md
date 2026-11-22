@@ -5,7 +5,7 @@ Zentrale Dateien für UI und Logik der Nextcloud-App.
 ## Repository-Layout
 
 Das Repo wird schrittweise zum gemeinsamen Repo für die Nextcloud-App und den
-Standalone-Server umgebaut. Aktueller Stand (Etappe 2 von 7, dritter Teil):
+Standalone-Server umgebaut. Aktueller Stand (Etappe 3 von 7, erster Teil):
 
 ```
 merlin-nextcloud/
@@ -15,15 +15,28 @@ merlin-nextcloud/
 ├── content-filters/  # mitgelieferte Content-Filter, einzige Kopie für alle Varianten
 ├── nextcloud/      # die Nextcloud-App (App-ID merlin): appinfo/, lib/, templates/, l10n/, img/, css/,
 │                   # tools/ (Testharnesses), composer.json, Makefile (make dist); lib/Adapter/ implementiert die Ports
+├── standalone/     # eigener Server ohne Nextcloud (Namespace Merlin\Standalone\, im Aufbau, Etappe 3):
+│                   # migrations/ (SQLite, merlin_*-Tabellen im Nextcloud-Schema), src/, bin/merlin, tests/
+├── tools/          # Prüfungen über beide Varianten: test-schema-parity.php, schema/ (Nextcloud-Schema ohne Nextcloud lesen)
 ├── frontend/       # Vue-3-Quellen (src/), fonts/, package.json, vite.config.mjs;
 │                   # `npm run build` schreibt nach nextcloud/js und nextcloud/css
 ├── docker/, Dockerfile, docker-compose.yml   # Entwicklungs-Setup der Nextcloud-Variante
-├── .github/workflows/ci.yml                  # PHP-Lint, Kern ohne OCP, Testharnesses, Frontend-Build, Appstore-Tarball
+├── .github/workflows/ci.yml                  # PHP-Lint, Kern/Standalone ohne OCP, Testharnesses, Schema-Parität, Frontend-Build, Appstore-Tarball
 └── README.md, CHANGELOG.md, LICENSE, NOTICE  # werden beim Release in den Tarball kopiert
 ```
 
-Geplant: die übrigen Services hinter Ports im Kern und `standalone/` (eigener
-Server ohne Nextcloud, ersetzt `merlin-standalone-server`).
+`standalone/` ersetzt `merlin-standalone-server` und entsteht neu (keine
+Übernahme der alten Historie oder Daten). Sein Schema ist das der
+Nextcloud-App: `standalone/migrations/001_initial.sql` enthält dieselben
+`merlin_*`-Tabellen, `user_id` ist Text (die Konto-ID als String). Dazu kommen
+nur dort `users`, `api_tokens`, `password_reset_tokens`, `login_flow_tokens`,
+`settings` und `user_settings`. `tools/test-schema-parity.php` liest das
+Nextcloud-Schema aus `nextcloud/lib/Migration/` (gegen OCP-Stubs in
+`tools/schema/`, nur `changeSchema()`) und vergleicht Tabellen, Spalten, Typen,
+Nullbarkeit, Defaults und Indizes mit einer frisch migrierten SQLite-Datenbank.
+Eine neue Nextcloud-Migration braucht deshalb immer auch eine SQL-Datei in
+`standalone/migrations/`; Vorlage: `php tools/schema/print-sqlite-ddl.php <tabelle>`.
+Vorerst nur SQLite, MySQL/MariaDB und PostgreSQL folgen später.
 
 Die Nextcloud-App bindet den Kern über ein Composer-Path-Repository ein
 (`nextcloud/composer.json`: `"merlin/core": "*@dev"` aus `../core`). Im Checkout
