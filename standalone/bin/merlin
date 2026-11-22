@@ -1,0 +1,45 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Kommandozeile des Standalone-Servers.
+ *
+ *   bin/merlin migrate     fehlende Migrationen aus migrations/ anwenden
+ */
+
+use Merlin\Standalone\App;
+use Merlin\Standalone\Db\MigrationRunner;
+
+require_once dirname(__DIR__) . '/vendor/autoload.php';
+
+$command = $argv[1] ?? 'help';
+
+try {
+	switch ($command) {
+		case 'migrate':
+			$app = App::fromConfigFile();
+			$applied = (new MigrationRunner($app->connection()))->migrate();
+			if ($applied === []) {
+				fwrite(STDOUT, "Keine neuen Migrationen.\n");
+			}
+			foreach ($applied as $version) {
+				fwrite(STDOUT, "Angewandt: {$version}\n");
+			}
+			exit(0);
+
+		case 'help':
+		case '--help':
+		case '-h':
+			fwrite(STDOUT, "Aufruf: bin/merlin <befehl>\n\n  migrate   fehlende Migrationen anwenden\n");
+			exit(0);
+
+		default:
+			fwrite(STDERR, "Unbekannter Befehl: {$command} (bin/merlin help)\n");
+			exit(1);
+	}
+} catch (\Throwable $e) {
+	fwrite(STDERR, $e->getMessage() . "\n");
+	exit(1);
+}

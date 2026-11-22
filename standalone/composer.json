@@ -1,0 +1,36 @@
+{
+    "name": "merlin/standalone",
+    "description": "Standalone read-it-later server for Merlin (no Nextcloud), built on merlin/core",
+    "type": "project",
+    "license": "AGPL-3.0-or-later",
+    "authors": [
+        {
+            "name": "Julian von Bülow"
+        }
+    ],
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../core"
+        }
+    ],
+    "require": {
+        "php": ">=8.1",
+        "ext-pdo": "*",
+        "ext-pdo_sqlite": "*",
+        "ext-curl": "*",
+        "ext-dom": "*",
+        "ext-mbstring": "*",
+        "ext-sodium": "*",
+        "merlin/core": "*@dev",
+        "psr/log": "^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Merlin\\Standalone\\": "src/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true
+    }
+}
