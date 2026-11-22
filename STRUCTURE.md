@@ -43,14 +43,16 @@ beide Listen vollständig sind.
 | Port | Nextcloud-Implementierung |
 |---|---|
 | `UrlGenerator` | `Adapter\NextcloudUrlGenerator` (IURLGenerator) |
-| `ContentFilterSource` | `Service\ContentFilterRepository` (Bundle + `merlin_cfilter`) |
+| `ContentFilterSource` | `Service\ContentFilterRepository` (Unterklasse von `Merlin\Core\ContentFilter\ContentFilterRepository` mit den Bundle-Orten der App) |
+| `ContentFilterStore` | `Adapter\NextcloudContentFilterStore` (`merlin_cfilter`) |
 | `SiteSessions` | `Merlin\Core\Service\SiteCredentialService` (liegt selbst im Kern) |
 | `SiteCredentialStore` | `Adapter\NextcloudSiteCredentialStore` (`merlin_site_credentials`) |
 | `UserSettings` | `Adapter\NextcloudUserSettings` (IConfig, Nutzerwerte) |
 | `AppSettings` | `Adapter\NextcloudAppSettings` (IAppConfig, App-Werte) |
 | `Crypto` | `Adapter\NextcloudCrypto` (ICrypto mit dem Instanz-Secret) |
 | `RetentionStore` | `Adapter\NextcloudRetentionStore` (ArticleMapper, ArticleShareMapper) |
-| `ArticleDeletion` | `Service\ArticleDeletionService` |
+| `ArticleDeletion` | `Merlin\Core\Service\ArticleDeletionService` (liegt selbst im Kern) |
+| `Database` | `Adapter\NextcloudDatabase` (IDBConnection/QueryBuilder; Löschen über mehrere Tabellen) |
 | `CommentStore` | `Adapter\NextcloudCommentStore` (CommentMapper) |
 | `HighlightStore` | `Adapter\NextcloudHighlightStore` (HighlightMapper) |
 | `CommentGuestStore` | `Adapter\NextcloudCommentGuestStore` (CommentGuestMapper; eindeutiger Index → `DuplicateEntryException`) |
@@ -75,7 +77,12 @@ von `nextcloud/` und `core/`, `content-filters/` nach `merlin/content-filters/`,
 `vendor/` ohne Dev-Abhängigkeiten, der Kern dabei kopiert statt verlinkt über
 `COMPOSER_MIRROR_PATH_REPOS=1`). Das Docker-Image macht dasselbe.
 `ContentFilterRepository::getBundleDir()` sucht die Bundle-Filter zuerst im
-App-Verzeichnis (Tarball, Image), dann an der Repository-Wurzel (Checkout).
+App-Verzeichnis (Tarball, Image), dann an der Repository-Wurzel (Checkout);
+die Orte gibt `Service\ContentFilterRepository::bundleDirCandidates()` vor.
+
+Migrationen bauen Kern-Klassen selbst (siehe Migration 000028): bei der
+Installation laufen sie, bevor `Application::register()` die Kern-Klassen im
+App-Container angemeldet hat.
 
 ## Backend (PHP)
 
@@ -117,11 +124,11 @@ nextcloud/
 │   │   ├── NextcloudShareStore.php       # Port ShareStore (Share-Link per Token)
 │   │   ├── NextcloudSession.php          # Port Session über ISession
 │   │   ├── NextcloudUserDirectory.php    # Port UserDirectory über IUserManager
+│   │   ├── NextcloudContentFilterStore.php # Port ContentFilterStore (merlin_cfilter)
+│   │   ├── NextcloudDatabase.php         # Port Database über IDBConnection/QueryBuilder
 │   │   └── EntityCopy.php                # Felder zwischen Domain-Objekt und Entity übertragen
 │   ├── Service/              # Geschäftslogik
-│   │   ├── ContentFilterRepository.php   # Bundle (Datei) + Admin-/User-Custom (DB), Merge-Cache
-│   │   │                                 # (Schema, Merger, Validator, Serializer, Trace liegen im Kern, siehe unten)
-│   │   ├── ArticleDeletionService.php    # Einziger Löschweg für Artikel: mit Highlights, Tag-Zuordnungen, Shares; Nutzerlöschung; Waisen
+│   │   ├── ContentFilterRepository.php   # Kern-Repository mit Ablage und Bundle-Orten der App (Logik im Kern, siehe unten)
 │   │   └── MerlinFileService.php         # „Merlin Dateien“: Ordner (lokalisiert, per ID gemerkt), Datei-Einträge, Streamen mit Range
 │   ├── Settings/             # Verwaltungs- und persönliche Einstellungen
 │   │   ├── AdminSection.php
@@ -163,6 +170,7 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │   ├── ContentFilter/
 │   │   ├── ContentFilterSchema.php       # Grammatik der Filter-XML (eine Quelle)
 │   │   ├── ContentFilterMerger.php       # Bundle-, Admin- und User-Filter vereinen
+│   │   ├── ContentFilterRepository.php   # Bundle (Datei) + Admin-/User-Custom (Port ContentFilterStore), Entwürfe, Merge-Cache
 │   │   ├── ContentFilterValidator.php    # Prüfung vor dem Speichern
 │   │   ├── ContentFilterSerializer.php   # JSON ↔ XML für den Regel-Builder
 │   │   └── ContentFilterTrace.php        # Trefferzähler für den Testlauf
@@ -195,6 +203,7 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │   │   ├── TtsStreamService.php          # gemeinsamer Stream-Pfad für authentifizierten und öffentlichen (Share-)Endpunkt
 │   │   ├── ExportService.php             # Artikel als eigenständiges HTML
 │   │   ├── ReportBackendService.php / ReportBackendRules.php  # „Fehlerhaft dargestellt melden“
+│   │   ├── ArticleDeletionService.php    # Einziger Löschweg für Artikel (Port Database): mit Highlights, Kommentaren, Tag-Zuordnungen, Shares; Nutzerlöschung; Waisen
 │   │   ├── CommentService.php            # Kommentare/Gast-Markierungen anlegen, ändern, löschen; SSE-Schleife
 │   │   ├── ShareAccessService.php / ShareAccessDenied.php  # Share-Token + Passwort-Unlock prüfen (Share-Ansicht und Gast-Kommentare)
 │   │   ├── CommentRules.php / CommentException.php  # Reine Regeln: Namen, Längen, Thread-Position, Gast-Rechte
@@ -207,7 +216,7 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │   └── Port/                         # UrlGenerator, ContentFilterSource, SiteSessions, SiteCredentialStore,
 │                                     # UserSettings, AppSettings, Crypto, RetentionStore, ArticleDeletion,
 │                                     # CommentStore, HighlightStore, CommentGuestStore (DuplicateEntryException),
-│                                     # ShareStore, Session, UserDirectory
+│                                     # ShareStore, Session, UserDirectory, ContentFilterStore, Database
 └── tests/                            # Testharnesses (pures PHP, ohne Composer; autoload.php lädt Merlin\Core\)
     ├── test-content-filter-merge.php
     ├── test-support-box.php           # SupportBoxService (URL-Auswahl, Login-Ausblendung, Share, Seiten-Icon)
@@ -216,6 +225,7 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
     ├── test-retention-service.php     # RetentionService (Einstellungen, Vorschau, Trockenlauf, Lauf, Share-Karenz)
     ├── test-site-credentials.php      # SiteCredentialService (Login-Config aus dem Bundle, Cookie-Cache, Status, Löschen)
     ├── test-comment-service.php       # CommentService + ShareAccessService (Threads, Gast-Farben, Markierungen, Share-Zugriff)
+    ├── test-content-filter-repository.php # ContentFilterRepository (Bundle, Ebenen, Entwürfe, Upsert) + ArticleDeletionService
     ├── test-tag-tree.php              # TagTree (Nachfahren, Kreisprüfung)
     ├── test-file-rules.php            # FileRules (Dateiart, Namen, Token, Range)
     ├── test-file-metadata.php         # FileMetadata (fixtures/metadata/)

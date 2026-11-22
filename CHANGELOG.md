@@ -191,8 +191,9 @@ All notable changes to Merlin are documented here. Format based on
   (export, PDF pass-through, read-aloud stream, report backend, support box
   and the rule classes for comments, tags, retention and files), and then
   the retention run, the paywall logins, comments and highlights and the
-  access check of public share links, with their storage, settings, session
-  and encryption behind interfaces as well. No change
+  access check of public share links, the content-filter storage and the
+  article deletion, with their storage, settings, session and encryption
+  behind interfaces as well. No change
   in behaviour. The minimum PHP version is now 8.1, which
   Nextcloud 30 already required.
 - Captions: the signal words that mark the image credit in a caption

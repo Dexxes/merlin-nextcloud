@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Listener;
 
+use Merlin\Core\Service\ArticleDeletionService;
 use OCA\Merlin\Db\SiteCredentialMapper;
-use OCA\Merlin\Service\ArticleDeletionService;
 use OCA\Merlin\Service\ContentFilterRepository;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;

@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Merlin\Core\Service;
 
+use Merlin\Core\Domain\SiteCredential;
 use Merlin\Core\Extraction\Login\KeycloakFormPostLoginProvider;
 use Merlin\Core\Extraction\Login\LoginConfig;
 use Merlin\Core\Extraction\Login\LoginFailedException;
 use Merlin\Core\Extraction\Login\LoginProviderInterface;
-use Merlin\Core\Extraction\Login\PianoJsonFormLoginProvider;
-use Merlin\Core\Domain\SiteCredential;
 use Merlin\Core\Extraction\Login\LoginResult;
 use Merlin\Core\Extraction\Login\LoginStatus;
+use Merlin\Core\Extraction\Login\PianoJsonFormLoginProvider;
 use Merlin\Core\Port\ContentFilterSource;
 use Merlin\Core\Port\Crypto;
 use Merlin\Core\Port\SiteCredentialStore;

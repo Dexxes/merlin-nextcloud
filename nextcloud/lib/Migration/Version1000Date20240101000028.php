@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace OCA\Merlin\Migration;
 
 use Closure;
+use Merlin\Core\Service\ArticleDeletionService;
+use OCA\Merlin\Adapter\NextcloudDatabase;
 use OCA\Merlin\Db\ArticleMapper;
-use OCA\Merlin\Service\ArticleDeletionService;
 use OCP\DB\ISchemaWrapper;
+use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
@@ -26,13 +28,17 @@ use OCP\Migration\SimpleMigrationStep;
  * IUserManager::userExists() liefert auch dann false, wenn ein Backend wie
  * LDAP gerade nicht erreichbar ist, und dann wären echte Nutzerdaten weg.
  * Künftige Nutzerlöschungen erledigt UserDeletedListener.
+ *
+ * ArticleDeletionService wird hier selbst gebaut statt injiziert: Migrationen
+ * laufen bei der Installation, bevor Application::register() die Kern-Klassen
+ * im App-Container angemeldet hat (siehe Application::CORE_SERVICES).
  */
 class Version1000Date20240101000028 extends SimpleMigrationStep {
 	private const INDEX = 'merlin_art_user_arch_idx';
 
 	public function __construct(
 		private ArticleMapper $articleMapper,
-		private ArticleDeletionService $deletionService,
+		private IDBConnection $db,
 	) {
 	}
 
@@ -59,7 +65,7 @@ class Version1000Date20240101000028 extends SimpleMigrationStep {
 			$output->info(sprintf('Merlin: set archive date for %d archived articles', $backfilled));
 		}
 
-		$orphans = $this->deletionService->deleteOrphans();
+		$orphans = (new ArticleDeletionService(new NextcloudDatabase($this->db)))->deleteOrphans();
 		if ($orphans > 0) {
 			$output->info(sprintf('Merlin: removed %d orphaned highlights, tag links and share links', $orphans));
 		}

@@ -7,7 +7,8 @@ namespace Merlin\Core\Port;
 /**
  * Löscht Artikel eines Nutzers samt Markierungen, Tag-Zuordnungen und Shares.
  *
- * Nextcloud: OCA\Merlin\Service\ArticleDeletionService.
+ * Umgesetzt von Merlin\Core\Service\ArticleDeletionService (Tabellen über den
+ * Port Database).
  */
 interface ArticleDeletion {
 	/**
