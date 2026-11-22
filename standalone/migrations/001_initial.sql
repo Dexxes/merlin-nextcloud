@@ -229,8 +229,9 @@ CREATE INDEX idx_login_flow_tokens_expires ON login_flow_tokens(expires_at);
 
 -- Instanzweite Werte (Port AppSettings, in Nextcloud IAppConfig der App merlin)
 -- und die Admin-Schalter der Konto-Verwaltung (z. B. Registrierung offen).
+-- Spaltennamen ohne reservierte Wörter (key ist in MySQL reserviert).
 CREATE TABLE settings (
-    key TEXT PRIMARY KEY,
+    name TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
 
@@ -239,8 +240,8 @@ CREATE TABLE settings (
 CREATE TABLE user_settings (
     user_id TEXT NOT NULL,
     section TEXT NOT NULL,
-    key TEXT NOT NULL,
+    name TEXT NOT NULL,
     value TEXT NOT NULL,
-    PRIMARY KEY (user_id, section, key)
+    PRIMARY KEY (user_id, section, name)
 );
 
