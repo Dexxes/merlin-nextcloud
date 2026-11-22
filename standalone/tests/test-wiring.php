@@ -74,6 +74,8 @@ foreach ([
 	ContentExtractorService::class, MediaResolverService::class, CommentService::class, ShareAccessService::class,
 	RetentionService::class, SiteCredentialService::class, ArticleDeletionService::class, SupportBoxService::class,
 	ExportService::class, PdfProxyService::class, ReportBackendService::class, TtsStreamService::class,
+	// Handler der gemeinsamen API (core/src/Api/routes.php)
+	...array_values(array_unique(array_map(static fn (array $r) => $r['handler'][0], \Merlin\Standalone\Http\CoreApi::routes()))),
 ] as $service) {
 	try {
 		check($app->get($service) instanceof $service, "Kern-Dienst {$service}");

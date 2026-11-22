@@ -3,9 +3,12 @@
 Eigener Merlin-Server ohne Nextcloud, auf Basis des gemeinsamen Kerns
 (`../core`). Ersetzt [`merlin-standalone-server`](https://github.com/Dexxes/merlin-standalone-server)
 und wird hier neu aufgebaut. Noch nicht für den Einsatz gedacht: Es gibt
-Konten, Login, Login Flow v2, API-Tokens, die Admin-Nutzerverwaltung und
-`/api/capabilities`; die Artikel-API kommt mit Etappe 4, die Leseoberfläche
-mit Etappe 5.
+Konten, Login, Login Flow v2, API-Tokens, die Admin-Nutzerverwaltung,
+`/api/capabilities` und aus dem Kern die Artikel- und Schlagwort-API
+(`/api/articles…`, `/api/tags…`, `/api/events`, dieselben Pfade und
+Antworten wie in der Nextcloud-App ohne `/index.php/apps/merlin`). Weitere
+Teile der API (Markierungen, Kommentare, Share-Links …) folgen in Etappe 4,
+die Leseoberfläche mit Etappe 5.
 
 ```sh
 cd standalone
@@ -23,6 +26,12 @@ Autoren, Bild, Paywall-Status und Kennzahlen zum Inhalt als JSON aus.
 `tests/test-extraction.php` prüft offline Filter, Nutzer-Filter und abgelehnte
 Seiten; mit `--live` vergleicht es echte Artikel-Links mit einer Referenz ohne
 Standalone-Adapter (Titel, Autoren, Bild, Paywall, Inhaltslänge ±5 %).
+
+`tests/test-article-api.php` spielt die Artikel- und Schlagwort-API über HTTP
+durch; mit `--live [url …]` speichert es zusätzlich echte Artikel-Links über
+`POST /api/articles` und wartet auf die Extraktion. Unter `php -S` kommt die
+Antwort auf `POST /api/articles` erst nach der Extraktion (kein
+`fastcgi_finish_request()`), unter PHP-FPM sofort.
 
 Mit Apache zeigt der DocumentRoot auf `public/` (dort liegt die
 `.htaccess`), oder `.htaccess` im Ordner `standalone/` leitet alles nach

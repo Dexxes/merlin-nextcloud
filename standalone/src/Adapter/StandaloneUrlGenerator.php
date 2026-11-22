@@ -20,6 +20,10 @@ final class StandaloneUrlGenerator implements UrlGenerator {
 		return $this->baseUrl . '/img/' . ltrim($file, '/');
 	}
 
+	public function imagePath(string $file): string {
+		return rtrim((string) parse_url($this->baseUrl, PHP_URL_PATH), '/') . '/img/' . ltrim($file, '/');
+	}
+
 	public function fileContentUrl(array $params): string {
 		$id = $params['id'] ?? '';
 		unset($params['id']);

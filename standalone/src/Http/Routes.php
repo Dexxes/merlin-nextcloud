@@ -8,18 +8,18 @@ use Merlin\Standalone\App;
 use Merlin\Standalone\Controller\AccountController;
 use Merlin\Standalone\Controller\AdminController;
 use Merlin\Standalone\Controller\AssetController;
-use Merlin\Standalone\Controller\CapabilitiesController;
 use Merlin\Standalone\Controller\LoginFlowController;
 use Merlin\Standalone\Controller\PageController;
 use Merlin\Standalone\Http\Middleware\AdminOnlyMiddleware;
 use Merlin\Standalone\Http\Middleware\AuthMiddleware;
 
 /**
- * Routen des Servers. Bisher nur die Standalone-eigenen (Konto, Login,
- * Login-Flow, Admin-Nutzer) und /api/capabilities; die gemeinsame API aus
- * dem Kern (Artikel, Tags, Markierungen …) kommt mit Etappe 4 aus der
- * Routentabelle des Kerns dazu. Pfade wie in merlin-standalone-server, damit
- * bestehende Clients (backendKind 'standalone') sie unverändert finden.
+ * Routen des Servers: zuerst die gemeinsame API aus der Routentabelle des
+ * Kerns (core/src/Api/routes.php: /api/capabilities, Artikel, Schlagworte …,
+ * Pfade ohne Nextclouds /index.php/apps/merlin), dann die Standalone-eigenen
+ * (Konto, Login, Login-Flow, Admin-Nutzer). Pfade wie in
+ * merlin-standalone-server, damit bestehende Clients (backendKind
+ * 'standalone') sie unverändert finden.
  */
 final class Routes {
 	public static function build(App $app): Router {
@@ -27,12 +27,21 @@ final class Routes {
 		$account = $app->get(AccountController::class);
 		$admin = $app->get(AdminController::class);
 		$loginFlow = $app->get(LoginFlowController::class);
-		$capabilities = $app->get(CapabilitiesController::class);
 		$assets = $app->get(AssetController::class);
 		$auth = $app->get(AuthMiddleware::class)->handle(...);
 		$adminOnly = $app->get(AdminOnlyMiddleware::class)->handle(...);
 
 		$router = new Router();
+
+		// Gemeinsame API (Kern). 'user' braucht eine Anmeldung (Basic Auth mit
+		// API-Token oder Session), 'admin' zusätzlich Adminrechte.
+		foreach (CoreApi::routes() as $route) {
+			$router->add($route['verb'], $route['url'], CoreApi::handler($app, $route['handler']), match ($route['access']) {
+				'public' => [],
+				'admin' => [$auth, $adminOnly],
+				default => [$auth],
+			});
+		}
 
 		// HTML-Seiten
 		$router->add('GET', '/', fn () => Response::redirect(PageController::HOME));
@@ -55,9 +64,6 @@ final class Routes {
 		$router->add('POST', '/login/v2/poll', $loginFlow->poll(...));
 		$router->add('GET', '/login/v2/flow/{token}', $pages->loginFlowForm(...));
 		$router->add('POST', '/login/v2/flow/{token}', $pages->loginFlowSubmit(...));
-
-		// Fähigkeiten des Servers (ohne Anmeldung)
-		$router->add('GET', '/api/capabilities', $capabilities->show(...));
 
 		// Konto: API-Tokens (Session oder Basic Auth mit Token)
 		$router->add('GET', '/account/tokens', $account->listTokens(...), [$auth]);

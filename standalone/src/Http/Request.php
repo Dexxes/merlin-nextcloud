@@ -128,6 +128,21 @@ final class Request {
         return [];
     }
 
+    /**
+     * Alle Parameter wie in Nextclouds Request: Query-String, dann Body (JSON
+     * oder Formular), dann Pfad-Platzhalter (gewinnen).
+     *
+     * @return array<string, mixed>
+     */
+    public function params(): array {
+        $body = $this->jsonBody !== [] ? $this->jsonBody : $_POST;
+        return array_merge($this->query, $body, $this->routeParams);
+    }
+
+    public function rawBody(): string {
+        return $this->rawBody;
+    }
+
     public function header(string $name): ?string {
         return $this->headers[strtolower($name)] ?? null;
     }

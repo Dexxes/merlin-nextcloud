@@ -18,6 +18,12 @@ interface UrlGenerator {
 	public function absoluteImageUrl(string $file): string;
 
 	/**
+	 * Pfad (ohne Schema und Host) eines mitgelieferten Bildes, z. B. für das
+	 * Platzhalterbild no-img.png in Artikellisten.
+	 */
+	public function imagePath(string $file): string;
+
+	/**
 	 * Absolute URL des Datei-Endpunkts eines Datei-Eintrags
 	 * (/api/articles/{id}/file). $params: id, t (Signatur), optional size
 	 * und download.

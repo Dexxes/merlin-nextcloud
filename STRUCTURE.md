@@ -5,12 +5,13 @@ Zentrale Dateien für UI und Logik der Nextcloud-App.
 ## Repository-Layout
 
 Das Repo wird schrittweise zum gemeinsamen Repo für die Nextcloud-App und den
-Standalone-Server umgebaut. Aktueller Stand (Etappe 3 von 7, dritter Teil):
+Standalone-Server umgebaut. Aktueller Stand (Etappe 4 von 7, erster Teil):
 
 ```
 merlin-nextcloud/
 ├── core/           # framework-freier PHP-Kern, Composer-Paket merlin/core, Namespace Merlin\Core\, PHP ≥ 8.1,
 │                   # kein OCP: src/ContentFilter/, src/Extraction/ (Extraktor, Medien, Login, Social, SSRF),
+│                   # src/Api/ (Handler + Routentabelle der gemeinsamen API), src/Persistence/ (SQL-Stores),
 │                   # src/Port/ (Schnittstellen zu den Adaptern), resources/, tests/
 ├── content-filters/  # mitgelieferte Content-Filter, einzige Kopie für alle Varianten
 ├── nextcloud/      # die Nextcloud-App (App-ID merlin): appinfo/, lib/, templates/, l10n/, img/, css/,
@@ -18,7 +19,8 @@ merlin-nextcloud/
 │                   # composer.json, Makefile (make dist); lib/Adapter/ implementiert die Ports
 ├── standalone/     # eigener Server ohne Nextcloud (Namespace Merlin\Standalone\, im Aufbau, Etappe 3):
 │                   # migrations/ (SQLite, merlin_*-Tabellen im Nextcloud-Schema), src/, bin/merlin, tests/
-├── tools/          # Prüfungen über beide Varianten: test-schema-parity.php, schema/ (Nextcloud-Schema ohne Nextcloud lesen)
+├── tools/          # Prüfungen über beide Varianten: test-schema-parity.php, test-route-parity.php,
+│                   # schema/ (Nextcloud-Schema ohne Nextcloud lesen)
 ├── frontend/       # Vue-3-Quellen (src/), fonts/, package.json, vite.config.mjs;
 │                   # `npm run build` schreibt nach nextcloud/js und nextcloud/css
 ├── docker/, Dockerfile, docker-compose.yml   # Entwicklungs-Setup der Nextcloud-Variante
@@ -43,12 +45,20 @@ Vorerst nur SQLite, MySQL/MariaDB und PostgreSQL folgen später.
 Persistenz im Kern: `core/src/Persistence/` enthält SQL-Implementierungen der
 Store-Ports (`SqlCommentStore`, `SqlHighlightStore`, `SqlCommentGuestStore`,
 `SqlShareStore`, `SqlSiteCredentialStore`, `SqlContentFilterStore`,
-`SqlRetentionStore`, `SqlDatabase`) gegen den Port `Connection` (benannte
+`SqlRetentionStore`, `SqlDatabase`, `SqlArticleStore`, `SqlTagStore`) gegen den Port `Connection` (benannte
 Parameter, Tabellen als `*PREFIX*merlin_…`, portables SQL, Zeitpunkte als
 `Y-m-d H:i:s` in UTC wie Nextclouds Entities). `RowMapper` überträgt Felder
 der Domain-Objekte in Spalten, `PdoConnection` ist die PDO-Implementierung
 (eindeutige Indizes → `DuplicateEntryException`). Der Standalone-Server nutzt
-sie direkt; die Nextcloud-App bleibt vorerst bei ihren Mapper-Adaptern.
+sie direkt. Die Nextcloud-App nutzt für Artikel und Schlagworte ebenfalls
+`SqlArticleStore`/`SqlTagStore`, über `Adapter\NextcloudConnection`
+(IDBConnection, Parametertypen aus dem PHP-Wert, damit LIMIT auf MySQL eine
+Zahl ist); für die übrigen Tabellen bleibt sie vorerst bei ihren
+Mapper-Adaptern. `Domain\Article` merkt sich wie ein Entity die gesetzten
+Felder, `SqlArticleStore` schreibt beim Einfügen und Ändern nur diese Spalten
+(sonst überschriebe z. B. das Speichern der Leseposition den Inhalt, den die
+Extraktion gerade schreibt). Suche: `LOWER(spalte) LIKE LOWER(:term) ESCAPE '!'`
+(`SqlValue::likeContains()`), läuft auf allen drei Datenbanken.
 `core/tests/test-sql-stores.php` prüft die Stores gegen eine SQLite-Datenbank,
 deren Schema aus den Nextcloud-Migrationen entsteht.
 
@@ -75,18 +85,42 @@ Port in einer der beiden Listen steht und alle Kern-Dienste baubar sind.
 | `UserDirectory` | `Adapter\StandaloneUserDirectory` (Benutzername aus `users`) |
 | `ContentFilterSource` | `Adapter\StandaloneContentFilterRepository` |
 | `SiteSessions`, `ArticleDeletion` | `SiteCredentialService`, `ArticleDeletionService` aus dem Kern |
+| `ArticleStore`, `TagStore` | `Merlin\Core\Persistence\SqlArticleStore`, `SqlTagStore` |
+| `Scheduler` | `Merlin\Core\Service\ShutdownScheduler` |
+| `Platform` | `Adapter\StandalonePlatform` (Version, Konten/Tokens/Login Flow) |
+| `ArticleFiles` | `Adapter\NoArticleFiles` (keine Datei-Einträge) |
 | `FilePreviews`, `StoredFile` | nicht verfügbar (Merlin Dateien folgt später) |
 
+Gemeinsame API (Etappe 4): `core/src/Api/routes.php` ist die eine
+Routentabelle (Name, Verb, Pfad, Handler, Zugriff `user`/`admin`/`public`).
+Handler wie `Api\ArticleApi`, `Api\TagApi`, `Api\CapabilitiesApi` bekommen ein
+`ApiRequest` (Nutzer, Parameter aus Query, Body und Pfad, umgewandelt wie von
+Nextclouds Dispatcher) und liefern ein `ApiResult` (JSON, Text mit eigenem
+Content-Type oder SSE-Stream). Nextcloud: `appinfo/routes.php` übernimmt die
+Tabelle aus `vendor/merlin/core`, je Ressource ein dünner Controller
+(`Controller\CoreApiController`) mit den Zugriffsattributen. Standalone:
+`Http\Routes` registriert jede Zeile über `Http\CoreApi`, `user`-Routen hinter
+`AuthMiddleware`. Extraktion nach der Antwort: `Service\ArticleExtractionService`
+über den Port `Scheduler` (`Service\ShutdownScheduler` in beiden Varianten).
+`/api/capabilities` meldet `Api\CapabilitiesApi::CORE_FEATURES` plus die Liste
+des Ports `Platform` (was nur die Variante hat). `tools/test-route-parity.php`
+prüft Tabelle, Nextcloud-Routen und -Controller (Methode, Handler-Aufruf,
+Attribute) und Standalone-Router; Routen nur einer Variante stehen dort in
+`NEXTCLOUD_ONLY`, `NOT_YET_IN_CORE` (wird mit jedem Teil kürzer) oder
+`STANDALONE_ONLY`.
+
 Standalone-HTTP: `standalone/public/index.php` baut die Routen aus
-`src/Http/Routes.php` (bisher nur die Standalone-eigenen: Login, Registrierung,
-Passwort-Reset, Konto mit API-Tokens, Admin-Nutzer, Login Flow v2 unter
-`/login/v2`, dazu `/api/capabilities` und `/img/{datei}` aus `nextcloud/img/`).
+`src/Http/Routes.php`: die gemeinsame API aus dem Kern, dazu die
+Standalone-eigenen (Login, Registrierung, Passwort-Reset, Konto mit
+API-Tokens, Admin-Nutzer, Login Flow v2 unter `/login/v2`, `/img/{datei}` aus
+`nextcloud/img/`).
 Pfade und Antworten wie in `merlin-standalone-server`, damit Clients mit
 `backendKind: 'standalone'` sie unverändert finden. Die merlin_*-Daten eines
 gelöschten Kontos räumt `Account\UserDataCleaner` ab (wie `UserDeletedListener`
 in Nextcloud). `/api/capabilities` meldet `backend`, die gemeinsame `version`
 (aus `nextcloud/appinfo/info.xml`), `apiVersion` und `features`; `files` fehlt
-dort bewusst. `standalone/tests/test-http.php` startet den eingebauten
+dort bewusst. `standalone/tests/test-article-api.php` spielt die Artikel- und
+Schlagwort-API über HTTP durch (`--live`: echte Artikel-Links). `standalone/tests/test-http.php` startet den eingebauten
 PHP-Server und spielt Login Flow, Basic Auth, Admin-API und Kontolöschung
 durch. `standalone/bin/merlin extract <url>` ruft die Kern-Extraktion mit den
 Standalone-Adaptern auf; `standalone/tests/test-extraction.php --live` vergleicht
@@ -129,6 +163,11 @@ beide Listen vollständig sind.
 | `UserDirectory` | `Adapter\NextcloudUserDirectory` (IUserManager, Anzeigenamen) |
 | `FilePreviews` | `Adapter\NextcloudFilePreviews` (IPreview) |
 | `InstanceSecret` | `Adapter\NextcloudInstanceSecret` (Systemwert `secret`) |
+| `Connection` | `Adapter\NextcloudConnection` (IDBConnection) |
+| `ArticleStore`, `TagStore` | `Merlin\Core\Persistence\SqlArticleStore`, `SqlTagStore` (über `Connection`) |
+| `ArticleFiles` | `Adapter\NextcloudArticleFiles` (Service\MerlinFileService) |
+| `Scheduler` | `Merlin\Core\Service\ShutdownScheduler` |
+| `Platform` | `Adapter\NextcloudPlatform` (App-Version, Funktionen außerhalb des Kerns) |
 
 Nicht per DI: `StoredFile` (`Adapter\NextcloudStoredFile` um eine Datei in
 Nextcloud Files) und `Translator` (`Adapter\NextcloudTranslator` um das IL10N
@@ -171,8 +210,10 @@ App-Container angemeldet hat.
 nextcloud/
 ├── lib/
 │   ├── Controller/          # HTTP-Controller
-│   │   ├── ArticleController.php
-│   │   ├── TagController.php
+│   │   ├── CoreApiController.php             # Basis der dünnen Controller für Routen aus core/src/Api/routes.php
+│   │   ├── ArticleController.php             # → Merlin\Core\Api\ArticleApi
+│   │   ├── TagController.php                 # → Merlin\Core\Api\TagApi
+│   │   ├── CapabilitiesController.php        # GET /api/capabilities → Merlin\Core\Api\CapabilitiesApi
 │   │   ├── ShareController.php               # Öffentliche Share-Links verwalten (erstellen, Passwort/Ablauf)
 │   │   ├── PublicShareController.php          # Öffentliche API hinter einem Share-Link (kein Login)
 │   │   ├── HighlightController.php            # REST-API für Textmarkierungen
@@ -275,7 +316,15 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │   │   │   ├── PianoJsonFormLoginProvider.php # type="piano-json-form" (z. B. tagesspiegel.de)
 │   │   │   └── KeycloakFormPostLoginProvider.php # type="keycloak-form-post" (Funke-Keycloak, z. B. morgenpost.de)
 │   │   └── Social/                       # Bluesky-Threads, Mastodon, TikTok
+│   ├── Api/                          # gemeinsame API (Etappe 4)
+│   │   ├── routes.php                    # die eine Routentabelle (Nextcloud und Standalone bauen ihre Routen daraus)
+│   │   ├── ApiRequest.php / ApiResult.php # Eingabe (Nutzer, Parameter) und Antwort (JSON, Text, SSE)
+│   │   ├── ArticleApi.php                # /api/articles…, /api/events
+│   │   ├── TagApi.php                    # /api/tags…, Schlagworte an Artikeln
+│   │   └── CapabilitiesApi.php           # /api/capabilities
+│   ├── Persistence/                  # SQL-Stores gegen den Port Connection (Sql…Store, PdoConnection, RowMapper, SqlValue)
 │   ├── Domain/
+│   │   ├── Article.php / Tag.php         # Artikel (mit Änderungsliste wie ein Entity) und Schlagwort, Wire-Format per jsonSerialize()
 │   │   ├── ArticleSnapshot.php           # Artikelfelder für Export, PDF, Vorlesen, Support-Box
 │   │   ├── SiteCredential.php            # Paywall-Zugangsdaten (verschlüsselt) eines Nutzers für eine Domain
 │   │   ├── Comment.php / Highlight.php / CommentGuest.php  # Kommentar, Markierung, Gast-Farbe (Wire-Format per jsonSerialize())
@@ -287,6 +336,8 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │   │   ├── TtsStreamService.php          # gemeinsamer Stream-Pfad für authentifizierten und öffentlichen (Share-)Endpunkt
 │   │   ├── ExportService.php             # Artikel als eigenständiges HTML
 │   │   ├── ReportBackendService.php / ReportBackendRules.php  # „Fehlerhaft dargestellt melden“
+│   │   ├── ArticleExtractionService.php  # Inhalt nach der Antwort holen (Port Scheduler), Paywall-/Unsupported-Zustände
+│   │   ├── ShutdownScheduler.php         # Scheduler-Port: register_shutdown_function + fastcgi_finish_request
 │   │   ├── ArticleDeletionService.php    # Einziger Löschweg für Artikel (Port Database): mit Highlights, Kommentaren, Tag-Zuordnungen, Shares; Nutzerlöschung; Waisen
 │   │   ├── CommentService.php            # Kommentare/Gast-Markierungen anlegen, ändern, löschen; SSE-Schleife
 │   │   ├── ShareAccessService.php / ShareAccessDenied.php  # Share-Token + Passwort-Unlock prüfen (Share-Ansicht und Gast-Kommentare)

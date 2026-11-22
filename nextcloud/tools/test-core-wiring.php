@@ -129,6 +129,9 @@ while ($queue !== []) {
 	if (interface_exists($class)) {
 		if (!isset($ports[$class])) {
 			$errors[] = "Port $class (gebraucht von $from) fehlt in Application::CORE_PORTS";
+		} elseif (str_starts_with((string) $ports[$class], 'Merlin\\Core\\')) {
+			// Implementierung im Kern: deren Konstruktor ebenfalls verfolgen.
+			$queue[$ports[$class]] ??= $class;
 		}
 		continue;
 	}

@@ -25,10 +25,13 @@ namespace Merlin\SqlStoresTest {
 }
 
 namespace {
+	use Merlin\Core\Domain\Article;
 	use Merlin\Core\Domain\Comment;
 	use Merlin\Core\Domain\CommentGuest;
 	use Merlin\Core\Domain\Highlight;
 	use Merlin\Core\Domain\SiteCredential;
+	use Merlin\Core\Domain\Tag;
+	use Merlin\Core\Persistence\SqlArticleStore;
 	use Merlin\Core\Persistence\PdoConnection;
 	use Merlin\Core\Persistence\SqlCommentGuestStore;
 	use Merlin\Core\Persistence\SqlCommentStore;
@@ -38,6 +41,7 @@ namespace {
 	use Merlin\Core\Persistence\SqlRetentionStore;
 	use Merlin\Core\Persistence\SqlShareStore;
 	use Merlin\Core\Persistence\SqlSiteCredentialStore;
+	use Merlin\Core\Persistence\SqlTagStore;
 	use Merlin\Core\Persistence\SqlValue;
 	use Merlin\Core\Port\DuplicateEntryException;
 	use Merlin\Core\Service\ArticleDeletionService;
@@ -220,6 +224,114 @@ namespace {
 	$check((int) $db->fetchValue("SELECT COUNT(*) FROM *PREFIX*merlin_comments WHERE user_id = '1'") === 0
 		&& (int) $db->fetchValue("SELECT COUNT(*) FROM *PREFIX*merlin_articles WHERE user_id = '1'") === 0
 		&& (int) $db->fetchValue("SELECT COUNT(*) FROM *PREFIX*merlin_articles WHERE user_id = '2'") === 1, 'deleteAllForUser trifft nur den Nutzer');
+
+	echo "Artikel und Schlagworte\n";
+	$articles = new SqlArticleStore($db);
+	$tagStore = new SqlTagStore($db);
+	$new = static function (string $userId, string $title, array $set = []) use ($articles): Article {
+		$a = new Article();
+		$a->setUserId($userId);
+		$a->setUrl('https://example.org/' . rawurlencode($title));
+		$a->setTitle($title);
+		$a->setContent('<p>' . $title . '</p>');
+		$a->setCreatedAt(new DateTime('2026-02-01 10:00:00'));
+		$a->setUpdatedAt(new DateTime('2026-02-01 10:00:00'));
+		foreach ($set as $field => $value) {
+			$a->{'set' . ucfirst($field)}($value);
+		}
+		return $articles->insert($a);
+	};
+	$a1 = $new('7', 'Erster Artikel', ['author' => 'Erika', 'excerpt' => '100% sicher']);
+	$check($a1->getId() > 0 && $a1->changedFields() === [], 'insert setzt id und leert die Änderungsliste');
+	$row = $db->fetchRow('SELECT * FROM *PREFIX*merlin_articles WHERE id = :id', ['id' => $a1->getId()]);
+	$check((float) $row['scroll_progress'] === 0.0 && (int) $row['scroll_updated_at'] === 0 && $row['category'] === null,
+		'nicht gesetzte Spalten behalten ihre Defaults', json_encode($row));
+	$loaded = $articles->find((int) $a1->getId(), '7');
+	$check($loaded !== null && $loaded->getTitle() === 'Erster Artikel' && $loaded->getCreatedAt()->format('c') === $a1->getCreatedAt()->format('c'), 'find: Rundweg');
+	$check($articles->find((int) $a1->getId(), '8') === null, 'find: nur eigener Artikel');
+	$json = $loaded->jsonSerialize();
+	$check($json['isRead'] === false && $json['isFavorite'] === false && $json['scrollProgress'] === 0.0 && $json['fileId'] === null
+		&& array_keys($json) === array_keys((new Article())->jsonSerialize()), 'jsonSerialize: Wire-Format');
+
+	// Nur geänderte Spalten: eine parallele Änderung am Inhalt bleibt erhalten.
+	$stale = $articles->find((int) $a1->getId(), '7');
+	$db->execute("UPDATE *PREFIX*merlin_articles SET content = 'neu extrahiert' WHERE id = :id", ['id' => $a1->getId()]);
+	$stale->setScrollProgress(0.5);
+	$articles->update($stale);
+	$after = $articles->find((int) $a1->getId(), '7');
+	$check($after->getContent() === 'neu extrahiert' && $after->getScrollProgress() === 0.5, 'update schreibt nur geänderte Spalten');
+
+	$a2 = $new('7', 'Video', ['category' => 'Video', 'isRead' => 1]);
+	$a3 = $new('7', 'Favorit', ['isFavorite' => new DateTime('2026-02-03 08:00:00')]);
+	$a4 = $new('7', 'Archiviert', ['isArchived' => 1, 'archivedAt' => new DateTime('2026-02-04 08:00:00')]);
+	$a5 = $new('7', 'Datei', ['fileId' => 42, 'fileMime' => 'image/jpeg', 'fileText' => 'Kassenbon']);
+	$new('8', 'Fremd');
+	$ids = static fn (array $list) => array_map(static fn (Article $a) => $a->getId(), $list);
+	$check($ids($articles->findAll('7')) === [$a5->getId(), $a4->getId(), $a3->getId(), $a2->getId(), $a1->getId()], 'findAll: neueste zuerst, nur eigene');
+	$check($ids($articles->findAll('7', ['is_read' => true])) === [$a2->getId()], 'Filter is_read');
+	$check($ids($articles->findAll('7', ['is_favorite' => true])) === [$a3->getId()], 'Filter is_favorite');
+	$check($ids($articles->findAll('7', ['is_archived' => true])) === [$a4->getId()], 'Filter is_archived');
+	$check($ids($articles->findAll('7', ['has_file' => true])) === [$a5->getId()], 'Filter has_file');
+	$check($ids($articles->findAll('7', ['not_category' => ['Video', 'Audio'], 'has_file' => false])) === [$a4->getId(), $a3->getId(), $a1->getId()], 'Filter not_category');
+	$check($ids($articles->findAll('7', [], 2, 1)) === [$a4->getId(), $a3->getId()], 'limit/offset');
+	$counts = $articles->counts('7');
+	$check($counts['pages'] === ['total' => 2, 'unread' => 2, 'favorites' => 1, 'archived' => 1]
+		&& $counts['videos'] === ['total' => 1, 'unread' => 0, 'favorites' => 0, 'archived' => 0]
+		&& $counts['files']['total'] === 1, 'counts', json_encode($counts));
+	$check($ids($articles->search('7', 'erika')) === [$a1->getId()], 'search: Groß-/Kleinschreibung egal');
+	$check($ids($articles->search('7', '100%')) === [$a1->getId()] && $articles->search('7', '_') === [], 'search: % und _ wörtlich');
+	$check($ids($articles->search('7', 'kassenbon')) === [$a5->getId()] && $articles->search('7', 'Archiviert') === [], 'search: erkannter Text, ohne Archiv');
+
+	$stuck = $new('7', 'Hängt', ['isProcessing' => 1, 'updatedAt' => new DateTime('-10 minutes')]);
+	$fresh = $new('7', 'Läuft', ['isProcessing' => 1, 'updatedAt' => new DateTime()]);
+	$check($ids($articles->findProcessing('7')) === [$fresh->getId(), $stuck->getId()], 'findProcessing');
+	$articles->clearStuckProcessing('7');
+	$check($ids($articles->findProcessing('7')) === [$fresh->getId()], 'clearStuckProcessing nur nach 5 Minuten');
+
+	$parent = new Tag();
+	$parent->setUserId('7');
+	$parent->setName('Politik');
+	$parent->setCreatedAt(new DateTime());
+	$tagStore->insert($parent);
+	$child = new Tag();
+	$child->setUserId('7');
+	$child->setName('Europa');
+	$child->setParentId($parent->getId());
+	$child->setCreatedAt(new DateTime());
+	$tagStore->insert($child);
+	$check($parent->getId() > 0 && $tagStore->find((int) $parent->getId(), '7')?->getColor() === '#0082c9', 'Schlagwort anlegen mit Standardfarbe');
+	$dup = new Tag();
+	$dup->setUserId('7');
+	$dup->setName('Politik');
+	$dup->setCreatedAt(new DateTime());
+	try {
+		$tagStore->insert($dup);
+		$check(false, 'doppelter Schlagwortname');
+	} catch (DuplicateEntryException) {
+		$check(true, 'doppelter Schlagwortname: DuplicateEntryException');
+	}
+	$check(array_map(static fn (Tag $t) => $t->getName(), $tagStore->findAll('7')) === ['Europa', 'Politik'], 'findAll nach Name');
+	$check($tagStore->parentMap('7') === [(int) $parent->getId() => null, (int) $child->getId() => (int) $parent->getId()], 'parentMap');
+	$tagStore->addToArticle((int) $a1->getId(), (int) $child->getId());
+	$tagStore->addToArticle((int) $a1->getId(), (int) $parent->getId());
+	$tagStore->addToArticle((int) $a3->getId(), (int) $parent->getId());
+	try {
+		$tagStore->addToArticle((int) $a3->getId(), (int) $parent->getId());
+		$check(false, 'Zuordnung doppelt');
+	} catch (DuplicateEntryException) {
+		$check(true, 'Zuordnung doppelt: DuplicateEntryException');
+	}
+	$byArticle = $tagStore->findByArticleIds([(int) $a1->getId(), (int) $a3->getId(), (int) $a2->getId()]);
+	$check(array_map(static fn (Tag $t) => $t->getName(), $byArticle[$a1->getId()] ?? []) === ['Europa', 'Politik']
+		&& count($byArticle[$a3->getId()] ?? []) === 1 && !isset($byArticle[$a2->getId()]), 'findByArticleIds');
+	$check($ids($articles->findAll('7', ['tag_ids' => [(int) $parent->getId(), (int) $child->getId()]])) === [$a3->getId(), $a1->getId()], 'Filter tag_ids: jeder Artikel einmal');
+	$tagStore->removeFromArticle((int) $a3->getId(), (int) $parent->getId());
+	$check($tagStore->findByArticleId((int) $a3->getId()) === [], 'removeFromArticle');
+	$tagStore->deleteWithLinks([(int) $child->getId()], '8');
+	$check($tagStore->find((int) $child->getId(), '7') !== null, 'deleteWithLinks: fremde Schlagworte bleiben');
+	$tagStore->deleteWithLinks([(int) $child->getId(), (int) $parent->getId()], '7');
+	$check($tagStore->findAll('7') === [] && $tagStore->findByArticleId((int) $a1->getId()) === [], 'deleteWithLinks samt Zuordnungen');
+	$check($articles->find((int) $a1->getId(), '7') !== null, 'die Artikel bleiben');
 
 	echo $failed === 0 ? "\nalle Prüfungen ok\n" : "\n{$failed} Fehler\n";
 	exit($failed === 0 ? 0 : 1);

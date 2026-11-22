@@ -4,793 +4,121 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
-use Merlin\Core\ContentFilter\ContentFilterSchema;
-use Merlin\Core\Extraction\ContentExtractorService;
-use Merlin\Core\Extraction\Login\PaywallLoginRequiredException;
-use Merlin\Core\Extraction\UnsupportedSiteException;
-use Merlin\Core\Service\ArticleDeletionService;
-use Merlin\Core\Service\ExportService;
-use Merlin\Core\Service\SupportBoxService;
-use Merlin\Core\Service\TagTree;
-use OCA\Merlin\Db\Article;
-use OCA\Merlin\Db\ArticleMapper;
-use OCA\Merlin\Db\TagMapper;
-use OCA\Merlin\Service\MerlinFileService;
-use OCP\AppFramework\Controller;
-use OCP\AppFramework\Http;
+use Merlin\Core\Api\ArticleApi;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
-use OCP\AppFramework\Http\DataDisplayResponse;
-use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
-use OCP\IURLGenerator;
-use Psr\Log\LoggerInterface;
 
 /**
- * REST API for articles.
- *
- * Security note – NoCSRFRequired:
- * All API routes carry #[NoCSRFRequired] because the same endpoints serve
- * both the Vue web-UI (session cookie) and native clients (iOS, Android,
- * browser extensions) that authenticate via HTTP Basic Auth and cannot
- * supply a Nextcloud requesttoken. Removing the attribute would break all
- * native clients. CSRF protection for the cookie-authenticated web-UI path is
- * instead enforced centrally by CsrfCookieAuthMiddleware, which demands a
- * valid requesttoken for state-changing browser requests while skipping
- * Basic/Bearer-authenticated (native) requests and safe methods. SameSite=Lax
- * session cookies remain as an additional layer of defense.
+ * Artikel-API: die Logik steht in Merlin\Core\Api\ArticleApi (gemeinsam mit
+ * dem Standalone-Server), Routen in core/src/Api/routes.php.
  */
-class ArticleController extends Controller {
-	private ArticleMapper $articleMapper;
-	private TagMapper $tagMapper;
-	private ContentExtractorService $contentExtractor;
-	private ExportService $exportService;
-	private IURLGenerator $urlGenerator;
-	private LoggerInterface $logger;
-	private ?string $userId;
-
+class ArticleController extends CoreApiController {
 	public function __construct(
 		string $appName,
 		IRequest $request,
-		ArticleMapper $articleMapper,
-		TagMapper $tagMapper,
-		ContentExtractorService $contentExtractor,
-		ExportService $exportService,
-		IURLGenerator $urlGenerator,
-		LoggerInterface $logger,
-		private SupportBoxService $supportBox,
-		private ArticleDeletionService $deletionService,
-		private MerlinFileService $files,
-		?string $userId
+		private ArticleApi $api,
+		?string $userId,
 	) {
-		parent::__construct($appName, $request);
-		$this->articleMapper = $articleMapper;
-		$this->tagMapper = $tagMapper;
-		$this->contentExtractor = $contentExtractor;
-		$this->exportService = $exportService;
-		$this->urlGenerator = $urlGenerator;
-		$this->logger = $logger;
-		$this->userId = $userId;
+		parent::__construct($appName, $request, $userId);
 	}
 
-	/**
-	 * Returns the article's imageUrl, or a placeholder if none is set.
-	 *
-	 * PDFs (Links wie Merlin-Dateien, beide Kategorie "PDF") haben fast nie
-	 * ein Vorschaubild: statt no-img.png bekommen sie wie Bluesky-/Instagram-
-	 * Posts ein Icon (img/pdf-preview.png, aus img/pdf-preview.svg). Hier statt
-	 * beim Speichern, damit auch schon gespeicherte PDFs es zeigen. Absolut wie
-	 * ContentExtractorService::platformIconUrl(), weil iOS/Android es über die
-	 * normale Bild-Pipeline laden.
-	 */
-	private function resolveImageUrl(?string $imageUrl, ?string $category = null): string {
-		if (!empty($imageUrl)) {
-			return $imageUrl;
-		}
-		if ($category === ContentExtractorService::PDF_CATEGORY) {
-			return $this->urlGenerator->getAbsoluteURL(
-				$this->urlGenerator->imagePath('merlin', 'pdf-preview.png')
-			);
-		}
-		return $this->urlGenerator->imagePath('merlin', 'no-img.png');
-	}
-
-	/**
-	 * Get unfiltered article counts (total / unread / favorites)
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
+	/** GET /api/articles/counts */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function counts(): DataResponse {
-		return new DataResponse($this->articleMapper->getCounts($this->userId));
+	public function counts(): Response {
+		return $this->respond($this->api->counts($this->apiRequest()));
 	}
 
-	/**
-	 * Get all articles
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
+	/** GET /api/articles */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function index(
-		int $limit = 50,
-		int $offset = 0,
-		?bool $isRead = null,
-		?bool $isFavorite = null,
-		?bool $isArchived = null,
-		?int $tagId = null,
-		?string $category = null,
-		?string $contentType = null
-	): DataResponse {
-		$filters = array_filter([
-			'is_read'    => $isRead,
-			'is_favorite' => $isFavorite,
-			'is_archived' => $isArchived,
-			'category'   => $category,
-		], fn($value) => $value !== null);
-
-		// Filtering by a tag includes articles of its sub-tags (nested tags).
-		if ($tagId !== null) {
-			$filters['tag_ids'] = array_merge(
-				[$tagId],
-				TagTree::descendantIds($this->tagMapper->findParentMap($this->userId), $tagId)
-			);
-		}
-
-		// contentType=page/video/audio: Seiten/Videos/Audio-Aufteilung auf
-		// oberster Ebene, orthogonal zu isRead/isFavorite/isArchived. "video"
-		// ist gleichbedeutend mit category=Video, "audio" mit category=Audio;
-		// "page" ist alles andere (inkl. "Mixed", also Text mit Medium).
-		// "file" sind die Datei-Einträge aus „Merlin Dateien“ (Tab „Dateien“);
-		// sie stehen nur dort, nicht zusätzlich unter Seiten/Videos/Audio.
-		if ($contentType === 'video') {
-			$filters['category'] = 'Video';
-			$filters['has_file'] = false;
-		} elseif ($contentType === 'audio') {
-			$filters['category'] = 'Audio';
-			$filters['has_file'] = false;
-		} elseif ($contentType === 'page') {
-			unset($filters['category']);
-			$filters['not_category'] = ContentFilterSchema::MEDIA_CATEGORIES;
-			$filters['has_file'] = false;
-		} elseif ($contentType === 'file') {
-			$filters['has_file'] = true;
-		}
-
-		// Clear articles stuck in processing state from crashed/previous sessions.
-		$this->articleMapper->clearStuckProcessing($this->userId);
-
-		$articles = $this->articleMapper->findAll($this->userId, $filters, $limit, $offset);
-
-		// Attach tags to each article
-		$articlesWithTags = array_map(function ($article) {
-			$tags = $this->tagMapper->findByArticleId($article->getId());
-			$articleData = $article->jsonSerialize();
-			$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl'], $articleData['category'] ?? null);
-			$articleData['tags'] = array_map(fn($tag) => $tag->jsonSerialize(), $tags);
-			return $articleData;
-		}, $articles);
-
-		return new DataResponse($articlesWithTags);
+	public function index(): Response {
+		return $this->respond($this->api->index($this->apiRequest()));
 	}
 
-	/**
-	 * Get single article
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
+	/** GET /api/articles/search */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function show(int $id): DataResponse {
-		try {
-			$article = $this->articleMapper->find($id, $this->userId);
-			// Datei-Einträge beim Öffnen nachziehen: in Nextcloud umbenannt, oder
-			// von vor Metadaten-Anzeige/Download-Link.
-			if ($article->getFileId() !== null && $this->files->needsRefresh($article)) {
-				try {
-					$article = $this->files->refresh($article);
-				} catch (\Throwable $e) {
-					$this->logger->info('Merlin: could not add metadata to file entry', ['exception' => $e]);
-				}
-			}
-			$tags = $this->tagMapper->findByArticleId($article->getId());
-
-			$articleData = $article->jsonSerialize();
-			$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl'], $articleData['category'] ?? null);
-			$articleData['tags'] = array_map(fn($tag) => $tag->jsonSerialize(), $tags);
-			// Daten für die Support-Infobox (Abo-/Spendenlink), null wenn die Domain
-			// keine URL hinterlegt hat oder der Nutzer dort einen aktiven Login hat.
-			// Nur hier (Einzelabruf), nicht in Listen - siehe SupportBoxService.
-			$articleData['supportBox'] = $this->supportBox->forReader($article->toSnapshot(), $this->userId);
-
-			return new DataResponse($articleData);
-		} catch (\Exception $e) {
-			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
-		}
+	public function search(): Response {
+		return $this->respond($this->api->search($this->apiRequest()));
 	}
 
-	/**
-	 * Create new article from URL.
-	 *
-	 * The article is stored immediately with the URL as a placeholder title so
-	 * the client receives HTTP 202 without waiting for content extraction.
-	 * Content is fetched asynchronously after the response is sent.
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
+	/** GET /api/articles/{id} */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function create(string $url, bool $rejectUnsupported = false): DataResponse {
-		if ($this->userId === null) {
-			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
-		}
-
-		// Opt-in-Vorab-Check gegen content-filters/$unsupported.xml (wie
-		// ExtensionController::add()): der Web-Client schickt
-		// rejectUnsupported=true, damit der "Artikel hinzufügen"-Dialog sofort
-		// eine verständliche Fehlermeldung zeigen kann, statt "Artikel
-		// hinzugefügt" zu melden und einen Artikel anzulegen, der nie Inhalt
-		// bekommt. iOS/Android schicken den Parameter nicht und behalten das
-		// bisherige Verhalten (Platzhalter + asynchrones unsupportedSiteDomain,
-		// siehe assertUrlIsSupported()).
-		if ($rejectUnsupported) {
-			try {
-				$this->contentExtractor->assertUrlIsSupported($url);
-			} catch (UnsupportedSiteException $e) {
-				return new DataResponse([
-					'error'  => 'unsupported_site',
-					'domain' => $e->domain,
-				], Http::STATUS_UNPROCESSABLE_ENTITY);
-			} catch (\Throwable) {
-				// Andere Fehler (z. B. Shortener-Auflösung) hier ignorieren -
-				// extract() prüft im Hintergrund ohnehin erneut.
-			}
-		}
-
-		try {
-			// Resolve tagIds – check query-string params first (most reliable), then JSON body.
-			// Both paths are inside try so any parsing exception is caught rather than becoming a 500.
-			$rawTagIds = $this->request->getParam('tagIds');
-			if (!is_array($rawTagIds)) {
-				$body      = (array) json_decode((string) file_get_contents('php://input'), true);
-				$rawTagIds = $body['tagIds'] ?? null;
-			}
-			$tagIds = is_array($rawTagIds)
-				? array_values(array_filter(array_map('intval', $rawTagIds), fn($v) => $v > 0))
-				: [];
-			// 1. Save a placeholder article immediately so the client is not blocked.
-			$article = new Article();
-			$article->setUserId($this->userId);
-			$article->setUrl($url);
-			$article->setTitle(parse_url($url, PHP_URL_HOST) ?: $url);
-			$article->setContent('');
-			$article->setExcerpt('');
-			$article->setAuthor('');
-			$article->setSiteName(parse_url($url, PHP_URL_HOST) ?: '');
-			$article->setImageUrl('');
-			$article->setReadingTime(0);
-			$article->setIsRead(0);
-			$article->setIsFavorite(null);
-			$article->setIsArchived(0);
-			$article->setIsProcessing(1);
-			$article->setCreatedAt(new \DateTime());
-			$article->setUpdatedAt(new \DateTime());
-
-			$savedArticle = $this->articleMapper->insert($article);
-
-			// Add tags if provided
-			foreach ($tagIds as $tagId) {
-				try {
-					$this->tagMapper->addToArticle($savedArticle->getId(), $tagId);
-				} catch (\Throwable $e) {
-					// Ignore tag errors
-				}
-			}
-
-			// 2. Schedule content extraction to run after the HTTP response is sent.
-			$this->scheduleExtraction($savedArticle->getId(), $url, $this->userId);
-
-			// 3. Return 202 Accepted immediately.
-			$articleData             = $savedArticle->jsonSerialize();
-			$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl'], $articleData['category'] ?? null);
-			$articleData['tags']     = [];
-			return new DataResponse($articleData, Http::STATUS_ACCEPTED);
-		} catch (\Throwable $e) {
-			$this->logger->error('Merlin: article creation failed', ['exception' => $e]);
-			return new DataResponse(['error' => 'Bad request'], Http::STATUS_BAD_REQUEST);
-		}
+	public function show(): Response {
+		return $this->respond($this->api->show($this->apiRequest()));
 	}
 
-	/**
-	 * Runs content extraction for $articleId after the HTTP response is
-	 * sent, via register_shutdown_function(). Shared by create() (first
-	 * attempt) and retryExtraction() (manual retry after a failed first
-	 * attempt, e.g. due to a transient network error while fetching the
-	 * source URL).
-	 */
-	private function scheduleExtraction(int $articleId, string $url, string $userId): void {
-		$extractor = $this->contentExtractor;
-		$mapper    = $this->articleMapper;
-
-		register_shutdown_function(static function () use ($articleId, $url, $extractor, $mapper, $userId): void {
-			// Release the HTTP connection so the client is unblocked immediately.
-			if (function_exists('fastcgi_finish_request')) {
-				fastcgi_finish_request();
-			}
-
-			// Release the PHP session file lock immediately.
-			// Without this, the SSE /api/events request from the same browser
-			// blocks on session_start() for the entire duration of extraction.
-			if (session_status() === PHP_SESSION_ACTIVE) {
-				session_write_close();
-			}
-
-			// Give the extraction a generous timeout without affecting the
-			// already-sent web request.
-			set_time_limit(120);
-
-			try {
-				$extracted = $extractor->extract($url, null, $userId);
-
-				$article = $mapper->find($articleId, $userId);
-
-				$article->setUrl($extracted['url'] ?? $url);
-				$article->setTitle($extracted['title']);
-				$article->setContent($extracted['content']);
-				$article->setExcerpt($extracted['excerpt']);
-				$article->setAuthor($extracted['author']);
-				$article->setAuthorUrl($extracted['authorUrl'] ?? null);
-				$article->setAuthors(Article::encodeAuthors($extracted['authors'] ?? null));
-				$article->setSiteName($extracted['siteName']);
-				$article->setImageUrl($extracted['imageUrl']);
-				$article->setReadingTime($extracted['readingTime']);
-				if (!empty($extracted['publishedAt'])) {
-					$article->setPublishedAt($extracted['publishedAt']);
-				}
-				if (!empty($extracted['category'])) {
-					$article->setCategory($extracted['category']);
-				}
-				$article->setIsPaywalled((bool) ($extracted['isPaywalled'] ?? false));
-				$article->setPaywallSubscribeUrl($extracted['paywallSubscribeUrl'] ?? null);
-				// Icon der Seite nur überschreiben, wenn diesmal eins gefunden wurde
-				// (ein erneuter Versuch darf ein vorhandenes nicht löschen).
-				if (!empty($extracted['siteIconUrl'])) {
-					$article->setSiteIconUrl($extracted['siteIconUrl']);
-				}
-				$article->setUpdatedAt(new \DateTime());
-				$article->setIsProcessing(0);
-				$mapper->update($article);
-			} catch (PaywallLoginRequiredException $e) {
-				// Erstes Speichern eines Paywall-Artikels ohne (gültige)
-				// Zugangsdaten: kein genereller Fehlschlag, sondern ein
-				// Zustand, auf den der Client mit einem Login-Dialog
-				// reagieren soll (Polling auf requiresLoginDomain, siehe
-				// Article::jsonSerialize() und PLATFORMS.md).
-				try {
-					$blocked = $mapper->find($articleId, $userId);
-					$blocked->setIsProcessing(0);
-					$blocked->setRequiresLoginDomain($e->domain);
-					$blocked->setRequiresLoginPage($e->loginPage);
-					$mapper->update($blocked);
-				} catch (\Throwable $e2) {
-					// Ignore – nothing more we can do.
-				}
-			} catch (UnsupportedSiteException $e) {
-				// Domain steht in content-filters/$unsupported.xml: kein
-				// genereller Fehlschlag, sondern ein Zustand, auf den der
-				// Client mit einem erklärenden Hinweis statt einem
-				// Retry-Button reagieren soll (Polling auf
-				// unsupportedSiteDomain, siehe Article::jsonSerialize()).
-				try {
-					$blocked = $mapper->find($articleId, $userId);
-					$blocked->setIsProcessing(0);
-					$blocked->setUnsupportedSiteDomain($e->domain);
-					$mapper->update($blocked);
-				} catch (\Throwable $e2) {
-					// Ignore – nothing more we can do.
-				}
-			} catch (\Throwable $e) {
-				// Extraction failed – clear the processing flag so the spinner stops.
-				try {
-					$failed = $mapper->find($articleId, $userId);
-					$failed->setIsProcessing(0);
-					$mapper->update($failed);
-				} catch (\Throwable $e2) {
-					// Ignore – nothing more we can do.
-				}
-			}
-		});
-	}
-
-	/**
-	 * Re-triggers extraction for an article whose first attempt failed and
-	 * left it stuck with no content and isProcessing == false (no automatic
-	 * retry otherwise). Used by the "Try Again" button in the app's empty
-	 * reader state.
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
+	/** POST /api/articles */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function retryExtraction(int $id): DataResponse {
-		try {
-			$article = $this->articleMapper->find($id, $this->userId);
-			// Datei-Einträge (Service\MerlinFileService): nichts zu extrahieren,
-			// aber Vorschaubild, Inhalt und Metadaten aus der Datei neu aufbauen.
-			if ($article->getFileId() !== null) {
-				try {
-					$article = $this->files->refresh($article);
-				} catch (\OCP\Files\NotFoundException) {
-					// Datei gelöscht: Eintrag bleibt wie er ist.
-				}
-			}
-			if ($article->getIsProcessing() || $article->getFileId() !== null) {
-				// Already extracting – don't kick off a second run.
-				$tags = $this->tagMapper->findByArticleId($article->getId());
-				$articleData = $article->jsonSerialize();
-				$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl'], $articleData['category'] ?? null);
-				$articleData['tags'] = array_map(fn($tag) => $tag->jsonSerialize(), $tags);
-				return new DataResponse($articleData);
-			}
-
-			$article->setIsProcessing(1);
-			$article->setUpdatedAt(new \DateTime());
-			$updatedArticle = $this->articleMapper->update($article);
-
-			$this->scheduleExtraction($updatedArticle->getId(), $updatedArticle->getUrl(), $this->userId);
-
-			$tags = $this->tagMapper->findByArticleId($updatedArticle->getId());
-			$articleData = $updatedArticle->jsonSerialize();
-			$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl'], $articleData['category'] ?? null);
-			$articleData['tags'] = array_map(fn($tag) => $tag->jsonSerialize(), $tags);
-			return new DataResponse($articleData);
-		} catch (\Exception $e) {
-			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
-		}
+	public function create(): Response {
+		return $this->respond($this->api->create($this->apiRequest()));
 	}
 
-	/**
-	 * Update article
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
+	/** PUT /api/articles/{id} */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function update(
-		int $id,
-		?string $title = null,
-		?bool $isRead = null,
-		?bool $isFavorite = null,
-		?bool $isArchived = null
-	): DataResponse {
-		try {
-			$article = $this->articleMapper->find($id, $this->userId);
-
-			if ($title !== null) {
-				$article->setTitle($title);
-			}
-			if ($isRead !== null) {
-				$article->setIsRead($isRead);
-			}
-			if ($isFavorite !== null) {
-				$article->setIsFavorite($isFavorite ? new \DateTime() : null);
-			}
-			if ($isArchived !== null) {
-				$article->applyArchived($isArchived);
-			}
-
-			$article->setUpdatedAt(new \DateTime());
-			$updatedArticle = $this->articleMapper->update($article);
-
-			$tags = $this->tagMapper->findByArticleId($updatedArticle->getId());
-			$articleData = $updatedArticle->jsonSerialize();
-			$articleData['tags'] = array_map(fn($tag) => $tag->jsonSerialize(), $tags);
-
-			return new DataResponse($articleData);
-		} catch (\Exception $e) {
-			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
-		}
+	public function update(): Response {
+		return $this->respond($this->api->update($this->apiRequest()));
 	}
 
-	/**
-	 * Delete article
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
+	/** DELETE /api/articles/{id} */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function destroy(int $id): DataResponse {
-		try {
-			$article = $this->articleMapper->find($id, $this->userId);
-			$this->deletionService->deleteArticles($this->userId, [$article->getId()]);
-
-			return new DataResponse(['success' => true]);
-		} catch (\Exception $e) {
-			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
-		}
+	public function destroy(): Response {
+		return $this->respond($this->api->destroy($this->apiRequest()));
 	}
 
-	/**
-	 * Toggle read status
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
+	/** PUT /api/articles/{id}/read */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function toggleRead(int $id): DataResponse {
-		try {
-			$article = $this->articleMapper->find($id, $this->userId);
-			$article->setIsRead(!$article->getIsRead());
-			$article->setUpdatedAt(new \DateTime());
-			$this->articleMapper->update($article);
-
-			return new DataResponse(['isRead' => $article->getIsRead()]);
-		} catch (\Exception $e) {
-			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
-		}
+	public function toggleRead(): Response {
+		return $this->respond($this->api->toggleRead($this->apiRequest()));
 	}
 
-	/**
-	 * Toggle favorite status
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
+	/** PUT /api/articles/{id}/favorite */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function toggleFavorite(int $id): DataResponse {
-		try {
-			$article = $this->articleMapper->find($id, $this->userId);
-			$article->setIsFavorite($article->getIsFavorite() ? null : new \DateTime());
-			$article->setUpdatedAt(new \DateTime());
-			$this->articleMapper->update($article);
-
-			return new DataResponse([
-				'isFavorite' => $article->getIsFavorite() ? $article->getIsFavorite()->format('c') : false,
-			]);
-		} catch (\Exception $e) {
-			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
-		}
+	public function toggleFavorite(): Response {
+		return $this->respond($this->api->toggleFavorite($this->apiRequest()));
 	}
 
-	/**
-	 * Toggle archive status
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
+	/** PUT /api/articles/{id}/archive */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function toggleArchive(int $id): DataResponse {
-		try {
-			$article = $this->articleMapper->find($id, $this->userId);
-			$isNowArchived = !$article->getIsArchived();
-			$article->applyArchived($isNowArchived);
-			$article->setUpdatedAt(new \DateTime());
-			$this->articleMapper->update($article);
-
-			return new DataResponse([
-				'isArchived' => $article->getIsArchived(),
-				'archivedAt' => $article->getArchivedAt() ? $article->getArchivedAt()->format('c') : null,
-			]);
-		} catch (\Exception $e) {
-			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
-		}
+	public function toggleArchive(): Response {
+		return $this->respond($this->api->toggleArchive($this->apiRequest()));
 	}
 
-	/**
-	 * Update the cross-device reading/scroll position.
-	 *
-	 * Stores the reading progress as a fraction (0..1, NOT a pixel offset –
-	 * pixels are device-specific) plus a client-supplied epoch-millis timestamp
-	 * that drives last-write-wins reconciliation on the clients.
-	 *
-	 * The article's own `updated_at` is deliberately NOT bumped here: this is a
-	 * high-frequency, low-importance write, and bumping `updated_at` would make
-	 * clients treat the row as "changed" (re-render / re-sort the list) on every
-	 * scroll save.
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
+	/** PUT /api/articles/{id}/progress */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function updateProgress(int $id, float $progress = 0.0, ?int $updatedAt = null): DataResponse {
-		try {
-			$article = $this->articleMapper->find($id, $this->userId);
-
-			// Defensiv klemmen – ein fehlerhafter Client darf keine Werte außerhalb 0..1 persistieren.
-			$clamped = max(0.0, min(1.0, $progress));
-			$article->setScrollProgress($clamped);
-			// Client-Zeitstempel verbatim übernehmen (einheitliche Uhr über alle
-			// Plattformen, funktioniert auch offline); fehlt er, Server-Zeit als Fallback.
-			$article->setScrollUpdatedAt($updatedAt ?? (int) round(microtime(true) * 1000));
-
-			$this->articleMapper->update($article);
-
-			return new DataResponse([
-				'scrollProgress'  => $article->getScrollProgress(),
-				'scrollUpdatedAt' => $article->getScrollUpdatedAt(),
-			]);
-		} catch (\Exception $e) {
-			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
-		}
+	public function updateProgress(): Response {
+		return $this->respond($this->api->updateProgress($this->apiRequest()));
 	}
 
-	/**
-	 * Search articles
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
+	/** POST /api/articles/{id}/retry-extraction */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function search(string $query, int $limit = 50): DataResponse {
-		$articles = $this->articleMapper->search($this->userId, $query, $limit);
-
-		$articlesWithTags = array_map(function ($article) {
-			$tags = $this->tagMapper->findByArticleId($article->getId());
-			$articleData = $article->jsonSerialize();
-			$articleData['imageUrl'] = $this->resolveImageUrl($articleData['imageUrl'], $articleData['category'] ?? null);
-			$articleData['tags'] = array_map(fn($tag) => $tag->jsonSerialize(), $tags);
-			return $articleData;
-		}, $articles);
-
-		return new DataResponse($articlesWithTags);
+	public function retryExtraction(): Response {
+		return $this->respond($this->api->retryExtraction($this->apiRequest()));
 	}
 
-	/**
-	 * Export article as HTML
-	 *
-	 * @NoAdminRequired
-	 */
+	/** GET /api/articles/{id}/export/html */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function exportHtml(int $id): DataDisplayResponse {
-		try {
-			$article = $this->articleMapper->find($id, $this->userId);
-			$htmlContent = $this->exportService->exportHtml($article->toSnapshot());
-
-			$response = new DataDisplayResponse($htmlContent, Http::STATUS_OK, ['Content-Type' => 'text/html']);
-			$response->addHeader('Content-Disposition', 'attachment; filename="' . $this->sanitizeFilename($article->getTitle()) . '.html"');
-
-			return $response;
-		} catch (\Exception $e) {
-			return new DataDisplayResponse('Article not found', Http::STATUS_NOT_FOUND);
-		}
+	public function exportHtml(): Response {
+		return $this->respond($this->api->exportHtml($this->apiRequest()));
 	}
 
-	/**
-	 * Server-Sent Events endpoint.
-	 *
-	 * Opens a persistent HTTP connection and pushes one `article-ready` event for
-	 * every article that finishes processing while the client is connected.
-	 * Closes automatically once all pending articles are done or after ~55 s.
-	 *
-	 * The method calls exit() to bypass AppFramework response handling; this is
-	 * intentional and a common pattern for streaming responses in Nextcloud apps.
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
+	/** GET /api/events (Server-Sent Events) */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function stream(): void {
-		// 1. Clear ALL output buffers first, before any code that can throw.
-		//    Some of these buffers are set by Nextcloud's AppFramework before
-		//    the controller is invoked.
-		while (ob_get_level() > 0) {
-			ob_end_clean();
-		}
-
-		// 2. Set SSE response headers immediately – before any code that can
-		//    throw an exception.  If we set these first and then an exception
-		//    occurs, our exit(0) below prevents the AppFramework exception
-		//    handler from ever running, so these headers remain in effect.
-		//    Previously the headers were set AFTER the DB query, which meant
-		//    a DB exception caused the AppFramework to override Content-Type
-		//    with application/json → EventSource received a non-SSE response
-		//    → "Firefox cannot connect" error.
-		header('Content-Type: text/event-stream; charset=utf-8');
-		header('Cache-Control: no-cache');
-		header('Connection: keep-alive');
-		header('X-Accel-Buffering: no'); // Prevent nginx from buffering the stream.
-
-		// 3. Release the session lock so the browser can make parallel requests
-		//    (e.g. adding another article) while this long-lived connection waits.
-		if (session_status() === PHP_SESSION_ACTIVE) {
-			session_write_close();
-		}
-
-		ignore_user_abort(true);
-		set_time_limit(60);
-
-		@ini_set('output_buffering', 'Off');
-		@ini_set('implicit_flush', '1');
-		ob_implicit_flush(true);
-
-		// 4. Query for pending articles.  Wrapped in try-catch so any DB error
-		//    sends a valid SSE idle event rather than allowing the AppFramework
-		//    to emit a JSON 500 error (which would break the EventSource).
-		try {
-			$pendingIds = array_map(
-				fn($a) => $a->getId(),
-				$this->articleMapper->findProcessing($this->userId)
-			);
-		} catch (\Throwable $e) {
-			echo "data: {\"type\":\"idle\"}\n\n";
-			flush();
-			exit(0);
-		}
-
-		if (empty($pendingIds)) {
-			echo "data: {\"type\":\"idle\"}\n\n";
-			flush();
-			exit(0);
-		}
-
-		// Send ~2 KB of padding so PHP-FPM's SAPI buffer is filled and flushed
-		// to nginx immediately – without this some setups buffer the entire
-		// response and the client only receives events after exit().
-		echo ':' . str_repeat(' ', 2048) . "\n\n";
-		echo ': connected, ' . count($pendingIds) . " article(s) pending\n\n";
-		flush();
-
-		$deadline = time() + 55;
-
-		while (!empty($pendingIds) && time() < $deadline) {
-			if (connection_aborted()) {
-				break;
-			}
-			sleep(2);
-
-			foreach ($pendingIds as $key => $articleId) {
-				try {
-					$article = $this->articleMapper->find($articleId, $this->userId);
-					if (!$article->getIsProcessing()) {
-						$tags = $this->tagMapper->findByArticleId($articleId);
-						$data = $article->jsonSerialize();
-						$data['imageUrl'] = $this->resolveImageUrl($data['imageUrl'], $data['category'] ?? null);
-						$data['tags'] = array_map(fn($t) => $t->jsonSerialize(), $tags);
-
-						echo "event: article-ready\n";
-						echo 'data: ' . json_encode($data) . "\n\n";
-						flush();
-
-						unset($pendingIds[$key]);
-					}
-				} catch (\Throwable $e) {
-					// Article deleted or inaccessible – stop waiting for it.
-					unset($pendingIds[$key]);
-				}
-			}
-
-			if (!empty($pendingIds)) {
-				echo ": heartbeat\n\n";
-				flush();
-			}
-		}
-
-		echo "data: {\"type\":\"done\"}\n\n";
-		flush();
-		exit(0);
-	}
-
-	/**
-	 * Sanitize filename for download
-	 */
-	private function sanitizeFilename(string $filename): string {
-		$filename = preg_replace('/[^a-zA-Z0-9\s\-_]/', '', $filename);
-		$filename = preg_replace('/\s+/', '_', $filename);
-		return substr($filename, 0, 100);
+	public function stream(): Response {
+		return $this->respond($this->api->stream($this->apiRequest()));
 	}
 }
