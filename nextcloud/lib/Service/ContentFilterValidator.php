@@ -88,7 +88,7 @@ class ContentFilterValidator {
 				'message' => 'Dem Wurzelelement fehlt das Attribut name.',
 				'line'    => $root->getLineNo(),
 			];
-		} elseif ($name !== $domain) {
+		} elseif ($name !== $domain && !$this->isWildcardAlias($name, $domain)) {
 			// Sonst zeigt die UI Regeln für Domain A, während die Datei für
 			// Domain B gilt – der Filter würde nie greifen.
 			$errors[] = [
@@ -838,5 +838,16 @@ class ContentFilterValidator {
 			}
 		}
 		return $out;
+	}
+
+	/**
+	 * Wildcard-Domains heissen intern "_.<basis>" (Dateiname, Admin-/User-Custom-
+	 * Schlüssel), im Dokument steht dagegen die lesbare Form "*.<basis>", siehe
+	 * $sample.com.xml. Beide Schreibweisen meinen denselben Filter.
+	 */
+	private function isWildcardAlias(string $name, string $domain): bool {
+		return str_starts_with($domain, '_.')
+			&& str_starts_with($name, '*.')
+			&& substr($name, 2) === substr($domain, 2);
 	}
 }

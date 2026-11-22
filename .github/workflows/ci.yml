@@ -49,25 +49,11 @@ jobs:
       - name: Run tools/test-*.php
         working-directory: nextcloud
         # Offline only: harnesses with a --live mode run without it.
-        # KNOWN_FAILING already failed on main before CI existed (content
-        # filters with wrong name/XML declaration, a stale taz.de expectation,
-        # MediaProviderRegistry constructor changed without the harness). They
-        # still run and show up as warnings; remove them here once fixed.
-        env:
-          KNOWN_FAILING: tools/test-content-filter-merge.php tools/test-inline-media.php
         run: |
           status=0
           for f in tools/test-*.php; do
             echo "::group::$f"
-            if php "$f"; then
-              echo "ok $f"
-              case " $KNOWN_FAILING " in *" $f "*) echo "::notice file=nextcloud/$f::$f passes now, remove it from KNOWN_FAILING";; esac
-            else
-              case " $KNOWN_FAILING " in
-                *" $f "*) echo "::warning file=nextcloud/$f::$f failed (known, pre-existing)";;
-                *) echo "::error file=nextcloud/$f::$f failed"; status=1;;
-              esac
-            fi
+            if php "$f"; then echo "ok $f"; else echo "::error file=nextcloud/$f::$f failed"; status=1; fi
             echo "::endgroup::"
           done
           exit $status

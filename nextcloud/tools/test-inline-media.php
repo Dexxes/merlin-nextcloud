@@ -77,6 +77,7 @@ namespace {
 	use OCA\Merlin\Service\Media\MediaResult;
 	use OCA\Merlin\Service\Media\Provider\ArdMediathekProvider;
 	use OCA\Merlin\Service\Media\Provider\ArteProvider;
+	use OCA\Merlin\Service\Media\Provider\DreiSatProvider;
 	use OCA\Merlin\Service\Media\Provider\JsonLdMediaProvider;
 	use OCA\Merlin\Service\Media\Provider\XPathMediaProvider;
 	use OCA\Merlin\Service\Media\Provider\YoutubeEmbedProvider;
@@ -204,6 +205,7 @@ namespace {
 				new ArdMediathekProvider(new StubHttpClient([])),
 				new ZdfProvider(new StubHttpClient([])),
 				new ArteProvider(new StubHttpClient([])),
+				new DreiSatProvider(new StubHttpClient([])),
 				new XPathMediaProvider(),
 				new JsonLdMediaProvider(),
 				new YoutubeEmbedProvider(),
@@ -221,8 +223,10 @@ namespace {
 	$a       = $extract($page('https://www.rbb24.de/content/dam/anderes-bild.jpg', $paragraph(1) . $paragraph(2) . $videoBlock . $paragraph(3) . $paragraph(4)));
 	$content = (string) ($a['content'] ?? '');
 	$ok(str_contains($content, 'merlin-inline-media-source') && str_contains($content, 'data-media-src="' . $mp4Best . '"'), 'a) Inline-Marker samt mp4 im gespeicherten Content', $content);
-	// Die Quellenangabe setzt die bestehende Caption-Aufbereitung in <cite>.
-	$ok(str_contains(strip_tags($content), 'Vollausgestattete Apartments im leeren Kaufhaus • Außenansicht des Boulevard Berlin. (Quelle: rbb)'), 'a) Bildunterschrift erhalten');
+	// Die Quellenangabe "(Quelle: rbb)" setzt die bestehende Caption-Aufbereitung in <cite>
+	// und lässt dabei die Klammern weg.
+	$ok(str_contains(strip_tags($content), 'Vollausgestattete Apartments im leeren Kaufhaus • Außenansicht des Boulevard Berlin. Quelle: rbb'), 'a) Bildunterschrift erhalten', $content);
+	$ok(str_contains($content, '<cite>Quelle: rbb</cite>'), 'a) Bildquelle steht in <cite>');
 	$ok(substr_count($content, 'Außenansicht des Boulevard Berlin') === 2, 'a) Bildzeile nicht zusätzlich als loser Text (nur alt + figcaption)', $content);
 	$ok(str_contains($content, 'merlin-hero-image'), 'a) Hero-Bild (anderes og:image) bleibt');
 	$ok(strpos($content, 'Absatz 2') < strpos($content, 'merlin-inline-media-source') && strpos($content, 'merlin-inline-media-source') < strpos($content, 'Absatz 3'), 'a) Video steht an seiner Stelle im Text');
