@@ -4,16 +4,17 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
+use Merlin\Core\Port\ShareStore;
+use Merlin\Core\Service\CommentService;
 use Merlin\Core\Service\PdfProxyService;
+use Merlin\Core\Service\ShareAccessDenied;
+use Merlin\Core\Service\ShareAccessService;
 use Merlin\Core\Service\SupportBoxService;
 use Merlin\Core\Service\TtsStreamService;
 use OCA\Merlin\AppInfo\Application;
 use OCA\Merlin\Db\Article;
 use OCA\Merlin\Db\ArticleMapper;
-use OCA\Merlin\Db\ArticleShareMapper;
-use OCA\Merlin\Service\CommentService;
 use OCA\Merlin\Service\MerlinFileService;
-use OCA\Merlin\Service\ShareAccessService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Http;
@@ -30,7 +31,7 @@ use OCP\Security\Bruteforce\IThrottler;
 /**
  * Öffentliche Auslieferung eines per Share-Link freigegebenen Artikels –
  * KEIN Login nötig (#[PublicPage]). Der Token aus der URL ist die einzige
- * Berechtigung; alle Lookups gehen über ArticleShareMapper::findByToken(),
+ * Berechtigung; alle Lookups gehen über ShareStore::findByToken(),
  * NIE über eine vom Client mitgeschickte article_id/user_id (IDOR-Schutz).
  *
  * Passwort-Unlock wird in der PHP-Session gemerkt (analog Nextclouds eigenem
@@ -44,7 +45,7 @@ class PublicShareController extends Controller {
 	public function __construct(
 		string $appName,
 		IRequest $request,
-		private ArticleShareMapper $shareMapper,
+		private ShareStore $shares,
 		private ArticleMapper $articleMapper,
 		private TtsStreamService $ttsStream,
 		private PdfProxyService $pdfProxy,
@@ -96,9 +97,8 @@ class PublicShareController extends Controller {
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
 	public function unlock(string $token, string $password = ''): DataResponse {
-		try {
-			$share = $this->shareMapper->findByToken($token);
-		} catch (DoesNotExistException) {
+		$share = $this->shares->findByToken($token);
+		if ($share === null) {
 			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
 		}
 
@@ -139,8 +139,8 @@ class PublicShareController extends Controller {
 	#[NoCSRFRequired]
 	public function data(string $token): DataResponse {
 		$share = $this->access->resolveAccessibleShare($token);
-		if ($share instanceof DataResponse) {
-			return $share;
+		if ($share instanceof ShareAccessDenied) {
+			return new DataResponse($share->getData(), $share->getStatus());
 		}
 
 		try {
@@ -196,7 +196,7 @@ class PublicShareController extends Controller {
 	#[NoCSRFRequired]
 	public function tts(string $token, string $lang = 'de', int $speaker = -1): void {
 		$share = $this->access->resolveAccessibleShare($token);
-		if ($share instanceof DataResponse) {
+		if ($share instanceof ShareAccessDenied) {
 			http_response_code($share->getStatus());
 			header('Content-Type: application/json');
 			echo json_encode($share->getData());
@@ -231,7 +231,7 @@ class PublicShareController extends Controller {
 	#[NoCSRFRequired]
 	public function pdf(string $token): void {
 		$share = $this->access->resolveAccessibleShare($token);
-		if ($share instanceof DataResponse) {
+		if ($share instanceof ShareAccessDenied) {
 			http_response_code($share->getStatus());
 			header('Content-Type: application/json');
 			echo json_encode($share->getData());

@@ -51,12 +51,24 @@ beide Listen vollständig sind.
 | `Crypto` | `Adapter\NextcloudCrypto` (ICrypto mit dem Instanz-Secret) |
 | `RetentionStore` | `Adapter\NextcloudRetentionStore` (ArticleMapper, ArticleShareMapper) |
 | `ArticleDeletion` | `Service\ArticleDeletionService` |
+| `CommentStore` | `Adapter\NextcloudCommentStore` (CommentMapper) |
+| `HighlightStore` | `Adapter\NextcloudHighlightStore` (HighlightMapper) |
+| `CommentGuestStore` | `Adapter\NextcloudCommentGuestStore` (CommentGuestMapper; eindeutiger Index → `DuplicateEntryException`) |
+| `ShareStore` | `Adapter\NextcloudShareStore` (ArticleShareMapper, nur `findByToken()`) |
+| `Session` | `Adapter\NextcloudSession` (ISession) |
+| `UserDirectory` | `Adapter\NextcloudUserDirectory` (IUserManager, Anzeigenamen) |
 
 Kern-Services, die einen gespeicherten Artikel ausgeben (Export, PDF, Vorlesen,
 Support-Box), bekommen ihn als `Merlin\Core\Domain\ArticleSnapshot`
 (`Db\Article::toSnapshot()`), nicht als Nextcloud-Entity. Ebenso arbeitet
 `SiteCredentialService` mit `Merlin\Core\Domain\SiteCredential`; der Adapter
 `NextcloudSiteCredentialStore` übersetzt zum Entity `Db\SiteCredential`.
+Kommentare, Markierungen, Gast-Farben und Share-Links sind im Kern
+`Domain\Comment`, `Domain\Highlight`, `Domain\CommentGuest` und
+`Domain\ArticleShare` (Getter, Setter und `jsonSerialize()` wie bei den
+Entities); `Adapter\EntityCopy` überträgt die Felder. Ein `update()` lädt das
+Entity neu und setzt nur geänderte Felder, damit dieselben Spalten
+geschrieben werden wie vorher.
 
 Release-Tarball: `cd nextcloud && make dist` (Frontend-Build, `git archive`
 von `nextcloud/` und `core/`, `content-filters/` nach `merlin/content-filters/`,
@@ -99,13 +111,17 @@ nextcloud/
 │   │   ├── NextcloudAppSettings.php      # Port AppSettings über IAppConfig
 │   │   ├── NextcloudCrypto.php           # Port Crypto über ICrypto
 │   │   ├── NextcloudRetentionStore.php   # Port RetentionStore über ArticleMapper/ArticleShareMapper
-│   │   └── NextcloudSiteCredentialStore.php # Port SiteCredentialStore über SiteCredentialMapper
+│   │   ├── NextcloudSiteCredentialStore.php # Port SiteCredentialStore über SiteCredentialMapper
+│   │   ├── NextcloudCommentStore.php / NextcloudHighlightStore.php / NextcloudCommentGuestStore.php
+│   │   │                                 # Ports für Kommentare, Markierungen, Gast-Farben über die Mapper
+│   │   ├── NextcloudShareStore.php       # Port ShareStore (Share-Link per Token)
+│   │   ├── NextcloudSession.php          # Port Session über ISession
+│   │   ├── NextcloudUserDirectory.php    # Port UserDirectory über IUserManager
+│   │   └── EntityCopy.php                # Felder zwischen Domain-Objekt und Entity übertragen
 │   ├── Service/              # Geschäftslogik
 │   │   ├── ContentFilterRepository.php   # Bundle (Datei) + Admin-/User-Custom (DB), Merge-Cache
 │   │   │                                 # (Schema, Merger, Validator, Serializer, Trace liegen im Kern, siehe unten)
 │   │   ├── ArticleDeletionService.php    # Einziger Löschweg für Artikel: mit Highlights, Tag-Zuordnungen, Shares; Nutzerlöschung; Waisen
-│   │   ├── CommentService.php            # Kommentare/Gast-Markierungen anlegen, ändern, löschen; SSE-Schleife
-│   │   ├── ShareAccessService.php        # Share-Token + Passwort-Unlock prüfen (Share-Ansicht und Gast-Kommentare)
 │   │   └── MerlinFileService.php         # „Merlin Dateien“: Ordner (lokalisiert, per ID gemerkt), Datei-Einträge, Streamen mit Range
 │   ├── Settings/             # Verwaltungs- und persönliche Einstellungen
 │   │   ├── AdminSection.php
@@ -170,13 +186,17 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │   │   └── Social/                       # Bluesky-Threads, Mastodon, TikTok
 │   ├── Domain/
 │   │   ├── ArticleSnapshot.php           # Artikelfelder für Export, PDF, Vorlesen, Support-Box
-│   │   └── SiteCredential.php            # Paywall-Zugangsdaten (verschlüsselt) eines Nutzers für eine Domain
+│   │   ├── SiteCredential.php            # Paywall-Zugangsdaten (verschlüsselt) eines Nutzers für eine Domain
+│   │   ├── Comment.php / Highlight.php / CommentGuest.php  # Kommentar, Markierung, Gast-Farbe (Wire-Format per jsonSerialize())
+│   │   └── ArticleShare.php              # Share-Link für die Zugriffsprüfung (Ablauf, Passwort, Gast-Kommentare erlaubt?)
 │   ├── Service/
 │   │   ├── SupportBoxService.php         # Daten der Support-Infobox (<paywall><subscribe> + <metadata><donations>, Seiten-Icon, Akzentfarbe); Reader: entfällt bei aktivem Abo-Login, Share: immer
 │   │   ├── PdfProxyService.php           # PDF-Durchreichung für PdfController und öffentlichen Share-Endpunkt (SSRF-Guard je Hop, %PDF-Prüfung, Range, 100-MB-Limit)
 │   │   ├── TtsStreamService.php          # gemeinsamer Stream-Pfad für authentifizierten und öffentlichen (Share-)Endpunkt
 │   │   ├── ExportService.php             # Artikel als eigenständiges HTML
 │   │   ├── ReportBackendService.php / ReportBackendRules.php  # „Fehlerhaft dargestellt melden“
+│   │   ├── CommentService.php            # Kommentare/Gast-Markierungen anlegen, ändern, löschen; SSE-Schleife
+│   │   ├── ShareAccessService.php / ShareAccessDenied.php  # Share-Token + Passwort-Unlock prüfen (Share-Ansicht und Gast-Kommentare)
 │   │   ├── CommentRules.php / CommentException.php  # Reine Regeln: Namen, Längen, Thread-Position, Gast-Rechte
 │   │   ├── RetentionService.php          # Löschfrist: Admin-/Nutzerwerte, Lauf, Vorschau, Hinweis
 │   │   ├── SiteCredentialService.php     # Paywall-Zugangsdaten je Nutzer/Domain (Port SiteSessions): Ablage, Login, Cookie-Cache
@@ -185,7 +205,9 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │   │   ├── FileRules.php                 # „Merlin Dateien“: Dateiart/Kategorie, Dateinamen, signierte Links, Range
 │   │   └── FileMetadata.php              # Eingebettete Metadaten einer Datei (EXIF, GPS, IPTC, XMP, ID3, MP4/MOV, PDF) für die Anzeige im Reader
 │   └── Port/                         # UrlGenerator, ContentFilterSource, SiteSessions, SiteCredentialStore,
-│                                     # UserSettings, AppSettings, Crypto, RetentionStore, ArticleDeletion
+│                                     # UserSettings, AppSettings, Crypto, RetentionStore, ArticleDeletion,
+│                                     # CommentStore, HighlightStore, CommentGuestStore (DuplicateEntryException),
+│                                     # ShareStore, Session, UserDirectory
 └── tests/                            # Testharnesses (pures PHP, ohne Composer; autoload.php lädt Merlin\Core\)
     ├── test-content-filter-merge.php
     ├── test-support-box.php           # SupportBoxService (URL-Auswahl, Login-Ausblendung, Share, Seiten-Icon)
@@ -193,6 +215,7 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
     ├── test-retention.php             # RetentionPolicy (effektive Frist, Stichtag, Hinweis)
     ├── test-retention-service.php     # RetentionService (Einstellungen, Vorschau, Trockenlauf, Lauf, Share-Karenz)
     ├── test-site-credentials.php      # SiteCredentialService (Login-Config aus dem Bundle, Cookie-Cache, Status, Löschen)
+    ├── test-comment-service.php       # CommentService + ShareAccessService (Threads, Gast-Farben, Markierungen, Share-Zugriff)
     ├── test-tag-tree.php              # TagTree (Nachfahren, Kreisprüfung)
     ├── test-file-rules.php            # FileRules (Dateiart, Namen, Token, Range)
     ├── test-file-metadata.php         # FileMetadata (fixtures/metadata/)

@@ -2,14 +2,11 @@
 
 declare(strict_types=1);
 
-namespace OCA\Merlin\Service;
+namespace Merlin\Core\Service;
 
-use OCA\Merlin\Db\ArticleShare;
-use OCA\Merlin\Db\ArticleShareMapper;
-use OCP\AppFramework\Db\DoesNotExistException;
-use OCP\AppFramework\Http;
-use OCP\AppFramework\Http\DataResponse;
-use OCP\ISession;
+use Merlin\Core\Domain\ArticleShare;
+use Merlin\Core\Port\Session;
+use Merlin\Core\Port\ShareStore;
 
 /**
  * Zugriffsprüfung hinter einem öffentlichen Share-Link, gemeinsam für
@@ -17,16 +14,16 @@ use OCP\ISession;
  * (Markieren, Kommentieren, Push-Kanal).
  *
  * Der Token aus der URL ist die einzige Berechtigung; alle Lookups gehen über
- * ArticleShareMapper::findByToken(), nie über eine vom Client geschickte
+ * ShareStore::findByToken(), nie über eine vom Client geschickte
  * article_id/user_id (IDOR-Schutz). Ein Passwort-Unlock wird in der
- * PHP-Session gemerkt.
+ * Session gemerkt (Port Session).
  */
 class ShareAccessService {
 	private const SESSION_KEY = 'merlin_unlocked_share_tokens';
 
 	public function __construct(
-		private ArticleShareMapper $shareMapper,
-		private ISession $session,
+		private ShareStore $shares,
+		private Session $session,
 	) {
 	}
 
@@ -49,23 +46,22 @@ class ShareAccessService {
 
 	/**
 	 * Löst den Token auf und prüft Ablauf + Passwort-Unlock in einem Rutsch.
-	 * Rückgabe ist entweder der gültige Share ODER eine fertige Fehler-DataResponse
-	 * (404 nicht gefunden, 410 abgelaufen, 401 gesperrt) – Aufrufer muss nur
-	 * `instanceof DataResponse` prüfen.
+	 * Rückgabe ist entweder der gültige Share ODER ein ShareAccessDenied mit
+	 * Status und Body der Fehlerantwort (404 nicht gefunden, 410 abgelaufen,
+	 * 401 gesperrt) – Aufrufer muss nur `instanceof ShareAccessDenied` prüfen.
 	 */
-	public function resolveAccessibleShare(string $token): ArticleShare|DataResponse {
-		try {
-			$share = $this->shareMapper->findByToken($token);
-		} catch (DoesNotExistException) {
-			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
+	public function resolveAccessibleShare(string $token): ArticleShare|ShareAccessDenied {
+		$share = $this->shares->findByToken($token);
+		if ($share === null) {
+			return new ShareAccessDenied(404, ['error' => 'Not found']);
 		}
 
 		if ($share->isExpired()) {
-			return new DataResponse(['error' => 'Expired'], Http::STATUS_GONE);
+			return new ShareAccessDenied(410, ['error' => 'Expired']);
 		}
 
 		if ($share->hasPassword() && !$this->isUnlocked($share)) {
-			return new DataResponse(['locked' => true, 'hasPassword' => true], Http::STATUS_UNAUTHORIZED);
+			return new ShareAccessDenied(401, ['locked' => true, 'hasPassword' => true]);
 		}
 
 		return $share;
@@ -77,11 +73,7 @@ class ShareAccessService {
 	 * der Passwort-Unlock wurde beim Verbindungsaufbau geprüft.
 	 */
 	public function stillValid(string $token): bool {
-		try {
-			$share = $this->shareMapper->findByToken($token);
-		} catch (DoesNotExistException) {
-			return false;
-		}
-		return !$share->isExpired();
+		$share = $this->shares->findByToken($token);
+		return $share !== null && !$share->isExpired();
 	}
 }
