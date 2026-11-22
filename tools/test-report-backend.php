@@ -45,8 +45,8 @@ $check(R::endpoint('https://example.com/', 'ping&x=1') === null, 'ungültige Act
 
 echo "pingStatus\n";
 $check(R::pingStatus(200, '{"ok":true}') === 'ok', '200 + ok:true');
-$check(R::pingStatus(200, '{"ok":false}') === 'error', '200 + ok:false');
-$check(R::pingStatus(200, '<html>') === 'error', '200 ohne JSON');
+$check(R::pingStatus(200, '{"ok":false}') === 'unexpected', '200 + ok:false → unexpected');
+$check(R::pingStatus(200, '<html>') === 'unexpected', '200 ohne JSON → unexpected');
 $check(R::pingStatus(401, 'Zugriff verweigert.') === 'auth', '401 → auth');
 $check(R::pingStatus(403, '') === 'auth', '403 → auth');
 $check(R::pingStatus(404, '{"ok":true}') === 'error', '404 → error');

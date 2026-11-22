@@ -10,7 +10,7 @@ import { generateUrl } from '@nextcloud/router'
  * Prüft die Backend-URL.
  *
  * @param {string} url eingetragene Backend-URL
- * @return {Promise<'ok'|'auth'|'error'>}
+ * @return {Promise<'ok'|'auth'|'unexpected'|'error'>}
  */
 export async function pingReportBackend(url) {
 	try {
@@ -18,7 +18,7 @@ export async function pingReportBackend(url) {
 			params: { url },
 			timeout: 15000,
 		})
-		return ['ok', 'auth'].includes(data?.status) ? data.status : 'error'
+		return ['ok', 'auth', 'unexpected'].includes(data?.status) ? data.status : 'error'
 	} catch {
 		return 'error'
 	}

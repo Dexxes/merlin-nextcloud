@@ -98,6 +98,11 @@ All notable changes to Merlin are documented here. Format based on
   badge.
 
 ### Fixed
+- Report backend status in Settings: a backend that answers but has no `ping`
+  action (HTTP 200 without `{"ok": true}`) is no longer shown as a red,
+  seemingly broken badge but as an amber "Reachable, but no ping response".
+  The red and green badge text uses the theme's text colours so it stays
+  readable in every theme.
 - Report backend: the connection test in Settings and "Report faulty rendered
   article" no longer call the merlin-reports backend from the browser, which
   failed with a CORS error when the backend sits on another domain (e.g.

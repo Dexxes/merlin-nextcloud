@@ -22,6 +22,8 @@ final class ReportBackendRules {
 	public const STATUS_OK = 'ok';
 	public const STATUS_AUTH = 'auth';
 	public const STATUS_ERROR = 'error';
+	/** 2xx, aber keine {"ok": true}-Antwort (z. B. älteres Backend ohne ping-Aktion). */
+	public const STATUS_UNEXPECTED = 'unexpected';
 
 	/**
 	 * Baut aus der vom Nutzer eingetragenen Backend-URL die Aufruf-URL für
@@ -73,7 +75,8 @@ final class ReportBackendRules {
 	/**
 	 * Bewertet die Antwort auf action=ping: "ok" nur bei 2xx mit JSON
 	 * {"ok": true}, "auth" bei 401/403 (Backend verlangt Anmeldung bzw. die
-	 * Zugangsdaten stimmen nicht), sonst "error".
+	 * Zugangsdaten stimmen nicht), "unexpected" bei 2xx ohne ok:true (Server
+	 * antwortet, kennt aber kein ping), sonst "error".
 	 */
 	public static function pingStatus(int $httpCode, ?string $body): string {
 		if ($httpCode === 401 || $httpCode === 403) {
@@ -83,6 +86,6 @@ final class ReportBackendRules {
 			return self::STATUS_ERROR;
 		}
 		$json = json_decode($body, true);
-		return (is_array($json) && ($json['ok'] ?? false) === true) ? self::STATUS_OK : self::STATUS_ERROR;
+		return (is_array($json) && ($json['ok'] ?? false) === true) ? self::STATUS_OK : self::STATUS_UNEXPECTED;
 	}
 }
