@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Merlin\Standalone\Db;
 
+use Merlin\Core\Persistence\PdoConnection;
 use PDO;
 
 /**
@@ -15,7 +16,7 @@ use PDO;
 final class MigrationRunner {
 	private string $dir;
 
-	public function __construct(private Connection $connection, ?string $dir = null) {
+	public function __construct(private PdoConnection $connection, ?string $dir = null) {
 		$this->dir = $dir ?? dirname(__DIR__, 2) . '/migrations';
 	}
 

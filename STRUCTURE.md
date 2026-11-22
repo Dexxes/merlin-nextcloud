@@ -5,7 +5,7 @@ Zentrale Dateien für UI und Logik der Nextcloud-App.
 ## Repository-Layout
 
 Das Repo wird schrittweise zum gemeinsamen Repo für die Nextcloud-App und den
-Standalone-Server umgebaut. Aktueller Stand (Etappe 3 von 7, erster Teil):
+Standalone-Server umgebaut. Aktueller Stand (Etappe 3 von 7, zweiter Teil):
 
 ```
 merlin-nextcloud/
@@ -39,6 +39,43 @@ Nullbarkeit, Defaults und Indizes mit einer frisch migrierten SQLite-Datenbank.
 Eine neue Nextcloud-Migration braucht deshalb immer auch eine SQL-Datei in
 `standalone/migrations/`; Vorlage: `php tools/schema/print-sqlite-ddl.php <tabelle>`.
 Vorerst nur SQLite, MySQL/MariaDB und PostgreSQL folgen später.
+
+Persistenz im Kern: `core/src/Persistence/` enthält SQL-Implementierungen der
+Store-Ports (`SqlCommentStore`, `SqlHighlightStore`, `SqlCommentGuestStore`,
+`SqlShareStore`, `SqlSiteCredentialStore`, `SqlContentFilterStore`,
+`SqlRetentionStore`, `SqlDatabase`) gegen den Port `Connection` (benannte
+Parameter, Tabellen als `*PREFIX*merlin_…`, portables SQL, Zeitpunkte als
+`Y-m-d H:i:s` in UTC wie Nextclouds Entities). `RowMapper` überträgt Felder
+der Domain-Objekte in Spalten, `PdoConnection` ist die PDO-Implementierung
+(eindeutige Indizes → `DuplicateEntryException`). Der Standalone-Server nutzt
+sie direkt; die Nextcloud-App bleibt vorerst bei ihren Mapper-Adaptern.
+`core/tests/test-sql-stores.php` prüft die Stores gegen eine SQLite-Datenbank,
+deren Schema aus den Nextcloud-Migrationen entsteht.
+
+Standalone-Verdrahtung: `standalone/src/App.php` ist der Container. `App::PORTS`
+ordnet jedem Port einen Adapter zu (`standalone/src/Adapter/`: Einstellungen in
+`settings`/`user_settings`, `SodiumCrypto` mit dem Schlüssel aus `secret` in
+config.php, Basis-URL, `$_SESSION`, Nutzernamen aus `users`, Content-Filter aus
+`content-filters/`); Kern-Klassen baut er per Reflection wie Nextclouds
+Autowiring. Die Ports für Merlin Dateien (`FilePreviews`, `StoredFile`) stehen in
+`App::UNAVAILABLE_PORTS`. `standalone/tests/test-wiring.php` prüft, dass jeder
+Port in einer der beiden Listen steht und alle Kern-Dienste baubar sind.
+
+| Port | Standalone-Implementierung |
+|---|---|
+| `Connection` | `Merlin\Core\Persistence\PdoConnection` (SQLite über `Db\Sqlite::open()`) |
+| `CommentStore`, `HighlightStore`, `CommentGuestStore`, `ShareStore`, `SiteCredentialStore`, `ContentFilterStore`, `RetentionStore`, `Database` | `Merlin\Core\Persistence\Sql…` |
+| `AppSettings` | `Adapter\StandaloneAppSettings` (`settings`, Schlüssel mit Präfix `merlin.`) |
+| `UserSettings` | `Adapter\StandaloneUserSettings` (`user_settings`) |
+| `Crypto` | `Adapter\SodiumCrypto` (secretbox, Schlüssel aus `secret`) |
+| `InstanceSecret` | `Adapter\ConfigInstanceSecret` (`secret` aus config.php) |
+| `UrlGenerator` | `Adapter\StandaloneUrlGenerator` (`base_url`, Bilder unter `/img/`) |
+| `Translator` | `Adapter\StandaloneTranslator` (vorerst Englisch mit Parametern) |
+| `Session` | `Adapter\PhpSession` (`$_SESSION`) |
+| `UserDirectory` | `Adapter\StandaloneUserDirectory` (Benutzername aus `users`) |
+| `ContentFilterSource` | `Adapter\StandaloneContentFilterRepository` |
+| `SiteSessions`, `ArticleDeletion` | `SiteCredentialService`, `ArticleDeletionService` aus dem Kern |
+| `FilePreviews`, `StoredFile` | nicht verfügbar (Merlin Dateien folgt später) |
 
 Die Nextcloud-App bindet den Kern über ein Composer-Path-Repository ein
 (`nextcloud/composer.json`: `"merlin/core": "*@dev"` aus `../core`). Im Checkout
