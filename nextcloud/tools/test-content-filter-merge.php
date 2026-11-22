@@ -416,18 +416,29 @@ namespace {
 	);
 	$t->eq($values($merged, 'metadata/title/@xpath'), ['//h1'], 'metadata: anderes Feld bleibt beim Bundle');
 
-	$tazPath = ($bundleDir ?: '.') . '/taz.de.xml';
-	if (is_file($tazPath)) {
-		$taz = (string) file_get_contents($tazPath);
-		$t->eq($validator->validate($taz, 'taz.de'), [], 'taz.de mit zwei <author>-Regeln ist gültig');
+	// Echte Fallback-Ketten: Jeder mitgelieferte Filter mit mehreren metadata/<author>-
+	// Regeln muss sie nach dem Merge ohne Custom-Ebenen vollständig behalten.
+	// (Früher prüfte das ein Test gezielt für taz.de, dessen <author>-Regeln inzwischen
+	// auskommentiert sind, weil die Autoren dort automatisch erkannt werden.)
+	$chains = 0;
+	foreach (glob(($bundleDir ?: '.') . '/*.xml') ?: [] as $path) {
+		$name = basename($path, '.xml');
+		if (str_starts_with($name, '000') || str_starts_with($name, '$')) {
+			continue;
+		}
+		$raw   = (string) file_get_contents($path);
+		$rules = @simplexml_load_string($raw)?->xpath('metadata/author') ?: [];
+		if (count($rules) < 2) {
+			continue;
+		}
+		$chains++;
 		$t->eq(
-			count($merger->merge($taz, null, 'taz.de')?->xpath('metadata/author') ?: []),
-			2,
-			'taz.de behält beide <author>-Regeln'
+			count($merger->merge($raw, null, $name)?->xpath('metadata/author') ?: []),
+			count($rules),
+			$name . ' behält alle ' . count($rules) . ' <author>-Regeln'
 		);
-	} else {
-		$t->ok(false, 'taz.de.xml gefunden');
 	}
+	$t->ok($chains > 0, 'Mindestens ein mitgelieferter Filter hat mehrere <author>-Regeln');
 
 	// ══════════════════════════════════════════════════════════════════════════
 	$t->group('5. <disable>: einzelne Bundle-Regeln abschalten');
@@ -650,6 +661,19 @@ namespace {
 		'leeres Pflichtattribut' => [$doc('a.example', '<pre-filter><saveElements xpath="//div" class="" /></pre-filter>'), 'a.example', 'leer'],
 		'Textinhalt in Regel'    => [$doc('a.example', '<pre-filter><remove class="x">Tippfehler</remove></pre-filter>'), 'a.example', 'Textinhalt'],
 	];
+
+	// Wildcard-Domains: intern "_.<basis>", im Dokument darf die lesbare Form "*.<basis>" stehen
+	// (so liegen die Bundle-Dateien _.substack.com.xml & Co. vor und so exportiert sie die Admin-UI).
+	$wildcard = static fn (string $name): string => '<?xml version="1.0" encoding="UTF-8"?><domain name="' . $name . '"><pre-filter><remove xpath="//aside" /></pre-filter></domain>';
+	$t->eq($validator->validate($wildcard('*.beehive.com'), '_.beehive.com'), [], 'Wildcard: name="*.x" passt zum Schlüssel "_.x"');
+	$t->eq($validator->validate($wildcard('_.beehive.com'), '_.beehive.com'), [], 'Wildcard: name="_.x" passt weiterhin zum Schlüssel "_.x"');
+	foreach ([
+		'andere Basisdomain'           => [$wildcard('*.other.com'), '_.beehive.com'],
+		'"*." bei exakter Domain'      => [$wildcard('*.beehive.com'), 'beehive.com'],
+		'nackte Basis statt Wildcard'  => [$wildcard('beehive.com'), '_.beehive.com'],
+	] as $label => [$xml, $domain]) {
+		$t->ok($validator->validate($xml, $domain) !== [], 'abgelehnt: Wildcard, ' . $label);
+	}
 
 	foreach ($cases as $label => [$xml, $domain, $needle]) {
 		$found = $validator->validate($xml, $domain);

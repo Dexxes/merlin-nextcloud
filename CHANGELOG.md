@@ -98,6 +98,14 @@ All notable changes to Merlin are documented here. Format based on
   badge.
 
 ### Fixed
+- newsletter.berlin.de: the content filter was never applied because the
+  file started with a blank line before `<?xml …?>`, so it could not be parsed.
+  The rule for the main image works now.
+- Content filters for wildcard domains (`_.substack.com.xml`, `_.beehiiv.com.xml`,
+  `_.repubblica.it.xml`): the filter validator now accepts the readable
+  `name="*.domain"` for the key `_.domain` (the form all three bundled files
+  use), instead of rejecting it as not matching the domain. `_.beehiiv.com.xml`
+  named `*.beehiv.com` (typo) inside; it is `*.beehiiv.com` now.
 - Report backend status in Settings: a backend that answers but has no `ping`
   action (HTTP 200 without `{"ok": true}`) is no longer shown as a red,
   seemingly broken badge but as an amber "Reachable, but no ping response".
