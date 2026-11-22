@@ -1,0 +1,27 @@
+# Keeps GitHub Actions and the dependency ranges up to date (weekly, grouped
+# so each ecosystem opens at most one pull request per week).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories: ["/", "/.github/actions/*"]
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: composer
+    directories: ["/nextcloud", "/core", "/nextcloud/tests"]
+    schedule:
+      interval: weekly
+    groups:
+      composer:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directories: ["/frontend", "/nextcloud/tests/e2e"]
+    schedule:
+      interval: weekly
+    groups:
+      npm:
+        patterns: ["*"]

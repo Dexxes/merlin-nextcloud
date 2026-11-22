@@ -17,6 +17,9 @@ npm-debug.log*
 # Testing
 /coverage/
 .phpunit.result.cache
+.phpunit.cache/
+/nextcloud/tests/e2e/test-results/
+/nextcloud/tests/e2e/playwright-report/
 
 # Environment
 .env

@@ -1,0 +1,11 @@
+{
+  "name": "merlin-e2e",
+  "private": true,
+  "description": "Browser smoke tests of the Merlin app in a running Nextcloud, see ../README.md",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0"
+  }
+}

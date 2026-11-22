@@ -1,0 +1,65 @@
+# Runs the Merlin tests against the instance set up by ../nextcloud: in-process
+# wiring tests, HTTP API tests, the occ command, cron and a check of
+# nextcloud.log. Uploads the logs when something fails.
+name: Merlin tests
+description: Run nextcloud/tests against the installed Nextcloud
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@v4
+      with:
+        path: ~/.cache/composer
+        key: tests-composer-${{ runner.os }}-${{ hashFiles('merlin/nextcloud/tests/composer.json') }}
+        restore-keys: tests-composer-${{ runner.os }}-
+    - name: composer install (PHPUnit)
+      shell: bash
+      working-directory: merlin/nextcloud/tests
+      run: composer install --no-interaction --no-progress
+
+    - name: Wiring tests inside Nextcloud
+      shell: bash
+      working-directory: merlin/nextcloud/tests
+      env:
+        NEXTCLOUD_ROOT: ${{ github.workspace }}/server
+      run: vendor/bin/phpunit -c phpunit.integration.xml
+
+    - name: HTTP API tests
+      shell: bash
+      working-directory: merlin/nextcloud/tests
+      env:
+        MERLIN_TEST_BASE_URL: http://localhost:8080
+      run: vendor/bin/phpunit -c phpunit.api.xml
+
+    - name: occ merlin:retention:run and cron
+      shell: bash
+      working-directory: server
+      run: |
+        php occ merlin:retention:run --dry-run
+        php occ merlin:retention:run
+        php cron.php
+
+    - name: Disable and enable again
+      shell: bash
+      working-directory: server
+      run: |
+        php occ app:disable merlin
+        php occ app:enable merlin
+        curl -fsS -u admin:admin -H 'OCS-APIRequest: true' http://localhost:8080/index.php/apps/merlin/api/settings > /dev/null
+
+    - name: Merlin errors in nextcloud.log
+      if: always()
+      shell: bash
+      run: python3 merlin/.github/scripts/check-nextcloud-log.py server/data/nextcloud.log
+
+    - name: Collect logs
+      if: failure()
+      shell: bash
+      run: |
+        mkdir -p "$RUNNER_TEMP/logs"
+        cp server/data/nextcloud.log "$RUNNER_TEMP/php-server.log" "$RUNNER_TEMP/logs/" 2>/dev/null || true
+    - uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: logs-${{ github.job }}-${{ strategy.job-index }}
+        path: ${{ runner.temp }}/logs
+        retention-days: 7

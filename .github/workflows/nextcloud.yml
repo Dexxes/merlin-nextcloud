@@ -1,0 +1,221 @@
+# Tests the Merlin app in a real Nextcloud (see nextcloud/tests/README.md).
+#
+#   matrix      reads nextcloud/appinfo/info.xml and builds the version matrix
+#               (.github/scripts/nextcloud-matrix.py)
+#   app         builds the app exactly like the app store tarball (frontend
+#               build + `make build-source`) once; all other jobs install it
+#   sqlite      every supported Nextcloud major x lowest/highest PHP:
+#               occ maintenance:install, occ app:enable merlin, in-process
+#               wiring tests, HTTP API tests, occ command, cron, log check
+#   databases   oldest and newest Nextcloud on MariaDB and PostgreSQL
+#   docker      docker compose setup of the repository (Apache, MariaDB,
+#               Redis, cron) with HTTP API tests and Playwright browser tests
+#   passed      single status for branch protection
+#
+# Nightly (schedule) the sqlite matrix also runs against nextcloud/server
+# master, allowed to fail, as an early warning for the next major.
+name: Nextcloud
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nextcloud-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Same PHP as the app store tarball build in ci.yml.
+  BUILD_PHP: '8.3'
+
+jobs:
+  matrix:
+    name: Version matrix from info.xml
+    runs-on: ubuntu-latest
+    outputs:
+      sqlite: ${{ steps.matrix.outputs.sqlite }}
+      databases: ${{ steps.matrix.outputs.databases }}
+      docker: ${{ steps.matrix.outputs.docker }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: matrix
+        run: |
+          python3 .github/scripts/nextcloud-matrix.py ${{ github.event_name == 'schedule' && '--nightly' || '' }} | tee -a "$GITHUB_OUTPUT"
+
+  app:
+    name: Build app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.BUILD_PHP }}
+          coverage: none
+          tools: composer:v2
+      - name: Cache npm and composer downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/composer
+          key: app-${{ runner.os }}-${{ hashFiles('frontend/package.json', 'nextcloud/composer.json', 'core/composer.json') }}
+          restore-keys: app-${{ runner.os }}-
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+      - name: Assemble app (as in the app store tarball)
+        working-directory: nextcloud
+        run: |
+          make build-source
+          echo "${GITHUB_SHA::7}" > build/artifacts/merlin/appinfo/build.txt
+          tar -czf "$RUNNER_TEMP/merlin.tar.gz" -C build/artifacts merlin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: merlin-app
+          path: ${{ runner.temp }}/merlin.tar.gz
+          retention-days: 7
+
+  sqlite:
+    name: NC ${{ matrix.nextcloud }} · PHP ${{ matrix.php }} · SQLite
+    needs: [matrix, app]
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.sqlite) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: merlin
+      - name: Set up Nextcloud and Merlin
+        uses: ./merlin/.github/actions/nextcloud
+        with:
+          server-ref: ${{ matrix.server-ref }}
+          php: ${{ matrix.php }}
+          database: sqlite
+      - name: Run tests
+        uses: ./merlin/.github/actions/merlin-tests
+
+  databases:
+    name: NC ${{ matrix.nextcloud }} · PHP ${{ matrix.php }} · ${{ matrix.database == 'mysql' && 'MariaDB' || 'PostgreSQL' }}
+    needs: [matrix, app]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.databases) }}
+    services:
+      # Only the one matching matrix.database is used; the other idles.
+      mysql:
+        # Same as docker-compose.yml.
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: rootpassword
+          MARIADB_DATABASE: nextcloud
+          MARIADB_USER: nextcloud
+          MARIADB_PASSWORD: nextcloud
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+      pgsql:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nextcloud
+          POSTGRES_PASSWORD: nextcloud
+          POSTGRES_DB: nextcloud
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U nextcloud"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: merlin
+      - name: Set up Nextcloud and Merlin
+        uses: ./merlin/.github/actions/nextcloud
+        with:
+          server-ref: ${{ matrix.server-ref }}
+          php: ${{ matrix.php }}
+          database: ${{ matrix.database }}
+      - name: Run tests
+        uses: ./merlin/.github/actions/merlin-tests
+
+  docker:
+    name: Docker · NC ${{ matrix.nextcloud }} · API + browser
+    needs: [matrix]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.docker) }}
+    env:
+      NEXTCLOUD_VERSION: ${{ matrix.nextcloud }}-apache
+      MERLIN_TEST_BASE_URL: http://localhost:8080
+    steps:
+      - uses: actions/checkout@v4
+      - name: docker compose up
+        run: |
+          docker compose up --build --detach --wait --wait-timeout 600
+          docker compose exec -T -u www-data app php occ app:list --enabled | grep -E '^\s+- merlin:'
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.BUILD_PHP }}
+          coverage: none
+          tools: composer:v2
+      - name: API tests against the container
+        working-directory: nextcloud/tests
+        run: |
+          composer install --no-interaction --no-progress
+          vendor/bin/phpunit -c phpunit.api.xml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Browser tests (Playwright)
+        working-directory: nextcloud/tests/e2e
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          npx playwright test
+      - name: Merlin errors in nextcloud.log
+        if: always()
+        run: |
+          docker compose exec -T app cat /var/www/html/data/nextcloud.log > nextcloud.log || true
+          python3 .github/scripts/check-nextcloud-log.py nextcloud.log
+      - name: Container logs
+        if: failure()
+        run: docker compose logs --no-color --tail=300
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: docker-nc${{ matrix.nextcloud }}-report
+          path: |
+            nextcloud/tests/e2e/playwright-report
+            nextcloud/tests/e2e/test-results
+            nextcloud.log
+          retention-days: 7
+      - name: docker compose down
+        if: always()
+        run: docker compose down --volumes
+
+  passed:
+    name: Nextcloud tests passed
+    if: always()
+    needs: [sqlite, databases, docker]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo 'sqlite: ${{ needs.sqlite.result }}, databases: ${{ needs.databases.result }}, docker: ${{ needs.docker.result }}'
+          test '${{ needs.sqlite.result }}' = success
+          test '${{ needs.databases.result }}' = success
+          test '${{ needs.docker.result }}' = success

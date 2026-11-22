@@ -14,11 +14,13 @@ merlin-nextcloud/
 │                   # src/Port/ (Schnittstellen zu den Adaptern), resources/, tests/
 ├── content-filters/  # mitgelieferte Content-Filter, einzige Kopie für alle Varianten
 ├── nextcloud/      # die Nextcloud-App (App-ID merlin): appinfo/, lib/, templates/, l10n/, img/, css/,
-│                   # tools/ (Testharnesses), composer.json, Makefile (make dist); lib/Adapter/ implementiert die Ports
+│                   # tools/ (Testharnesses), tests/ (Tests in echter Nextcloud, siehe tests/README.md),
+│                   # composer.json, Makefile (make dist); lib/Adapter/ implementiert die Ports
 ├── frontend/       # Vue-3-Quellen (src/), fonts/, package.json, vite.config.mjs;
 │                   # `npm run build` schreibt nach nextcloud/js und nextcloud/css
 ├── docker/, Dockerfile, docker-compose.yml   # Entwicklungs-Setup der Nextcloud-Variante
 ├── .github/workflows/ci.yml                  # PHP-Lint, Kern ohne OCP, Testharnesses, Frontend-Build, Appstore-Tarball
+├── .github/workflows/nextcloud.yml           # App in echter Nextcloud: alle Versionen aus info.xml × PHP, MariaDB/Postgres, Docker + Browser
 └── README.md, CHANGELOG.md, LICENSE, NOTICE  # werden beim Release in den Tarball kopiert
 ```
 
