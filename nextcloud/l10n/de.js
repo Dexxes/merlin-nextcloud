@@ -434,6 +434,7 @@ OC.L10N.register(
     "Login required" : "Anmeldung erforderlich",
     "The report backend asks for a login (HTTP Basic Auth). Add the credentials to the URL, e.g. https://user:password@example.com/merlin-reports/" : "Das Meldungs-Backend verlangt eine Anmeldung (HTTP Basic Auth). Trage die Zugangsdaten in die URL ein, z.B. https://nutzer:passwort@example.com/merlin-reports/",
     "The report backend rejected the login. Check the URL in Settings." : "Das Meldungs-Backend hat die Anmeldung abgelehnt. Prüfe die URL in den Einstellungen.",
+    "Reachable, but no ping response" : "Erreichbar, aber keine Ping-Antwort",
     "Rename…" : "Umbenennen…",
     "— empty —" : "— leer —"
 },

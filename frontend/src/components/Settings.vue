@@ -404,6 +404,9 @@
 							<span v-else-if="reportUrlStatus === 'ok'" class="report-url-status__badge report-url-status__badge--ok">
 								✓ {{ t('merlin', 'Reachable') }}
 							</span>
+							<span v-else-if="reportUrlStatus === 'unexpected'" class="report-url-status__badge report-url-status__badge--warn">
+								! {{ t('merlin', 'Reachable, but no ping response') }}
+							</span>
 							<span v-else-if="reportUrlStatus === 'auth'" class="report-url-status__badge report-url-status__badge--error">
 								✗ {{ t('merlin', 'Login required') }}
 							</span>
@@ -683,7 +686,7 @@ export default {
 			credError: '',
 			credNotice: '',
 			_flashTimer: null,
-			reportUrlStatus: null, // null | 'checking' | 'ok' | 'auth' | 'error'
+			reportUrlStatus: null, // null | 'checking' | 'ok' | 'auth' | 'unexpected' | 'error'
 			// Letzte tatsächlich geprüfte reportBackendUrl: verhindert, dass der
 			// settings-Watcher bei jedem Save (z.B. Theme-Wechsel) erneut pingt,
 			// obwohl sich die URL gar nicht geändert hat.
@@ -1147,7 +1150,7 @@ export default {
 	gap: 6px;
 	padding: 4px 10px;
 	background: rgba(70, 186, 97, 0.12);
-	color: var(--color-success, #46ba61);
+	color: var(--color-success-text, #2d7a3e);
 	font-size: 12px;
 	font-weight: 600;
 	border-radius: 999px;
@@ -1721,9 +1724,14 @@ export default {
 	color: var(--color-success, #46ba61);
 }
 
+.report-url-status__badge--warn {
+	background: rgba(232, 163, 23, 0.16);
+	color: var(--color-warning-text, #8a5a00);
+}
+
 .report-url-status__badge--error {
 	background: rgba(210, 50, 50, 0.10);
-	color: var(--color-error, #d23232);
+	color: var(--color-error-text, #c0262d);
 }
 
 @keyframes spin {
