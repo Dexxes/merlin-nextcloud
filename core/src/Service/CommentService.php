@@ -2,19 +2,16 @@
 
 declare(strict_types=1);
 
-namespace OCA\Merlin\Service;
+namespace Merlin\Core\Service;
 
-use Merlin\Core\Service\CommentException;
-use Merlin\Core\Service\CommentRules;
-use OCA\Merlin\Db\Comment;
-use OCA\Merlin\Db\CommentGuest;
-use OCA\Merlin\Db\CommentGuestMapper;
-use OCA\Merlin\Db\CommentMapper;
-use OCA\Merlin\Db\Highlight;
-use OCA\Merlin\Db\HighlightMapper;
-use OCP\AppFramework\Db\DoesNotExistException;
-use OCP\DB\Exception as DbException;
-use OCP\IUserManager;
+use Merlin\Core\Domain\Comment;
+use Merlin\Core\Domain\CommentGuest;
+use Merlin\Core\Domain\Highlight;
+use Merlin\Core\Port\CommentGuestStore;
+use Merlin\Core\Port\CommentStore;
+use Merlin\Core\Port\DuplicateEntryException;
+use Merlin\Core\Port\HighlightStore;
+use Merlin\Core\Port\UserDirectory;
 
 /**
  * Gemeinsame Logik für Kommentare und Gast-Markierungen, benutzt vom
@@ -22,6 +19,8 @@ use OCP\IUserManager;
  *
  * Alle Methoden bekommen Artikel-ID und Besitzer vom Aufrufer, der sie aus dem
  * Login bzw. dem Share-Token kennt – nie aus dem Request.
+ *
+ * Ablage über die Ports CommentStore, HighlightStore und CommentGuestStore.
  */
 class CommentService {
 	/** Pause zwischen zwei Prüfungen im Push-Kanal (Mikrosekunden). */
@@ -30,16 +29,15 @@ class CommentService {
 	private const STREAM_SECONDS = 50;
 
 	public function __construct(
-		private CommentMapper $commentMapper,
-		private HighlightMapper $highlightMapper,
-		private CommentGuestMapper $guestMapper,
-		private IUserManager $userManager,
+		private CommentStore $commentStore,
+		private HighlightStore $highlightStore,
+		private CommentGuestStore $guestStore,
+		private UserDirectory $users,
 	) {
 	}
 
 	public function ownerDisplayName(string $ownerId): string {
-		$user = $this->userManager->get($ownerId);
-		$name = $user !== null ? $user->getDisplayName() : '';
+		$name = $this->users->displayName($ownerId);
 		return $name !== '' ? $name : $ownerId;
 	}
 
@@ -49,9 +47,9 @@ class CommentService {
 	public function signature(int $articleId, string $ownerId): string {
 		// Kurz und URL-/Header-tauglich (geht als ?since= und Last-Event-ID zurück).
 		return substr(sha1(
-			$this->commentMapper->signature($articleId, $ownerId)
-			. '|' . $this->highlightMapper->signature($articleId, $ownerId)
-			. '|' . $this->guestMapper->signature($articleId, $ownerId)
+			$this->commentStore->signature($articleId, $ownerId)
+			. '|' . $this->highlightStore->signature($articleId, $ownerId)
+			. '|' . $this->guestStore->signature($articleId, $ownerId)
 		), 0, 20);
 	}
 
@@ -73,7 +71,7 @@ class CommentService {
 		// Marke vor den Daten lesen: ändert sich dazwischen etwas, ist die
 		// Marke älter als die Daten und der nächste Push liefert nach.
 		$signature = $this->signature($articleId, $ownerId);
-		$guests = $this->guestMapper->findByArticleId($articleId, $ownerId);
+		$guests = $this->guestStore->findByArticleId($articleId, $ownerId);
 		$colors = [];
 		foreach ($guests as $guest) {
 			$colors[$guest->getNameKey()] = $guest->getColor();
@@ -83,11 +81,11 @@ class CommentService {
 			: CommentRules::OWNER_COLOR;
 		$comments = array_map(
 			fn (Comment $c) => $c->jsonSerialize() + ['authorColor' => $colorOf($c->getAuthorType(), $c->getAuthorNameKey())],
-			$this->commentMapper->findByArticleId($articleId, $ownerId)
+			$this->commentStore->findByArticleId($articleId, $ownerId)
 		);
 		$highlights = array_map(
 			fn (Highlight $h) => $h->jsonSerialize() + ['authorColor' => $colorOf((string) ($h->getAuthorType() ?? Comment::AUTHOR_OWNER), $h->getAuthorNameKey())],
-			$this->highlightMapper->findByArticleId($articleId, $ownerId)
+			$this->highlightStore->findByArticleId($articleId, $ownerId)
 		);
 		return [
 			'signature'   => $signature,
@@ -119,7 +117,7 @@ class CommentService {
 	 */
 	public function claimGuestColor(int $articleId, string $ownerId, string $name, ?string $color): string {
 		$key = CommentRules::nameKey($name);
-		$guests = $this->guestMapper->findByArticleId($articleId, $ownerId);
+		$guests = $this->guestStore->findByArticleId($articleId, $ownerId);
 		$taken = [];
 		foreach ($guests as $guest) {
 			if ($guest->getNameKey() === $key) {
@@ -145,13 +143,10 @@ class CommentService {
 		$guest->setColor($wanted);
 		$guest->setCreatedAt(new \DateTime());
 		try {
-			$this->guestMapper->insert($guest);
-		} catch (DbException $e) {
-			if ($e->getReason() !== DbException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
-				throw $e;
-			}
+			$this->guestStore->insert($guest);
+		} catch (DuplicateEntryException) {
 			// Gleichzeitig vergeben: gewann derselbe Name, gilt dessen Farbe.
-			foreach ($this->guestMapper->findByArticleId($articleId, $ownerId) as $other) {
+			foreach ($this->guestStore->findByArticleId($articleId, $ownerId) as $other) {
 				if ($other->getNameKey() === $key) {
 					return $other->getColor();
 				}
@@ -183,8 +178,8 @@ class CommentService {
 	public function assertGuestCapacity(int $articleId, string $ownerId, bool $highlight): void {
 		$since = new \DateTime('-1 day');
 		$count = $highlight
-			? $this->highlightMapper->countGuestSince($articleId, $ownerId, $since)
-			: $this->commentMapper->countGuestSince($articleId, $ownerId, $since);
+			? $this->highlightStore->countGuestSince($articleId, $ownerId, $since)
+			: $this->commentStore->countGuestSince($articleId, $ownerId, $since);
 		if ($count >= CommentRules::GUEST_DAILY_CAP) {
 			throw new CommentException('daily_limit', 429);
 		}
@@ -246,18 +241,16 @@ class CommentService {
 		$comment->setArticleId($articleId);
 
 		if ($parentId !== null) {
-			try {
-				$parent = $this->commentMapper->findInArticle($parentId, $articleId, $ownerId);
-			} catch (DoesNotExistException) {
+			$parent = $this->commentStore->findInArticle($parentId, $articleId, $ownerId);
+			if ($parent === null) {
 				throw new CommentException('parent_not_found', 404);
 			}
 			[$rootId, $replyToId] = CommentRules::threadPosition($parent->getId(), $parent->getParentId());
 			$comment->setParentId($rootId);
 			$comment->setReplyToId($replyToId);
 		} elseif ($highlightId !== null) {
-			try {
-				$highlight = $this->highlightMapper->findInArticle($highlightId, $articleId, $ownerId);
-			} catch (DoesNotExistException) {
+			$highlight = $this->highlightStore->findInArticle($highlightId, $articleId, $ownerId);
+			if ($highlight === null) {
 				throw new CommentException('highlight_not_found', 404);
 			}
 			$comment->setHighlightId($highlight->getId());
@@ -272,7 +265,7 @@ class CommentService {
 		$comment->setCreatedAt($now);
 		$comment->setUpdatedAt($now);
 
-		return $this->commentMapper->insert($comment);
+		return $this->commentStore->insert($comment);
 	}
 
 	/**
@@ -288,7 +281,7 @@ class CommentService {
 		}
 		$comment->setBody(CommentRules::normalizeBody($body));
 		$comment->setUpdatedAt(new \DateTime());
-		return $this->commentMapper->update($comment);
+		return $this->commentStore->update($comment);
 	}
 
 	/**
@@ -299,28 +292,25 @@ class CommentService {
 	public function deleteComment(Comment $comment): void {
 		$parentId = $comment->getParentId();
 		if ($parentId === null) {
-			if ($this->commentMapper->countReplies($comment->getId()) > 0) {
+			if ($this->commentStore->countReplies($comment->getId()) > 0) {
 				$now = new \DateTime();
 				$comment->setDeletedAt($now);
 				$comment->setUpdatedAt($now);
 				$comment->setBody('');
-				$this->commentMapper->update($comment);
+				$this->commentStore->update($comment);
 				return;
 			}
-			$this->commentMapper->delete($comment);
+			$this->commentStore->delete($comment);
 			$this->dropUnusedCommentHighlight($comment->getHighlightId(), $comment->getUserId());
 			return;
 		}
 
-		$this->commentMapper->delete($comment);
-		try {
-			$root = $this->commentMapper->findInArticle($parentId, $comment->getArticleId(), $comment->getUserId());
-			if ($root->isDeleted() && $this->commentMapper->countReplies($root->getId()) === 0) {
-				$this->commentMapper->delete($root);
-				$this->dropUnusedCommentHighlight($root->getHighlightId(), $root->getUserId());
-			}
-		} catch (DoesNotExistException) {
-			// Wurzel schon weg
+		$this->commentStore->delete($comment);
+		$root = $this->commentStore->findInArticle($parentId, $comment->getArticleId(), $comment->getUserId());
+		// null: Wurzel schon weg
+		if ($root !== null && $root->isDeleted() && $this->commentStore->countReplies($root->getId()) === 0) {
+			$this->commentStore->delete($root);
+			$this->dropUnusedCommentHighlight($root->getHighlightId(), $root->getUserId());
 		}
 	}
 
@@ -330,16 +320,15 @@ class CommentService {
 	 * Unterstreichung ohne Kommentar stehen. Eingefärbte Markierungen bleiben.
 	 */
 	private function dropUnusedCommentHighlight(?int $highlightId, string $ownerId): void {
-		if ($highlightId === null || $this->commentMapper->countForHighlight($highlightId, $ownerId) > 0) {
+		if ($highlightId === null || $this->commentStore->countForHighlight($highlightId, $ownerId) > 0) {
 			return;
 		}
-		try {
-			$highlight = $this->highlightMapper->findById($highlightId, $ownerId);
-		} catch (DoesNotExistException) {
+		$highlight = $this->highlightStore->findById($highlightId, $ownerId);
+		if ($highlight === null) {
 			return;
 		}
 		if ($highlight->getColor() === CommentRules::COLOR_COMMENT) {
-			$this->highlightMapper->deleteById($highlightId, $ownerId);
+			$this->highlightStore->deleteById($highlightId, $ownerId);
 		}
 	}
 
@@ -422,7 +411,7 @@ class CommentService {
 			$highlight->setAuthorNameKey(CommentRules::nameKey($authorName));
 		}
 
-		return $this->highlightMapper->insert($highlight);
+		return $this->highlightStore->insert($highlight);
 	}
 
 	/**
@@ -433,8 +422,8 @@ class CommentService {
 	 */
 	public function updateHighlight(Highlight $highlight): Highlight {
 		$highlight->setRevision((int) $highlight->getRevision() + 1);
-		$saved = $this->highlightMapper->update($highlight);
-		$this->commentMapper->updateQuotedText(
+		$saved = $this->highlightStore->update($highlight);
+		$this->commentStore->updateQuotedText(
 			$saved->getId(), $saved->getUserId(), (string) $saved->getHighlightedText());
 		return $saved;
 	}
@@ -443,8 +432,8 @@ class CommentService {
 	 * Markierung löschen; ihre Threads bleiben mit dem zitierten Text erhalten.
 	 */
 	public function deleteHighlight(Highlight $highlight): void {
-		$this->commentMapper->detachHighlight($highlight->getId(), $highlight->getUserId());
-		$this->highlightMapper->deleteById($highlight->getId(), $highlight->getUserId());
+		$this->commentStore->detachHighlight($highlight->getId(), $highlight->getUserId());
+		$this->highlightStore->deleteById($highlight->getId(), $highlight->getUserId());
 	}
 
 	/**

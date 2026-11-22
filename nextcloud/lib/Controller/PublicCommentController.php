@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
+use Merlin\Core\Domain\ArticleShare;
+use Merlin\Core\Domain\Comment;
+use Merlin\Core\Port\CommentStore;
+use Merlin\Core\Port\HighlightStore;
 use Merlin\Core\Service\CommentException;
 use Merlin\Core\Service\CommentRules;
-use OCA\Merlin\Db\ArticleShare;
-use OCA\Merlin\Db\Comment;
-use OCA\Merlin\Db\CommentMapper;
-use OCA\Merlin\Db\HighlightMapper;
-use OCA\Merlin\Service\CommentService;
-use OCA\Merlin\Service\ShareAccessService;
+use Merlin\Core\Service\CommentService;
+use Merlin\Core\Service\ShareAccessDenied;
+use Merlin\Core\Service\ShareAccessService;
 use OCP\AppFramework\Controller;
-use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -43,8 +43,8 @@ class PublicCommentController extends Controller {
 		IRequest $request,
 		private ShareAccessService $access,
 		private CommentService $comments,
-		private CommentMapper $commentMapper,
-		private HighlightMapper $highlightMapper,
+		private CommentStore $commentStore,
+		private HighlightStore $highlightStore,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -58,8 +58,8 @@ class PublicCommentController extends Controller {
 	 */
 	private function writableShare(string $token): ArticleShare|DataResponse {
 		$share = $this->access->resolveAccessibleShare($token);
-		if ($share instanceof DataResponse) {
-			return $share;
+		if ($share instanceof ShareAccessDenied) {
+			return new DataResponse($share->getData(), $share->getStatus());
 		}
 		if (!$share->allowsComments()) {
 			return new DataResponse(['error' => 'comments_closed'], Http::STATUS_FORBIDDEN);
@@ -86,8 +86,8 @@ class PublicCommentController extends Controller {
 	#[NoCSRFRequired]
 	public function index(string $token): DataResponse {
 		$share = $this->access->resolveAccessibleShare($token);
-		if ($share instanceof DataResponse) {
-			return $share;
+		if ($share instanceof ShareAccessDenied) {
+			return new DataResponse($share->getData(), $share->getStatus());
 		}
 		return new DataResponse($this->comments->payload($share->getArticleId(), $share->getUserId()));
 	}
@@ -171,9 +171,8 @@ class PublicCommentController extends Controller {
 		if ($share instanceof DataResponse) {
 			return $share;
 		}
-		try {
-			$comment = $this->commentMapper->findInArticle($id, $share->getArticleId(), $share->getUserId());
-		} catch (DoesNotExistException) {
+		$comment = $this->commentStore->findInArticle($id, $share->getArticleId(), $share->getUserId());
+		if ($comment === null) {
 			return new DataResponse(['error' => 'not_found'], Http::STATUS_NOT_FOUND);
 		}
 		if (!CommentRules::guestMayEdit($comment->getAuthorType(), $comment->getAuthorNameKey(), $this->guestHeaderName())) {
@@ -201,9 +200,8 @@ class PublicCommentController extends Controller {
 		if ($share instanceof DataResponse) {
 			return $share;
 		}
-		try {
-			$comment = $this->commentMapper->findInArticle($id, $share->getArticleId(), $share->getUserId());
-		} catch (DoesNotExistException) {
+		$comment = $this->commentStore->findInArticle($id, $share->getArticleId(), $share->getUserId());
+		if ($comment === null) {
 			return new DataResponse(['error' => 'not_found'], Http::STATUS_NOT_FOUND);
 		}
 		if (!CommentRules::guestMayEdit($comment->getAuthorType(), $comment->getAuthorNameKey(), $this->guestHeaderName())) {
@@ -271,9 +269,8 @@ class PublicCommentController extends Controller {
 		if ($share instanceof DataResponse) {
 			return $share;
 		}
-		try {
-			$highlight = $this->highlightMapper->findInArticle($id, $share->getArticleId(), $share->getUserId());
-		} catch (DoesNotExistException) {
+		$highlight = $this->highlightStore->findInArticle($id, $share->getArticleId(), $share->getUserId());
+		if ($highlight === null) {
 			return new DataResponse(['error' => 'not_found'], Http::STATUS_NOT_FOUND);
 		}
 		if (!CommentRules::guestMayEdit((string) $highlight->getAuthorType(), $highlight->getAuthorNameKey(), $this->guestHeaderName())) {
@@ -299,7 +296,7 @@ class PublicCommentController extends Controller {
 	#[NoCSRFRequired]
 	public function events(string $token, string $since = ''): void {
 		$share = $this->access->resolveAccessibleShare($token);
-		if ($share instanceof DataResponse) {
+		if ($share instanceof ShareAccessDenied) {
 			http_response_code($share->getStatus());
 			header('Content-Type: application/json');
 			echo json_encode($share->getData());

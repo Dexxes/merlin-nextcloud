@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
+use Merlin\Core\Domain\Highlight;
+use Merlin\Core\Port\HighlightStore;
 use Merlin\Core\Service\CommentRules;
+use Merlin\Core\Service\CommentService;
 use OCA\Merlin\Db\ArticleMapper;
-use OCA\Merlin\Db\Highlight;
-use OCA\Merlin\Db\HighlightMapper;
-use OCA\Merlin\Service\CommentService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Http;
@@ -32,7 +32,7 @@ use OCP\IRequest;
  * session cookies remain as an additional layer of defense.
  */
 class HighlightController extends Controller {
-	private HighlightMapper $highlightMapper;
+	private HighlightStore $highlightStore;
 	private ArticleMapper $articleMapper;
 	private CommentService $comments;
 	private ?string $userId;
@@ -40,13 +40,13 @@ class HighlightController extends Controller {
 	public function __construct(
 		string $appName,
 		IRequest $request,
-		HighlightMapper $highlightMapper,
+		HighlightStore $highlightStore,
 		ArticleMapper $articleMapper,
 		CommentService $comments,
 		?string $userId
 	) {
 		parent::__construct($appName, $request);
-		$this->highlightMapper = $highlightMapper;
+		$this->highlightStore = $highlightStore;
 		$this->articleMapper = $articleMapper;
 		$this->comments = $comments;
 		$this->userId = $userId;
@@ -64,7 +64,7 @@ class HighlightController extends Controller {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
 		}
-		$highlights = $this->highlightMapper->findByArticleId($articleId, $this->userId);
+		$highlights = $this->highlightStore->findByArticleId($articleId, $this->userId);
 		return new DataResponse(array_map(fn($h) => $h->jsonSerialize(), $highlights));
 	}
 
@@ -135,7 +135,7 @@ class HighlightController extends Controller {
 		$highlight->setPdfPage($pdfPage);
 		$highlight->setPdfRects($rectsJson);
 
-		$saved = $this->highlightMapper->insert($highlight);
+		$saved = $this->highlightStore->insert($highlight);
 		return new DataResponse($saved->jsonSerialize(), Http::STATUS_CREATED);
 	}
 
@@ -172,9 +172,8 @@ class HighlightController extends Controller {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
 		}
-		try {
-			$highlight = $this->highlightMapper->findById($id, $this->userId);
-		} catch (DoesNotExistException) {
+		$highlight = $this->highlightStore->findById($id, $this->userId);
+		if ($highlight === null) {
 			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
 		}
 		$ownColour = ($highlight->getAuthorType() ?? 'owner') === 'owner'
@@ -235,9 +234,8 @@ class HighlightController extends Controller {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
 		}
-		try {
-			$highlight = $this->highlightMapper->findById($id, $this->userId);
-		} catch (DoesNotExistException) {
+		$highlight = $this->highlightStore->findById($id, $this->userId);
+		if ($highlight === null) {
 			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
 		}
 		$this->comments->deleteHighlight($highlight);

@@ -24,25 +24,39 @@ use Merlin\Core\Extraction\Social\MastodonPostResolverService;
 use Merlin\Core\Extraction\Social\TikTokPostResolverService;
 use Merlin\Core\Port\AppSettings;
 use Merlin\Core\Port\ArticleDeletion;
+use Merlin\Core\Port\CommentGuestStore;
+use Merlin\Core\Port\CommentStore;
 use Merlin\Core\Port\ContentFilterSource;
 use Merlin\Core\Port\Crypto;
+use Merlin\Core\Port\HighlightStore;
 use Merlin\Core\Port\RetentionStore;
+use Merlin\Core\Port\Session;
+use Merlin\Core\Port\ShareStore;
 use Merlin\Core\Port\SiteCredentialStore;
 use Merlin\Core\Port\SiteSessions;
 use Merlin\Core\Port\UrlGenerator;
+use Merlin\Core\Port\UserDirectory;
 use Merlin\Core\Port\UserSettings;
+use Merlin\Core\Service\CommentService;
 use Merlin\Core\Service\ExportService;
 use Merlin\Core\Service\PdfProxyService;
 use Merlin\Core\Service\ReportBackendService;
 use Merlin\Core\Service\RetentionService;
+use Merlin\Core\Service\ShareAccessService;
 use Merlin\Core\Service\SiteCredentialService;
 use Merlin\Core\Service\SupportBoxService;
 use Merlin\Core\Service\TtsStreamService;
 use OCA\Merlin\Adapter\NextcloudAppSettings;
+use OCA\Merlin\Adapter\NextcloudCommentGuestStore;
+use OCA\Merlin\Adapter\NextcloudCommentStore;
 use OCA\Merlin\Adapter\NextcloudCrypto;
+use OCA\Merlin\Adapter\NextcloudHighlightStore;
 use OCA\Merlin\Adapter\NextcloudRetentionStore;
+use OCA\Merlin\Adapter\NextcloudSession;
+use OCA\Merlin\Adapter\NextcloudShareStore;
 use OCA\Merlin\Adapter\NextcloudSiteCredentialStore;
 use OCA\Merlin\Adapter\NextcloudUrlGenerator;
+use OCA\Merlin\Adapter\NextcloudUserDirectory;
 use OCA\Merlin\Adapter\NextcloudUserSettings;
 use OCA\Merlin\Listener\AddContentSecurityPolicyListener;
 use OCA\Merlin\Listener\UserDeletedListener;
@@ -69,12 +83,18 @@ class Application extends App implements IBootstrap {
 	public const CORE_PORTS = [
 		AppSettings::class         => NextcloudAppSettings::class,
 		ArticleDeletion::class     => ArticleDeletionService::class,
+		CommentGuestStore::class   => NextcloudCommentGuestStore::class,
+		CommentStore::class        => NextcloudCommentStore::class,
 		ContentFilterSource::class => ContentFilterRepository::class,
 		Crypto::class              => NextcloudCrypto::class,
+		HighlightStore::class      => NextcloudHighlightStore::class,
 		RetentionStore::class      => NextcloudRetentionStore::class,
+		Session::class             => NextcloudSession::class,
+		ShareStore::class          => NextcloudShareStore::class,
 		SiteCredentialStore::class => NextcloudSiteCredentialStore::class,
 		SiteSessions::class        => SiteCredentialService::class,
 		UrlGenerator::class        => NextcloudUrlGenerator::class,
+		UserDirectory::class       => NextcloudUserDirectory::class,
 		UserSettings::class        => NextcloudUserSettings::class,
 	];
 
@@ -111,6 +131,8 @@ class Application extends App implements IBootstrap {
 		TtsStreamService::class,
 		RetentionService::class,
 		SiteCredentialService::class,
+		CommentService::class,
+		ShareAccessService::class,
 	];
 
 	public function __construct(array $urlParams = []) {

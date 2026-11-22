@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
+use Merlin\Core\Domain\Comment;
+use Merlin\Core\Port\CommentStore;
 use Merlin\Core\Service\CommentException;
+use Merlin\Core\Service\CommentService;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Db\ArticleShareMapper;
-use OCA\Merlin\Db\Comment;
-use OCA\Merlin\Db\CommentMapper;
-use OCA\Merlin\Service\CommentService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Http;
@@ -34,7 +34,7 @@ class CommentController extends Controller {
 		string $appName,
 		IRequest $request,
 		private CommentService $comments,
-		private CommentMapper $commentMapper,
+		private CommentStore $commentStore,
 		private ArticleMapper $articleMapper,
 		private ArticleShareMapper $shareMapper,
 		private ?string $userId,
@@ -102,9 +102,8 @@ class CommentController extends Controller {
 		if ($this->userId === null) {
 			return $this->unauthenticated();
 		}
-		try {
-			$comment = $this->commentMapper->findForOwner($id, $this->userId);
-		} catch (DoesNotExistException) {
+		$comment = $this->commentStore->findForOwner($id, $this->userId);
+		if ($comment === null) {
 			return new DataResponse(['error' => 'not_found'], Http::STATUS_NOT_FOUND);
 		}
 		// Gast-Texte verändert der Besitzer nicht, er kann sie nur löschen.
@@ -125,9 +124,8 @@ class CommentController extends Controller {
 		if ($this->userId === null) {
 			return $this->unauthenticated();
 		}
-		try {
-			$comment = $this->commentMapper->findForOwner($id, $this->userId);
-		} catch (DoesNotExistException) {
+		$comment = $this->commentStore->findForOwner($id, $this->userId);
+		if ($comment === null) {
 			return new DataResponse(['error' => 'not_found'], Http::STATUS_NOT_FOUND);
 		}
 		$this->comments->deleteComment($comment);
