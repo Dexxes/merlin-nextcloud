@@ -2,14 +2,12 @@
 
 declare(strict_types=1);
 
-namespace OCA\Merlin\Service;
+namespace Merlin\Core\Service;
 
-use Merlin\Core\Service\RetentionPolicy;
-use OCA\Merlin\AppInfo\Application;
-use OCA\Merlin\Db\ArticleMapper;
-use OCA\Merlin\Db\ArticleShareMapper;
-use OCP\IAppConfig;
-use OCP\IConfig;
+use Merlin\Core\Port\AppSettings;
+use Merlin\Core\Port\ArticleDeletion;
+use Merlin\Core\Port\RetentionStore;
+use Merlin\Core\Port\UserSettings;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -39,11 +37,10 @@ class RetentionService {
 	private const BATCH = 500;
 
 	public function __construct(
-		private IAppConfig $appConfig,
-		private IConfig $config,
-		private ArticleMapper $articleMapper,
-		private ArticleShareMapper $shareMapper,
-		private ArticleDeletionService $deletionService,
+		private AppSettings $appSettings,
+		private UserSettings $userSettings,
+		private RetentionStore $store,
+		private ArticleDeletion $deletionService,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -51,21 +48,21 @@ class RetentionService {
 	/** @return array{days: int, favoritesDays: int} */
 	public function getAdminLimits(): array {
 		return [
-			'days' => RetentionPolicy::normalizeDays($this->appConfig->getValueInt(Application::APP_ID, self::APP_KEY_MAX_DAYS, 0)),
-			'favoritesDays' => RetentionPolicy::normalizeDays($this->appConfig->getValueInt(Application::APP_ID, self::APP_KEY_FAVORITES_MAX_DAYS, 0)),
+			'days' => RetentionPolicy::normalizeDays($this->appSettings->getInt(self::APP_KEY_MAX_DAYS, 0)),
+			'favoritesDays' => RetentionPolicy::normalizeDays($this->appSettings->getInt(self::APP_KEY_FAVORITES_MAX_DAYS, 0)),
 		];
 	}
 
 	public function setAdminLimits(int $days, int $favoritesDays): void {
-		$this->appConfig->setValueInt(Application::APP_ID, self::APP_KEY_MAX_DAYS, RetentionPolicy::normalizeDays($days));
-		$this->appConfig->setValueInt(Application::APP_ID, self::APP_KEY_FAVORITES_MAX_DAYS, RetentionPolicy::normalizeDays($favoritesDays));
+		$this->appSettings->setInt(self::APP_KEY_MAX_DAYS, RetentionPolicy::normalizeDays($days));
+		$this->appSettings->setInt(self::APP_KEY_FAVORITES_MAX_DAYS, RetentionPolicy::normalizeDays($favoritesDays));
 	}
 
 	/** @return array{days: int, favoritesDays: int} */
 	public function getUserChoice(string $userId): array {
 		return [
-			'days' => RetentionPolicy::normalizeDays((int) $this->config->getUserValue($userId, self::USER_SETTINGS_APP, self::USER_KEY_DAYS, '0')),
-			'favoritesDays' => RetentionPolicy::normalizeDays((int) $this->config->getUserValue($userId, self::USER_SETTINGS_APP, self::USER_KEY_FAVORITES_DAYS, '0')),
+			'days' => RetentionPolicy::normalizeDays((int) $this->userSettings->get($userId, self::USER_SETTINGS_APP, self::USER_KEY_DAYS, '0')),
+			'favoritesDays' => RetentionPolicy::normalizeDays((int) $this->userSettings->get($userId, self::USER_SETTINGS_APP, self::USER_KEY_FAVORITES_DAYS, '0')),
 		];
 	}
 
@@ -95,7 +92,7 @@ class RetentionService {
 	public function getSettingsInfo(string $userId): array {
 		$admin = $this->getAdminLimits();
 		$effective = $this->getEffective($userId, $admin);
-		$ack = $this->config->getUserValue($userId, self::USER_SETTINGS_APP, self::USER_KEY_NOTICE_ACK, '');
+		$ack = $this->userSettings->get($userId, self::USER_SETTINGS_APP, self::USER_KEY_NOTICE_ACK, '');
 
 		return [
 			'retentionMaxDays' => $admin['days'],
@@ -109,7 +106,7 @@ class RetentionService {
 	/** Hinweis als gelesen markieren: die aktuell gültigen Fristen werden gemerkt. */
 	public function acknowledgeNotice(string $userId): void {
 		$effective = $this->getEffective($userId);
-		$this->config->setUserValue(
+		$this->userSettings->set(
 			$userId,
 			self::USER_SETTINGS_APP,
 			self::USER_KEY_NOTICE_ACK,
@@ -128,12 +125,12 @@ class RetentionService {
 		];
 
 		$count = 0;
-		foreach ($this->articleMapper->findUserIdsWithArchived() as $userId) {
+		foreach ($this->store->findUserIdsWithArchived() as $userId) {
 			$effective = $this->getEffective($userId, $admin);
 			foreach ([false => $effective['days'], true => $effective['favoritesDays']] as $favorites => $days) {
 				$cutoff = RetentionPolicy::cutoff($days, $now);
 				if ($cutoff !== null) {
-					$count += $this->articleMapper->countExpiredArchived($userId, $cutoff, (bool) $favorites);
+					$count += $this->store->countExpiredArchived($userId, $cutoff, (bool) $favorites);
 				}
 			}
 		}
@@ -150,7 +147,7 @@ class RetentionService {
 	public function run(?string $onlyUserId = null, bool $dryRun = false, ?\DateTimeImmutable $now = null): array {
 		$now ??= new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
 		$admin = $this->getAdminLimits();
-		$userIds = $onlyUserId !== null ? [$onlyUserId] : $this->articleMapper->findUserIdsWithArchived();
+		$userIds = $onlyUserId !== null ? [$onlyUserId] : $this->store->findUserIdsWithArchived();
 
 		$total = 0;
 		$perUser = [];
@@ -178,7 +175,7 @@ class RetentionService {
 
 		$shares = 0;
 		if (!$dryRun && $onlyUserId === null) {
-			$shares = $this->shareMapper->deleteExpiredBefore($now->modify('-' . self::SHARE_GRACE_DAYS . ' days'));
+			$shares = $this->store->deleteSharesExpiredBefore($now->modify('-' . self::SHARE_GRACE_DAYS . ' days'));
 		}
 
 		return ['articles' => $total, 'shares' => $shares, 'users' => $perUser];
@@ -197,12 +194,12 @@ class RetentionService {
 				continue;
 			}
 			if ($dryRun) {
-				$count += $this->articleMapper->countExpiredArchived($userId, $cutoff, (bool) $favorites);
+				$count += $this->store->countExpiredArchived($userId, $cutoff, (bool) $favorites);
 				continue;
 			}
 			// Blockweise, damit ein Lauf keine langen Sperren hält.
 			do {
-				$ids = $this->articleMapper->findExpiredArchivedIds($userId, $cutoff, (bool) $favorites, self::BATCH);
+				$ids = $this->store->findExpiredArchivedIds($userId, $cutoff, (bool) $favorites, self::BATCH);
 				if ($ids === []) {
 					break;
 				}

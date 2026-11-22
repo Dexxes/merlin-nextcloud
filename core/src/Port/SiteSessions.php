@@ -10,7 +10,7 @@ use Merlin\Core\Extraction\Login\LoginConfig;
  * Paywall-Logins je Nutzer und Domain, soweit die Extraktion sie braucht:
  * Login-Konfiguration der Domain und gültige Session-Cookies.
  *
- * Nextcloud: OCA\Merlin\Service\SiteCredentialService (verschlüsselte
+ * Nextcloud: Merlin\Core\Service\SiteCredentialService (verschlüsselte
  * Zugangsdaten und Cookie-Cache in merlin_site_credentials).
  */
 interface SiteSessions {

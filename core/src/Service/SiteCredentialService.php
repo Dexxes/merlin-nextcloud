@@ -2,18 +2,20 @@
 
 declare(strict_types=1);
 
-namespace OCA\Merlin\Service;
+namespace Merlin\Core\Service;
 
 use Merlin\Core\Extraction\Login\KeycloakFormPostLoginProvider;
 use Merlin\Core\Extraction\Login\LoginConfig;
 use Merlin\Core\Extraction\Login\LoginFailedException;
 use Merlin\Core\Extraction\Login\LoginProviderInterface;
 use Merlin\Core\Extraction\Login\PianoJsonFormLoginProvider;
+use Merlin\Core\Domain\SiteCredential;
+use Merlin\Core\Extraction\Login\LoginResult;
+use Merlin\Core\Extraction\Login\LoginStatus;
+use Merlin\Core\Port\ContentFilterSource;
+use Merlin\Core\Port\Crypto;
+use Merlin\Core\Port\SiteCredentialStore;
 use Merlin\Core\Port\SiteSessions;
-use OCA\Merlin\Db\SiteCredential;
-use OCA\Merlin\Db\SiteCredentialMapper;
-use OCP\AppFramework\Db\DoesNotExistException;
-use OCP\Security\ICrypto;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -24,10 +26,9 @@ use Psr\Log\LoggerInterface;
  * beim Artikel-Fetch) und ein noch zu bauender Controller für die
  * Personal-Settings-UI.
  *
- * Verschlüsselung über OCP\Security\ICrypto (Instanz-Secret-basiert, wie an
- * anderen Stellen im Nextcloud-Kern) statt eines eigenen Krypto-Schemas -
- * merlin-server hat dafür mangels ICrypto eine eigene CredentialCipher-Klasse
- * (sodium_crypto_secretbox).
+ * Verschlüsselung über den Port Crypto (Nextcloud: ICrypto mit dem
+ * Instanz-Secret; Standalone: eigene Klasse auf Basis von
+ * sodium_crypto_secretbox). Ablage über den Port SiteCredentialStore.
  */
 class SiteCredentialService implements SiteSessions {
 	/** type-Attribut der <login>-Sektion => zuständiger Provider. */
@@ -37,9 +38,9 @@ class SiteCredentialService implements SiteSessions {
 	];
 
 	public function __construct(
-		private SiteCredentialMapper $mapper,
-		private ContentFilterRepository $filterRepository,
-		private ICrypto $crypto,
+		private SiteCredentialStore $store,
+		private ContentFilterSource $filterRepository,
+		private Crypto $crypto,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -84,7 +85,7 @@ class SiteCredentialService implements SiteSessions {
 		if ($credential === null || $credential->getSessionCookiesEnc() === null) {
 			return null;
 		}
-		if ($credential->getLastLoginStatus() !== SiteCredential::STATUS_OK) {
+		if ($credential->getLastLoginStatus() !== LoginStatus::OK) {
 			return null;
 		}
 		$expiresAt = $credential->getCookieExpiresAt();
@@ -142,7 +143,7 @@ class SiteCredentialService implements SiteSessions {
 		} catch (LoginFailedException $e) {
 			$credential->setLastLoginStatus($e->reason);
 			$credential->setLastLoginAt(new \DateTime());
-			$this->mapper->update($credential);
+			$this->store->save($credential);
 			$this->logger->warning('site-credentials: Login fehlgeschlagen', [
 				'domain' => $domain,
 				'reason' => $e->reason,
@@ -152,9 +153,9 @@ class SiteCredentialService implements SiteSessions {
 
 		$credential->setSessionCookiesEnc($this->crypto->encrypt(json_encode($result->cookies, JSON_THROW_ON_ERROR)));
 		$credential->setCookieExpiresAt($result->expiresAt);
-		$credential->setLastLoginStatus(SiteCredential::STATUS_OK);
+		$credential->setLastLoginStatus(LoginStatus::OK);
 		$credential->setLastLoginAt(new \DateTime());
-		$this->mapper->update($credential);
+		$this->store->save($credential);
 
 		return $result->cookies;
 	}
@@ -181,14 +182,14 @@ class SiteCredentialService implements SiteSessions {
 		$credential->setPasswordEnc($this->crypto->encrypt($password));
 		if ($credential->getId() === null) {
 			$credential->setCreatedAt(new \DateTime());
-			$credential->setLastLoginStatus(SiteCredential::STATUS_PENDING);
+			$credential->setLastLoginStatus(LoginStatus::PENDING);
 		}
 
 		try {
 			$result = $this->login($username, $password, $config);
 			$credential->setSessionCookiesEnc($this->crypto->encrypt(json_encode($result->cookies, JSON_THROW_ON_ERROR)));
 			$credential->setCookieExpiresAt($result->expiresAt);
-			$credential->setLastLoginStatus(SiteCredential::STATUS_OK);
+			$credential->setLastLoginStatus(LoginStatus::OK);
 			$credential->setLastLoginAt(new \DateTime());
 			$this->persist($credential);
 		} catch (LoginFailedException $e) {
@@ -211,11 +212,11 @@ class SiteCredentialService implements SiteSessions {
 	public function hasActiveLogin(string $userId, string $domain): bool {
 		$credential = $this->find($userId, $domain);
 		return $credential !== null
-			&& $credential->getLastLoginStatus() === SiteCredential::STATUS_OK;
+			&& $credential->getLastLoginStatus() === LoginStatus::OK;
 	}
 
 	public function delete(string $userId, string $domain): void {
-		$this->mapper->deleteByUserAndDomain($userId, $domain);
+		$this->store->deleteByUserAndDomain($userId, $domain);
 	}
 
 	/**
@@ -250,14 +251,14 @@ class SiteCredentialService implements SiteSessions {
 				'status'      => $c->getLastLoginStatus(),
 				'lastLoginAt' => $c->getLastLoginAt()?->format('c'),
 			],
-			$this->mapper->findAllForUser($userId)
+			$this->store->findAllForUser($userId)
 		);
 	}
 
-	private function login(string $username, string $password, LoginConfig $config): \Merlin\Core\Extraction\Login\LoginResult {
+	private function login(string $username, string $password, LoginConfig $config): LoginResult {
 		$providerClass = self::PROVIDERS[$config->type] ?? null;
 		if ($providerClass === null) {
-			throw new LoginFailedException('Unbekannter Login-Typ: ' . $config->type, SiteCredential::STATUS_LOGIN_FLOW_BROKEN);
+			throw new LoginFailedException('Unbekannter Login-Typ: ' . $config->type, LoginStatus::LOGIN_FLOW_BROKEN);
 		}
 
 		/** @var LoginProviderInterface $provider */
@@ -266,18 +267,10 @@ class SiteCredentialService implements SiteSessions {
 	}
 
 	private function find(string $userId, string $domain): ?SiteCredential {
-		try {
-			return $this->mapper->find($userId, $domain);
-		} catch (DoesNotExistException $e) {
-			return null;
-		}
+		return $this->store->find($userId, $domain);
 	}
 
 	private function persist(SiteCredential $credential): void {
-		if ($credential->getId() === null) {
-			$this->mapper->insert($credential);
-		} else {
-			$this->mapper->update($credential);
-		}
+		$this->store->save($credential);
 	}
 }

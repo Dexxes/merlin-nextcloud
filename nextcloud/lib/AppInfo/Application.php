@@ -22,23 +22,34 @@ use Merlin\Core\Extraction\Media\Provider\ZdfProvider;
 use Merlin\Core\Extraction\Social\BlueskyThreadResolverService;
 use Merlin\Core\Extraction\Social\MastodonPostResolverService;
 use Merlin\Core\Extraction\Social\TikTokPostResolverService;
+use Merlin\Core\Port\AppSettings;
+use Merlin\Core\Port\ArticleDeletion;
 use Merlin\Core\Port\ContentFilterSource;
+use Merlin\Core\Port\Crypto;
+use Merlin\Core\Port\RetentionStore;
+use Merlin\Core\Port\SiteCredentialStore;
 use Merlin\Core\Port\SiteSessions;
 use Merlin\Core\Port\UrlGenerator;
 use Merlin\Core\Port\UserSettings;
 use Merlin\Core\Service\ExportService;
 use Merlin\Core\Service\PdfProxyService;
 use Merlin\Core\Service\ReportBackendService;
+use Merlin\Core\Service\RetentionService;
+use Merlin\Core\Service\SiteCredentialService;
 use Merlin\Core\Service\SupportBoxService;
 use Merlin\Core\Service\TtsStreamService;
+use OCA\Merlin\Adapter\NextcloudAppSettings;
+use OCA\Merlin\Adapter\NextcloudCrypto;
+use OCA\Merlin\Adapter\NextcloudRetentionStore;
+use OCA\Merlin\Adapter\NextcloudSiteCredentialStore;
 use OCA\Merlin\Adapter\NextcloudUrlGenerator;
 use OCA\Merlin\Adapter\NextcloudUserSettings;
 use OCA\Merlin\Listener\AddContentSecurityPolicyListener;
 use OCA\Merlin\Listener\UserDeletedListener;
 use OCA\Merlin\Middleware\CsrfCookieAuthMiddleware;
 use OCA\Merlin\Search\ArticleSearchProvider;
+use OCA\Merlin\Service\ArticleDeletionService;
 use OCA\Merlin\Service\ContentFilterRepository;
-use OCA\Merlin\Service\SiteCredentialService;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -56,7 +67,12 @@ class Application extends App implements IBootstrap {
 	 * @var array<class-string, class-string>
 	 */
 	public const CORE_PORTS = [
+		AppSettings::class         => NextcloudAppSettings::class,
+		ArticleDeletion::class     => ArticleDeletionService::class,
 		ContentFilterSource::class => ContentFilterRepository::class,
+		Crypto::class              => NextcloudCrypto::class,
+		RetentionStore::class      => NextcloudRetentionStore::class,
+		SiteCredentialStore::class => NextcloudSiteCredentialStore::class,
 		SiteSessions::class        => SiteCredentialService::class,
 		UrlGenerator::class        => NextcloudUrlGenerator::class,
 		UserSettings::class        => NextcloudUserSettings::class,
@@ -93,6 +109,8 @@ class Application extends App implements IBootstrap {
 		ReportBackendService::class,
 		SupportBoxService::class,
 		TtsStreamService::class,
+		RetentionService::class,
+		SiteCredentialService::class,
 	];
 
 	public function __construct(array $urlParams = []) {
