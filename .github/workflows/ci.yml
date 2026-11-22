@@ -1,4 +1,6 @@
-# Checks for every pull request and every push to main.
+# Checks for every pull request and every push to main. Tests in a real
+# Nextcloud (all supported versions, databases, Docker, browser) are in
+# nextcloud.yml.
 #
 # Layout (see STRUCTURE.md): nextcloud/ is the Nextcloud app, frontend/ the
 # Vue source that builds into nextcloud/js and nextcloud/css, core/ the
@@ -22,8 +24,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Lowest PHP of the supported Nextcloud versions (30) and the newest.
-        php: ['8.1', '8.4']
+        # Lowest and highest PHP of appinfo/info.xml.
+        php: ['8.1', '8.5']
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
@@ -123,7 +125,7 @@ jobs:
                    merlin/CHANGELOG.md merlin/LICENSE merlin/README.md; do
             test -e "$f" || { echo "::error::missing in tarball: $f"; exit 1; }
           done
-          for f in merlin/tools merlin/Makefile merlin/src merlin/frontend merlin/vendor/merlin/core/tests; do
+          for f in merlin/tools merlin/tests merlin/Makefile merlin/src merlin/frontend merlin/vendor/merlin/core/tests; do
             test ! -e "$f" || { echo "::error::must not be in tarball: $f"; exit 1; }
           done
           # The core must be copied into vendor/, a symlink would point outside merlin/.

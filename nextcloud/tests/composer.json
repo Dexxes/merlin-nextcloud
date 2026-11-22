@@ -1,0 +1,22 @@
+{
+    "name": "merlin/nextcloud-tests",
+    "description": "Tests of the Merlin app against a real Nextcloud (see tests/README.md). Kept apart from the app's composer.json so that PHPUnit never ends up next to the app's runtime vendor/.",
+    "type": "project",
+    "license": "AGPL-3.0-or-later",
+    "require": {
+        "php": "^8.1",
+        "ext-curl": "*",
+        "ext-json": "*",
+        "phpunit/phpunit": "^10.5 || ^11.5 || ^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "OCA\\Merlin\\Tests\\Api\\": "Api/",
+            "OCA\\Merlin\\Tests\\Integration\\": "Integration/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    }
+}

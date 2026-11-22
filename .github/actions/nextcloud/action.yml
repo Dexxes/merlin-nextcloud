@@ -1,0 +1,79 @@
+# Installs Nextcloud from a nextcloud/server branch into $GITHUB_WORKSPACE/server,
+# puts the app built by the "app" job (artifact merlin-app) into apps/merlin,
+# enables it and serves the instance with `php -S` on http://localhost:8080.
+# Expects this repository checked out in $GITHUB_WORKSPACE/merlin.
+name: Nextcloud with Merlin
+description: Install Nextcloud, enable the Merlin app and start a web server
+inputs:
+  server-ref:
+    description: Branch of nextcloud/server (stable30, ..., master)
+    required: true
+  php:
+    description: PHP version
+    required: true
+  database:
+    description: sqlite, mysql (service on 127.0.0.1:3306) or pgsql (127.0.0.1:5432)
+    default: sqlite
+runs:
+  using: composite
+  steps:
+    - uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ inputs.php }}
+        # Nextcloud's required modules plus the database drivers.
+        extensions: ctype, curl, dom, fileinfo, gd, intl, json, mbstring, openssl, posix, session, simplexml, sodium, xml, xmlreader, xmlwriter, zip, zlib, pdo_sqlite, pdo_mysql, pdo_pgsql
+        ini-values: memory_limit=1G, upload_max_filesize=64M, post_max_size=64M
+        coverage: none
+        tools: composer:v2
+
+    - name: Check out nextcloud/server ${{ inputs.server-ref }}
+      uses: actions/checkout@v4
+      with:
+        repository: nextcloud/server
+        ref: ${{ inputs.server-ref }}
+        path: server
+        submodules: true
+        fetch-depth: 1
+
+    - name: Put the built app into apps/merlin
+      uses: actions/download-artifact@v4
+      with:
+        name: merlin-app
+        path: ${{ runner.temp }}
+    - shell: bash
+      run: |
+        tar -xzf "$RUNNER_TEMP/merlin.tar.gz" -C server/apps
+        test -f server/apps/merlin/appinfo/info.xml
+
+    - name: occ maintenance:install (${{ inputs.database }})
+      shell: bash
+      working-directory: server
+      run: |
+        case '${{ inputs.database }}' in
+          sqlite) db=(--database sqlite) ;;
+          mysql)  db=(--database mysql --database-host 127.0.0.1 --database-port 3306 --database-name nextcloud --database-user root --database-pass rootpassword) ;;
+          pgsql)  db=(--database pgsql --database-host 127.0.0.1 --database-port 5432 --database-name nextcloud --database-user nextcloud --database-pass nextcloud) ;;
+          *) echo "::error::unknown database ${{ inputs.database }}"; exit 1 ;;
+        esac
+        php occ maintenance:install --no-interaction "${db[@]}" --admin-user admin --admin-pass admin
+        php occ config:system:set trusted_domains 1 --value=localhost
+        php occ config:system:set loglevel --value=2 --type=integer
+        php occ status
+
+    - name: occ app:enable merlin
+      shell: bash
+      working-directory: server
+      run: |
+        php occ app:enable merlin
+        php occ app:list --enabled --output=json | python3 -c 'import json,sys; v=json.load(sys.stdin)["enabled"].get("merlin"); print("merlin", v); sys.exit(0 if v else 1)'
+
+    - name: Start web server on localhost:8080
+      shell: bash
+      run: |
+        PHP_CLI_SERVER_WORKERS=4 nohup php -S localhost:8080 -t server > "$RUNNER_TEMP/php-server.log" 2>&1 &
+        for i in $(seq 1 30); do
+          curl -fsS http://localhost:8080/status.php | grep -q '"installed":true' && exit 0
+          sleep 1
+        done
+        cat "$RUNNER_TEMP/php-server.log"
+        exit 1

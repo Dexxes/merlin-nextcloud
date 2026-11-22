@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- HTTP tests against a running Nextcloud (MERLIN_TEST_BASE_URL), see README.md. -->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache"
+         failOnWarning="true"
+         failOnRisky="true">
+    <testsuites>
+        <testsuite name="api">
+            <directory>Api</directory>
+        </testsuite>
+    </testsuites>
+    <php>
+        <env name="MERLIN_TEST_BASE_URL" value="http://localhost:8080"/>
+        <env name="MERLIN_TEST_ADMIN_USER" value="admin"/>
+        <env name="MERLIN_TEST_ADMIN_PASSWORD" value="admin"/>
+    </php>
+</phpunit>
