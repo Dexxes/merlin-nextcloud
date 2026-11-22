@@ -5,16 +5,16 @@ declare(strict_types=1);
 /**
  * Testharness für Service\FileRules (Dateien in „Merlin Dateien“).
  *
- * Aufruf: php tools/test-file-rules.php
+ * Aufruf: php core/tests/test-file-rules.php
  *
  * Ohne Composer/Nextcloud: FileRules ist bewusst frei von
  * Nextcloud-Abhängigkeiten. Geprüft werden Dateiart/Kategorie, Inline-Typen,
  * Dateinamen, signierte Links, Range-Header und WebDAV-Pfade.
  */
 
-require_once __DIR__ . '/../lib/Service/FileRules.php';
+require_once __DIR__ . '/autoload.php';
 
-use OCA\Merlin\Service\FileRules;
+use Merlin\Core\Service\FileRules;
 
 $failed = 0;
 $check = static function (bool $ok, string $label) use (&$failed): void {

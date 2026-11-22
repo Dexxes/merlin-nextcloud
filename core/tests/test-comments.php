@@ -5,16 +5,16 @@ declare(strict_types=1);
 /**
  * Testharness für Service\CommentRules (Gast-Namen, Kommentartext, Threads).
  *
- * Aufruf: php tools/test-comments.php
+ * Aufruf: php core/tests/test-comments.php
  *
  * Ohne Composer/Nextcloud: CommentRules ist bewusst frei von
  * Nextcloud-Abhängigkeiten. Gäste weisen sich allein über ihren Namen aus,
  * daher prüft der Test vor allem den Namensvergleich.
  */
 
-require_once __DIR__ . '/../lib/Service/CommentRules.php';
+require_once __DIR__ . '/autoload.php';
 
-use OCA\Merlin\Service\CommentRules;
+use Merlin\Core\Service\CommentRules;
 
 $failed = 0;
 $check = static function (bool $ok, string $label) use (&$failed): void {

@@ -25,7 +25,14 @@ use Merlin\Core\Extraction\Social\TikTokPostResolverService;
 use Merlin\Core\Port\ContentFilterSource;
 use Merlin\Core\Port\SiteSessions;
 use Merlin\Core\Port\UrlGenerator;
+use Merlin\Core\Port\UserSettings;
+use Merlin\Core\Service\ExportService;
+use Merlin\Core\Service\PdfProxyService;
+use Merlin\Core\Service\ReportBackendService;
+use Merlin\Core\Service\SupportBoxService;
+use Merlin\Core\Service\TtsStreamService;
 use OCA\Merlin\Adapter\NextcloudUrlGenerator;
+use OCA\Merlin\Adapter\NextcloudUserSettings;
 use OCA\Merlin\Listener\AddContentSecurityPolicyListener;
 use OCA\Merlin\Listener\UserDeletedListener;
 use OCA\Merlin\Middleware\CsrfCookieAuthMiddleware;
@@ -52,6 +59,7 @@ class Application extends App implements IBootstrap {
 		ContentFilterSource::class => ContentFilterRepository::class,
 		SiteSessions::class        => SiteCredentialService::class,
 		UrlGenerator::class        => NextcloudUrlGenerator::class,
+		UserSettings::class        => NextcloudUserSettings::class,
 	];
 
 	/**
@@ -80,6 +88,11 @@ class Application extends App implements IBootstrap {
 		BlueskyThreadResolverService::class,
 		MastodonPostResolverService::class,
 		TikTokPostResolverService::class,
+		ExportService::class,
+		PdfProxyService::class,
+		ReportBackendService::class,
+		SupportBoxService::class,
+		TtsStreamService::class,
 	];
 
 	public function __construct(array $urlParams = []) {

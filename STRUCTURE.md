@@ -5,7 +5,7 @@ Zentrale Dateien für UI und Logik der Nextcloud-App.
 ## Repository-Layout
 
 Das Repo wird schrittweise zum gemeinsamen Repo für die Nextcloud-App und den
-Standalone-Server umgebaut. Aktueller Stand (Etappe 2 von 7, zweiter Teil):
+Standalone-Server umgebaut. Aktueller Stand (Etappe 2 von 7, dritter Teil):
 
 ```
 merlin-nextcloud/
@@ -45,6 +45,11 @@ beide Listen vollständig sind.
 | `UrlGenerator` | `Adapter\NextcloudUrlGenerator` (IURLGenerator) |
 | `ContentFilterSource` | `Service\ContentFilterRepository` (Bundle + `merlin_cfilter`) |
 | `SiteSessions` | `Service\SiteCredentialService` (Paywall-Logins, `merlin_site_credentials`) |
+| `UserSettings` | `Adapter\NextcloudUserSettings` (IConfig, Nutzerwerte) |
+
+Kern-Services, die einen gespeicherten Artikel ausgeben (Export, PDF, Vorlesen,
+Support-Box), bekommen ihn als `Merlin\Core\Domain\ArticleSnapshot`
+(`Db\Article::toSnapshot()`), nicht als Nextcloud-Entity.
 
 Release-Tarball: `cd nextcloud && make dist` (Frontend-Build, `git archive`
 von `nextcloud/` und `core/`, `content-filters/` nach `merlin/content-filters/`,
@@ -82,24 +87,16 @@ nextcloud/
 │   │   ├── UserContentFilterController.php    # Personal-API: eigener Override
 │   │   └── PageController.php
 │   ├── Adapter/
-│   │   └── NextcloudUrlGenerator.php     # Port UrlGenerator über IURLGenerator
+│   │   ├── NextcloudUrlGenerator.php     # Port UrlGenerator über IURLGenerator
+│   │   └── NextcloudUserSettings.php     # Port UserSettings über IConfig::getUserValue()
 │   ├── Service/              # Geschäftslogik
 │   │   ├── ContentFilterRepository.php   # Bundle (Datei) + Admin-/User-Custom (DB), Merge-Cache
 │   │   │                                 # (Schema, Merger, Validator, Serializer, Trace liegen im Kern, siehe unten)
-│   │   ├── SupportBoxService.php         # Daten der Support-Infobox (<paywall><subscribe> + <metadata><donations>, Seiten-Icon, Akzentfarbe); Reader: entfällt bei aktivem Abo-Login, Share: immer
-│   │   ├── PdfProxyService.php           # PDF-Durchreichung für PdfController und öffentlichen Share-Endpunkt (SSRF-Guard je Hop, %PDF-Prüfung, Range, 100-MB-Limit)
-│   │   ├── TtsStreamService.php          # Ausgelagert aus TtsController: gemeinsamer Stream-Pfad für authentifizierten und öffentlichen (Share-)Endpunkt
-│   │   ├── ExportService.php
 │   │   ├── ArticleDeletionService.php    # Einziger Löschweg für Artikel: mit Highlights, Tag-Zuordnungen, Shares; Nutzerlöschung; Waisen
 │   │   ├── RetentionService.php          # Löschfrist: Admin-/Nutzerwerte, Lauf, Vorschau, Hinweis
 │   │   ├── CommentService.php            # Kommentare/Gast-Markierungen anlegen, ändern, löschen; SSE-Schleife
-│   │   ├── CommentRules.php              # Reine Regeln: Namen, Längen, Thread-Position, Gast-Rechte
 │   │   ├── ShareAccessService.php        # Share-Token + Passwort-Unlock prüfen (Share-Ansicht und Gast-Kommentare)
-│   │   ├── RetentionPolicy.php           # Reine Rechenregeln der Löschfrist (Minimum, Stichtag, Hinweis fällig?)
-│   │   ├── TagTree.php                   # Reine Baumregeln verschachtelter Tags (Nachfahren, Kreisprüfung beim Verschieben)
 │   │   ├── MerlinFileService.php         # „Merlin Dateien“: Ordner (lokalisiert, per ID gemerkt), Datei-Einträge, Streamen mit Range
-│   │   ├── FileRules.php                 # Reine Regeln dazu: Dateiart/Kategorie, Dateinamen, signierte Links, Range
-│   │   ├── FileMetadata.php              # Eingebettete Metadaten einer Datei (EXIF, GPS, IPTC, XMP, ID3, MP4/MOV, PDF) für die Anzeige im Reader
 │   │   └── SiteCredentialService.php     # Paywall-Zugangsdaten je Nutzer/Domain (Port SiteSessions); Login-Provider im Kern
 │   ├── Settings/             # Verwaltungs- und persönliche Einstellungen
 │   │   ├── AdminSection.php
@@ -127,12 +124,7 @@ nextcloud/
     ├── test-caption-flatten.php       # Testharness: Bildunterschriften einzeilig ("•")
     ├── test-media-providers.php       # Testharness Medien-Provider (--live: gegen echte Sender)
     ├── test-inline-media.php          # Testharness Inline-Videos (rbb24-ARD-Player, ganze Extraktion; braucht composer install)
-    ├── test-pdf-proxy.php             # Testharness PdfProxyService (lokaler Quellserver: Range, Redirect, Nicht-PDF, Größe, SSRF)
     ├── test-pdf-article.php           # Testharness PDF-Artikel (URL-Erkennung, Marker, SSRF, Sanitizer)
-    ├── test-support-box.php           # Testharness SupportBoxService (URL-Auswahl, Login-Ausblendung, Share, Seiten-Icon))
-    ├── test-retention.php             # Testharness RetentionPolicy (effektive Frist, Stichtag, Hinweis)
-    ├── test-tag-tree.php              # Testharness TagTree (Nachfahren, Kreisprüfung)
-    ├── test-file-rules.php            # Testharness FileRules (Dateiart, Namen, Token, Range)
     ├── test-core-wiring.php           # Testharness: Kern-Klassen und Ports in Application::CORE_SERVICES/CORE_PORTS vollständig
     └── test-site-icon.php             # Testharness ContentExtractorService::extractSiteIconUrl() (Apple > SVG > Bitmap > ICO, <base>, data:/javascript:, kein og:image)
 ```
@@ -167,9 +159,30 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │   │   │   ├── PianoJsonFormLoginProvider.php # type="piano-json-form" (z. B. tagesspiegel.de)
 │   │   │   └── KeycloakFormPostLoginProvider.php # type="keycloak-form-post" (Funke-Keycloak, z. B. morgenpost.de)
 │   │   └── Social/                       # Bluesky-Threads, Mastodon, TikTok
-│   └── Port/                         # UrlGenerator, ContentFilterSource, SiteSessions
-└── tests/
-    └── test-content-filter-merge.php     # Testharness (pures PHP, ohne Composer)
+│   ├── Domain/
+│   │   └── ArticleSnapshot.php           # Artikelfelder für Export, PDF, Vorlesen, Support-Box
+│   ├── Service/
+│   │   ├── SupportBoxService.php         # Daten der Support-Infobox (<paywall><subscribe> + <metadata><donations>, Seiten-Icon, Akzentfarbe); Reader: entfällt bei aktivem Abo-Login, Share: immer
+│   │   ├── PdfProxyService.php           # PDF-Durchreichung für PdfController und öffentlichen Share-Endpunkt (SSRF-Guard je Hop, %PDF-Prüfung, Range, 100-MB-Limit)
+│   │   ├── TtsStreamService.php          # gemeinsamer Stream-Pfad für authentifizierten und öffentlichen (Share-)Endpunkt
+│   │   ├── ExportService.php             # Artikel als eigenständiges HTML
+│   │   ├── ReportBackendService.php / ReportBackendRules.php  # „Fehlerhaft dargestellt melden“
+│   │   ├── CommentRules.php / CommentException.php  # Reine Regeln: Namen, Längen, Thread-Position, Gast-Rechte
+│   │   ├── RetentionPolicy.php           # Reine Rechenregeln der Löschfrist (Minimum, Stichtag, Hinweis fällig?)
+│   │   ├── TagTree.php                   # Reine Baumregeln verschachtelter Tags (Nachfahren, Kreisprüfung beim Verschieben)
+│   │   ├── FileRules.php                 # „Merlin Dateien“: Dateiart/Kategorie, Dateinamen, signierte Links, Range
+│   │   └── FileMetadata.php              # Eingebettete Metadaten einer Datei (EXIF, GPS, IPTC, XMP, ID3, MP4/MOV, PDF) für die Anzeige im Reader
+│   └── Port/                         # UrlGenerator, ContentFilterSource, SiteSessions, UserSettings
+└── tests/                            # Testharnesses (pures PHP, ohne Composer; autoload.php lädt Merlin\Core\)
+    ├── test-content-filter-merge.php
+    ├── test-support-box.php           # SupportBoxService (URL-Auswahl, Login-Ausblendung, Share, Seiten-Icon)
+    ├── test-pdf-proxy.php             # PdfProxyService (lokaler Quellserver: Range, Redirect, Nicht-PDF, Größe, SSRF)
+    ├── test-retention.php             # RetentionPolicy (effektive Frist, Stichtag, Hinweis)
+    ├── test-tag-tree.php              # TagTree (Nachfahren, Kreisprüfung)
+    ├── test-file-rules.php            # FileRules (Dateiart, Namen, Token, Range)
+    ├── test-file-metadata.php         # FileMetadata (fixtures/metadata/)
+    ├── test-comments.php              # CommentRules
+    └── test-report-backend.php        # ReportBackendRules
 
 content-filters/              # Mitgelieferte Filter, eine Datei je Domain (~55 Domains, z. B. spiegel.de, zeit.de, taz.de, youtube.com)
 ├── $sample.com.xml           # Kommentierte Referenz aller Regeltypen
@@ -352,7 +365,7 @@ je Gruppe `<details open>` mit Tabelle), gebaut beim Anlegen bzw. bei „Neu lad
 (MerlinFileService::refresh()). `Service\FileMetadata` liest ohne Abhängigkeiten aus
 dem Datei-Stream (Kopf, Ende, gezielte Sprünge): EXIF/GPS (ext-exif), IPTC, XMP,
 ID3v2/ID3v1, QuickTime/MP4 (mvhd, tkhd, ilst, keys/mdta, udta ©xyz) und das
-PDF-Info-Wörterbuch. Test: `php tools/test-file-metadata.php`.
+PDF-Info-Wörterbuch. Test: `php core/tests/test-file-metadata.php`.
 
 PUT /api/articles/{id}/file-name {name} → MerlinFileService::rename(): benennt die
 Datei im selben Ordner um (Endung bleibt, FileRules::renamedName), 409 bei

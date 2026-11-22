@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace OCA\Merlin\Service;
+namespace Merlin\Core\Service;
 
-use OCA\Merlin\Db\Article;
+use Merlin\Core\Domain\ArticleSnapshot;
 
 class ExportService {
 	/**
 	 * Export article as standalone HTML
 	 */
-	public function exportHtml(Article $article): string {
+	public function exportHtml(ArticleSnapshot $article): string {
 		$html = <<<HTML
 <!DOCTYPE html>
 <html lang="en">

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace OCA\Merlin\Migration;
 
 use Closure;
-use OCA\Merlin\Service\CommentRules;
+use Merlin\Core\Service\CommentRules;
 use OCP\DB\ISchemaWrapper;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\DB\Types;

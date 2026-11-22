@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace OCA\Merlin\Service;
+namespace Merlin\Core\Service;
 
 /**
  * Reine Regeln für Kommentare und Gast-Namen, frei von Nextcloud-Abhängigkeiten
- * (getestet in tools/test-comments.php).
+ * (getestet in core/tests/test-comments.php).
  *
  * Gäste weisen sich allein über ihren Namen aus: wer denselben Namen angibt,
  * darf alles bearbeiten und löschen, was unter diesem Namen steht. Verglichen

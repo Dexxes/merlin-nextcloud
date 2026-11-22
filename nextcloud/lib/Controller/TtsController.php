@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
+use Merlin\Core\Service\TtsStreamService;
 use OCA\Merlin\Db\ArticleMapper;
-use OCA\Merlin\Service\TtsStreamService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
@@ -60,6 +60,6 @@ class TtsController extends Controller {
 
 		// Läuft nie normal zurück: TtsStreamService::stream() beendet den
 		// Prozess selbst per exit() (Begründung siehe dort).
-		$this->ttsStream->stream($article, $lang, $speaker);
+		$this->ttsStream->stream($article->toSnapshot(), $lang, $speaker);
 	}
 }

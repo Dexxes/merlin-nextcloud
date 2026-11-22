@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace OCA\Merlin\Service;
+namespace Merlin\Core\Service;
 
 /**
  * Abgelehnte Kommentar-/Markierungsaktion mit Fehlercode für den Client

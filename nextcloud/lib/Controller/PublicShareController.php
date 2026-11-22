@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
+use Merlin\Core\Service\PdfProxyService;
+use Merlin\Core\Service\SupportBoxService;
+use Merlin\Core\Service\TtsStreamService;
 use OCA\Merlin\AppInfo\Application;
 use OCA\Merlin\Db\Article;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Db\ArticleShareMapper;
 use OCA\Merlin\Service\CommentService;
 use OCA\Merlin\Service\MerlinFileService;
-use OCA\Merlin\Service\PdfProxyService;
 use OCA\Merlin\Service\ShareAccessService;
-use OCA\Merlin\Service\SupportBoxService;
-use OCA\Merlin\Service\TtsStreamService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Http;
@@ -178,7 +178,7 @@ class PublicShareController extends Controller {
 			'accentColor' => $this->supportBox->accentColor($share->getUserId()),
 			// Abo-/Spendenlink der Quelle; anders als im Reader immer, auch wenn der
 			// Ersteller dort ein Abo hat (Empfänger sind keine Abonnenten).
-			'supportBox'  => $this->supportBox->forShare($article, $share->getUserId()),
+			'supportBox'  => $this->supportBox->forShare($article->toSnapshot(), $share->getUserId()),
 		]);
 	}
 
@@ -214,7 +214,7 @@ class PublicShareController extends Controller {
 
 		// Läuft nie normal zurück: TtsStreamService::stream() beendet den
 		// Prozess selbst per exit().
-		$this->ttsStream->stream($article, $lang, $speaker);
+		$this->ttsStream->stream($article->toSnapshot(), $lang, $speaker);
 	}
 
 	/**
@@ -253,6 +253,6 @@ class PublicShareController extends Controller {
 		}
 
 		// Läuft nie normal zurück: PdfProxyService::stream() beendet den Prozess selbst per exit().
-		$this->pdfProxy->stream($article);
+		$this->pdfProxy->stream($article->toSnapshot());
 	}
 }

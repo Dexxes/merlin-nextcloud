@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  * Testharness für Service\RetentionPolicy (Rechenregeln der Löschfrist).
  *
- * Aufruf: php tools/test-retention.php
+ * Aufruf: php core/tests/test-retention.php
  *
  * Ohne Composer/Nextcloud: RetentionPolicy ist bewusst frei von
  * Nextcloud-Abhängigkeiten. Geprüft werden effektive Frist (Minimum aus Admin
@@ -13,9 +13,9 @@ declare(strict_types=1);
  * (Web-Popup, iOS) fällig ist.
  */
 
-require_once __DIR__ . '/../lib/Service/RetentionPolicy.php';
+require_once __DIR__ . '/autoload.php';
 
-use OCA\Merlin\Service\RetentionPolicy;
+use Merlin\Core\Service\RetentionPolicy;
 
 $failed = 0;
 $check = static function (bool $ok, string $label) use (&$failed): void {

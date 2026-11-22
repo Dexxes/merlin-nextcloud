@@ -5,12 +5,12 @@ declare(strict_types=1);
 /**
  * Testharness für Service\ReportBackendRules (merlin-reports-Meldungsbackend).
  *
- * Aufruf: php tools/test-report-backend.php
+ * Aufruf: php core/tests/test-report-backend.php
  */
 
-require_once __DIR__ . '/../lib/Service/ReportBackendRules.php';
+require_once __DIR__ . '/autoload.php';
 
-use OCA\Merlin\Service\ReportBackendRules as R;
+use Merlin\Core\Service\ReportBackendRules as R;
 
 $failed = 0;
 $check = static function (bool $ok, string $label) use (&$failed): void {

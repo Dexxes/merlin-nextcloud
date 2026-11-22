@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace OCA\Merlin\Service;
+namespace Merlin\Core\Service;
 
 /**
  * Reine Regeln für das merlin-reports-Meldungsbackend (ohne
- * Nextcloud-Abhängigkeiten, damit tools/test-report-backend.php sie ohne
+ * Nextcloud-Abhängigkeiten, damit core/tests/test-report-backend.php sie ohne
  * Composer prüfen kann).
  *
  * Das Backend wird nicht mehr direkt aus dem Browser angesprochen, sondern

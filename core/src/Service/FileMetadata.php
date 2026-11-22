@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace OCA\Merlin\Service;
+namespace Merlin\Core\Service;
 
 /**
  * Liest die eingebetteten Metadaten einer Datei aus „Merlin Dateien“ für die
@@ -17,7 +17,7 @@ namespace OCA\Merlin\Service;
  *
  * Arbeitet auf einem Stream (Nextcloud-Datei, fopen('r')) und liest nur Kopf,
  * Ende und gezielte Ausschnitte, damit auch große Videos schnell gehen. Frei
- * von Nextcloud-Abhängigkeiten (Test: tools/test-file-metadata.php).
+ * von Nextcloud-Abhängigkeiten (Test: core/tests/test-file-metadata.php).
  *
  * Ergebnis: Liste von Gruppen ['key' => 'exif', 'title' => 'EXIF',
  * 'entries' => [['label' => …, 'value' => …], …]]. Werte sind Klartext

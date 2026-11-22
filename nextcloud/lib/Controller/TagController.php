@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
+use Merlin\Core\Service\TagTree;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Db\Tag;
 use OCA\Merlin\Db\TagMapper;
-use OCA\Merlin\Service\TagTree;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace OCA\Merlin\Service;
+namespace Merlin\Core\Service;
 
 /**
  * Reine Regeln für Dateien in „Merlin Dateien“ (Upload vom Handy, Datei-Einträge
  * in der Leseliste): Dateiart, Kategorie, Dateinamen, signierte Links, Range.
  *
- * Frei von Nextcloud-Abhängigkeiten, damit tools/test-file-rules.php sie ohne
+ * Frei von Nextcloud-Abhängigkeiten, damit core/tests/test-file-rules.php sie ohne
  * Server prüfen kann (wie TagTree, RetentionPolicy). Die Nextcloud-Seite
  * (Ordner, Vorschaubilder, Streamen) steht in MerlinFileService.
  */

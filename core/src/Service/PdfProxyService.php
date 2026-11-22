@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace OCA\Merlin\Service;
+namespace Merlin\Core\Service;
 
+use Merlin\Core\Domain\ArticleSnapshot;
 use Merlin\Core\Extraction\ContentExtractorService;
 use Merlin\Core\Extraction\Http\SsrfSafeResolver;
-use OCA\Merlin\Db\Article;
 
 /**
  * Reicht die PDF eines PDF-Artikels (category "PDF") pro Request vom Quellserver
@@ -45,13 +45,13 @@ class PdfProxyService {
 	/**
 	 * Läuft nie normal zurück (siehe finish()).
 	 */
-	public function stream(Article $article): void {
+	public function stream(ArticleSnapshot $article): void {
 		$this->streamFrom((string) $article->getUrl(), $article->getCategory());
 	}
 
 	/**
 	 * Wie stream(), aber mit der bereits ausgelesenen Artikel-URL/-Kategorie
-	 * (public, damit tools/test-pdf-proxy.php ohne Nextcloud-Entity auskommt).
+	 * (public, damit core/tests/test-pdf-proxy.php ohne Nextcloud-Entity auskommt).
 	 */
 	public function streamFrom(string $url, ?string $category): void {
 		if (!$this->isPdfArticle($category, $url)) {
@@ -246,7 +246,7 @@ class PdfProxyService {
 		return $origin . $dir . '/' . $location;
 	}
 
-	// ── Ein-/Ausgabe (protected: in tools/test-pdf-proxy.php überschrieben) ──
+	// ── Ein-/Ausgabe (protected: in core/tests/test-pdf-proxy.php überschrieben) ──
 
 	/**
 	 * SSRF-Guard für einen Hop: liefert die geprüften IPs oder wirft.

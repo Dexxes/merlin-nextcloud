@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\Merlin\Db;
 
 use JsonSerializable;
+use Merlin\Core\Domain\ArticleSnapshot;
 use OCP\AppFramework\Db\Entity;
 
 /**
@@ -289,5 +290,22 @@ class Article extends Entity implements JsonSerializable {
 			'fileId'   => $this->getFileId() !== null ? (int) $this->getFileId() : null,
 			'fileMime' => $this->getFileMime(),
 		];
+	}
+
+	/**
+	 * Felder für die Kern-Services (Export, PDF, Vorlesen, Support-Box).
+	 */
+	public function toSnapshot(): ArticleSnapshot {
+		return new ArticleSnapshot(
+			url: (string) $this->getUrl(),
+			title: $this->getTitle(),
+			author: $this->getAuthor(),
+			siteName: $this->getSiteName(),
+			siteIconUrl: $this->getSiteIconUrl(),
+			content: $this->getContent(),
+			excerpt: $this->getExcerpt(),
+			category: $this->getCategory(),
+			createdAt: $this->getCreatedAt(),
+		);
 	}
 }

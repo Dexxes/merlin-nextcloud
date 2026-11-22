@@ -8,14 +8,14 @@ use Merlin\Core\ContentFilter\ContentFilterSchema;
 use Merlin\Core\Extraction\ContentExtractorService;
 use Merlin\Core\Extraction\Login\PaywallLoginRequiredException;
 use Merlin\Core\Extraction\UnsupportedSiteException;
+use Merlin\Core\Service\ExportService;
+use Merlin\Core\Service\SupportBoxService;
+use Merlin\Core\Service\TagTree;
 use OCA\Merlin\Db\Article;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Db\TagMapper;
 use OCA\Merlin\Service\ArticleDeletionService;
-use OCA\Merlin\Service\ExportService;
 use OCA\Merlin\Service\MerlinFileService;
-use OCA\Merlin\Service\SupportBoxService;
-use OCA\Merlin\Service\TagTree;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -205,7 +205,7 @@ class ArticleController extends Controller {
 			// Daten für die Support-Infobox (Abo-/Spendenlink), null wenn die Domain
 			// keine URL hinterlegt hat oder der Nutzer dort einen aktiven Login hat.
 			// Nur hier (Einzelabruf), nicht in Listen - siehe SupportBoxService.
-			$articleData['supportBox'] = $this->supportBox->forReader($article, $this->userId);
+			$articleData['supportBox'] = $this->supportBox->forReader($article->toSnapshot(), $this->userId);
 
 			return new DataResponse($articleData);
 		} catch (\Exception $e) {
@@ -658,7 +658,7 @@ class ArticleController extends Controller {
 	public function exportHtml(int $id): DataDisplayResponse {
 		try {
 			$article = $this->articleMapper->find($id, $this->userId);
-			$htmlContent = $this->exportService->exportHtml($article);
+			$htmlContent = $this->exportService->exportHtml($article->toSnapshot());
 
 			$response = new DataDisplayResponse($htmlContent, Http::STATUS_OK, ['Content-Type' => 'text/html']);
 			$response->addHeader('Content-Disposition', 'attachment; filename="' . $this->sanitizeFilename($article->getTitle()) . '.html"');

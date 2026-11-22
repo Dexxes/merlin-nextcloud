@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
+use Merlin\Core\Service\CommentRules;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Db\Highlight;
 use OCA\Merlin\Db\HighlightMapper;
-use OCA\Merlin\Service\CommentRules;
 use OCA\Merlin\Service\CommentService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Db\DoesNotExistException;
