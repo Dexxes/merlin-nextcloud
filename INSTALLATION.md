@@ -60,11 +60,12 @@ can also be downloaded as XML in the admin UI and imported on another instance.
 
 After changes to filter processing, a standalone script verifies the merging of
 bundled and custom filters (needs neither Composer nor a running Nextcloud
-environment, just PHP – for administrators with SSH access to the server):
+environment, just PHP). It is not part of the App Store package; run it from a
+checkout of the repository:
 
 ```bash
-cd /path/to/nextcloud/apps/merlin
-php tools/test-content-filter-merge.php
+cd merlin-nextcloud
+php core/tests/test-content-filter-merge.php
 ```
 
 Exit code 0 means all checks passed.

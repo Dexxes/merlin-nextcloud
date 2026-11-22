@@ -13,7 +13,8 @@
 #
 # The source stage picks one, then the next stage builds the Vue frontend
 # (frontend/ -> nextcloud/js, nextcloud/css), stage 2 installs the PHP runtime
-# dependencies (vendor/), stage 3 puts both together with the app source onto
+# dependencies (vendor/, including the shared core/), stage 3 puts both
+# together with the app source and content-filters/ onto
 # the official Nextcloud image. The app itself is copied into custom_apps and
 # enabled on container start by docker/merlin-hook.sh, because custom_apps
 # lives on the persistent /var/www/html volume.
@@ -51,7 +52,12 @@ RUN cd frontend && npm run build
 
 # ---------------------------------------------------------------------------
 FROM composer:2 AS vendor
-WORKDIR /build
+# Same layout as the repository: nextcloud/composer.json pulls the shared core
+# (composer package merlin/core) from the path repository ../core. Mirroring
+# copies it into vendor/merlin/core instead of symlinking it.
+ENV COMPOSER_MIRROR_PATH_REPOS=1
+WORKDIR /build/nextcloud
+COPY --from=source /app/core ../core
 COPY --from=source /app/nextcloud/composer.json ./
 COPY --from=source /app/nextcloud/lib ./lib
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
@@ -67,7 +73,9 @@ COPY --from=source --chown=www-data:www-data /app/nextcloud /usr/src/merlin
 COPY --from=source --chown=www-data:www-data /app/README.md /app/CHANGELOG.md /app/LICENSE /app/NOTICE /usr/src/merlin/
 COPY --from=frontend --chown=www-data:www-data /build/nextcloud/js /usr/src/merlin/js
 COPY --from=frontend --chown=www-data:www-data /build/nextcloud/css /usr/src/merlin/css
-COPY --from=vendor --chown=www-data:www-data /build/vendor /usr/src/merlin/vendor
+COPY --from=vendor --chown=www-data:www-data /build/nextcloud/vendor /usr/src/merlin/vendor
+# Bundled content filters live at the repository root, shared by all variants.
+COPY --from=source --chown=www-data:www-data /app/content-filters /usr/src/merlin/content-filters
 RUN echo "${MERLIN_BUILD}" > /usr/src/merlin/appinfo/build.txt
 
 # Runs on every start, after a fresh install or upgrade (official image hook).

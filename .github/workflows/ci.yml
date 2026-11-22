@@ -1,7 +1,9 @@
 # Checks for every pull request and every push to main.
 #
 # Layout (see STRUCTURE.md): nextcloud/ is the Nextcloud app, frontend/ the
-# Vue source that builds into nextcloud/js and nextcloud/css.
+# Vue source that builds into nextcloud/js and nextcloud/css, core/ the
+# framework-free PHP core (composer package merlin/core) and content-filters/
+# the bundled content filters shared by all variants.
 name: CI
 
 on:
@@ -29,8 +31,23 @@ jobs:
           coverage: none
       - name: php -l
         run: |
-          find nextcloud -name '*.php' -not -path '*/vendor/*' -print0 \
+          find nextcloud core -name '*.php' -not -path '*/vendor/*' -print0 \
             | xargs -0 -n1 -P4 php -l > /dev/null
+
+  core-boundary:
+    name: Core stays framework-free
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No Nextcloud or app imports in core/
+        # core/ is shared with the standalone server: no OCP\, no OCA\ and no
+        # Merlin\Standalone\ references (imports, FQCNs, type hints).
+        run: |
+          if grep -rnE '(^|[^A-Za-z0-9_])\\?(OCP|OCA|Merlin\\Standalone)\\' core --include='*.php' \
+               | grep -vE '^[^:]+:[0-9]+:\s*(\*|//|/\*)'; then
+            echo "::error::core/ must not depend on Nextcloud (OCP/OCA) or the standalone server"
+            exit 1
+          fi
 
   harnesses:
     name: Test harnesses
@@ -46,14 +63,13 @@ jobs:
       - name: composer install
         working-directory: nextcloud
         run: composer install --no-dev --no-interaction --no-progress
-      - name: Run tools/test-*.php
-        working-directory: nextcloud
+      - name: Run nextcloud/tools/test-*.php and core/tests/test-*.php
         # Offline only: harnesses with a --live mode run without it.
         run: |
           status=0
-          for f in tools/test-*.php; do
+          for f in nextcloud/tools/test-*.php core/tests/test-*.php; do
             echo "::group::$f"
-            if php "$f"; then echo "ok $f"; else echo "::error file=nextcloud/$f::$f failed"; status=1; fi
+            if php "$f"; then echo "ok $f"; else echo "::error file=$f::$f failed"; status=1; fi
             echo "::endgroup::"
           done
           exit $status
@@ -88,12 +104,17 @@ jobs:
         run: |
           for f in merlin/appinfo/info.xml merlin/js/merlin-main.mjs merlin/css/merlin-main.css \
                    merlin/vendor/autoload.php merlin/content-filters/spiegel.de.xml \
+                   merlin/vendor/merlin/core/src/ContentFilter/ContentFilterSchema.php \
                    merlin/CHANGELOG.md merlin/LICENSE merlin/README.md; do
             test -e "$f" || { echo "::error::missing in tarball: $f"; exit 1; }
           done
-          for f in merlin/tools merlin/Makefile merlin/src merlin/frontend; do
+          for f in merlin/tools merlin/Makefile merlin/src merlin/frontend merlin/vendor/merlin/core/tests; do
             test ! -e "$f" || { echo "::error::must not be in tarball: $f"; exit 1; }
           done
+          # The core must be copied into vendor/, a symlink would point outside merlin/.
+          if find merlin -type l | grep .; then echo "::error::symlinks in tarball"; exit 1; fi
+          grep -qF 'Merlin\\Core\\ContentFilter\\ContentFilterSchema' merlin/vendor/composer/autoload_classmap.php \
+            || { echo "::error::merlin/core missing from the composer classmap"; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
           name: merlin-appstore-tarball

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace OCA\Merlin\Service;
+namespace Merlin\Core\ContentFilter;
 
 /**
  * Übersetzt zwischen Filter-XML und der JSON-Struktur, mit der der Regel-Builder

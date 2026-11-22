@@ -1,0 +1,22 @@
+{
+    "name": "merlin/core",
+    "description": "Framework-free core of Merlin (content filters, later extraction and services), shared by the Nextcloud app and the standalone server",
+    "type": "library",
+    "license": "AGPL-3.0-or-later",
+    "authors": [
+        {
+            "name": "Julian von Bülow"
+        }
+    ],
+    "require": {
+        "php": ">=8.1"
+    },
+    "suggest": {
+        "psr/log": "Provided by the host (Nextcloud ships it); the standalone server requires it itself"
+    },
+    "autoload": {
+        "psr-4": {
+            "Merlin\\Core\\": "src/"
+        }
+    }
+}

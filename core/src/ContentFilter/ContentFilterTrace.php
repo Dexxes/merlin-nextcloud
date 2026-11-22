@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace OCA\Merlin\Service;
+namespace Merlin\Core\ContentFilter;
 
 /**
  * Sammelt beim Testlauf eines Filters, wie viele Elemente jede einzelne Regel

@@ -21,7 +21,7 @@ frontend_dir := $(repo_root)/frontend
 # LICENSE and NOTICE live in the repository root, fonts/ in frontend/; both
 # are copied in.
 dist: clean build-js build-source
-	@if ! git diff --quiet HEAD -- . $(frontend_dir) ':(exclude)build'; then \
+	@if ! git diff --quiet HEAD -- . $(frontend_dir) $(repo_root)/core $(repo_root)/content-filters ':(exclude)build'; then \
 		echo "warning: uncommitted changes exist - the archive is built from the last commit (HEAD), not the working tree"; \
 	fi
 	tar -czf $(archive) -C $(build_dir) $(app_name)
@@ -38,16 +38,25 @@ build-js:
 # Assembles the release payload in $(source_dir): tracked source files plus
 # the two things that must never be committed but are required at runtime:
 # the vite build output (js/) and a --no-dev composer vendor/.
+#
+# The framework-free core (core/, composer package merlin/core) is a path
+# repository of composer.json (../core). It is exported next to the payload
+# ($(build_dir)/core, so ../core resolves the same way as in the checkout) and
+# COMPOSER_MIRROR_PATH_REPOS=1 makes composer copy it into vendor/merlin/core
+# instead of symlinking it - the tarball must not point outside merlin/.
+# The bundled content filters live in content-filters/ at the repository root
+# and are copied into merlin/content-filters/.
 build-source:
 	mkdir -p $(build_dir)
 	git -C $(repo_root) archive HEAD:nextcloud --prefix=$(app_name)/ | tar -x -C $(build_dir)
-	git -C $(repo_root) archive HEAD README.md CHANGELOG.md LICENSE NOTICE | tar -x -C $(source_dir)
+	git -C $(repo_root) archive HEAD:core --prefix=core/ | tar -x -C $(build_dir)
+	git -C $(repo_root) archive HEAD README.md CHANGELOG.md LICENSE NOTICE content-filters | tar -x -C $(source_dir)
 	# Lora font files incl. OFL.txt, shipped as before (the licence has to travel with the fonts).
 	git -C $(repo_root) archive HEAD:frontend fonts | tar -x -C $(source_dir)
 	cp -r js $(source_dir)/js
 	cp -r css/. $(source_dir)/css/
 	if [ -f composer.lock ]; then cp composer.lock $(source_dir)/composer.lock; fi
-	composer install --no-dev --optimize-autoloader --no-interaction --working-dir=$(source_dir)
+	COMPOSER_MIRROR_PATH_REPOS=1 composer install --no-dev --optimize-autoloader --no-interaction --working-dir=$(source_dir)
 
 # Signs the release archive with the app store certificate approved via
 # https://github.com/nextcloud/app-certificate-requests, expected at

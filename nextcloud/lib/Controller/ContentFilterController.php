@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
+use Merlin\Core\ContentFilter\ContentFilterMerger;
+use Merlin\Core\ContentFilter\ContentFilterSchema;
+use Merlin\Core\ContentFilter\ContentFilterSerializer;
+use Merlin\Core\ContentFilter\ContentFilterTrace;
+use Merlin\Core\ContentFilter\ContentFilterValidator;
 use OCA\Merlin\Service\ContentExtractorService;
-use OCA\Merlin\Service\ContentFilterMerger;
 use OCA\Merlin\Service\ContentFilterRepository;
-use OCA\Merlin\Service\ContentFilterSchema;
-use OCA\Merlin\Service\ContentFilterSerializer;
-use OCA\Merlin\Service\ContentFilterTrace;
-use OCA\Merlin\Service\ContentFilterValidator;
 use OCA\Merlin\Service\UnsupportedSiteException;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;

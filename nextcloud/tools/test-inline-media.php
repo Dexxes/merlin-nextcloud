@@ -23,12 +23,18 @@ namespace Merlin\InlineMediaTest {
 	use OCA\Merlin\Service\ContentFilterRepository;
 	use OCA\Merlin\Service\Media\MediaHttpClient;
 	require_once __DIR__ . '/../vendor/autoload.php';
+	// App-Klassen aus lib/, Kern-Klassen aus core/src/ (Repository-Wurzel).
 	spl_autoload_register(static function (string $class): void {
-		$prefix = 'OCA\\Merlin\\';
-		if (str_starts_with($class, $prefix)) {
-			$path = __DIR__ . '/../lib/' . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
-			if (is_file($path)) {
-				require_once $path;
+		$roots = [
+			'OCA\\Merlin\\' => __DIR__ . '/../lib/',
+			'Merlin\\Core\\' => __DIR__ . '/../../core/src/',
+		];
+		foreach ($roots as $prefix => $dir) {
+			if (str_starts_with($class, $prefix)) {
+				$path = $dir . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
+				if (is_file($path)) {
+					require_once $path;
+				}
 			}
 		}
 	});
@@ -39,7 +45,7 @@ namespace Merlin\InlineMediaTest {
 		}
 
 		public function getMerged(string $domain, ?string $userId = null): ?\SimpleXMLElement {
-			$path = __DIR__ . '/../content-filters/' . $domain . '.xml';
+			$path = __DIR__ . '/../../content-filters/' . $domain . '.xml';
 			return is_file($path) ? simplexml_load_file($path) ?: null : null;
 		}
 
@@ -66,10 +72,10 @@ namespace Merlin\InlineMediaTest {
 
 namespace {
 
+	use Merlin\Core\ContentFilter\ContentFilterValidator;
 	use Merlin\InlineMediaTest\BundleOnlyRepository;
 	use Merlin\InlineMediaTest\StubHttpClient;
 	use OCA\Merlin\Service\ContentExtractorService;
-	use OCA\Merlin\Service\ContentFilterValidator;
 	use OCA\Merlin\Service\MastodonPostResolverService;
 	use OCA\Merlin\Service\Media\InlineMediaService;
 	use OCA\Merlin\Service\Media\MediaProviderRegistry;
@@ -155,7 +161,7 @@ namespace {
 	$validator = (new ReflectionClass(ContentFilterValidator::class))->newInstanceWithoutConstructor();
 	$validate  = new ReflectionMethod(ContentFilterValidator::class, 'validate');
 	$errors    = $validate->getNumberOfParameters() > 0
-		? $validate->invoke($validator, (string) file_get_contents(__DIR__ . '/../content-filters/rbb24.de.xml'), 'rbb24.de')
+		? $validate->invoke($validator, (string) file_get_contents(__DIR__ . '/../../content-filters/rbb24.de.xml'), 'rbb24.de')
 		: [];
 	$ok(($errors['errors'] ?? $errors) === [], 'Validator meldet keine Fehler', var_export($errors, true));
 

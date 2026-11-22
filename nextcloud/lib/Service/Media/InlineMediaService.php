@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Service\Media;
 
-use OCA\Merlin\Service\ContentFilterSchema;
+use Merlin\Core\ContentFilter\ContentFilterSchema;
 use Psr\Log\LoggerInterface;
 
 /**

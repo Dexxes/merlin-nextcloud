@@ -96,7 +96,7 @@ namespace Merlin\MediaTest {
 		}
 
 		public function getMerged(string $domain, ?string $userId = null): ?\SimpleXMLElement {
-			$path = __DIR__ . '/../content-filters/' . $domain . '.xml';
+			$path = __DIR__ . '/../../content-filters/' . $domain . '.xml';
 			return is_file($path) ? simplexml_load_file($path) ?: null : null;
 		}
 	}
@@ -148,11 +148,11 @@ namespace Merlin\MediaTest {
 
 namespace {
 
+	use Merlin\Core\ContentFilter\ContentFilterSchema;
 	use Merlin\MediaTest\BundleOnlyRepository;
 	use Merlin\MediaTest\FakeMediaHttpClient;
 	use Merlin\MediaTest\NullLogger;
 	use Merlin\MediaTest\TestRunner;
-	use OCA\Merlin\Service\ContentFilterSchema;
 	use OCA\Merlin\Service\Media\MediaContext;
 	use OCA\Merlin\Service\Media\MediaHttpClient;
 	use OCA\Merlin\Service\Media\MediaProviderRegistry;
@@ -167,12 +167,18 @@ namespace {
 	use OCA\Merlin\Service\Media\Provider\ZdfProvider;
 	use OCA\Merlin\Service\Media\VariantHelper;
 
+	// App-Klassen aus lib/, Kern-Klassen aus core/src/ (Repository-Wurzel).
 	spl_autoload_register(static function (string $class): void {
-		$prefix = 'OCA\\Merlin\\';
-		if (str_starts_with($class, $prefix)) {
-			$path = __DIR__ . '/../lib/' . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
-			if (is_file($path)) {
-				require_once $path;
+		$roots = [
+			'OCA\\Merlin\\' => __DIR__ . '/../lib/',
+			'Merlin\\Core\\' => __DIR__ . '/../../core/src/',
+		];
+		foreach ($roots as $prefix => $dir) {
+			if (str_starts_with($class, $prefix)) {
+				$path = $dir . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
+				if (is_file($path)) {
+					require_once $path;
+				}
 			}
 		}
 	});

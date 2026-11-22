@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
+use Merlin\Core\ContentFilter\ContentFilterSchema;
 use OCA\Merlin\Db\Article;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Db\TagMapper;
 use OCA\Merlin\Service\ArticleDeletionService;
 use OCA\Merlin\Service\ContentExtractorService;
-use OCA\Merlin\Service\ContentFilterSchema;
 use OCA\Merlin\Service\ExportService;
 use OCA\Merlin\Service\Login\PaywallLoginRequiredException;
 use OCA\Merlin\Service\MerlinFileService;
@@ -20,8 +20,8 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
-use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\DataDisplayResponse;
+use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
