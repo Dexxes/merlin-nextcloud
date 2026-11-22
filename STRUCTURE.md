@@ -59,6 +59,12 @@ beide Listen vollständig sind.
 | `ShareStore` | `Adapter\NextcloudShareStore` (ArticleShareMapper, nur `findByToken()`) |
 | `Session` | `Adapter\NextcloudSession` (ISession) |
 | `UserDirectory` | `Adapter\NextcloudUserDirectory` (IUserManager, Anzeigenamen) |
+| `FilePreviews` | `Adapter\NextcloudFilePreviews` (IPreview) |
+| `InstanceSecret` | `Adapter\NextcloudInstanceSecret` (Systemwert `secret`) |
+
+Nicht per DI: `StoredFile` (`Adapter\NextcloudStoredFile` um eine Datei in
+Nextcloud Files) und `Translator` (`Adapter\NextcloudTranslator` um das IL10N
+in der Sprache des Nutzers) baut `MerlinFileService` je Aufruf.
 
 Kern-Services, die einen gespeicherten Artikel ausgeben (Export, PDF, Vorlesen,
 Support-Box), bekommen ihn als `Merlin\Core\Domain\ArticleSnapshot`
@@ -71,6 +77,13 @@ Kommentare, Markierungen, Gast-Farben und Share-Links sind im Kern
 Entities); `Adapter\EntityCopy` überträgt die Felder. Ein `update()` lädt das
 Entity neu und setzt nur geänderte Felder, damit dieselben Spalten
 geschrieben werden wie vorher.
+
+„Merlin Dateien“ ist geteilt: Ordner, Upload-Ziel, Registrieren, Umbenennen
+und das Speichern des Eintrags bleiben in `Service\MerlinFileService` der App
+(Nextcloud Files und WebDAV). Signierte Links, der Inhalt des Eintrags
+(Datei-Marker, erkannter Text, Metadaten) und das Ausliefern mit Range stehen
+im Kern (`Merlin\Core\Service\FileEntryService`, Eintrag als
+`Domain\FileEntry`).
 
 Release-Tarball: `cd nextcloud && make dist` (Frontend-Build, `git archive`
 von `nextcloud/` und `core/`, `content-filters/` nach `merlin/content-filters/`,
@@ -126,10 +139,12 @@ nextcloud/
 │   │   ├── NextcloudUserDirectory.php    # Port UserDirectory über IUserManager
 │   │   ├── NextcloudContentFilterStore.php # Port ContentFilterStore (merlin_cfilter)
 │   │   ├── NextcloudDatabase.php         # Port Database über IDBConnection/QueryBuilder
+│   │   ├── NextcloudStoredFile.php / NextcloudFilePreviews.php  # Ports StoredFile (OCP-Datei) und FilePreviews (IPreview)
+│   │   ├── NextcloudTranslator.php / NextcloudInstanceSecret.php # Ports Translator (IL10N) und InstanceSecret (config.php)
 │   │   └── EntityCopy.php                # Felder zwischen Domain-Objekt und Entity übertragen
 │   ├── Service/              # Geschäftslogik
 │   │   ├── ContentFilterRepository.php   # Kern-Repository mit Ablage und Bundle-Orten der App (Logik im Kern, siehe unten)
-│   │   └── MerlinFileService.php         # „Merlin Dateien“: Ordner (lokalisiert, per ID gemerkt), Datei-Einträge, Streamen mit Range
+│   │   └── MerlinFileService.php         # „Merlin Dateien“: Ordner (lokalisiert, per ID gemerkt), Upload-Ziel, Einträge anlegen/umbenennen (Inhalt und Streamen im Kern)
 │   ├── Settings/             # Verwaltungs- und persönliche Einstellungen
 │   │   ├── AdminSection.php
 │   │   ├── AdminSettings.php
@@ -196,7 +211,8 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │   │   ├── ArticleSnapshot.php           # Artikelfelder für Export, PDF, Vorlesen, Support-Box
 │   │   ├── SiteCredential.php            # Paywall-Zugangsdaten (verschlüsselt) eines Nutzers für eine Domain
 │   │   ├── Comment.php / Highlight.php / CommentGuest.php  # Kommentar, Markierung, Gast-Farbe (Wire-Format per jsonSerialize())
-│   │   └── ArticleShare.php              # Share-Link für die Zugriffsprüfung (Ablauf, Passwort, Gast-Kommentare erlaubt?)
+│   │   ├── ArticleShare.php              # Share-Link für die Zugriffsprüfung (Ablauf, Passwort, Gast-Kommentare erlaubt?)
+│   │   └── FileEntry.php / FilePreview.php  # Datei-Eintrag (ID, Datei, Besitzer, erkannter Text), Vorschaubild
 │   ├── Service/
 │   │   ├── SupportBoxService.php         # Daten der Support-Infobox (<paywall><subscribe> + <metadata><donations>, Seiten-Icon, Akzentfarbe); Reader: entfällt bei aktivem Abo-Login, Share: immer
 │   │   ├── PdfProxyService.php           # PDF-Durchreichung für PdfController und öffentlichen Share-Endpunkt (SSRF-Guard je Hop, %PDF-Prüfung, Range, 100-MB-Limit)
@@ -211,12 +227,14 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │   │   ├── SiteCredentialService.php     # Paywall-Zugangsdaten je Nutzer/Domain (Port SiteSessions): Ablage, Login, Cookie-Cache
 │   │   ├── RetentionPolicy.php           # Reine Rechenregeln der Löschfrist (Minimum, Stichtag, Hinweis fällig?)
 │   │   ├── TagTree.php                   # Reine Baumregeln verschachtelter Tags (Nachfahren, Kreisprüfung beim Verschieben)
-│   │   ├── FileRules.php                 # „Merlin Dateien“: Dateiart/Kategorie, Dateinamen, signierte Links, Range
+│   │   ├── FileEntryService.php          # Datei-Einträge: signierte Links, Inhalt (Marker, Text, Metadaten), Ausliefern mit Range/Vorschaubild
+│   │   ├── FileRules.php                 # „Merlin Dateien“: Dateiart/Kategorie, Dateinamen, signierte Links, Range, Dateigröße
 │   │   └── FileMetadata.php              # Eingebettete Metadaten einer Datei (EXIF, GPS, IPTC, XMP, ID3, MP4/MOV, PDF) für die Anzeige im Reader
 │   └── Port/                         # UrlGenerator, ContentFilterSource, SiteSessions, SiteCredentialStore,
 │                                     # UserSettings, AppSettings, Crypto, RetentionStore, ArticleDeletion,
 │                                     # CommentStore, HighlightStore, CommentGuestStore (DuplicateEntryException),
-│                                     # ShareStore, Session, UserDirectory, ContentFilterStore, Database
+│                                     # ShareStore, Session, UserDirectory, ContentFilterStore, Database,
+│                                     # StoredFile, FilePreviews, Translator, InstanceSecret
 └── tests/                            # Testharnesses (pures PHP, ohne Composer; autoload.php lädt Merlin\Core\)
     ├── test-content-filter-merge.php
     ├── test-support-box.php           # SupportBoxService (URL-Auswahl, Login-Ausblendung, Share, Seiten-Icon)
@@ -228,6 +246,7 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
     ├── test-content-filter-repository.php # ContentFilterRepository (Bundle, Ebenen, Entwürfe, Upsert) + ArticleDeletionService
     ├── test-tag-tree.php              # TagTree (Nachfahren, Kreisprüfung)
     ├── test-file-rules.php            # FileRules (Dateiart, Namen, Token, Range)
+    ├── test-file-entries.php          # FileEntryService (Links, Inhalt je Dateiart, Ausliefern: Status, Header, Range, 404/416)
     ├── test-file-metadata.php         # FileMetadata (fixtures/metadata/)
     ├── test-comments.php              # CommentRules
     └── test-report-backend.php        # ReportBackendRules
@@ -410,7 +429,7 @@ Text/Video/Audio. Fotos komprimiert die iOS-Share-Extension auf Wunsch vor dem U
 
 Unter der Datei steht ein Abschnitt „Metadaten“ (`section.merlin-file-metadata`,
 je Gruppe `<details open>` mit Tabelle), gebaut beim Anlegen bzw. bei „Neu laden“
-(MerlinFileService::refresh()). `Service\FileMetadata` liest ohne Abhängigkeiten aus
+(MerlinFileService::refresh(), gebaut von FileEntryService::render()). `Service\FileMetadata` liest ohne Abhängigkeiten aus
 dem Datei-Stream (Kopf, Ende, gezielte Sprünge): EXIF/GPS (ext-exif), IPTC, XMP,
 ID3v2/ID3v1, QuickTime/MP4 (mvhd, tkhd, ilst, keys/mdta, udta ©xyz) und das
 PDF-Info-Wörterbuch. Test: `php core/tests/test-file-metadata.php`.

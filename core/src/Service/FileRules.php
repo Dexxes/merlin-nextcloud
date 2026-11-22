@@ -9,8 +9,9 @@ namespace Merlin\Core\Service;
  * in der Leseliste): Dateiart, Kategorie, Dateinamen, signierte Links, Range.
  *
  * Frei von Nextcloud-Abhängigkeiten, damit core/tests/test-file-rules.php sie ohne
- * Server prüfen kann (wie TagTree, RetentionPolicy). Die Nextcloud-Seite
- * (Ordner, Vorschaubilder, Streamen) steht in MerlinFileService.
+ * Server prüfen kann (wie TagTree, RetentionPolicy). Inhalt, Links und
+ * Streamen stehen in FileEntryService, Ordner und Registrierung in der
+ * Nextcloud-App (MerlinFileService).
  */
 class FileRules {
 	public const KIND_IMAGE = 'image';
@@ -189,5 +190,36 @@ class FileRules {
 	public static function encodePath(string $path): string {
 		$segments = array_filter(explode('/', $path), static fn(string $s): bool => $s !== '');
 		return '/' . implode('/', array_map('rawurlencode', $segments));
+	}
+
+	/**
+	 * Lesbare Dateigröße („1.6 MB“), genau wie Nextclouds
+	 * OCP\Util::humanFileSize(), damit Einträge gleich aussehen.
+	 */
+	public static function humanSize(int|float $bytes): string {
+		if ($bytes < 0) {
+			return '?';
+		}
+		if ($bytes < 1024) {
+			return "$bytes B";
+		}
+		$bytes = round($bytes / 1024, 0);
+		if ($bytes < 1024) {
+			return "$bytes KB";
+		}
+		$bytes = round($bytes / 1024, 1);
+		if ($bytes < 1024) {
+			return "$bytes MB";
+		}
+		$bytes = round($bytes / 1024, 1);
+		if ($bytes < 1024) {
+			return "$bytes GB";
+		}
+		$bytes = round($bytes / 1024, 1);
+		if ($bytes < 1024) {
+			return "$bytes TB";
+		}
+		$bytes = round($bytes / 1024, 1);
+		return "$bytes PB";
 	}
 }

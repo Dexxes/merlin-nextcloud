@@ -16,4 +16,13 @@ interface UrlGenerator {
 	 * "bluesky-preview.png" aus img/).
 	 */
 	public function absoluteImageUrl(string $file): string;
+
+	/**
+	 * Absolute URL des Datei-Endpunkts eines Datei-Eintrags
+	 * (/api/articles/{id}/file). $params: id, t (Signatur), optional size
+	 * und download.
+	 *
+	 * @param array<string, int|string> $params
+	 */
+	public function fileContentUrl(array $params): string;
 }
