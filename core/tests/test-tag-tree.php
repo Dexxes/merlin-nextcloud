@@ -5,16 +5,16 @@ declare(strict_types=1);
 /**
  * Testharness für Service\TagTree (verschachtelte Tags).
  *
- * Aufruf: php tools/test-tag-tree.php
+ * Aufruf: php core/tests/test-tag-tree.php
  *
  * Ohne Composer/Nextcloud: TagTree ist bewusst frei von
  * Nextcloud-Abhängigkeiten. Geprüft werden Nachfahren (für Filter, Ausblenden
  * und Löschen samt Unter-Tags) und die Kreisprüfung beim Verschieben.
  */
 
-require_once __DIR__ . '/../lib/Service/TagTree.php';
+require_once __DIR__ . '/autoload.php';
 
-use OCA\Merlin\Service\TagTree;
+use Merlin\Core\Service\TagTree;
 
 $failed = 0;
 $check = static function (bool $ok, string $label) use (&$failed): void {

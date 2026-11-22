@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
-namespace OCA\Merlin\Service;
+namespace Merlin\Core\Service;
 
-use OCA\Merlin\Db\Article;
-use OCP\IConfig;
+use Merlin\Core\Domain\ArticleSnapshot;
+use Merlin\Core\Port\ContentFilterSource;
+use Merlin\Core\Port\SiteSessions;
+use Merlin\Core\Port\UserSettings;
 
 /**
  * Daten für die Support-Infobox ("Dir gefällt der Artikel von …? Überlege ein
@@ -25,9 +27,9 @@ class SupportBoxService {
 	public const DEFAULT_ACCENT = '#FF3B30';
 
 	public function __construct(
-		private ContentFilterRepository $filters,
-		private SiteCredentialService $siteCredentials,
-		private IConfig $config,
+		private ContentFilterSource $filters,
+		private SiteSessions $siteCredentials,
+		private UserSettings $config,
 	) {
 	}
 
@@ -37,7 +39,7 @@ class SupportBoxService {
 	 *
 	 * @return array{siteName:string,subscribeUrl:?string,donationsUrl:?string,accentColor:string,iconUrl:?string}|null
 	 */
-	public function forReader(Article $article, string $userId): ?array {
+	public function forReader(ArticleSnapshot $article, string $userId): ?array {
 		return $this->build($article, $userId, true);
 	}
 
@@ -47,14 +49,14 @@ class SupportBoxService {
 	 *
 	 * @return array{siteName:string,subscribeUrl:?string,donationsUrl:?string,accentColor:string,iconUrl:?string}|null
 	 */
-	public function forShare(Article $article, string $ownerUserId): ?array {
+	public function forShare(ArticleSnapshot $article, string $ownerUserId): ?array {
 		return $this->build($article, $ownerUserId, false);
 	}
 
 	/**
 	 * @return array{siteName:string,subscribeUrl:?string,donationsUrl:?string,accentColor:string,iconUrl:?string}|null
 	 */
-	private function build(Article $article, string $userId, bool $hideWithLogin): ?array {
+	private function build(ArticleSnapshot $article, string $userId, bool $hideWithLogin): ?array {
 		$url    = (string) $article->getUrl();
 		$domain = $this->filters->normalizeUrlDomain($url);
 		if ($domain === '') {
@@ -115,7 +117,7 @@ class SupportBoxService {
 	 * Request beim Öffnen; ein nicht ladbares Bild blendet der Client aus (ein
 	 * erneutes Extrahieren setzt das echte Icon).
 	 */
-	private function iconUrl(Article $article): ?string {
+	private function iconUrl(ArticleSnapshot $article): ?string {
 		$stored = trim((string) $article->getSiteIconUrl());
 		if ($stored !== '' && $this->isHttpUrl($stored)) {
 			return $stored;
@@ -136,7 +138,7 @@ class SupportBoxService {
 
 	/** Akzentfarbe des Nutzers (Reader-Einstellung), validiert als #RRGGBB. */
 	public function accentColor(string $userId): string {
-		$value = $this->config->getUserValue($userId, 'reader', 'accentColor', self::DEFAULT_ACCENT);
+		$value = $this->config->get($userId, 'reader', 'accentColor', self::DEFAULT_ACCENT);
 		return preg_match('/^#[0-9a-fA-F]{6}$/', $value) === 1 ? $value : self::DEFAULT_ACCENT;
 	}
 }

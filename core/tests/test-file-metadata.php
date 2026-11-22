@@ -6,16 +6,16 @@ declare(strict_types=1);
  * Testharness für Service\FileMetadata (Metadaten unter Dateien aus
  * „Merlin Dateien“).
  *
- * Aufruf: php tools/test-file-metadata.php
+ * Aufruf: php core/tests/test-file-metadata.php
  *
  * Die Beispieldateien in tools/fixtures/metadata/ sind mit Pillow (EXIF/GPS/
  * XMP), PHP iptcembed() (IPTC) und ffmpeg (ID3, MP4, MOV) erzeugt, doc.pdf
  * von Hand.
  */
 
-require_once __DIR__ . '/../lib/Service/FileMetadata.php';
+require_once __DIR__ . '/autoload.php';
 
-use OCA\Merlin\Service\FileMetadata;
+use Merlin\Core\Service\FileMetadata;
 
 $failed = 0;
 $check = static function (bool $ok, string $label) use (&$failed): void {

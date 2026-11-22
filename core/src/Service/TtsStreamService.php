@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace OCA\Merlin\Service;
+namespace Merlin\Core\Service;
 
-use OCA\Merlin\Db\Article;
+use Merlin\Core\Domain\ArticleSnapshot;
 
 /**
  * TTS-Streaming: HTML → Plaintext → Piper-Daemon → MP3-Stream direkt an den Client.
@@ -36,7 +36,7 @@ class TtsStreamService {
 	 * das Ergebnis direkt als MP3 an den Client. Beendet den PHP-Prozess selbst
 	 * per exit() – siehe Ablaufkommentar unten. Läuft daher NIE normal zurück.
 	 */
-	public function stream(Article $article, string $lang = 'de', int $speaker = -1): void {
+	public function stream(ArticleSnapshot $article, string $lang = 'de', int $speaker = -1): void {
 		// Deutsches Modell hat nur einen brauchbaren Sprecher (Index 7) –
 		// unabhängig davon, was der Aufrufer übergeben hat.
 		if (strtolower(substr($lang, 0, 2)) === 'de') {

@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Testharness für PdfProxyService (Durchreichung der PDF eines PDF-Artikels).
  *
  * Aufruf (im App-Verzeichnis):
- *   php tools/test-pdf-proxy.php
+ *   php core/tests/test-pdf-proxy.php
  *
  * Startet einen lokalen PHP-Server als "Quellserver" (Range-fähige PDF, HTML mit
  * .pdf-Endung, Redirect, zu große und fehlerhafte Antworten) und ruft den Service
@@ -17,10 +17,9 @@ declare(strict_types=1);
  * Exit-Code 0 = alle Prüfungen bestanden, 1 = mindestens eine fehlgeschlagen.
  */
 
-use OCA\Merlin\Service\PdfProxyService;
+use Merlin\Core\Service\PdfProxyService;
 
-require_once __DIR__ . '/../vendor/autoload.php';
-require_once __DIR__ . '/../lib/Service/PdfProxyService.php';
+require_once __DIR__ . '/autoload.php';
 
 final class ProxyDone extends \RuntimeException {}
 

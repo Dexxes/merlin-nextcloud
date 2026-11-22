@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
+use Merlin\Core\Service\CommentException;
+use Merlin\Core\Service\CommentRules;
 use OCA\Merlin\Db\ArticleShare;
 use OCA\Merlin\Db\Comment;
 use OCA\Merlin\Db\CommentMapper;
 use OCA\Merlin\Db\HighlightMapper;
-use OCA\Merlin\Service\CommentException;
-use OCA\Merlin\Service\CommentRules;
 use OCA\Merlin\Service\CommentService;
 use OCA\Merlin\Service\ShareAccessService;
 use OCP\AppFramework\Controller;

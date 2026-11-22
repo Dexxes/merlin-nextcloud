@@ -35,4 +35,10 @@ interface SiteSessions {
 	 * @return array<string,string>|null
 	 */
 	public function ensureValidCookies(string $userId, string $domain, LoginConfig $config): ?array;
+
+	/**
+	 * Ob der Nutzer für $domain Zugangsdaten hinterlegt hat und der letzte
+	 * Login erfolgreich war (abgelaufene Cookies zählen als aktiv).
+	 */
+	public function hasActiveLogin(string $userId, string $domain): bool;
 }

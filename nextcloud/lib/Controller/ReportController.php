@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
-use OCA\Merlin\Service\ReportBackendRules;
-use OCA\Merlin\Service\ReportBackendService;
+use Merlin\Core\Service\ReportBackendRules;
+use Merlin\Core\Service\ReportBackendService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;

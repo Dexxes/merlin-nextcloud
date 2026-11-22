@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
+use Merlin\Core\Service\PdfProxyService;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Service\MerlinFileService;
-use OCA\Merlin\Service\PdfProxyService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -54,6 +54,6 @@ class PdfController extends Controller {
 		}
 
 		// Läuft nie normal zurück: PdfProxyService::stream() beendet den Prozess selbst per exit().
-		$this->pdfProxy->stream($article);
+		$this->pdfProxy->stream($article->toSnapshot());
 	}
 }

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace OCA\Merlin\Service;
+namespace Merlin\Core\Service;
 
 /**
  * Reine Baumregeln für verschachtelte Tags (Tag mit parentId).
  *
  * Arbeitet auf einer Map id => parentId (null = oberste Ebene) und ist frei
- * von Nextcloud-Abhängigkeiten, damit tools/test-tag-tree.php sie ohne Server
+ * von Nextcloud-Abhängigkeiten, damit core/tests/test-tag-tree.php sie ohne Server
  * prüfen kann. Die Tags eines Nutzers sind wenige, deshalb läuft der Baum im
  * Speicher statt per rekursivem SQL, das nicht jede Datenbank gleich kann.
  */

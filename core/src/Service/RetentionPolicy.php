@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace OCA\Merlin\Service;
+namespace Merlin\Core\Service;
 
 /**
  * Reine Rechenregeln der Löschfrist, ohne Nextcloud-Abhängigkeiten (damit
- * tools/test-retention.php sie ohne Composer prüfen kann). Den Zugriff auf die
+ * core/tests/test-retention.php sie ohne Composer prüfen kann). Den Zugriff auf die
  * gespeicherten Werte übernimmt RetentionService.
  *
  * Regeln (siehe Plan "Automatische Löschung"):

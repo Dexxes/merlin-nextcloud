@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Service;
 
+use Merlin\Core\Service\CommentException;
+use Merlin\Core\Service\CommentRules;
 use OCA\Merlin\Db\Comment;
 use OCA\Merlin\Db\CommentGuest;
 use OCA\Merlin\Db\CommentGuestMapper;

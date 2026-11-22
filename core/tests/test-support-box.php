@@ -5,31 +5,23 @@ declare(strict_types=1);
 /**
  * Testharness für Service\SupportBoxService (Abo-/Spendenlink-Infobox).
  *
- * Aufruf: php tools/test-support-box.php
+ * Aufruf: php core/tests/test-support-box.php
  *
- * Wie test-content-filter-merge.php ohne Composer/Nextcloud: Article,
- * ContentFilterRepository, SiteCredentialService und IConfig sind Stubs, geprüft
+ * Wie test-content-filter-merge.php ohne Composer und ohne Nextcloud: die
+ * Ports ContentFilterSource, SiteSessions und UserSettings sind Stubs, geprüft
  * wird nur die Entscheidungslogik des Service (URL-Auswahl, Login-Ausblendung,
  * Share-Sonderfall, Akzentfarbe).
  */
 
-namespace OCP {
-	interface IConfig {
-		public function getUserValue($userId, $appName, $key, $default = '');
-	}
-}
+namespace Merlin\SupportBoxTest {
+	require_once __DIR__ . '/autoload.php';
 
-namespace OCA\Merlin\Db {
-	class Article {
-		public function __construct(private string $url, private ?string $siteName, private ?string $siteIconUrl = null) {}
-		public function getUrl(): string { return $this->url; }
-		public function getSiteName(): ?string { return $this->siteName; }
-		public function getSiteIconUrl(): ?string { return $this->siteIconUrl; }
-	}
-}
+	use Merlin\Core\Extraction\Login\LoginConfig;
+	use Merlin\Core\Port\ContentFilterSource;
+	use Merlin\Core\Port\SiteSessions;
+	use Merlin\Core\Port\UserSettings;
 
-namespace OCA\Merlin\Service {
-	class ContentFilterRepository {
+	final class Filters implements ContentFilterSource {
 		public function __construct(public ?\SimpleXMLElement $config) {}
 		public function normalizeUrlDomain(string $url): string {
 			return (string) preg_replace('/^www\./i', '', strtolower(parse_url($url, PHP_URL_HOST) ?? ''));
@@ -37,20 +29,29 @@ namespace OCA\Merlin\Service {
 		public function getMerged(string $domain, ?string $userId = null): ?\SimpleXMLElement {
 			return $this->config;
 		}
+		public function isUnsupportedDomain(string $urlDomain): bool { return false; }
+		public function getCaptionCreditPrefixes(): array { return []; }
 	}
-	class SiteCredentialService {
+	final class Sessions implements SiteSessions {
 		public function __construct(public bool $active) {}
 		public function hasActiveLogin(string $userId, string $domain): bool { return $this->active; }
+		public function loadLoginConfig(string $domain): ?LoginConfig { return null; }
+		public function getCachedCookies(string $userId, string $domain): ?array { return null; }
+		public function ensureValidCookies(string $userId, string $domain, LoginConfig $config): ?array { return null; }
+	}
+	final class Settings implements UserSettings {
+		/** @param array<string, string> $values */
+		public function __construct(private array $values) {}
+		public function get(string $userId, string $section, string $key, string $default = ''): string { return $this->values[$key] ?? $default; }
 	}
 }
 
 namespace {
-	require_once __DIR__ . '/../lib/Service/SupportBoxService.php';
-
-	use OCA\Merlin\Db\Article;
-	use OCA\Merlin\Service\ContentFilterRepository;
-	use OCA\Merlin\Service\SiteCredentialService;
-	use OCA\Merlin\Service\SupportBoxService;
+	use Merlin\Core\Domain\ArticleSnapshot;
+	use Merlin\Core\Service\SupportBoxService;
+	use Merlin\SupportBoxTest\Filters;
+	use Merlin\SupportBoxTest\Sessions;
+	use Merlin\SupportBoxTest\Settings;
 
 	$failed = 0;
 	$check = static function (bool $ok, string $label) use (&$failed): void {
@@ -61,13 +62,10 @@ namespace {
 	};
 
 	$config = static fn (string $body): \SimpleXMLElement => new \SimpleXMLElement('<domain name="example.com">' . $body . '</domain>');
-	$userConfig = new class(['accentColor' => '#00AAFF']) implements \OCP\IConfig {
-		public function __construct(private array $values) {}
-		public function getUserValue($userId, $appName, $key, $default = '') { return $this->values[$key] ?? $default; }
-	};
-	$service = static fn (?\SimpleXMLElement $cfg, bool $login, ?\OCP\IConfig $ic = null) =>
-		new SupportBoxService(new ContentFilterRepository($cfg), new SiteCredentialService($login), $ic ?? $userConfig);
-	$article = new Article('https://www.example.com/a/1', 'Example Times');
+	$userConfig = new Settings(['accentColor' => '#00AAFF']);
+	$service = static fn (?\SimpleXMLElement $cfg, bool $login, ?Settings $ic = null) =>
+		new SupportBoxService(new Filters($cfg), new Sessions($login), $ic ?? $userConfig);
+	$article = new ArticleSnapshot(url: 'https://www.example.com/a/1', siteName: 'Example Times');
 
 	$both = $config('<paywall><subscribe url="https://example.com/abo" /></paywall><metadata><donations url="https://example.com/spenden" /></metadata>');
 
@@ -101,25 +99,23 @@ namespace {
 	$mixed = $service($config('<paywall><subscribe url="data:text/html,x" /></paywall><metadata><donations url="https://example.com/spenden" /></metadata>'), false)->forReader($article, 'alice');
 	$check($mixed !== null && $mixed['subscribeUrl'] === null && $mixed['donationsUrl'] !== null, 'ungültige Abo-URL fällt weg, gültige Spende bleibt');
 
-	$noName = $service($both, false)->forReader(new Article('https://example.com/x', ''), 'alice');
+	$noName = $service($both, false)->forReader(new ArticleSnapshot(url: 'https://example.com/x', siteName: ''), 'alice');
 	$check($noName !== null && $noName['siteName'] === 'example.com', 'ohne siteName: Domain als Name');
 
-	$badAccent = new class implements \OCP\IConfig {
-		public function getUserValue($userId, $appName, $key, $default = '') { return 'red; background:url(x)'; }
-	};
+	$badAccent = new Settings(['accentColor' => 'red; background:url(x)']);
 	$fallback = $service($both, false, $badAccent)->forReader($article, 'alice');
 	$check($fallback !== null && $fallback['accentColor'] === '#FF3B30', 'ungültige Akzentfarbe: Fallback auf Standard');
 
-	$withIcon = $service($both, false)->forReader(new Article('https://www.example.com/a/1', 'Example Times', 'https://cdn.example.com/apple-touch-icon.png'), 'alice');
+	$withIcon = $service($both, false)->forReader(new ArticleSnapshot(url: 'https://www.example.com/a/1', siteName: 'Example Times', siteIconUrl: 'https://cdn.example.com/apple-touch-icon.png'), 'alice');
 	$check($withIcon !== null && $withIcon['iconUrl'] === 'https://cdn.example.com/apple-touch-icon.png', 'gespeichertes Seiten-Icon wird als iconUrl ausgeliefert');
 
-	$badIcon = $service($both, false)->forReader(new Article('http://example.com:8080/a', 'X', 'javascript:alert(1)'), 'alice');
+	$badIcon = $service($both, false)->forReader(new ArticleSnapshot(url: 'http://example.com:8080/a', siteName: 'X', siteIconUrl: 'javascript:alert(1)'), 'alice');
 	$check($badIcon !== null && $badIcon['iconUrl'] === 'http://example.com:8080/favicon.ico', 'unsicheres gespeichertes Icon wird verworfen, Fallback /favicon.ico (inkl. Port)');
 
-	$dataIcon = $service($both, false)->forReader(new Article('https://example.com/a', 'X', 'data:image/svg+xml,<svg/>'), 'alice');
+	$dataIcon = $service($both, false)->forReader(new ArticleSnapshot(url: 'https://example.com/a', siteName: 'X', siteIconUrl: 'data:image/svg+xml,<svg/>'), 'alice');
 	$check($dataIcon !== null && $dataIcon['iconUrl'] === 'https://example.com/favicon.ico', 'data:-Icon wird verworfen');
 
-	$shareIcon = $service($both, true)->forShare(new Article('https://example.com/a', 'X', 'https://example.com/i.png'), 'alice');
+	$shareIcon = $service($both, true)->forShare(new ArticleSnapshot(url: 'https://example.com/a', siteName: 'X', siteIconUrl: 'https://example.com/i.png'), 'alice');
 	$check($shareIcon !== null && $shareIcon['iconUrl'] === 'https://example.com/i.png', 'Share liefert das Seiten-Icon ebenfalls');
 
 	echo $failed === 0 ? "\nAlle Prüfungen bestanden.\n" : "\n$failed Prüfung(en) fehlgeschlagen.\n";

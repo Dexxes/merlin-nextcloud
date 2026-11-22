@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Service;
 
+use Merlin\Core\Service\RetentionPolicy;
 use OCA\Merlin\AppInfo\Application;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Db\ArticleShareMapper;
