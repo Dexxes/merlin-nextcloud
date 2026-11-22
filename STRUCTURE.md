@@ -34,7 +34,11 @@ deshalb nicht selbst. Den Vendor-Autoloader lädt `Application::__construct()`.
 
 Was der Kern von der Plattform braucht, steht als Schnittstelle in
 `core/src/Port/`. Die Nextcloud-App bindet die Implementierungen in
-`Application::register()` per `registerServiceAlias()`:
+`Application::register()` per `registerServiceAlias()` (Liste `CORE_PORTS`).
+Kern-Klassen, die per DI gebaut werden, stehen in `Application::CORE_SERVICES`:
+Nextcloud würde Klassen außerhalb von `OCA\Merlin` sonst im Server-Container
+bauen, der die Ports nicht kennt. `tools/test-core-wiring.php` prüft, dass
+beide Listen vollständig sind.
 
 | Port | Nextcloud-Implementierung |
 |---|---|
@@ -129,6 +133,7 @@ nextcloud/
     ├── test-retention.php             # Testharness RetentionPolicy (effektive Frist, Stichtag, Hinweis)
     ├── test-tag-tree.php              # Testharness TagTree (Nachfahren, Kreisprüfung)
     ├── test-file-rules.php            # Testharness FileRules (Dateiart, Namen, Token, Range)
+    ├── test-core-wiring.php           # Testharness: Kern-Klassen und Ports in Application::CORE_SERVICES/CORE_PORTS vollständig
     └── test-site-icon.php             # Testharness ContentExtractorService::extractSiteIconUrl() (Apple > SVG > Bitmap > ICO, <base>, data:/javascript:, kein og:image)
 ```
 
