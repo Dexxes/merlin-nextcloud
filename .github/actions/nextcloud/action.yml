@@ -27,7 +27,7 @@ runs:
         tools: composer:v2
 
     - name: Check out nextcloud/server ${{ inputs.server-ref }}
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
       with:
         repository: nextcloud/server
         ref: ${{ inputs.server-ref }}
@@ -36,7 +36,7 @@ runs:
         fetch-depth: 1
 
     - name: Put the built app into apps/merlin
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: merlin-app
         path: ${{ runner.temp }}

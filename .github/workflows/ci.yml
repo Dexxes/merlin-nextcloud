@@ -27,7 +27,7 @@ jobs:
         # Lowest and highest PHP of appinfo/info.xml.
         php: ['8.1', '8.5']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
@@ -42,7 +42,7 @@ jobs:
     name: Core stays framework-free
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: No Nextcloud or app imports in core/
         # core/ is shared with the standalone server: no OCP\, no OCA\ and no
         # Merlin\Standalone\ references (imports, FQCNs, type hints).
@@ -64,7 +64,7 @@ jobs:
     name: Test harnesses
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -93,8 +93,8 @@ jobs:
     name: Frontend build and app store tarball
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - uses: shivammathur/setup-php@v2
@@ -132,7 +132,7 @@ jobs:
           if find merlin -type l | grep .; then echo "::error::symlinks in tarball"; exit 1; fi
           grep -qF 'Merlin\\Core\\ContentFilter\\ContentFilterSchema' merlin/vendor/composer/autoload_classmap.php \
             || { echo "::error::merlin/core missing from the composer classmap"; exit 1; }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: merlin-appstore-tarball
           path: nextcloud/build/artifacts/merlin.tar.gz

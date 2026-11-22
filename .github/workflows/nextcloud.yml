@@ -44,7 +44,7 @@ jobs:
       databases: ${{ steps.matrix.outputs.databases }}
       docker: ${{ steps.matrix.outputs.docker }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: matrix
         run: |
           python3 .github/scripts/nextcloud-matrix.py ${{ github.event_name == 'schedule' && '--nightly' || '' }} | tee -a "$GITHUB_OUTPUT"
@@ -53,8 +53,8 @@ jobs:
     name: Build app
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - uses: shivammathur/setup-php@v2
@@ -63,7 +63,7 @@ jobs:
           coverage: none
           tools: composer:v2
       - name: Cache npm and composer downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.npm
@@ -81,7 +81,7 @@ jobs:
           make build-source
           echo "${GITHUB_SHA::7}" > build/artifacts/merlin/appinfo/build.txt
           tar -czf "$RUNNER_TEMP/merlin.tar.gz" -C build/artifacts merlin
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: merlin-app
           path: ${{ runner.temp }}/merlin.tar.gz
@@ -96,7 +96,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.matrix.outputs.sqlite) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: merlin
       - name: Set up Nextcloud and Merlin
@@ -140,7 +140,7 @@ jobs:
           --health-cmd="pg_isready -U nextcloud"
           --health-interval=5s --health-timeout=5s --health-retries=30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: merlin
       - name: Set up Nextcloud and Merlin
@@ -163,7 +163,7 @@ jobs:
       NEXTCLOUD_VERSION: ${{ matrix.nextcloud }}-apache
       MERLIN_TEST_BASE_URL: http://localhost:8080
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: docker compose up
         run: |
           docker compose up --build --detach --wait --wait-timeout 600
@@ -178,7 +178,7 @@ jobs:
         run: |
           composer install --no-interaction --no-progress
           vendor/bin/phpunit -c phpunit.api.xml
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - name: Browser tests (Playwright)
@@ -195,7 +195,7 @@ jobs:
       - name: Container logs
         if: failure()
         run: docker compose logs --no-color --tail=300
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: docker-nc${{ matrix.nextcloud }}-report
