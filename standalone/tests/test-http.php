@@ -219,6 +219,17 @@ try {
 	[$status] = $http('DELETE', '/admin/users/1', null, $basic);
 	check($status === 409, 'letzter Admin lässt sich nicht löschen');
 
+	// Brute-Force-Bremse beim Login (PageController::checkPassword) und
+	// Sicherheits-Header der HTML-Seiten.
+	$failedBefore = (int) $pdo->query("SELECT COUNT(*) FROM security_attempts WHERE action = 'throttle:merlin_login'")->fetchColumn();
+	[$status, , $body] = $http('POST', '/login', null, [], ['username' => 'admin', 'password' => 'falsch'], $dir . '/cookies4.txt');
+	check($status === 200 && str_contains($body, 'class="error"'), 'falsches Passwort: Login-Seite mit Fehler');
+	$http('POST', '/login', null, [], ['username' => 'gibt-es-nicht', 'password' => 'falsch'], $dir . '/cookies4.txt');
+	$failed = (int) $pdo->query("SELECT COUNT(*) FROM security_attempts WHERE action = 'throttle:merlin_login'")->fetchColumn();
+	check($failed === $failedBefore + 2, 'Fehlversuche (auch unbekannter Name) für die Bremse gemerkt', "{$failedBefore} -> {$failed}");
+	[, , , $headers] = $http('GET', '/login');
+	check(($headers['x-frame-options'] ?? '') === 'DENY' && str_contains($headers['content-security-policy'] ?? '', "frame-ancestors 'none'"), 'Login-Seite nicht einbettbar');
+
 	[$status, , $body, $headers] = $http('GET', '/img/x-preview.png');
 	check($status === 200 && ($headers['content-type'] ?? '') === 'image/png' && strlen($body) > 100, 'Bild aus nextcloud/img unter /img/');
 	[$status] = $http('GET', '/img/..%2Fappinfo%2Finfo.xml');

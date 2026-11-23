@@ -21,6 +21,23 @@ All notable changes to Merlin are documented here. Format based on
   `/api/articles/{id}/file-name`) now runs on the shared core in the Nextcloud
   app too; paths and responses are unchanged.
 
+### Security
+- The SSRF guard for article fetching, PDF proxy, media, social and login
+  requests now also rejects IPv6 addresses that embed an internal IPv4
+  address (`::ffff:127.0.0.1`, NAT64, 6to4, Teredo) as well as
+  carrier-grade NAT (`100.64.0.0/10`), `192.0.0.0/24` and `198.18.0.0/15`.
+- [standalone] Failed logins (web login and Login Flow v2) slow down further
+  attempts from the same IP, like Nextcloud's brute-force protection;
+  unknown usernames take as long as wrong passwords. Registration, "forgot
+  password" and starting a Login Flow are rate limited per IP.
+- [standalone] A successful share-link unlock or login no longer clears the
+  failed attempts of that IP, which allowed resetting the brute-force delay
+  with a link or account of one's own.
+- [standalone] Login, registration, account, admin and Login Flow pages
+  cannot be framed (clickjacking) and send no referrer.
+- [standalone] The Docker image refuses to create the admin account with the
+  example password from `docker-compose.yml` or one shorter than 8 characters.
+
 ## [1.1.0] - 2026-11-23
 
 First release of both variants from one repository: the Nextcloud app and

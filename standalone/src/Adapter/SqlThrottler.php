@@ -29,8 +29,15 @@ final class SqlThrottler implements Throttler {
 		$this->log->record('throttle:' . $action, $address);
 	}
 
+	/**
+	 * Bewusst ohne Wirkung: die Tabelle kennt keine Metadaten (Token,
+	 * Anmeldename), ein Zurücksetzen träfe also alle Fehlversuche der IP für
+	 * die Aktion. Wer eigene Zugangsdaten kennt (eigener Share-Link, eigenes
+	 * Konto), könnte die Bremse sonst nach jedem Rateversuch mit einem
+	 * erfolgreichen Versuch leeren. Fehlversuche verfallen nach
+	 * AttemptLog::KEEP_SECONDS von selbst.
+	 */
 	public function reset(string $action, string $address, array $metadata = []): void {
-		$this->log->clear('throttle:' . $action, $address);
 	}
 
 	public static function delayMs(int $failures): int {

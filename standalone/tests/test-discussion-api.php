@@ -163,7 +163,9 @@ try {
 	[$status] = $http('POST', "/s/{$token}/unlock", ['password' => 'geheim-123'], [], null, $lockedJar);
 	check($status === 200 && microtime(true) - $start >= 0.15, 'richtiges Passwort nach Wartezeit');
 	$attempts = (int) $pdo->query("SELECT COUNT(*) FROM security_attempts WHERE action = 'throttle:merlin_public_share_unlock'")->fetchColumn();
-	check($attempts === 0, 'Erfolg setzt die Bremse zurück');
+	// SqlThrottler::reset() leert nichts: sonst setzte ein Erfolg mit einem
+	// eigenen Link die Bremse für Rateversuche an fremden Links zurück.
+	check($attempts === 1, 'Erfolg leert die Bremse nicht');
 	[$status, $data] = $http('GET', "/s/{$token}/data", null, [], null, $lockedJar);
 	check($status === 200 && $data['title'] === 'Geteilter Artikel', 'entsperrt (Session)');
 

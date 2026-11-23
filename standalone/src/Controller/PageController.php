@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Merlin\Standalone\Controller;
 
+use Merlin\Core\Port\Throttler;
 use Merlin\Core\Port\UserSettings;
 use Merlin\Standalone\Auth\ApiTokenService;
 use Merlin\Standalone\Auth\PasswordHasher;
@@ -27,6 +28,28 @@ final class PageController {
     /** Startseite nach dem Login: der Reader (AppController::reader). */
     public const HOME = '/';
 
+    /** Throttler-Aktion für Passwortprüfungen (Login und Login Flow), je IP. */
+    public const THROTTLE_LOGIN = 'merlin_login';
+
+    /**
+     * Hash eines zufälligen Passworts: unbekannte Anmeldenamen brauchen so
+     * genauso lange wie falsche Passwörter (keine Konten-Erkennung über die
+     * Antwortzeit).
+     */
+    private const DUMMY_HASH = '$2y$10$SmYY3R8piIRo4cdkjEY9a.4aFuvo7WkKtXb8HR5YtEyz3ULWpWv8G';
+
+    /**
+     * Sicherheits-Header der HTML-Seiten (Login, Registrierung, Konto, Admin,
+     * Login Flow): nicht einbettbar (Clickjacking), kein Referrer (der
+     * Reset-Link trägt das Token in der URL).
+     */
+    private const SECURITY_HEADERS = [
+        'Content-Security-Policy' => "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+        'X-Frame-Options' => 'DENY',
+        'X-Content-Type-Options' => 'nosniff',
+        'Referrer-Policy' => 'no-referrer',
+    ];
+
     public function __construct(
         private readonly UserRepository $users,
         private readonly ServerSettings $settings,
@@ -36,6 +59,7 @@ final class PageController {
         private readonly LoginFlowRepository $loginFlows,
         private readonly ApiTokenService $apiTokenService,
         private readonly UserSettings $userSettings,
+        private readonly Throttler $throttler,
     ) {
     }
 
@@ -55,8 +79,8 @@ final class PageController {
         $return = self::safeReturn($request->input('return'));
         $t = $this->translator($request);
 
-        $user = $this->users->findByUsername($username);
-        if ($user === null || !$this->hasher->verify($password, $user['password_hash'])) {
+        $user = $this->checkPassword($request, $username, $password);
+        if ($user === null) {
             return $this->render('login', $request, ['error' => $t->t('login.invalidCredentials'), 'return' => $return]);
         }
         if (!(bool) $user['is_active']) {
@@ -232,8 +256,8 @@ final class PageController {
         $password = (string) $request->input('password', '');
         $t = $this->translator($request);
 
-        $user = $this->users->findByUsername($username);
-        if ($user === null || !$this->hasher->verify($password, $user['password_hash'])) {
+        $user = $this->checkPassword($request, $username, $password);
+        if ($user === null) {
             return $this->render('login_flow', $request, [
                 'state' => 'form',
                 'flowToken' => $flowToken,
@@ -256,6 +280,25 @@ final class PageController {
         $this->sessions->login((int) $user['id']);
 
         return $this->render('login_flow', $request, ['state' => 'done']);
+    }
+
+    /**
+     * Passwortprüfung mit Brute-Force-Bremse wie Nextclouds IThrottler: jeder
+     * Fehlversuch dieser IP verlängert die Wartezeit vor dem nächsten
+     * (SqlThrottler, bis 25 Sekunden, 12 Stunden lang).
+     *
+     * @return array<string, mixed>|null users-Zeile bei richtigem Passwort
+     */
+    private function checkPassword(Request $request, string $username, string $password): ?array {
+        $address = $request->remoteAddress();
+        $this->throttler->sleepDelay(self::THROTTLE_LOGIN, $address);
+        $user = $username === '' ? null : $this->users->findByUsername($username);
+        $valid = $this->hasher->verify($password, $user['password_hash'] ?? self::DUMMY_HASH);
+        if ($user === null || !$valid) {
+            $this->throttler->registerFailure(self::THROTTLE_LOGIN, $address);
+            return null;
+        }
+        return $user;
     }
 
     private function validateNewAccount(Translator $t, string $username, string $email, string $password): ?string {
@@ -287,6 +330,6 @@ final class PageController {
         extract($vars);
         ob_start();
         include __DIR__ . "/../../templates/{$template}.php";
-        return Response::html((string) ob_get_clean(), 200, $extraHeaders);
+        return Response::html((string) ob_get_clean(), 200, $extraHeaders + self::SECURITY_HEADERS);
     }
 }

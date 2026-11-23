@@ -88,11 +88,75 @@ trait SsrfSafeResolver {
 	 * Cloud-Metadata, Multicast, Broadcast, Dokumentations-Ranges, …).
 	 */
 	private function isPublicIp(string $ip): bool {
-		return filter_var(
-			$ip,
-			FILTER_VALIDATE_IP,
-			FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
-		) !== false;
+		return self::isPublicAddress($ip);
+	}
+
+	/**
+	 * Wie isPublicIp(), statisch für Tests (core/tests/test-ssrf-guard.php).
+	 *
+	 * FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE allein reicht nicht:
+	 * PHP lässt IPv6-Adressen durch, die eine IPv4-Adresse einbetten
+	 * (::ffff:127.0.0.1, ::127.0.0.1, 64:ff9b::7f00:1, 2002:7f00:1::), über
+	 * die ein Dual-Stack-Socket bzw. NAT64/6to4 doch lokal oder intern
+	 * verbindet. Solche Adressen werden deshalb auf ihre IPv4-Adresse
+	 * zurückgeführt und die geprüft. Dazu Bereiche, die PHP nicht kennt:
+	 * Carrier-Grade-NAT 100.64.0.0/10 (u. a. Tailscale), 192.0.0.0/24
+	 * (IETF-Protokolle), 198.18.0.0/15 (Benchmark-Netze, oft intern genutzt).
+	 */
+	public static function isPublicAddress(string $ip): bool {
+		$ip = trim($ip, '[]');
+		$binary = @inet_pton($ip);
+		if ($binary === false) {
+			return false;
+		}
+		if (strlen($binary) === 16) {
+			$embedded = self::embeddedIpv4($binary);
+			if ($embedded !== null) {
+				return self::isPublicAddress($embedded);
+			}
+		}
+		if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+			return false;
+		}
+		if (strlen($binary) === 4) {
+			foreach (['100.64.0.0/10', '192.0.0.0/24', '198.18.0.0/15'] as $cidr) {
+				[$net, $bits] = explode('/', $cidr);
+				$mask = -1 << (32 - (int) $bits);
+				if ((ip2long($ip) & $mask) === (ip2long($net) & $mask)) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * IPv4-Adresse in einer IPv6-Adresse: IPv4-mapped (::ffff:a.b.c.d),
+	 * IPv4-compatible (::a.b.c.d), NAT64 (64:ff9b::/96 und 64:ff9b:1::/48),
+	 * 6to4 (2002:AABB:CCDD::/16); 0.0.0.0 (also nie öffentlich) für lokales
+	 * NAT64 (64:ff9b:1::/48) und Teredo (2001::/32); sonst null.
+	 */
+	private static function embeddedIpv4(string $binary): ?string {
+		$hex = bin2hex($binary);
+		$v4 = static fn (string $h): string => (string) inet_ntop((string) hex2bin($h));
+		if (str_starts_with($hex, '00000000000000000000ffff')) {
+			return $v4(substr($hex, 24, 8));
+		}
+		if (str_starts_with($hex, '000000000000000000000000') && substr($hex, 24, 8) !== '00000000' && substr($hex, 24, 8) !== '00000001') {
+			return $v4(substr($hex, 24, 8));
+		}
+		if (str_starts_with($hex, '0064ff9b0000000000000000')) {
+			return $v4(substr($hex, 24, 8));
+		}
+		// Lokales NAT64 (/48, IPv4 nicht an fester Stelle) und Teredo
+		// (2001:0::/32, IPv4 verschleiert): nie öffentlich behandeln.
+		if (str_starts_with($hex, '0064ff9b0001') || str_starts_with($hex, '20010000')) {
+			return '0.0.0.0';
+		}
+		if (str_starts_with($hex, '2002')) {
+			return $v4(substr($hex, 4, 8));
+		}
+		return null;
 	}
 
 	/**

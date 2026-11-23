@@ -29,6 +29,11 @@ if [ -n "${MERLIN_ADMIN_USER:-}" ] && [ ! -f /data/.admin-created ]; then
 		echo "merlin: MERLIN_ADMIN_USER braucht MERLIN_ADMIN_EMAIL und MERLIN_ADMIN_PASSWORD" >&2
 		exit 1
 	fi
+	# Das Beispielpasswort aus docker-compose.yml nie für ein echtes Konto.
+	if [ "$MERLIN_ADMIN_PASSWORD" = "bitte-aendern" ] || [ "${#MERLIN_ADMIN_PASSWORD}" -lt 8 ]; then
+		echo "merlin: MERLIN_ADMIN_PASSWORD ist das Beispielpasswort oder kürzer als 8 Zeichen, bitte ändern" >&2
+		exit 1
+	fi
 	# Gibt es das Konto schon (Volume aus einer älteren Installation), meldet
 	# create-admin das und der Start geht weiter.
 	if as_www php bin/merlin create-admin --username="$MERLIN_ADMIN_USER" \
