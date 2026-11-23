@@ -17,14 +17,15 @@ merlin-nextcloud/
 ├── nextcloud/      # die Nextcloud-App (App-ID merlin): appinfo/, lib/, templates/, l10n/, img/, css/,
 │                   # tools/ (Testharnesses), tests/ (Tests in echter Nextcloud, siehe tests/README.md),
 │                   # composer.json, Makefile (make dist); lib/Adapter/ implementiert die Ports
-├── standalone/     # eigener Server ohne Nextcloud (Namespace Merlin\Standalone\, im Aufbau, Etappe 3):
-│                   # migrations/ (SQLite, merlin_*-Tabellen im Nextcloud-Schema), src/, bin/merlin, tests/
+├── standalone/     # eigener Server ohne Nextcloud (Namespace Merlin\Standalone\):
+│                   # migrations/ (SQLite, merlin_*-Tabellen im Nextcloud-Schema), src/, bin/merlin, tests/,
+│                   # tools/assemble.sh (Release-Paket), Dockerfile + docker/ (Produktions-Image), docker-compose.yml
 ├── tools/          # Prüfungen über beide Varianten: test-schema-parity.php, test-route-parity.php,
 │                   # schema/ (Nextcloud-Schema ohne Nextcloud lesen)
 ├── frontend/       # Vue-3-Quellen (src/), fonts/, package.json, vite.config.mjs;
 │                   # `npm run build` schreibt nach nextcloud/js und nextcloud/css
 ├── docker/, Dockerfile, docker-compose.yml   # Entwicklungs-Setup der Nextcloud-Variante
-├── .github/workflows/ci.yml                  # PHP-Lint, Kern/Standalone ohne OCP, Testharnesses, Schema-Parität, Frontend-Build, Appstore-Tarball
+├── .github/workflows/ci.yml                  # PHP-Lint, Kern/Standalone ohne OCP, Testharnesses, Schema-Parität, Frontend-Build, Appstore- und Standalone-Tarball, Standalone-Image mit Starttest
 ├── .github/workflows/nextcloud.yml           # App in echter Nextcloud: alle Versionen aus info.xml × PHP, MariaDB/Postgres, Docker + Browser
 └── README.md, CHANGELOG.md, LICENSE, NOTICE  # werden beim Release in den Tarball kopiert
 ```
@@ -165,6 +166,16 @@ durch. `standalone/bin/merlin extract <url>` ruft die Kern-Extraktion mit den
 Standalone-Adaptern auf; `standalone/tests/test-extraction.php --live` vergleicht
 das für echte Artikel-Links mit einer Referenz ohne diese Adapter (ohne `--live`
 nur offline, so läuft es in CI).
+
+Standalone-Paket: `standalone/tools/assemble.sh <ziel>` legt den Tarball-Inhalt
+an (Composer ohne Dev-Pakete, Kern als Kopie in `vendor/`, dazu
+`content-filters/`, `l10n/` und `public/img/` aus `nextcloud/` sowie `VERSION`).
+Ohne `nextcloud/` daneben lesen `Version`, `AppController` und
+`AssetController` diese Kopien. `standalone/Dockerfile` baut daraus das Image:
+Alpine mit nginx und PHP-FPM (die Antwort geht vor der Extraktion raus,
+`fastcgi_finish_request`), Daten in `/data`, Einstellungen aus
+Umgebungsvariablen (`docker/config.php`) oder `/data/config.php`, stündlich
+`bin/merlin cron`. `docker/smoke-test.sh` prüft einen laufenden Container (CI).
 
 Die Nextcloud-App bindet den Kern über ein Composer-Path-Repository ein
 (`nextcloud/composer.json`: `"merlin/core": "*@dev"` aus `../core`). Im Checkout

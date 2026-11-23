@@ -30,6 +30,11 @@ final class FileLogger extends AbstractLogger {
 				$context[$key] = get_class($value) . ': ' . $value->getMessage() . ' @ ' . $value->getFile() . ':' . $value->getLine();
 			}
 		}
+		// Platzhalter {name} wie in PSR-3 (Nextclouds Logger ersetzt sie auch).
+		$message = preg_replace_callback('/\{([A-Za-z0-9_.]+)\}/', static function (array $m) use ($context): string {
+			$value = $context[$m[1]] ?? null;
+			return is_scalar($value) || $value instanceof \Stringable ? (string) $value : $m[0];
+		}, (string) $message) ?? (string) $message;
 		$line = sprintf(
 			'[%s] %s: %s%s' . PHP_EOL,
 			gmdate('c'),

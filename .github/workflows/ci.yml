@@ -152,8 +152,63 @@ jobs:
           test -f standalone/public/app/js/merlin-main.mjs && test -f standalone/public/app/css/merlin-public.css
           composer install --no-dev --no-interaction --no-progress --working-dir=standalone
           php standalone/tests/test-http.php
+      - name: Assemble standalone tarball
+        # Same layout as the Docker image (standalone/tools/assemble.sh).
+        run: |
+          standalone/tools/assemble.sh build/merlin-standalone
+          tar -czf build/merlin-standalone.tar.gz -C build merlin-standalone
+      - name: Check standalone tarball contents
+        working-directory: build
+        run: |
+          for f in merlin-standalone/VERSION merlin-standalone/bin/merlin merlin-standalone/public/index.php \
+                   merlin-standalone/public/app/js/merlin-main.mjs merlin-standalone/public/img/icon-192.png \
+                   merlin-standalone/l10n/de.json merlin-standalone/content-filters/spiegel.de.xml \
+                   merlin-standalone/vendor/autoload.php merlin-standalone/vendor/merlin/core/src/Api/routes.php \
+                   merlin-standalone/config/config.sample.php merlin-standalone/LICENSE; do
+            test -e "$f" || { echo "::error::missing in standalone tarball: $f"; exit 1; }
+          done
+          for f in merlin-standalone/tests merlin-standalone/docker merlin-standalone/config/config.php \
+                   merlin-standalone/vendor/merlin/core/tests; do
+            test ! -e "$f" || { echo "::error::must not be in standalone tarball: $f"; exit 1; }
+          done
+          if find merlin-standalone -type l | grep .; then echo "::error::symlinks in standalone tarball"; exit 1; fi
+          test "$(cat merlin-standalone/VERSION)" = "$(sed -n 's#.*<version>\([^<]*\)</version>.*#\1#p' ../nextcloud/appinfo/info.xml | head -n 1)"
       - uses: actions/upload-artifact@v7
         with:
           name: merlin-appstore-tarball
           path: nextcloud/build/artifacts/merlin.tar.gz
           retention-days: 14
+      - uses: actions/upload-artifact@v7
+        with:
+          name: merlin-standalone-tarball
+          path: build/merlin-standalone.tar.gz
+          retention-days: 14
+
+  standalone-docker:
+    name: Standalone Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: docker build
+        run: docker build -f standalone/Dockerfile -t merlin-standalone:ci .
+      - name: Start container
+        run: |
+          docker run -d --name merlin -p 8080:8080 \
+            -e MERLIN_BASE_URL=http://127.0.0.1:8080 \
+            -e MERLIN_ADMIN_USER=admin -e MERLIN_ADMIN_EMAIL=admin@example.org \
+            -e MERLIN_ADMIN_PASSWORD=ci-password-123 merlin-standalone:ci
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/api/capabilities > /dev/null && break
+            sleep 1
+          done
+      - name: Smoke test
+        run: standalone/docker/smoke-test.sh http://127.0.0.1:8080 admin ci-password-123
+      - name: Restart keeps data and secret
+        run: |
+          docker restart merlin
+          sleep 3
+          standalone/docker/smoke-test.sh http://127.0.0.1:8080 admin ci-password-123
+          docker exec merlin test -s /data/secret
+      - name: Container log
+        if: always()
+        run: docker logs merlin; docker exec merlin cat /data/merlin.log || true

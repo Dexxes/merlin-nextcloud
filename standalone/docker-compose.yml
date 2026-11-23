@@ -1,0 +1,29 @@
+# Merlin Standalone mit Docker Compose (Produktions-Image).
+#
+#   docker compose -f standalone/docker-compose.yml up -d
+#
+# Ohne Build aus dem Checkout: `build:` entfernen, dann kommt das Image von
+# ghcr.io. Vor dem Start MERLIN_BASE_URL und das Admin-Passwort anpassen;
+# der Admin wird nur beim ersten Start angelegt. Hinter einem Reverse-Proxy
+# mit HTTPS den Port nur lokal freigeben (127.0.0.1:8080:8080).
+services:
+  merlin:
+    image: ghcr.io/dexxes/merlin-standalone:latest
+    build:
+      context: ..
+      dockerfile: standalone/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - merlin-data:/data
+    environment:
+      MERLIN_BASE_URL: http://localhost:8080
+      MERLIN_ADMIN_USER: admin
+      MERLIN_ADMIN_EMAIL: admin@example.org
+      MERLIN_ADMIN_PASSWORD: bitte-aendern
+      # MERLIN_MAIL_FROM: merlin@example.org
+      # MERLIN_PHP_WORKERS: 16
+
+volumes:
+  merlin-data:
