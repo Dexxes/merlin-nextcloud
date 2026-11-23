@@ -116,7 +116,7 @@
 </template>
 
 <script>
-import { showSuccess, showError } from '@nextcloud/dialogs'
+import { showError, showSuccess } from '../platform/index.js'
 import { NcDialog, NcButton, NcLoadingIcon } from '@nextcloud/vue'
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue'
 import * as sharesAPI from '../api/shares'

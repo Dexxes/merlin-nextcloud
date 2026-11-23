@@ -275,9 +275,8 @@
 </template>
 
 <script>
-import { showSuccess, showError } from '@nextcloud/dialogs'
+import { imageUrl, showError, showSuccess } from '../platform/index.js'
 import { sendArticleReport } from '../report-backend.js'
-import { imagePath } from '@nextcloud/router'
 import Account from 'vue-material-design-icons/Account.vue'
 import Web from 'vue-material-design-icons/Web.vue'
 import Clock from 'vue-material-design-icons/Clock.vue'
@@ -352,7 +351,7 @@ export default {
 
 	data() {
 		return {
-			noImgPath: imagePath('merlin', 'no-img.png'),
+			noImgPath: imageUrl('no-img.png'),
 			menu: {
 				visible: false,
 				x: 0,
@@ -556,7 +555,7 @@ export default {
 		onImageError(event) {
 			// Replace broken image with the local no-img placeholder; prevent retry loop.
 			event.target.onerror = null
-			event.target.src = imagePath('merlin', 'no-img.png')
+			event.target.src = imageUrl('no-img.png')
 		},
 
 		handleReport() {

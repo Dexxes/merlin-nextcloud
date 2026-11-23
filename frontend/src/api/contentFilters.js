@@ -1,24 +1,23 @@
-import axios from '@nextcloud/axios'
-import { generateUrl } from '@nextcloud/router'
+import { appUrl, http } from '../platform/index.js'
 
-const base = '/apps/merlin/api/admin/content-filters'
+const base = '/api/admin/content-filters'
 
 /**
- * Domainnamen enthalten Punkte. generateUrl() kodiert sie nicht, die Route in
+ * Domainnamen enthalten Punkte. appUrl() kodiert sie nicht, die Route in
  * appinfo/routes.php erlaubt sie über eine eigene requirements-Angabe – ohne die
  * würde Nextclouds Router "golem.de" am Punkt abschneiden.
  */
 function domainUrl(domain, suffix = '') {
-	return generateUrl(`${base}/${encodeURIComponent(domain)}${suffix}`)
+	return appUrl(`${base}/${encodeURIComponent(domain)}${suffix}`)
 }
 
 export async function listFilters() {
-	const { data } = await axios.get(generateUrl(base))
+	const { data } = await http.get(appUrl(base))
 	return data
 }
 
 export async function getFilter(domain) {
-	const { data } = await axios.get(domainUrl(domain))
+	const { data } = await http.get(domainUrl(domain))
 	return data
 }
 
@@ -27,12 +26,12 @@ export async function getFilter(domain) {
  * @param {object} rules Builder-Struktur; der Server serialisiert sie zu XML
  */
 export async function saveFilter(domain, rules) {
-	const { data } = await axios.put(domainUrl(domain), { rules })
+	const { data } = await http.put(domainUrl(domain), { rules })
 	return data
 }
 
 export async function deleteFilter(domain) {
-	const { data } = await axios.delete(domainUrl(domain))
+	const { data } = await http.delete(domainUrl(domain))
 	return data
 }
 
@@ -42,7 +41,7 @@ export async function deleteFilter(domain) {
  */
 export async function testFilter(domain, url, rules = null) {
 	const payload = rules === null ? { url } : { url, rules }
-	const { data } = await axios.post(domainUrl(domain, '/test'), payload)
+	const { data } = await http.post(domainUrl(domain, '/test'), payload)
 	return data
 }
 
@@ -59,7 +58,7 @@ export async function importFilter(xml, domain = null, overwrite = false) {
 	if (overwrite) {
 		payload.overwrite = true
 	}
-	const { data } = await axios.post(generateUrl(`${base}/import`), payload)
+	const { data } = await http.post(appUrl(`${base}/import`), payload)
 	return data
 }
 

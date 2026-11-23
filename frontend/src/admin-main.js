@@ -1,5 +1,5 @@
 import { createApp } from 'vue'
-import { translate, translatePlural } from '@nextcloud/l10n'
+import { translate, translatePlural } from './platform/index.js'
 import ContentFilterAdmin from './components/admin/ContentFilterAdmin.vue'
 import RetentionAdmin from './components/admin/RetentionAdmin.vue'
 

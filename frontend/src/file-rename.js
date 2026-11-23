@@ -3,8 +3,7 @@
  * den neuen Namen ohne Endung ab und benennt Datei und Eintrag über den Store
  * um. Die Endung behält der Server bei.
  */
-import { showError, showSuccess } from '@nextcloud/dialogs'
-import { translate as t } from '@nextcloud/l10n'
+import { showError, showSuccess, translate as t } from './platform/index.js'
 
 /**
  * @param {string} fileName Dateiname mit Endung

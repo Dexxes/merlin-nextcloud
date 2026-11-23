@@ -56,7 +56,7 @@
 
 <script>
 import { mapState, mapGetters, mapActions, mapMutations } from 'vuex'
-import { showError, showSuccess } from '@nextcloud/dialogs'
+import { showError, showSuccess } from './platform/index.js'
 import { acknowledgeRetentionNotice } from './api/retention.js'
 import { getArticle } from './api/articles.js'
 import {

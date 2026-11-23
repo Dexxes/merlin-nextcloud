@@ -545,7 +545,7 @@
 
 <script>
 import { mapState, mapActions } from 'vuex'
-import { showSuccess, showError } from '@nextcloud/dialogs'
+import { appUrl, http, showError, showSuccess } from '../platform/index.js'
 import { sendArticleReport } from '../report-backend.js'
 import { NcButton, NcNoteCard } from '@nextcloud/vue'
 import ArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
@@ -577,7 +577,6 @@ import Lock from 'vue-material-design-icons/Lock.vue'
 import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import Archive from 'vue-material-design-icons/Archive.vue'
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
-import axios from '@nextcloud/axios'
 import * as articlesAPI from '../api/articles'
 import * as highlightsAPI from '../api/highlights'
 import { markRaw } from 'vue'
@@ -593,7 +592,6 @@ import { appendAuthorBoxes, authorBoxEntries, hideBrokenAuthorPhotos } from '../
 import { mountInlineMedia, unmountInlineMedia } from '../inline-media'
 import { splitHeroContent } from '../hero-content'
 import PdfViewer from './PdfViewer.vue'
-import { generateUrl } from '@nextcloud/router'
 
 const TAG_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899']
 
@@ -744,7 +742,7 @@ export default {
 
 		/** Durchreich-Endpunkt für die PDF eines PDF-Artikels (siehe PdfProxyService). */
 		pdfProxyUrl() {
-			return generateUrl(`/apps/merlin/api/articles/${this.article.id}/pdf`)
+			return appUrl(`/api/articles/${this.article.id}/pdf`)
 		},
 
 		...mapState(['settings', 'tags', 'loginCapableDomains']),

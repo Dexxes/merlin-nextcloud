@@ -102,6 +102,8 @@ jobs:
           php-version: '8.4'
           coverage: none
           tools: composer:v2
+      - name: Nextcloud imports only in src/platform/
+        run: node frontend/tools/check-platform-imports.mjs
       - name: npm install
         working-directory: frontend
         # No package-lock.json is committed (see .gitignore).
