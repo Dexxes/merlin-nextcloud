@@ -31,7 +31,24 @@ class ArticleApiTest extends ApiTestCase {
 
 		// Pocket-compatible list of the extension
 		$get = self::expect(200, self::api('POST', '/api/v1/get', [], $user), 'POST /api/v1/get');
-		$this->assertIsArray($get);
+		$this->assertSame('0', $get['list'][(string) $article['id']]['favorite']);
+
+		$sent = self::expect(200, self::api('POST', '/api/v1/send', ['actions' => [
+			['action' => 'favorite', 'item_id' => (string) $article['id']],
+			['action' => 'archive', 'item_id' => (string) $article['id']],
+			['action' => 'archive', 'item_id' => '999999999'],
+		]], $user), 'POST /api/v1/send');
+		$this->assertSame([true, true, false], array_column($sent['action_results'], 'success'));
+		$archived = self::expect(200, self::api('POST', '/api/v1/get', ['state' => 'archive'], $user));
+		$this->assertSame('1', $archived['list'][(string) $article['id']]['favorite']);
+		$this->assertSame('1', $archived['list'][(string) $article['id']]['status']);
+
+		// The test user is shared within this class: leave no archived article behind.
+		$deleted = self::expect(200, self::api('POST', '/api/v1/send', ['actions' => [
+			['action' => 'delete', 'item_id' => (string) $article['id']],
+		]], $user));
+		$this->assertTrue($deleted['action_results'][0]['success']);
+		self::expect(404, self::api('GET', "/api/articles/{$article['id']}", null, $user));
 	}
 
 	public function testToggleStateProgressAndExport(): void {

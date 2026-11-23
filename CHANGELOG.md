@@ -20,6 +20,12 @@ All notable changes to Merlin are documented here. Format based on
 - [standalone] Read aloud (`/api/articles/{id}/tts`, needs the Piper daemon),
   PDF pass-through, media sources (`/media`, `/video-stream`) and the
   YouTube page for the native readers, also behind a share link.
+- [standalone] Reader settings (`/api/settings`), deletion period (notice,
+  admin maximum and preview), storage usage (`/api/storage`), content filters
+  (admin and personal, with test run), paywall subscription logins, the report
+  backend and the browser extension API (`/api/v1/add`, `/get`, `/send`)
+  from the shared core. Test runs, login attempts and reports are limited per
+  user like in Nextcloud.
 - spiegel.de: author box at the end of the article with name and profile link
   for every author in the byline (`/impressum/autor-…`). Columns take photo
   and bio from the byline and the "Zum Autor" box in the text (which no longer

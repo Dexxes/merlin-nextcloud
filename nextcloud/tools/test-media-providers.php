@@ -47,6 +47,7 @@ namespace Merlin\MediaTest {
 	// Vor der Unterklasse unten nötig – der Autoloader wird erst im
 	// Test-Block registriert.
 	require_once __DIR__ . '/../../core/src/Port/ContentFilterSource.php';
+	require_once __DIR__ . '/../../core/src/Port/ContentFilterEditor.php';
 	require_once __DIR__ . '/../../core/src/ContentFilter/ContentFilterRepository.php';
 	require_once __DIR__ . '/../lib/Service/ContentFilterRepository.php';
 	require_once __DIR__ . '/../../core/src/Extraction/Http/SsrfSafeResolver.php';

@@ -8,11 +8,18 @@ use Merlin\Core\Api\ArticleApi;
 use Merlin\Core\Api\ArticleStreamApi;
 use Merlin\Core\Api\CapabilitiesApi;
 use Merlin\Core\Api\CommentApi;
+use Merlin\Core\Api\ContentFilterApi;
+use Merlin\Core\Api\ExtensionApi;
 use Merlin\Core\Api\HighlightApi;
 use Merlin\Core\Api\MediaApi;
 use Merlin\Core\Api\PublicCommentApi;
 use Merlin\Core\Api\PublicShareApi;
+use Merlin\Core\Api\ReportApi;
+use Merlin\Core\Api\RetentionApi;
+use Merlin\Core\Api\SettingsApi;
 use Merlin\Core\Api\ShareApi;
+use Merlin\Core\Api\SiteCredentialApi;
+use Merlin\Core\Api\StorageApi;
 use Merlin\Core\Api\TagApi;
 use Merlin\Core\ContentFilter\ContentFilterMerger;
 use Merlin\Core\ContentFilter\ContentFilterSerializer;
@@ -45,6 +52,7 @@ use Merlin\Core\Port\ArticleStore;
 use Merlin\Core\Port\CommentGuestStore;
 use Merlin\Core\Port\CommentStore;
 use Merlin\Core\Port\Connection;
+use Merlin\Core\Port\ContentFilterEditor;
 use Merlin\Core\Port\ContentFilterSource;
 use Merlin\Core\Port\ContentFilterStore;
 use Merlin\Core\Port\Crypto;
@@ -122,6 +130,7 @@ class Application extends App implements IBootstrap {
 		CommentGuestStore::class   => SqlCommentGuestStore::class,
 		CommentStore::class        => SqlCommentStore::class,
 		Connection::class          => NextcloudConnection::class,
+		ContentFilterEditor::class => ContentFilterRepository::class,
 		ContentFilterSource::class => ContentFilterRepository::class,
 		ContentFilterStore::class  => NextcloudContentFilterStore::class,
 		Crypto::class              => NextcloudCrypto::class,
@@ -198,6 +207,13 @@ class Application extends App implements IBootstrap {
 		PublicCommentApi::class,
 		ArticleStreamApi::class,
 		MediaApi::class,
+		SettingsApi::class,
+		RetentionApi::class,
+		StorageApi::class,
+		ContentFilterApi::class,
+		SiteCredentialApi::class,
+		ReportApi::class,
+		ExtensionApi::class,
 	];
 
 	public function __construct(array $urlParams = []) {

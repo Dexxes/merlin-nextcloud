@@ -17,12 +17,15 @@ final class Router {
      *        oder wirft/liefert 4xx über die Middleware
      * @param array<callable(Request): ?Response> $middleware Laufen in Reihenfolge vor dem Handler;
      *        die erste Middleware, die eine Response zurückgibt, beendet die Kette
+     * @param array<string, string> $requirements Regex je Platzhalter wie in
+     *        Nextclouds routes.php (sonst ein Pfadsegment); passt er nicht,
+     *        gilt die Route als nicht gefunden
      */
-    public function add(string $method, string $path, callable $handler, array $middleware = []): void {
+    public function add(string $method, string $path, callable $handler, array $middleware = [], array $requirements = []): void {
         $paramNames = [];
-        $pattern = preg_replace_callback('#\{(\w+)\}#', function ($m) use (&$paramNames) {
+        $pattern = preg_replace_callback('#\{(\w+)\}#', function ($m) use (&$paramNames, $requirements) {
             $paramNames[] = $m[1];
-            return '(?P<' . $m[1] . '>[^/]+)';
+            return '(?P<' . $m[1] . '>' . ($requirements[$m[1]] ?? '[^/]+') . ')';
         }, $path);
 
         $this->routes[] = [

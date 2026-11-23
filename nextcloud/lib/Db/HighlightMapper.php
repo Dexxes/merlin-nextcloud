@@ -98,30 +98,6 @@ class HighlightMapper extends QBMapper {
 		return ($row['cnt'] ?? 0) . ':' . ($row['max_id'] ?? 0) . ':' . ($row['revisions'] ?? 0);
 	}
 
-	/**
-	 * @return array{count: int, bytes: int}
-	 */
-	public function getStorageStats(string $userId): array {
-		$qb = $this->db->getQueryBuilder();
-		$qb->select('highlighted_text', 'start_xpath', 'end_xpath', 'pdf_rects')
-			->from($this->getTableName())
-			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)));
-
-		$result = $qb->executeQuery();
-
-		$count = 0;
-		$bytes = 0;
-		while ($row = $result->fetch()) {
-			$count++;
-			foreach ($row as $value) {
-				$bytes += strlen((string)($value ?? ''));
-			}
-		}
-		$result->closeCursor();
-
-		return ['count' => $count, 'bytes' => $bytes];
-	}
-
 	public function deleteById(int $id, string $userId): void {
 		$qb = $this->db->getQueryBuilder();
 

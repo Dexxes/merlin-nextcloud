@@ -6,6 +6,7 @@ namespace OCA\Merlin\Service;
 
 use Merlin\Core\ContentFilter\ContentFilterMerger;
 use Merlin\Core\ContentFilter\ContentFilterRepository as CoreContentFilterRepository;
+use Merlin\Core\Port\ContentFilterEditor;
 use Merlin\Core\Port\ContentFilterSource;
 use OCA\Merlin\Adapter\NextcloudContentFilterStore;
 use Psr\Log\LoggerInterface;
@@ -16,7 +17,7 @@ use Psr\Log\LoggerInterface;
  * Ablage (merlin_cfilter über NextcloudContentFilterStore) und die Orte des
  * Bundle-Ordners dazu.
  */
-class ContentFilterRepository extends CoreContentFilterRepository implements ContentFilterSource {
+class ContentFilterRepository extends CoreContentFilterRepository implements ContentFilterEditor, ContentFilterSource {
 	public function __construct(
 		NextcloudContentFilterStore $store,
 		LoggerInterface $logger,

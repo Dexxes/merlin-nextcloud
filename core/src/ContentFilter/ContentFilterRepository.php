@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Merlin\Core\ContentFilter;
 
-use Merlin\Core\Port\ContentFilterSource;
+use Merlin\Core\Port\ContentFilterEditor;
 use Merlin\Core\Port\ContentFilterStore;
 use Psr\Log\LoggerInterface;
 
@@ -29,7 +29,7 @@ use Psr\Log\LoggerInterface;
  * werden NICHT migriert (siehe tasks/content-filter-db-scopes-todo.md,
  * Entscheidungstabelle) — sie werden schlicht ignoriert.
  */
-class ContentFilterRepository implements ContentFilterSource {
+class ContentFilterRepository implements ContentFilterEditor {
 
 	/** @see Migration Version1000Date20240101000020 */
 	public const SCOPE_ADMIN = 'admin';

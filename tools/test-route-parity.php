@@ -41,14 +41,6 @@ const NEXTCLOUD_ONLY = ['file#target', 'file#register', 'file#content', 'file#re
 const NOT_YET_IN_CORE = [
 	'page#index', 'manifest#index', 'service_worker#index',
 	'public_share#show',
-	'settings#get', 'settings#update', 'retention#acknowledgeNotice',
-	'retentionAdmin#show', 'retentionAdmin#update', 'retentionAdmin#preview', 'storage#get',
-	'contentFilter#index', 'contentFilter#import', 'contentFilter#show', 'contentFilter#update',
-	'contentFilter#destroy', 'contentFilter#test', 'contentFilter#export',
-	'userContentFilter#index', 'userContentFilter#show', 'userContentFilter#update',
-	'userContentFilter#destroy', 'userContentFilter#test',
-	'siteCredential#index', 'siteCredential#update', 'siteCredential#destroy',
-	'report#ping', 'report#report', 'extension#add', 'extension#get', 'extension#modify',
 ];
 
 /** Nur im Standalone-Server: Seiten, Konten, Login Flow v2, Admin-Nutzer (Methode Pfad). */
@@ -95,6 +87,18 @@ foreach ($core as $i => $route) {
 	if (isset($route['rateLimit']) && (!is_array($route['rateLimit']) || count($route['rateLimit']) !== 2
 		|| !is_int($route['rateLimit'][0]) || !is_int($route['rateLimit'][1]) || $route['access'] !== 'public')) {
 		$fail("routes.php {$route['name']}: rateLimit muss [limit, period] an einer öffentlichen Route sein");
+	}
+	if (isset($route['userRateLimit']) && (!is_array($route['userRateLimit']) || count($route['userRateLimit']) !== 2
+		|| !is_int($route['userRateLimit'][0]) || !is_int($route['userRateLimit'][1]) || $route['access'] === 'public')) {
+		$fail("routes.php {$route['name']}: userRateLimit muss [limit, period] an einer Route mit Anmeldung sein");
+	}
+	if (isset($route['csrf']) && ($route['csrf'] !== true || $route['access'] !== 'user')) {
+		$fail("routes.php {$route['name']}: csrf ist nur als true an einer 'user'-Route vorgesehen ('admin' verlangt den requesttoken immer)");
+	}
+	foreach ($route['requirements'] ?? [] as $placeholder => $regex) {
+		if (!str_contains($route['url'], '{' . $placeholder . '}') || @preg_match('#^' . $regex . '$#', '') === false) {
+			$fail("routes.php {$route['name']}: requirements für {{$placeholder}} passt nicht zum Pfad oder ist kein Regex");
+		}
 	}
 	[$class, $method] = $route['handler'];
 	if (!method_exists($class, $method)) {
@@ -147,8 +151,9 @@ if (!is_file($root . '/nextcloud/vendor/merlin/core/src/Api/routes.php')) {
 		$attrs = $m[1];
 		$expected = match ($route['access']) {
 			'public' => str_contains($attrs, '#[PublicPage]') && str_contains($attrs, '#[NoCSRFRequired]'),
-			'user' => str_contains($attrs, '#[NoAdminRequired]') && str_contains($attrs, '#[NoCSRFRequired]') && !str_contains($attrs, '#[PublicPage]'),
-			'admin' => !str_contains($attrs, '#[NoAdminRequired]') && !str_contains($attrs, '#[PublicPage]'),
+			'user' => str_contains($attrs, '#[NoAdminRequired]') && !str_contains($attrs, '#[PublicPage]')
+				&& str_contains($attrs, '#[NoCSRFRequired]') === empty($route['csrf']),
+			'admin' => !str_contains($attrs, '#[NoAdminRequired]') && !str_contains($attrs, '#[PublicPage]') && !str_contains($attrs, '#[NoCSRFRequired]'),
 			default => false,
 		};
 		if (!$expected) {
@@ -159,6 +164,12 @@ if (!is_file($root . '/nextcloud/vendor/merlin/core/src/Api/routes.php')) {
 			: null;
 		if ($rateAttr !== null ? !str_contains($attrs, $rateAttr) : str_contains($attrs, 'AnonRateLimit')) {
 			$fail("Nextcloud: {$route['name']} braucht " . ($rateAttr ?? 'kein #[AnonRateLimit]') . ' wie in routes.php');
+		}
+		$userRateAttr = isset($route['userRateLimit'])
+			? "#[UserRateLimit(limit: {$route['userRateLimit'][0]}, period: {$route['userRateLimit'][1]})]"
+			: null;
+		if ($userRateAttr !== null ? !str_contains($attrs, $userRateAttr) : str_contains($attrs, 'UserRateLimit')) {
+			$fail("Nextcloud: {$route['name']} braucht " . ($userRateAttr ?? 'kein #[UserRateLimit]') . ' wie in routes.php');
 		}
 	}
 	foreach ($byName as $name => $route) {

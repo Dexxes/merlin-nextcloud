@@ -4,322 +4,42 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
-use Merlin\Core\Extraction\ContentExtractorService;
-use Merlin\Core\Extraction\UnsupportedSiteException;
-use Merlin\Core\Service\ArticleDeletionService;
-use OCA\Merlin\Db\Article;
-use OCA\Merlin\Db\ArticleMapper;
-use OCP\AppFramework\Controller;
-use OCP\AppFramework\Http;
+use Merlin\Core\Api\ExtensionApi;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
-use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
-use Psr\Log\LoggerInterface;
 
 /**
- * Pocket-compatible API for browser extensions.
- *
- * Security note – NoCSRFRequired:
- * All API routes carry #[NoCSRFRequired] because this endpoint is exclusively
- * consumed by browser extensions via HTTP Basic Auth and cannot supply a
- * Nextcloud requesttoken. CSRF is not applicable to Basic-Auth-only routes.
+ * Pocket-kompatible API der Browser-Erweiterungen: dünner Controller über
+ * Merlin\Core\Api\ExtensionApi. NoCSRFRequired: nur Basic Auth, kein
+ * requesttoken möglich.
  */
-class ExtensionController extends Controller {
-	private ArticleMapper $articleMapper;
-	private ContentExtractorService $contentExtractor;
-	private LoggerInterface $logger;
-	private ?string $userId;
-
+class ExtensionController extends CoreApiController {
 	public function __construct(
 		string $appName,
 		IRequest $request,
-		ArticleMapper $articleMapper,
-		ContentExtractorService $contentExtractor,
-		LoggerInterface $logger,
-		private ArticleDeletionService $deletionService,
-		?string $userId
+		private ExtensionApi $api,
+		?string $userId,
 	) {
-		parent::__construct($appName, $request);
-		$this->articleMapper = $articleMapper;
-		$this->contentExtractor = $contentExtractor;
-		$this->logger = $logger;
-		$this->userId = $userId;
+		parent::__construct($appName, $request, $userId);
 	}
 
-	/**
-	 * Add article (Pocket-compatible)
-	 *
-	 * The article is stored immediately with a placeholder title so the client
-	 * receives HTTP 201 without waiting for content extraction.
-	 * Content is fetched asynchronously after the response is sent.
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function add(string $url, ?string $title = null, ?array $tags = null, ?string $html = null, ?string $author = null): DataResponse {
-		if ($this->userId === null) {
-			return new DataResponse(['status' => 0, 'error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
-		}
-
-		// Domains aus content-filters/$unsupported.xml werden HIER (synchron, vor
-		// dem Platzhalter-Artikel) abgelehnt statt erst im asynchronen
-		// register_shutdown_function()-Block unten: Browser-Erweiterungen pollen
-		// den Artikel nach dem Speichern nie auf sein Extraktions-Ergebnis (siehe
-		// saveToMerlin() in background.js - "Content extraction runs
-		// asynchronously; no need to wait for it here") und würden sonst IMMER
-		// einen Erfolg anzeigen, obwohl der Artikel nie Inhalt bekommt. Gilt nur,
-		// wenn wir die Seite selbst holen ($html === null) - liefert die
-		// Erweiterung das HTML schon mit, wird nichts gescraped.
-		if ($html === null) {
-			try {
-				$this->contentExtractor->assertUrlIsSupported($url);
-			} catch (UnsupportedSiteException $e) {
-				return new DataResponse([
-					'status' => 0,
-					'error'  => 'unsupported_site',
-					'domain' => $e->domain,
-				], Http::STATUS_UNPROCESSABLE_ENTITY);
-			} catch (\Throwable) {
-				// Andere Fehler (z. B. Shortener-Auflösung schlägt fehl) hier
-				// ignorieren - das eigentliche extract() unten prüft ohnehin
-				// erneut und liefert dafür die etablierte Fehlerbehandlung.
-			}
-		}
-
-		try {
-			// 1. Save a placeholder article immediately so the client is not blocked.
-			$article = new Article();
-			$article->setUserId($this->userId);
-			$article->setUrl($url);
-			$article->setTitle($title ?? (parse_url($url, PHP_URL_HOST) ?: $url));
-			$article->setContent('');
-			$article->setExcerpt('');
-			$article->setAuthor($author ?? '');
-			$article->setSiteName(parse_url($url, PHP_URL_HOST) ?: '');
-			$article->setImageUrl('');
-			$article->setCategory(null);
-			$article->setReadingTime(0);
-			$article->setIsRead(false);
-			$article->setIsFavorite(null);
-			$article->setIsArchived(false);
-			$article->setIsProcessing(1);
-			$article->setCreatedAt(new \DateTime());
-			$article->setUpdatedAt(new \DateTime());
-
-			$savedArticle = $this->articleMapper->insert($article);
-
-			// 2. Schedule content extraction to run after the HTTP response is sent.
-			$articleId = $savedArticle->getId();
-			$extractor = $this->contentExtractor;
-			$mapper    = $this->articleMapper;
-			$userId    = $this->userId;
-
-			register_shutdown_function(static function () use ($articleId, $url, $html, $title, $author, $extractor, $mapper, $userId): void {
-				// Release the HTTP connection so the client is unblocked immediately.
-				if (function_exists('fastcgi_finish_request')) {
-					fastcgi_finish_request();
-				}
-				if (session_status() === PHP_SESSION_ACTIVE) {
-					session_write_close();
-				}
-				set_time_limit(60);
-				try {
-					// If the extension sent the page HTML, use it directly (avoids a second
-					// network fetch and works for paywalled / JS-rendered pages).
-					$extracted = $html
-						? $extractor->extractFromHtml($url, $html, $userId)
-						: $extractor->extract($url, null, $userId);
-					// Caller-supplied title/author (e.g. a mail's subject/sender) win over
-					// whatever the extraction pipeline guessed from the HTML — relevant for
-					// plain-text mails wrapped as HTML, which have no meaningful <title>/byline.
-					if ($title !== null && $title !== '') {
-						$extracted['title'] = $title;
-					}
-					if ($author !== null && $author !== '') {
-						$extracted['author'] = $author;
-						// Der erkannte Profil-Link gehört zum erkannten, nicht
-						// zum mitgegebenen Autor.
-						$extracted['authorUrl'] = null;
-						$extracted['authors']   = null;
-					}
-					$article   = $mapper->find($articleId, $userId);
-					$article->setUrl($extracted['url'] ?? $url);
-					$article->setTitle($extracted['title']);
-					$article->setContent($extracted['content']);
-					$article->setExcerpt($extracted['excerpt']);
-					$article->setAuthor($extracted['author']);
-					$article->setAuthorUrl($extracted['authorUrl'] ?? null);
-					$article->setAuthors(Article::encodeAuthors($extracted['authors'] ?? null));
-					$article->setSiteName($extracted['siteName']);
-					$article->setImageUrl($extracted['imageUrl']);
-					$article->setCategory($extracted['category']);
-					$article->setReadingTime($extracted['readingTime']);
-					if (!empty($extracted['publishedAt'])) {
-						$article->setPublishedAt($extracted['publishedAt']);
-					}
-					$article->setIsPaywalled((bool) ($extracted['isPaywalled'] ?? false));
-					$article->setPaywallSubscribeUrl($extracted['paywallSubscribeUrl'] ?? null);
-					if (!empty($extracted['siteIconUrl'])) {
-						$article->setSiteIconUrl($extracted['siteIconUrl']);
-					}
-					$article->setUpdatedAt(new \DateTime());
-					$article->setIsProcessing(0);
-					$mapper->update($article);
-				} catch (UnsupportedSiteException $e) {
-					// Domain steht in content-filters/$unsupported.xml: kein
-					// genereller Fehlschlag, sondern ein Zustand, auf den der
-					// Client mit einem erklärenden Hinweis reagieren soll
-					// (Polling auf unsupportedSiteDomain, siehe
-					// Article::jsonSerialize()), analog zum
-					// ArticleController-Pendant.
-					try {
-						$article = $mapper->find($articleId, $userId);
-						$article->setIsProcessing(0);
-						$article->setUnsupportedSiteDomain($e->domain);
-						$mapper->update($article);
-					} catch (\Throwable) {
-					}
-				} catch (\Throwable) {
-					// Silently ignore extraction errors — the article is already saved.
-					try {
-						$article = $mapper->find($articleId, $userId);
-						$article->setIsProcessing(0);
-						$mapper->update($article);
-					} catch (\Throwable) {
-					}
-				}
-			});
-
-			return new DataResponse([
-				'item' => [
-					'item_id' => (string) $savedArticle->getId(),
-					'resolved_id' => (string) $savedArticle->getId(),
-					'given_url' => $url,
-					'resolved_url' => $url,
-					'given_title' => $savedArticle->getTitle(),
-					'resolved_title' => $savedArticle->getTitle(),
-					'status' => '0', // 0 = normal, 1 = archived, 2 = deleted
-				],
-				'status' => 1,
-			], Http::STATUS_CREATED);
-		} catch (\Exception $e) {
-			$this->logger->error('Merlin: extension article creation failed', ['exception' => $e]);
-			return new DataResponse([
-				'status' => 0,
-				'error' => 'Bad request',
-			], Http::STATUS_BAD_REQUEST);
-		}
+	public function add(): Response {
+		return $this->respond($this->api->add($this->apiRequest()));
 	}
 
-	/**
-	 * Get articles (Pocket-compatible)
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function get(
-		?string $state = null,
-		?int $count = 10,
-		?int $offset = 0
-	): DataResponse {
-		$filters = [];
-
-		// Map Pocket states to our filters
-		switch ($state) {
-			case 'unread':
-				$filters['is_read'] = false;
-				$filters['is_archived'] = false;
-				break;
-			case 'archive':
-				$filters['is_archived'] = true;
-				break;
-			case 'all':
-			default:
-				// No filters
-				break;
-		}
-
-		$articles = $this->articleMapper->findAll($this->userId, $filters, $count, $offset);
-
-		$items = [];
-		foreach ($articles as $article) {
-			$items[(string) $article->getId()] = [
-				'item_id' => (string) $article->getId(),
-				'resolved_id' => (string) $article->getId(),
-				'given_url' => $article->getUrl(),
-				'resolved_url' => $article->getUrl(),
-				'given_title' => $article->getTitle(),
-				'resolved_title' => $article->getTitle(),
-				'favorite' => $article->getIsFavorite() ? '1' : '0',
-				'status' => $article->getIsArchived() ? '1' : '0',
-				'excerpt' => $article->getExcerpt(),
-				'time_added' => $article->getCreatedAt()->getTimestamp(),
-				'time_updated' => $article->getUpdatedAt()->getTimestamp(),
-			];
-		}
-
-		return new DataResponse([
-			'status' => 1,
-			'list' => $items,
-		]);
+	public function get(): Response {
+		return $this->respond($this->api->get($this->apiRequest()));
 	}
 
-	/**
-	 * Modify article (Pocket-compatible)
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function modify(array $actions): DataResponse {
-		$results = [];
-
-		foreach ($actions as $action) {
-			try {
-				$itemId = (int) $action['item_id'];
-				$article = $this->articleMapper->find($itemId, $this->userId);
-
-				switch ($action['action']) {
-					case 'archive':
-						$article->applyArchived(true);
-						break;
-					case 'readd':
-						$article->applyArchived(false);
-						break;
-					case 'favorite':
-						$article->setIsFavorite(new \DateTime());
-						break;
-					case 'unfavorite':
-						$article->setIsFavorite(null);
-						break;
-					case 'delete':
-						$this->deletionService->deleteArticles($this->userId, [$article->getId()]);
-						$results[] = ['success' => true, 'item_id' => $itemId];
-						continue 2;
-				}
-
-				$article->setUpdatedAt(new \DateTime());
-				$this->articleMapper->update($article);
-
-				$results[] = ['success' => true, 'item_id' => $itemId];
-			} catch (\Exception $e) {
-				$results[] = [
-					'success' => false,
-					'item_id' => $action['item_id'] ?? null,
-					'error' => 'Not found',
-				];
-			}
-		}
-
-		return new DataResponse([
-			'status' => 1,
-			'action_results' => $results,
-		]);
+	public function modify(): Response {
+		return $this->respond($this->api->modify($this->apiRequest()));
 	}
 }

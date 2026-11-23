@@ -5,7 +5,7 @@ Zentrale Dateien für UI und Logik der Nextcloud-App.
 ## Repository-Layout
 
 Das Repo wird schrittweise zum gemeinsamen Repo für die Nextcloud-App und den
-Standalone-Server umgebaut. Aktueller Stand (Etappe 4 von 7, erster Teil):
+Standalone-Server umgebaut. Aktueller Stand (Etappe 4 von 7, vierter Teil):
 
 ```
 merlin-nextcloud/
@@ -83,7 +83,7 @@ Port in einer der beiden Listen steht und alle Kern-Dienste baubar sind.
 | `Translator` | `Adapter\StandaloneTranslator` (vorerst Englisch mit Parametern) |
 | `Session` | `Adapter\PhpSession` (`$_SESSION`) |
 | `UserDirectory` | `Adapter\StandaloneUserDirectory` (Benutzername aus `users`) |
-| `ContentFilterSource` | `Adapter\StandaloneContentFilterRepository` |
+| `ContentFilterSource`, `ContentFilterEditor` | `Adapter\StandaloneContentFilterRepository` (dieselbe Instanz) |
 | `SiteSessions`, `ArticleDeletion` | `SiteCredentialService`, `ArticleDeletionService` aus dem Kern |
 | `ArticleStore`, `TagStore` | `Merlin\Core\Persistence\SqlArticleStore`, `SqlTagStore` |
 | `Scheduler` | `Merlin\Core\Service\ShutdownScheduler` |
@@ -96,7 +96,11 @@ Routentabelle (Name, Verb, Pfad, Handler, Zugriff `user`/`admin`/`public`).
 Handler wie `Api\ArticleApi`, `Api\TagApi`, `Api\CapabilitiesApi`,
 `Api\HighlightApi`, `Api\CommentApi`, `Api\ShareApi`, `Api\PublicShareApi`,
 `Api\PublicCommentApi`, `Api\ArticleStreamApi` (Vorlesen, PDF) und
-`Api\MediaApi` (Medienquellen, YouTube-Seite) bekommen ein
+`Api\MediaApi` (Medienquellen, YouTube-Seite), `Api\SettingsApi`,
+`Api\RetentionApi`, `Api\StorageApi`, `Api\ContentFilterApi` (über den Port
+`ContentFilterEditor`, dieselbe Instanz wie `ContentFilterSource`, damit ein
+Testlauf seinen Entwurf an die Extraktion gibt), `Api\SiteCredentialApi`,
+`Api\ReportApi` und `Api\ExtensionApi` (Browser-Erweiterung) bekommen ein
 `ApiRequest` (Nutzer, Parameter aus Query, Body und Pfad, umgewandelt wie von
 Nextclouds Dispatcher) und liefern ein `ApiResult` (JSON, Text mit eigenem
 Content-Type, SSE-Stream oder `passthrough`: der Dienst schreibt die ganze
@@ -112,7 +116,14 @@ des Ports `Platform` (was nur die Variante hat). Öffentliche Routen können ein
 `#[AnonRateLimit]`, Standalone `Http\Middleware\RateLimitMiddleware`. Das
 Entsperren eines Share-Passworts bremst der Port `Throttler`
 (`Adapter\NextcloudThrottler` über IThrottler, Standalone
-`Adapter\SqlThrottler` mit der Tabelle `security_attempts`).
+`Adapter\SqlThrottler` mit der Tabelle `security_attempts`). `userRateLimit`
+[Anzahl, Sekunden] begrenzt je angemeldetem Nutzer (Nextcloud
+`#[UserRateLimit]`, Standalone `RateLimitMiddleware::forUser()`),
+`requirements` engt Platzhalter ein (beide Router), `csrf` markiert
+`user`-Routen nur für die Weboberfläche: Nextcloud lässt dort
+`#[NoCSRFRequired]` weg und verlangt den requesttoken (wie immer bei `admin`).
+Der Standalone-Server hat dafür noch keinen eigenen Schutz; bis Etappe 5 gibt
+es dort keine Weboberfläche, die solche Anfragen mit Session-Cookie schickt.
 `tools/test-route-parity.php`
 prüft Tabelle, Nextcloud-Routen und -Controller (Methode, Handler-Aufruf,
 Attribute) und Standalone-Router; Routen nur einer Variante stehen dort in
@@ -134,7 +145,10 @@ Schlagwort-API über HTTP durch (`--live`: echte Artikel-Links),
 `standalone/tests/test-discussion-api.php` Markierungen, Kommentare,
 Share-Links, Gast-Beiträge, Passwortbremse und Rate-Limit,
 `standalone/tests/test-media-api.php` Vorlesen, PDF, Medienquellen und die
-YouTube-Seite, auch hinter einem Share-Link. `standalone/tests/test-http.php` startet den eingebauten
+YouTube-Seite, auch hinter einem Share-Link, `standalone/tests/test-settings-api.php`
+Einstellungen, Löschfrist, Speicher, Content-Filter, Abo-Zugangsdaten,
+Meldungen, Browser-Erweiterung, Adminrechte und das Rate-Limit je Nutzer.
+`standalone/tests/test-http.php` startet den eingebauten
 PHP-Server und spielt Login Flow, Basic Auth, Admin-API und Kontolöschung
 durch. `standalone/bin/merlin extract <url>` ruft die Kern-Extraktion mit den
 Standalone-Adaptern auf; `standalone/tests/test-extraction.php --live` vergleicht
@@ -234,17 +248,20 @@ nextcloud/
 │   │   ├── TtsController.php              # → Merlin\Core\Api\ArticleStreamApi
 │   │   ├── PdfController.php                  # → Merlin\Core\Api\ArticleStreamApi (Datei-Einträge über den Port ArticleFiles)
 │   │   ├── FileController.php                 # Dateien vom Handy: Upload-Ziel, Eintrag anlegen, GET /api/articles/{id}/file (signierter Link)
-│   │   ├── ExtensionController.php
+│   │   ├── ExtensionController.php            # → Merlin\Core\Api\ExtensionApi
 │   │   ├── ManifestController.php             # PWA-Manifest
 │   │   ├── ServiceWorkerController.php         # Liefert den Service-Worker (PWA)
 │   │   ├── YoutubeEmbedController.php          # → Merlin\Core\Api\MediaApi (YouTube-Seite mit eigener CSP)
 │   │   ├── MediaController.php                 # → Merlin\Core\Api\MediaApi
 │   │   ├── VideoStreamController.php           # → Merlin\Core\Api\MediaApi (veraltet, nur HLS-Video)
-│   │   ├── SettingsController.php             # GET/PUT /api/settings (inkl. Löschfrist des Nutzers, nur lesend: Admin-Maximum/effektive Frist)
-│   │   ├── RetentionController.php            # POST /api/retention/notice: Löschfrist-Hinweis bestätigen
-│   │   ├── RetentionAdminController.php       # Admin-API der Löschfrist (Maximum, Vorschau)
-│   │   ├── ContentFilterController.php        # Admin-API für Content-Filter
-│   │   ├── UserContentFilterController.php    # Personal-API: eigener Override
+│   │   ├── SettingsController.php             # → Merlin\Core\Api\SettingsApi
+│   │   ├── RetentionController.php            # → Merlin\Core\Api\RetentionApi (Hinweis bestätigen)
+│   │   ├── RetentionAdminController.php       # → Merlin\Core\Api\RetentionApi (Admin-Maximum, Vorschau)
+│   │   ├── StorageController.php              # → Merlin\Core\Api\StorageApi
+│   │   ├── ContentFilterController.php        # → Merlin\Core\Api\ContentFilterApi (nur Admins, requesttoken)
+│   │   ├── UserContentFilterController.php    # → Merlin\Core\Api\ContentFilterApi (eigener Override, requesttoken)
+│   │   ├── SiteCredentialController.php       # → Merlin\Core\Api\SiteCredentialApi
+│   │   ├── ReportController.php               # → Merlin\Core\Api\ReportApi
 │   │   └── PageController.php
 │   ├── Adapter/
 │   │   ├── NextcloudUrlGenerator.php     # Port UrlGenerator über IURLGenerator
@@ -336,6 +353,13 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │   │   ├── PublicCommentApi.php          # Gast-Kommentare/-Markierungen, Honeypot, Gast-Push-Kanal
 │   │   ├── ArticleStreamApi.php          # Vorlesen und PDF, für den Besitzer und hinter dem Link
 │   │   ├── MediaApi.php                  # Audio-/Videoquellen, altes /video-stream, YouTube-Seite
+│   │   ├── SettingsApi.php               # /api/settings (Leseeinstellungen, Typen, Löschfrist des Nutzers)
+│   │   ├── RetentionApi.php              # Löschfrist: Hinweis bestätigen, Admin-Maximum, Vorschau
+│   │   ├── StorageApi.php                # /api/storage (Bytes der Textspalten je Nutzer)
+│   │   ├── ContentFilterApi.php          # Content-Filter: Admin (/api/admin/content-filters…) und eigene Ebene (/api/user/…), Testlauf
+│   │   ├── SiteCredentialApi.php         # Paywall-Abo-Zugangsdaten (/api/user/site-credentials…)
+│   │   ├── ReportApi.php                 # Meldungsbackend: Ping, Artikel melden
+│   │   ├── ExtensionApi.php              # Browser-Erweiterung, Pocket-kompatibel (/api/v1/add, /get, /send)
 │   │   └── CapabilitiesApi.php           # /api/capabilities
 │   ├── Persistence/                  # SQL-Stores gegen den Port Connection (Sql…Store, PdoConnection, RowMapper, SqlValue)
 │   ├── Domain/

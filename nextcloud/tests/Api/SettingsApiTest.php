@@ -42,6 +42,21 @@ class SettingsApiTest extends ApiTestCase {
 		$this->assertIsArray($storage);
 	}
 
+	public function testRetentionNoticeSiteCredentialsAndReports(): void {
+		$user = self::user();
+		$info = self::expect(200, self::api('POST', '/api/retention/notice', null, $user));
+		$this->assertFalse($info['retentionNoticeRequired']);
+
+		$credentials = self::expect(200, self::api('GET', '/api/user/site-credentials', null, $user));
+		$this->assertSame([], $credentials['credentials']);
+		$this->assertIsArray($credentials['availableDomains']);
+		self::expect(400, self::api('PUT', '/api/user/site-credentials/tagesspiegel.de', ['username' => 'ci'], $user));
+		self::expect(200, self::api('DELETE', '/api/user/site-credentials/tagesspiegel.de', null, $user));
+
+		$report = self::expect(400, self::api('POST', '/api/report-backend/report', ['url' => 'https://example.org/a'], $user));
+		$this->assertSame(['status' => 'unconfigured'], $report);
+	}
+
 	public function testPageAndPwaEndpoints(): void {
 		$user = self::user();
 		$page = self::api('GET', '/', null, $user);
