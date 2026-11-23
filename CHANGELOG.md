@@ -6,6 +6,13 @@ All notable changes to Merlin are documented here. Format based on
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-23
+
+First release of both variants from one repository: the Nextcloud app and
+the new standalone server (Docker image `ghcr.io/dexxes/merlin-standalone`
+and tarball) share one core, one API and one web interface. Includes all
+changes since 1.0.11.
+
 ### Added
 - PHP 8.6 allowed in `appinfo/info.xml` (8.4–8.6). The Nextcloud tests pick it
   up as soon as a supported Nextcloud release accepts it; until then CI checks
