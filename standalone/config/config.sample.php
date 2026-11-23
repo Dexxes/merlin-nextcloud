@@ -24,6 +24,18 @@ return [
 	// '/tools/merlin'). Der Router zieht ihn von REQUEST_URI ab.
 	'base_path' => '/',
 
+	// Reverse-Proxys vor dem Server (IPs oder CIDR, z. B. '172.16.0.0/12'
+	// für ein Docker-Netz). Nur Anfragen von dort dürfen mit X-Forwarded-For
+	// die Client-Adresse (Rate-Limits, Brute-Force-Bremse) und mit
+	// X-Forwarded-Proto HTTPS angeben. Leer: Client-Adresse ist immer die
+	// Verbindungsadresse (hinter einem Proxy also die des Proxys, alle Limits
+	// zählen dann gemeinsam), X-Forwarded-Proto gilt wie bisher von jedem.
+	'trusted_proxies' => [],
+
+	// Größte Datei für „Merlin Dateien“ (WebDAV-Upload, auch Chunked Upload
+	// in Summe): Bytes oder mit K/M/G, 0 = unbegrenzt.
+	'max_upload_size' => '100M',
+
 	'mail' => [
 		'from_address' => 'merlin@example.com',
 		'from_name' => 'Merlin',

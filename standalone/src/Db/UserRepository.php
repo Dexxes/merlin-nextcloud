@@ -55,7 +55,8 @@ final class UserRepository {
 
     public function updatePassword(int $userId, string $passwordHash): void {
         $stmt = $this->db->prepare(
-            'UPDATE users SET password_hash = :hash, updated_at = :updated_at WHERE id = :id'
+            // session_version + 1: bestehende Browser-Sitzungen enden (SessionService).
+            'UPDATE users SET password_hash = :hash, session_version = session_version + 1, updated_at = :updated_at WHERE id = :id'
         );
         $stmt->execute([
             'hash' => $passwordHash,

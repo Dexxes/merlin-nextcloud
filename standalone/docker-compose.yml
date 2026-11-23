@@ -24,6 +24,10 @@ services:
       MERLIN_ADMIN_PASSWORD: bitte-aendern
       # MERLIN_MAIL_FROM: merlin@example.org
       # MERLIN_PHP_WORKERS: 16
+      # Größte Datei für Merlin Dateien (0 = unbegrenzt)
+      MERLIN_MAX_UPLOAD_SIZE: 100M
+      # Hinter einem Reverse-Proxy dessen Adresse(n), z. B. das Docker-Netz:
+      # MERLIN_TRUSTED_PROXIES: 172.16.0.0/12
 
 volumes:
   merlin-data:

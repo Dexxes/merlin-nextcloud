@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace Merlin\Standalone\Auth;
 
+use Merlin\Standalone\Db\UserRepository;
+
 /**
  * PHP-Session für die HTML-Seiten (Login, Account, Admin-UI). Die JSON-API
  * unter /api/* nutzt ausschließlich Basic Auth mit API-Tokens (siehe
  * ApiTokenService) - Sessions spielen dort keine Rolle.
  */
 final class SessionService {
+    public function __construct(private readonly UserRepository $users) {
+    }
+
     public function start(): void {
         if (session_status() !== PHP_SESSION_ACTIVE) {
             session_start([
@@ -31,6 +36,7 @@ final class SessionService {
         $this->start();
         session_regenerate_id(true);
         $_SESSION['user_id'] = $userId;
+        $_SESSION['session_version'] = (int) ($this->users->findById($userId)['session_version'] ?? 0);
     }
 
     public function logout(): void {
@@ -39,9 +45,23 @@ final class SessionService {
         session_destroy();
     }
 
+    /**
+     * Angemeldetes Konto der Session, null ohne Login oder wenn die Session
+     * vor dem letzten Passwort-Reset entstand (users.session_version höher
+     * als beim Login gemerkt): dann endet sie hier.
+     */
     public function currentUserId(): ?int {
         $this->start();
-        return isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : null;
+        if (!isset($_SESSION['user_id'])) {
+            return null;
+        }
+        $userId = (int) $_SESSION['user_id'];
+        $user = $this->users->findById($userId);
+        if ($user === null || (int) ($user['session_version'] ?? 0) !== (int) ($_SESSION['session_version'] ?? 0)) {
+            unset($_SESSION['user_id'], $_SESSION['session_version']);
+            return null;
+        }
+        return $userId;
     }
 
     /** Sprachwahl für ausgeloggte Seiten (Login/Registrierung/Passwort/Public-Share) - siehe I18n\LocaleResolver. */

@@ -40,6 +40,8 @@ file_put_contents($dir . '/config.php', '<?php return ' . var_export([
 	'base_url' => $base,
 	'secret' => base64_encode(random_bytes(32)),
 	'background_jobs' => 'cron',
+	// Klein, damit die Größengrenze (DavController) prüfbar ist.
+	'max_upload_size' => '150K',
 ], true) . ';');
 
 $cli = static function (string $args) use ($root, $dir): array {
@@ -211,6 +213,20 @@ try {
 	[, $bigEntry] = $json('POST', '/api/files', $admin, ['path' => $big['path']]);
 	[$status, , $body] = $http('GET', $local($bigEntry['url'] ?? ''));
 	check($status === 200 && $body === $whole, 'Stücke in natürlicher Reihenfolge (1, 2, 10)', $status . ' ' . strlen($body));
+	// ── Größengrenze (max_upload_size: 150K) ───────────────────────────────
+	[, $huge] = $json('POST', '/api/files/target', $admin, ['name' => 'riesig.bin', 'mimeType' => 'application/octet-stream']);
+	[$status] = $http('PUT', $huge['davPath'], $admin, str_repeat('Z', 160 * 1024));
+	check($status === 413 && !is_file($filesRoot . '/1' . $huge['path']), 'PUT über der Grenze: 413, nichts gespeichert', (string) $status);
+	$limitUpload = $huge['uploadsPath'] . '/grenze';
+	$http('MKCOL', $limitUpload, $admin);
+	[$status] = $http('PUT', $limitUpload . '/1', $admin, str_repeat('A', 100 * 1024));
+	check($status === 201, 'erstes Stück unter der Grenze: 201', (string) $status);
+	[$status] = $http('PUT', $limitUpload . '/2', $admin, str_repeat('B', 100 * 1024));
+	check($status === 413 && !is_file($filesRoot . '/.uploads/1/grenze/2'), 'Stücke zusammen über der Grenze: 413', (string) $status);
+	[$status] = $http('PUT', $limitUpload . '/1', $admin, str_repeat('C', 100 * 1024));
+	check($status === 201, 'Stück ersetzen zählt nicht doppelt: 201', (string) $status);
+	$http('DELETE', $limitUpload, $admin);
+
 	[$status] = $http('MKCOL', $big['uploadsPath'] . '/abbruch', $admin);
 	[$status] = $http('DELETE', $big['uploadsPath'] . '/abbruch', $admin);
 	check($status === 204 && !is_dir($filesRoot . '/.uploads/1/abbruch'), 'Upload abbrechen: 204', (string) $status);

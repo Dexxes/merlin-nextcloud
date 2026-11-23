@@ -17,7 +17,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: shivammathur/setup-php@v2
+    - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
       with:
         php-version: ${{ inputs.php }}
         # Nextcloud's required modules plus the database drivers.
@@ -27,7 +27,7 @@ runs:
         tools: composer:v2
 
     - name: Check out nextcloud/server ${{ inputs.server-ref }}
-      uses: actions/checkout@v7
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       with:
         repository: nextcloud/server
         ref: ${{ inputs.server-ref }}
@@ -36,7 +36,7 @@ runs:
         fetch-depth: 1
 
     - name: Put the built app into apps/merlin
-      uses: actions/download-artifact@v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: merlin-app
         path: ${{ runner.temp }}

@@ -13,6 +13,9 @@ return [
 	'files_path' => '/data/files',
 	'base_url' => rtrim($env('MERLIN_BASE_URL', 'http://localhost:8080'), '/'),
 	'base_path' => $env('MERLIN_BASE_PATH', '/'),
+	// Leerzeichen- oder kommagetrennt, z. B. "172.16.0.0/12" (Docker-Netz).
+	'trusted_proxies' => $env('MERLIN_TRUSTED_PROXIES'),
+	'max_upload_size' => $env('MERLIN_MAX_UPLOAD_SIZE', '100M'),
 	'mail' => [
 		'from_address' => $env('MERLIN_MAIL_FROM', 'merlin@localhost'),
 		'from_name' => $env('MERLIN_MAIL_FROM_NAME', 'Merlin'),

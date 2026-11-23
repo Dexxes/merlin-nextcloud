@@ -33,7 +33,12 @@ final class Request {
         $this->jsonBody = is_array($decoded) ? $decoded : [];
     }
 
-    public static function fromGlobals(string $basePath = '/'): self {
+    /**
+     * @param list<string> $trustedProxies IPs/CIDR-Bereiche der Reverse-Proxys
+     *        ('trusted_proxies' in config.php): nur von dort gelten
+     *        X-Forwarded-For und X-Forwarded-Proto.
+     */
+    public static function fromGlobals(string $basePath = '/', array $trustedProxies = []): self {
         $fullPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
         // Entfernt den Base-Path vom Anfang der Request-URL, falls vorhanden
@@ -65,6 +70,7 @@ final class Request {
         if (isset($_SERVER['CONTENT_LENGTH'])) {
             $headers['content-length'] = $_SERVER['CONTENT_LENGTH'];
         }
+        $remote = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
         // WebDAV-Uploads (Controller\DavController) können groß sein: den
         // Body dort nicht in den Speicher lesen, sondern über bodyStream().
         $streamBody = str_starts_with($path, self::DAV_PREFIX);
@@ -75,17 +81,75 @@ final class Request {
             $_GET,
             $headers,
             $streamBody ? '' : (string) file_get_contents('php://input'),
-            // Gleiche Erkennung wie SessionService::start() (cookie_secure): ein
-            // Synology-Reverse-Proxy terminiert TLS typischerweise und reicht
-            // intern per HTTP weiter, daher zählt X-Forwarded-Proto mit.
             ($_SERVER['HTTPS'] ?? '') !== ''
                 || ($_SERVER['SERVER_PORT'] ?? '') === '443'
-                || strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https',
-            // Bewusst nicht X-Forwarded-For: den Header kann jeder Client setzen
-            // und damit den Brute-Force-Schutz umgehen.
-            (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
+                || (self::forwardedHeadersTrusted($remote, $trustedProxies)
+                    && strtolower(trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0])) === 'https'),
+            self::clientAddress($remote, (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''), $trustedProxies),
             $streamBody,
         );
+    }
+
+    /**
+     * Gelten X-Forwarded-*-Header? Ohne 'trusted_proxies' wie bisher nur
+     * X-Forwarded-Proto (für HTTPS-Erkennung hinter einem Proxy, der TLS
+     * terminiert), mit Liste nur, wenn die Verbindung von dort kommt.
+     *
+     * @param list<string> $trustedProxies
+     */
+    public static function forwardedHeadersTrusted(string $remote, array $trustedProxies): bool {
+        return $trustedProxies === [] || self::inRanges($remote, $trustedProxies);
+    }
+
+    /**
+     * Adresse des Clients für Rate-Limits und Brute-Force-Bremse: kommt die
+     * Verbindung von einem vertrauenswürdigen Proxy, der von rechts erste
+     * Eintrag in X-Forwarded-For, der kein solcher Proxy ist (weiter links
+     * kann der Client selbst Werte vorgeben). Sonst REMOTE_ADDR, nie ein
+     * Header, den jeder setzen kann.
+     *
+     * @param list<string> $trustedProxies
+     */
+    public static function clientAddress(string $remote, string $forwardedFor, array $trustedProxies): string {
+        if ($trustedProxies === [] || !self::inRanges($remote, $trustedProxies)) {
+            return $remote;
+        }
+        $hops = array_reverse(array_filter(array_map('trim', explode(',', $forwardedFor)), static fn (string $v): bool => $v !== ''));
+        foreach ($hops as $hop) {
+            $hop = trim($hop, '[]');
+            if (filter_var($hop, FILTER_VALIDATE_IP) === false) {
+                break;
+            }
+            if (!self::inRanges($hop, $trustedProxies)) {
+                return $hop;
+            }
+        }
+        return $remote;
+    }
+
+    /** @param list<string> $ranges IPs oder CIDR (IPv4 und IPv6) */
+    public static function inRanges(string $ip, array $ranges): bool {
+        $address = @inet_pton($ip);
+        if ($address === false) {
+            return false;
+        }
+        foreach ($ranges as $range) {
+            [$net, $bits] = array_pad(explode('/', trim((string) $range), 2), 2, null);
+            $network = @inet_pton((string) $net);
+            if ($network === false || strlen($network) !== strlen($address)) {
+                continue;
+            }
+            $bits = $bits === null ? strlen($address) * 8 : (int) $bits;
+            $bytes = intdiv($bits, 8);
+            if (substr($address, 0, $bytes) !== substr($network, 0, $bytes)) {
+                continue;
+            }
+            $rest = $bits % 8;
+            if ($rest === 0 || ((ord($address[$bytes]) ^ ord($network[$bytes])) & (0xff << (8 - $rest)) & 0xff) === 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

@@ -239,6 +239,25 @@ try {
 	[$status, $json] = $http('GET', '/gibt-es-nicht');
 	check($status === 404 && ($json['error'] ?? '') === 'Not found', 'unbekannte Route: 404');
 
+	// Passwort-Reset meldet bestehende Browser-Sitzungen ab (session_version).
+	$oldJar = $dir . '/cookies-alt.txt';
+	$http('POST', '/login', null, [], ['username' => 'admin', 'password' => 'geheim123'], $oldJar);
+	[$status] = $http('GET', '/account', null, [], null, $oldJar);
+	check($status === 200, 'Admin-Session vor dem Reset');
+	$resetToken = bin2hex(random_bytes(16));
+	$pdo->prepare('INSERT INTO password_reset_tokens (user_id, token_hash, created_at, expires_at) VALUES (1, ?, ?, ?)')
+		->execute([hash('sha256', $resetToken), gmdate('c'), gmdate('c', time() + 600)]);
+	[$status, , , $headers] = $http('POST', '/password/reset', null, [], ['token' => $resetToken, 'password' => 'neues-passwort-1']);
+	check($status === 303 && str_ends_with($headers['location'] ?? '', '/login'), 'Passwort zurückgesetzt');
+	[$status, , , $headers] = $http('GET', '/account', null, [], null, $oldJar);
+	check($status === 303 && str_ends_with($headers['location'] ?? '', '/login'), 'alte Session nach dem Reset abgemeldet');
+	[$status] = $http('GET', '/account/tokens', null, [], null, $oldJar);
+	check($status === 401, 'alte Session: API 401');
+	$newJar = $dir . '/cookies-neu.txt';
+	$http('POST', '/login', null, [], ['username' => 'admin', 'password' => 'neues-passwort-1'], $newJar);
+	[$status] = $http('GET', '/account', null, [], null, $newJar);
+	check($status === 200, 'neue Anmeldung mit neuem Passwort');
+
 	$log = (string) @file_get_contents($dir . '/merlin.log');
 	check(!str_contains($log, 'ERROR'), 'keine Fehler im Log', $log);
 } finally {

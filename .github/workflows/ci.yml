@@ -27,8 +27,8 @@ jobs:
         # Every PHP of appinfo/info.xml (8.6 is the newest).
         php: ['8.4', '8.5', '8.6']
     steps:
-      - uses: actions/checkout@v7
-      - uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: ${{ matrix.php }}
           coverage: none
@@ -42,7 +42,7 @@ jobs:
     name: Core stays framework-free
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: No Nextcloud or app imports in core/
         # core/ is shared with the standalone server: no OCP\, no OCA\ and no
         # Merlin\Standalone\ references (imports, FQCNs, type hints).
@@ -72,8 +72,8 @@ jobs:
         # no supported Nextcloud accepts it yet.
         php: ['8.4', '8.6']
     steps:
-      - uses: actions/checkout@v7
-      - uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: ${{ matrix.php }}
           extensions: dom, mbstring, curl, sodium, pdo_sqlite, gd, exif
@@ -101,21 +101,21 @@ jobs:
     name: Frontend build and app store tarball
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: '22'
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: '8.4'
           coverage: none
           tools: composer:v2
       - name: Nextcloud imports only in src/platform/
         run: node frontend/tools/check-platform-imports.mjs
-      - name: npm install
+      - name: npm ci
         working-directory: frontend
-        # No package-lock.json is committed (see .gitignore).
-        run: npm install --no-audit --no-fund
+        # Exactly the versions in frontend/package-lock.json.
+        run: npm ci --no-audit --no-fund
       - name: vite build
         working-directory: frontend
         run: npm run build
@@ -173,12 +173,12 @@ jobs:
           done
           if find merlin-standalone -type l | grep .; then echo "::error::symlinks in standalone tarball"; exit 1; fi
           test "$(cat merlin-standalone/VERSION)" = "$(sed -n 's#.*<version>\([^<]*\)</version>.*#\1#p' ../nextcloud/appinfo/info.xml | head -n 1)"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: merlin-appstore-tarball
           path: nextcloud/build/artifacts/merlin.tar.gz
           retention-days: 14
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: merlin-standalone-tarball
           path: build/merlin-standalone.tar.gz
@@ -188,7 +188,7 @@ jobs:
     name: Standalone Docker image
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: docker build
         run: docker build -f standalone/Dockerfile -t merlin-standalone:ci .
       - name: Start container

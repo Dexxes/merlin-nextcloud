@@ -37,6 +37,20 @@ All notable changes to Merlin are documented here. Format based on
   cannot be framed (clickjacking) and send no referrer.
 - [standalone] The Docker image refuses to create the admin account with the
   example password from `docker-compose.yml` or one shorter than 8 characters.
+- [standalone] New setting `trusted_proxies` (Docker: `MERLIN_TRUSTED_PROXIES`):
+  behind a reverse proxy, rate limits and the brute-force delay count per
+  client (from `X-Forwarded-For`) instead of for everyone together. With the
+  setting, `X-Forwarded-Proto` is only honoured from those proxies.
+- [standalone] Merlin files: uploads are limited to `max_upload_size`
+  (Docker: `MERLIN_MAX_UPLOAD_SIZE`, default 100 MB, `0` = unlimited), for
+  whole files and for the sum of a chunked upload; larger uploads get 413.
+- [standalone] Resetting the password signs out all existing browser
+  sessions of the account, not only its API tokens (migration
+  `004_session_version.sql`, run `bin/merlin migrate`).
+- Builds are reproducible: `frontend/package-lock.json` is committed and
+  CI, release and Docker builds use `npm ci`; GitHub Actions are pinned to
+  commit SHAs, Docker base images and `tonistiigi/binfmt` to digests
+  (Dependabot keeps them current).
 
 ## [1.1.0] - 2026-11-23
 
