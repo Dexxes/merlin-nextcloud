@@ -423,12 +423,14 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │                                     # UserSettings, AppSettings, Crypto, RetentionStore, ArticleDeletion,
 │                                     # CommentStore, HighlightStore, CommentGuestStore (DuplicateEntryException),
 │                                     # ShareStore, Session, UserDirectory, ContentFilterStore, Database,
-│                                     # StoredFile, FilePreviews, FileStorage, Translator, Translations, InstanceSecret
+│                                     # StoredFile, FilePreviews, FileStorage, Translator, Translations, InstanceSecret,
+│                                     # Throttler (ThrottledException → 429)
 └── tests/                            # Testharnesses (pures PHP, ohne Composer; autoload.php lädt Merlin\Core\)
     ├── test-content-filter-merge.php
     ├── test-support-box.php           # SupportBoxService (URL-Auswahl, Login-Ausblendung, Share, Seiten-Icon)
     ├── test-pdf-proxy.php             # PdfProxyService (lokaler Quellserver: Range, Redirect, Nicht-PDF, Größe, SSRF)
     ├── test-ssrf-guard.php            # SsrfSafeResolver (private/reservierte Bereiche, IPv4 in IPv6, CGNAT)
+    ├── test-sanitize-urls.php         # Sanitizer: href/src/poster ohne javascript:/data:
     ├── test-retention.php             # RetentionPolicy (effektive Frist, Stichtag, Hinweis)
     ├── test-retention-service.php     # RetentionService (Einstellungen, Vorschau, Trockenlauf, Lauf, Share-Karenz)
     ├── test-site-credentials.php      # SiteCredentialService (Login-Config aus dem Bundle, Cookie-Cache, Status, Löschen)

@@ -24,8 +24,9 @@ final class UserRepository {
         return $row === false ? null : $row;
     }
 
+    /** Groß-/Kleinschreibung egal: ADMIN@example.org ist dieselbe Adresse. */
     public function findByEmail(string $email): ?array {
-        $stmt = $this->db->prepare('SELECT * FROM users WHERE email = :email');
+        $stmt = $this->db->prepare('SELECT * FROM users WHERE email = :email COLLATE NOCASE ORDER BY id LIMIT 1');
         $stmt->execute(['email' => $email]);
         $row = $stmt->fetch();
         return $row === false ? null : $row;
@@ -35,13 +36,14 @@ final class UserRepository {
         return $this->db->query('SELECT * FROM users ORDER BY username')->fetchAll();
     }
 
-    public function create(string $username, string $email, string $passwordHash, string $role): array {
+    public function create(string $username, string $email, string $passwordHash, string $role, bool $isActive = true): array {
         $now = gmdate('c');
         $stmt = $this->db->prepare(
             'INSERT INTO users (username, email, password_hash, role, is_active, created_at, updated_at)
-             VALUES (:username, :email, :password_hash, :role, 1, :created_at, :updated_at)'
+             VALUES (:username, :email, :password_hash, :role, :is_active, :created_at, :updated_at)'
         );
         $stmt->execute([
+            'is_active' => $isActive ? 1 : 0,
             'username' => $username,
             'email' => $email,
             'password_hash' => $passwordHash,

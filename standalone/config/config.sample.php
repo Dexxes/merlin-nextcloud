@@ -37,9 +37,14 @@ return [
 	// Volle Kontingente beantwortet der Upload mit 507.
 	'user_quota' => '100M',
 
+	// Abmeldung nach so vielen Sekunden ohne Anfrage (Standard 8 Stunden).
+	'session_idle_timeout' => 28800,
+
 	'mail' => [
 		'from_address' => 'merlin@example.com',
 		'from_name' => 'Merlin',
+		// Nur für Entwicklung: Mails als JSON-Zeilen in diese Datei statt mail().
+		// 'file' => '/tmp/merlin-mails.log',
 	],
 
 	// Gültigkeit von Passwort-Reset-Tokens in Sekunden.

@@ -7,6 +7,7 @@ namespace Merlin\Core\Api;
 use Merlin\Core\Domain\Article;
 use Merlin\Core\Port\ArticleStore;
 use Merlin\Core\Port\ShareStore;
+use Merlin\Core\Port\ThrottledException;
 use Merlin\Core\Port\Throttler;
 use Merlin\Core\Service\CommentService;
 use Merlin\Core\Service\ShareAccessDenied;
@@ -53,7 +54,11 @@ final class PublicShareApi {
 
 		// Die Wartezeit wächst mit den Fehlversuchen dieser IP.
 		$address = $request->remoteAddress();
-		$this->throttler->sleepDelay(self::THROTTLE_ACTION, $address);
+		try {
+			$this->throttler->sleepDelay(self::THROTTLE_ACTION, $address);
+		} catch (ThrottledException $e) {
+			return ApiResult::error('Too many attempts', 429, ['retryAfter' => $e->retryAfter]);
+		}
 		if (!password_verify((string) $request->string('password', ''), (string) $share->getPasswordHash())) {
 			$this->throttler->registerFailure(self::THROTTLE_ACTION, $address, ['token' => $token]);
 			return ApiResult::error('Invalid password', 403);

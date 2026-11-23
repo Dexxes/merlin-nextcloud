@@ -7,6 +7,7 @@ namespace OCA\Merlin\Listener;
 use OCP\AppFramework\Http\EmptyContentSecurityPolicy;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
+use OCP\IRequest;
 use OCP\Security\CSP\AddContentSecurityPolicyEvent;
 
 /**
@@ -62,9 +63,23 @@ use OCP\Security\CSP\AddContentSecurityPolicyEvent;
  * welche URL überhaupt im Marker landet, begrenzt bereits der Provider
  * (host-allow) bzw. sanitizeMediaMarker() serverseitig.
  *
+ * Nur auf Merlins eigenen Seiten (/apps/merlin/…, auch öffentliche
+ * Share-Links): Nextcloud sammelt die Policies aller Apps für JEDE Seite, ohne
+ * diese Prüfung lockerte Merlin also auch Dateien, Mail, Talk usw.
+ *
  * @template-implements IEventListener<AddContentSecurityPolicyEvent>
  */
 class AddContentSecurityPolicyListener implements IEventListener {
+	public function __construct(
+		private IRequest $request,
+	) {
+	}
+
+	/** Gilt die Policy für diesen Pfad (IRequest::getPathInfo())? */
+	public static function appliesTo(string|false $pathInfo): bool {
+		return is_string($pathInfo) && preg_match('#^/apps/merlin(/|$)#', $pathInfo) === 1;
+	}
+
 	/**
 	 * Domains von ARD-Landesrundfunkanstalten, deren HLS-CDN (Muster
 	 * av-adaptive.<domain>, live bestätigt für swr.de) nicht unter den
@@ -79,6 +94,14 @@ class AddContentSecurityPolicyListener implements IEventListener {
 
 	public function handle(Event $event): void {
 		if (!$event instanceof AddContentSecurityPolicyEvent) {
+			return;
+		}
+		try {
+			$pathInfo = $this->request->getPathInfo();
+		} catch (\Throwable) {
+			$pathInfo = false;
+		}
+		if (!self::appliesTo($pathInfo)) {
 			return;
 		}
 

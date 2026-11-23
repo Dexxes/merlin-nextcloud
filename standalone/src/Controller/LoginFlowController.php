@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Merlin\Standalone\Controller;
 
+use Merlin\Core\Port\Crypto;
+use Merlin\Standalone\Adapter\ConfigInstanceSecret;
 use Merlin\Standalone\Db\LoginFlowRepository;
 use Merlin\Standalone\Db\UserRepository;
 use Merlin\Standalone\Http\Request;
@@ -22,10 +24,36 @@ use Merlin\Standalone\Http\Response;
 final class LoginFlowController {
     private const TTL_SECONDS = 600; // 10 Minuten, wie der 5-Minuten-Timeout der Clients grosszügig bemessen
 
+    /** Kennzeichen eines verschlüsselt gespeicherten Tokens in api_token_plaintext. */
+    private const ENCRYPTED_PREFIX = 'enc:';
+
     public function __construct(
         private readonly LoginFlowRepository $flows,
         private readonly UserRepository $users,
+        private readonly Crypto $crypto,
+        private readonly ConfigInstanceSecret $secret,
     ) {
+    }
+
+    /**
+     * Token für die Zeile bis zum Abholen: verschlüsselt mit dem
+     * Instanz-Geheimnis, ohne Geheimnis (Fehlkonfiguration) im Klartext wie
+     * bisher, damit der Login Flow nicht ausfällt.
+     */
+    public function sealToken(string $plainText): string {
+        return $this->secret->isConfigured() ? self::ENCRYPTED_PREFIX . $this->crypto->encrypt($plainText) : $plainText;
+    }
+
+    private function unsealToken(string $stored): string {
+        return str_starts_with($stored, self::ENCRYPTED_PREFIX)
+            ? $this->crypto->decrypt(substr($stored, strlen(self::ENCRYPTED_PREFIX)))
+            : $stored;
+    }
+
+    /** User-Agent des Clients, gekürzt und ohne Steuerzeichen, für die Anmeldeseite. */
+    private static function clientName(Request $request): ?string {
+        $agent = trim((string) preg_replace('/[\x00-\x1f\x7f]+/', ' ', (string) $request->header('user-agent')));
+        return $agent === '' ? null : mb_substr($agent, 0, 200);
     }
 
     public function start(Request $request): Response {
@@ -34,7 +62,7 @@ final class LoginFlowController {
         $flowToken = bin2hex(random_bytes(32));
         $pollToken = bin2hex(random_bytes(32));
         $expiresAt = gmdate('c', time() + self::TTL_SECONDS);
-        $this->flows->create($flowToken, $pollToken, $expiresAt);
+        $this->flows->create($flowToken, $pollToken, $expiresAt, self::clientName($request));
 
         $base = $this->baseUrl($request);
 
@@ -67,7 +95,7 @@ final class LoginFlowController {
         return Response::json([
             'server' => $this->baseUrl($request),
             'loginName' => $user['username'],
-            'appPassword' => $flow['api_token_plaintext'],
+            'appPassword' => $this->unsealToken((string) $flow['api_token_plaintext']),
         ]);
     }
 

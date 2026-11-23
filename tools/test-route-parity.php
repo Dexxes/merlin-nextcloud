@@ -49,7 +49,7 @@ const PLATFORM_PAGES = ['page#index' => 'GET /', 'public_share#show' => 'GET /s/
 
 /** Nur im Standalone-Server: Seiten, Konten, Login Flow v2, Admin-Nutzer, Einstellungsseiten (Methode Pfad). */
 const STANDALONE_ONLY = [
-	'GET /login', 'POST /login', 'GET /logout', 'GET /register', 'POST /register',
+	'GET /login', 'POST /login', 'GET /logout', 'POST /logout', 'GET /register', 'POST /register', 'GET /register/confirm',
 	'GET /password/forgot', 'POST /password/forgot', 'GET /password/reset', 'POST /password/reset',
 	'GET /account', 'GET /admin', 'GET /lang/{code}', 'GET /img/{file}',
 	'POST /login/v2', 'POST /login/v2/poll', 'GET /login/v2/flow/{token}', 'POST /login/v2/flow/{token}',

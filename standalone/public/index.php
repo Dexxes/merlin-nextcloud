@@ -28,10 +28,7 @@ try {
 	$app = App::fromConfigFile();
 	$basePath = $app->config()->string('base_path', '/');
 	Response::setBasePath($basePath);
-	$trustedProxies = $app->config()->get('trusted_proxies', []);
-	$trustedProxies = is_array($trustedProxies) ? array_values(array_map('strval', $trustedProxies))
-		: preg_split('/[\s,]+/', (string) $trustedProxies, -1, PREG_SPLIT_NO_EMPTY);
-	Routes::build($app)->dispatch(Request::fromGlobals($basePath, $trustedProxies))->send();
+	Routes::build($app)->dispatch(Request::fromGlobals($basePath, $app->config()->stringList('trusted_proxies')))->send();
 } catch (\Throwable $e) {
 	try {
 		$app?->get(LoggerInterface::class)->error('Unbehandelter Fehler', ['exception' => $e]);

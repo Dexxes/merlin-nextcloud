@@ -55,7 +55,7 @@ $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 <a href="<?= $e($basePath . '/account') ?>"><?= $e($t->t('library.navMyAccount')) ?></a>
 <?php if ($pageTitle !== 'app.personalSettings'): ?><a href="<?= $e($basePath . '/settings') ?>"><?= $e($t->t('app.personalSettings')) ?></a><?php endif; ?>
 <?php if ($isAdmin && $pageTitle !== 'app.adminSettings'): ?><a href="<?= $e($basePath . '/settings/admin') ?>"><?= $e($t->t('app.adminSettings')) ?></a><?php endif; ?>
-<a href="<?= $e($basePath . '/logout') ?>"><?= $e($t->t('library.navLogout')) ?></a>
+<a href="<?= $e($logoutUrl) ?>"><?= $e($t->t('library.navLogout')) ?></a>
 </nav>
 <main class="merlin-settings-main">
 <?php foreach ($mountIds as $mountId): ?>

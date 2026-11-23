@@ -74,11 +74,13 @@ final class Routes {
 		$router->add('GET', '/login', $pages->loginForm(...));
 		$router->add('POST', '/login', $pages->login(...));
 		$router->add('GET', '/logout', $pages->logout(...));
+		$router->add('POST', '/logout', $pages->logout(...));
 		$router->add('GET', '/register', $pages->registerForm(...));
 		// Öffentliche Formulare je IP begrenzen: Registrierung (Massenkonten)
 		// und Passwort vergessen (Mailflut). Passwortprüfungen bremst der
 		// Throttler in PageController.
 		$router->add('POST', '/register', $pages->register(...), [$rateLimit->for('register', 10, 3600)]);
+		$router->add('GET', '/register/confirm', $pages->registerConfirm(...), [$rateLimit->for('register_confirm', 30, 3600)]);
 		$router->add('GET', '/password/forgot', $pages->passwordForgotForm(...));
 		$router->add('POST', '/password/forgot', $pages->passwordForgot(...), [$rateLimit->for('password_forgot', 5, 900)]);
 		$router->add('GET', '/password/reset', $pages->passwordResetForm(...));

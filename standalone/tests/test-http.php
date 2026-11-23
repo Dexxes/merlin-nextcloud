@@ -37,6 +37,7 @@ file_put_contents($dir . '/config.php', '<?php return ' . var_export([
 	'log_path' => $dir . '/merlin.log',
 	'base_url' => $base,
 	'secret' => base64_encode(random_bytes(32)),
+	'mail' => ['file' => $dir . '/mails.log'],
 ], true) . ';');
 putenv('MERLIN_CONFIG=' . $dir . '/config.php');
 
@@ -149,6 +150,63 @@ try {
 	[$status, $settings] = $http('PUT', '/admin/settings', ['allowSelfRegistration' => true], $basic);
 	check($status === 200 && ($settings['allowSelfRegistration'] ?? null) === true, 'Registrierung freigeben');
 
+	// Login Flow: Client aus dem User-Agent im Formular und im Token-Namen,
+	// das App-Passwort bis zum Abholen verschlüsselt in der Datenbank.
+	[, $flow] = $http('POST', '/login/v2', null, ['User-Agent' => "Merlin Firefox\x07<b>"]);
+	$flowPath = substr((string) ($flow['login'] ?? ''), strlen($base));
+	[$status, , $body] = $http('GET', $flowPath);
+	check($status === 200 && str_contains($body, 'Merlin Firefox &lt;b&gt;'), 'Login Flow: Formular nennt den Client (escaped, ohne Steuerzeichen)');
+	$http('POST', $flowPath, null, [], ['username' => 'admin', 'password' => 'geheim123']);
+	$pdo = new PDO('sqlite:' . $dir . '/merlin.sqlite');
+	$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$stored = (string) $pdo->query("SELECT api_token_plaintext FROM login_flow_tokens WHERE client_name IS NOT NULL")->fetchColumn();
+	check(str_starts_with($stored, 'enc:'), 'Login Flow: App-Passwort verschlüsselt gespeichert');
+	[$status, $result2] = $http('POST', '/login/v2/poll', ['token' => $flow['poll']['token'] ?? '']);
+	check($status === 200 && strlen((string) ($result2['appPassword'] ?? '')) === 64, 'Login Flow: Poll entschlüsselt das App-Passwort');
+	[, $tokens] = $http('GET', '/account/tokens', null, $basic);
+	check(in_array('Login Flow: Merlin Firefox <b>', array_column((array) $tokens, 'name'), true), 'Login Flow: Token-Name nennt den Client', json_encode($tokens));
+
+	// Offene Registrierung: Konto erst nach Bestätigung per Mail aktiv.
+	$mails = static fn (): array => array_map(
+		static fn (string $line): array => (array) json_decode($line, true),
+		is_file($dir . '/mails.log') ? array_values(array_filter(explode("\n", (string) file_get_contents($dir . '/mails.log')))) : [],
+	);
+	[$status, , $body] = $http('POST', '/register', null, [], ['username' => 'carl', 'email' => 'carl@example.org', 'password' => 'passwort1']);
+	$mail = $mails()[0] ?? [];
+	check($status === 200 && str_contains($body, 'class="success"') && ($mail['to'] ?? null) === 'carl@example.org', 'Registrierung: Bestätigungsmail', json_encode($mail));
+	[$status, , $body] = $http('POST', '/login', null, [], ['username' => 'carl', 'password' => 'passwort1']);
+	check($status === 200 && str_contains($body, 'class="error"'), 'Registrierung: vor der Bestätigung keine Anmeldung');
+	[$status, , $body] = $http('POST', '/register', null, [], ['username' => 'dora', 'email' => 'ADMIN@example.org', 'password' => 'passwort1']);
+	$notice = $mails()[1] ?? [];
+	check($status === 200 && str_contains($body, 'class="success"') && ($notice['to'] ?? null) === 'admin@example.org'
+		&& (int) $pdo->query("SELECT COUNT(*) FROM users WHERE username = 'dora'")->fetchColumn() === 0,
+		'Registrierung: vergebene Adresse verrät nichts, Hinweis an den Inhaber', json_encode($notice));
+	$http('POST', '/register', null, [], ['username' => 'erik', 'email' => 'erik@example.org', 'password' => 'passwort1']);
+	$http('POST', '/register', null, [], ['username' => 'erik2', 'email' => 'erik@example.org', 'password' => 'passwort2']);
+	$names = $pdo->query("SELECT username FROM users WHERE email = 'erik@example.org'")->fetchAll(PDO::FETCH_COLUMN);
+	check($names === ['erik2'], 'Registrierung: neue Anmeldung ersetzt die unbestätigte', json_encode($names));
+	[$status, , $body] = $http('GET', '/register/confirm?token=falsch');
+	check($status === 200 && str_contains($body, 'class="error"'), 'Registrierung: falscher Bestätigungslink');
+	preg_match('#/register/confirm\?token=[0-9a-f]+#', (string) ($mail['body'] ?? ''), $m);
+	$carlJar = $dir . '/cookies-carl.txt';
+	[$status, , , $headers] = $http('GET', $m[0] ?? '/register/confirm', null, [], null, $carlJar);
+	check($status === 303 && !str_ends_with($headers['location'] ?? '', '/login'), 'Registrierung: Bestätigungslink meldet an', json_encode($headers));
+	[$status, , $body] = $http('GET', '/account', null, [], null, $carlJar);
+	check($status === 200 && str_contains($body, 'carl'), 'Registrierung: Konto aktiv');
+	[$status] = $http('GET', $m[0] ?? '/register/confirm', null, [], null, $dir . '/cookies-x.txt');
+	check($status === 200, 'Registrierung: Bestätigungslink nur einmal');
+
+	// Abmelden nur mit dem Token der Session; ein fremder Link fragt nach.
+	[$status, , $body] = $http('GET', '/logout', null, [], null, $carlJar);
+	check($status === 200 && str_contains($body, 'name="token"'), 'Logout ohne Token: Rückfrage');
+	[$status] = $http('GET', '/account', null, [], null, $carlJar);
+	check($status === 200, 'Logout ohne Token: weiter angemeldet');
+	preg_match('#name="token" value="([0-9a-f]+)"#', $body, $lt);
+	[$status, , , $headers] = $http('POST', '/logout', null, [], ['token' => $lt[1] ?? ''], $carlJar);
+	check($status === 303 && str_ends_with($headers['location'] ?? '', '/login'), 'Logout mit Token');
+	[$status, , , $headers] = $http('GET', '/account', null, [], null, $carlJar);
+	check($status === 303, 'Logout mit Token: abgemeldet');
+
 	// Web-Login mit Session-Cookie, dann Token anlegen.
 	$jar = $dir . '/cookies.txt';
 	[$status, , , $headers] = $http('POST', '/login', null, [], ['username' => 'bea', 'password' => 'passwort1'], $jar);
@@ -187,7 +245,7 @@ try {
 	[, , $body] = $http('GET', '/', null, [], null, $adminJar);
 	check(!$built || str_contains($body, '{"id":"admin","href":"/settings/admin"}'), 'Reader: Admin bekommt den Verwaltungs-Link');
 	[, , $body] = $http('GET', '/', null, [], null, $jar);
-	check(!$built || (str_contains($body, '{"id":"logout","href":"/logout"}') && !str_contains($body, '"id":"admin"')), 'Reader: Nutzer ohne Verwaltungs-Link');
+	check(!$built || (str_contains($body, '{"id":"logout","href":"/logout?token=') && !str_contains($body, '"id":"admin"')), 'Reader: Nutzer ohne Verwaltungs-Link');
 	[$status, , , $headers] = $http('GET', '/settings');
 	check($status === 303 && str_contains($headers['location'] ?? '', '/login?return=%2Fsettings'), 'Einstellungen ohne Anmeldung: zum Login');
 	[$status, , $body] = $http('GET', '/s/abc_123');
@@ -257,6 +315,16 @@ try {
 	$http('POST', '/login', null, [], ['username' => 'admin', 'password' => 'neues-passwort-1'], $newJar);
 	[$status] = $http('GET', '/account', null, [], null, $newJar);
 	check($status === 200, 'neue Anmeldung mit neuem Passwort');
+
+	// Viele Fehlversuche: 429 sofort statt eines Workers, der 25 s schläft.
+	$insert = $pdo->prepare("INSERT INTO security_attempts (action, address, created_at) VALUES ('throttle:merlin_login', '127.0.0.1', ?)");
+	for ($i = 0; $i < 8; $i++) {
+		$insert->execute([time()]);
+	}
+	$started = microtime(true);
+	[$status, , $body, $headers] = $http('POST', '/login', null, [], ['username' => 'admin', 'password' => 'falsch']);
+	check($status === 429 && (int) ($headers['retry-after'] ?? 0) > 0 && str_contains($body, 'class="error"') && microtime(true) - $started < 2,
+		'Login-Bremse: 429 mit Retry-After ohne langes Warten', $status . ' ' . json_encode($headers));
 
 	$log = (string) @file_get_contents($dir . '/merlin.log');
 	check(!str_contains($log, 'ERROR'), 'keine Fehler im Log', $log);

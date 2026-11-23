@@ -6592,8 +6592,9 @@ class ContentExtractorService {
 				continue;
 			}
 
-			// URL-Attribute gegen gefährliche Schemata absichern.
-			if ($lname === 'href' || $lname === 'src') {
+			// URL-Attribute gegen gefährliche Schemata absichern. poster lädt wie
+			// src eine Ressource (Vorschaubild von <video>).
+			if ($lname === 'href' || $lname === 'src' || $lname === 'poster') {
 				$value = trim($el->getAttribute($name));
 				if ($this->isDangerousUrl($value)) {
 					$el->removeAttribute($name);

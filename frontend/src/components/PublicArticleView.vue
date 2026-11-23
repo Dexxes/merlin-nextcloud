@@ -430,7 +430,10 @@ export default {
 				await http.post(url, { password: this.password })
 				await this.fetchData()
 			} catch (error) {
-				this.unlockError = this.t('merlin', 'Incorrect password')
+				// 429: zu viele Fehlversuche, der Server prüft erst später wieder.
+				this.unlockError = error?.response?.status === 429
+					? this.t('merlin', 'Please try again later.')
+					: this.t('merlin', 'Incorrect password')
 			} finally {
 				this.unlocking = false
 			}

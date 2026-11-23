@@ -8,6 +8,8 @@
 <?php else: ?>
     <h1><?= htmlspecialchars($t->t('loginFlow.heading'), ENT_QUOTES, 'UTF-8') ?></h1>
     <p class="muted"><?= htmlspecialchars($t->t('loginFlow.hint'), ENT_QUOTES, 'UTF-8') ?></p>
+    <p><?= htmlspecialchars($t->t('loginFlow.client'), ENT_QUOTES, 'UTF-8') ?> <strong><?= htmlspecialchars((string) (($clientName ?? '') !== '' ? $clientName : $t->t('loginFlow.unknownClient')), ENT_QUOTES, 'UTF-8') ?></strong></p>
+    <p class="error"><?= htmlspecialchars($t->t('loginFlow.warning'), ENT_QUOTES, 'UTF-8') ?></p>
     <?php if (!empty($error)): ?>
         <p class="error"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
     <?php endif; ?>
