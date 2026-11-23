@@ -49,8 +49,8 @@ Oder mit `standalone/docker-compose.yml`. Variablen: `MERLIN_BASE_URL`
 der Container `/data/secret`), `MERLIN_LOG_LEVEL`, `MERLIN_PHP_WORKERS`
 (Vorgabe 16), `MERLIN_TRUSTED_PROXIES` (IPs/CIDR des Reverse-Proxys, z. B.
 `172.16.0.0/12`; erst damit zählen Rate-Limits und Login-Bremse je Client
-statt gemeinsam für alle) und `MERLIN_MAX_UPLOAD_SIZE` (größte Datei für
-Merlin Dateien, Vorgabe `100M`, `0` = unbegrenzt). Wer mehr einstellen will, legt `/data/config.php` an (Vorlage
+statt gemeinsam für alle) und `MERLIN_USER_QUOTA` (Speicherkontingent je
+Konto für Merlin Dateien, Vorgabe `100M`, `0` = unbegrenzt). Wer mehr einstellen will, legt `/data/config.php` an (Vorlage
 `config/config.sample.php`, Pfade auf `/data/…`); dann gelten die Variablen
 nicht. Mails verschickt der Container ohne eigenen Mailserver nicht
 (`mail()`), Passwort-Reset per Mail braucht deshalb einen eigenen Weg.

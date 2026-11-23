@@ -27,17 +27,17 @@ use Merlin\Standalone\Http\Response;
 final class DavController {
 	private const CHUNK_PATTERN = '/^[A-Za-z0-9_-]{1,64}$/';
 
-	/** Vorgabe für 'max_upload_size': 100 MB je Datei. */
-	public const DEFAULT_MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
+	/** Vorgabe für 'user_quota': 100 MB je Konto. */
+	public const DEFAULT_QUOTA = 100 * 1024 * 1024;
 
 	/**
-	 * @param int $maxUploadSize größte Datei in Bytes ('max_upload_size' in
-	 *        config.php, 0 = unbegrenzt); gilt für ganze Dateien und für die
-	 *        Summe der Stücke eines Chunked Uploads
+	 * @param int $quota Speicherkontingent je Konto in Bytes ('user_quota' in
+	 *        config.php, 0 = unbegrenzt): alle Dateien des Kontos plus die
+	 *        Stücke laufender Chunked Uploads
 	 */
 	public function __construct(
 		private readonly LocalFileStorage $storage,
-		private readonly int $maxUploadSize = self::DEFAULT_MAX_UPLOAD_SIZE,
+		private readonly int $quota = self::DEFAULT_QUOTA,
 	) {
 	}
 
@@ -50,7 +50,7 @@ final class DavController {
 			return max(0, $value);
 		}
 		if (!is_string($value) || !preg_match('/^\s*(\d+)\s*([KMG]?)B?\s*$/i', $value, $m)) {
-			return self::DEFAULT_MAX_UPLOAD_SIZE;
+			return self::DEFAULT_QUOTA;
 		}
 		$factor = ['' => 1, 'K' => 1024, 'M' => 1024 ** 2, 'G' => 1024 ** 3][strtoupper($m[2])];
 		return (int) $m[1] * $factor;
@@ -73,8 +73,10 @@ final class DavController {
 		if (!is_dir(dirname($target))) {
 			return self::error(409, 'Parent folder does not exist');
 		}
-		if ($this->exceedsLimit(0, $request)) {
-			return self::tooLarge();
+		// Eine ersetzte Datei gibt ihren Platz frei.
+		$remaining = $this->remaining($userId, is_file($target) ? (int) filesize($target) : 0);
+		if ($this->exceedsLimit($remaining, $request)) {
+			return self::quotaExceeded();
 		}
 		self::unlimited();
 		$temp = self::tempFile(dirname($target));
@@ -83,12 +85,12 @@ final class DavController {
 			return self::error(500, 'Could not write file');
 		}
 		$in = $request->bodyStream();
-		$written = $this->copyLimited($in, $out, 0);
+		$written = $this->copyLimited($in, $out, $remaining);
 		fclose($in);
 		fclose($out);
 		if ($written === null) {
 			@unlink($temp);
-			return self::tooLarge();
+			return self::quotaExceeded();
 		}
 		if (self::lostChunkedBody($request, $written)) {
 			@unlink($temp);
@@ -125,10 +127,11 @@ final class DavController {
 		if (!is_dir($dir)) {
 			return self::error(404, 'Upload not found');
 		}
-		// Bisherige Stücke zählen mit (ein ersetztes Stück gleichen Namens nicht).
-		$stored = self::chunksSize($dir, $chunk);
-		if ($this->exceedsLimit($stored, $request)) {
-			return self::tooLarge();
+		// Ein ersetztes Stück gleichen Namens gibt seinen Platz frei.
+		$userId = (string) $request->authUid();
+		$remaining = $this->remaining($userId, is_file($dir . '/' . $chunk) ? (int) filesize($dir . '/' . $chunk) : 0);
+		if ($this->exceedsLimit($remaining, $request)) {
+			return self::quotaExceeded();
 		}
 		self::unlimited();
 		$temp = self::tempFile($dir);
@@ -137,12 +140,12 @@ final class DavController {
 			return self::error(500, 'Could not write chunk');
 		}
 		$in = $request->bodyStream();
-		$written = $this->copyLimited($in, $out, $stored);
+		$written = $this->copyLimited($in, $out, $remaining);
 		fclose($in);
 		fclose($out);
 		if ($written === null) {
 			@unlink($temp);
-			return self::tooLarge();
+			return self::quotaExceeded();
 		}
 		if (self::lostChunkedBody($request, $written)) {
 			@unlink($temp);
@@ -187,10 +190,6 @@ final class DavController {
 			return self::error(400, 'No chunks');
 		}
 		usort($chunks, 'strnatcmp');
-		if ($this->maxUploadSize > 0 && self::chunksSize($dir, null) > $this->maxUploadSize) {
-			LocalFileStorage::removeDir($dir);
-			return self::tooLarge();
-		}
 		self::unlimited();
 		$temp = self::tempFile(dirname($target));
 		$out = @fopen($temp, 'wb');
@@ -304,42 +303,41 @@ final class DavController {
 			&& str_contains(strtolower((string) $request->header('transfer-encoding')), 'chunked');
 	}
 
-	/** Sagt schon Content-Length, dass $already + Body die Grenze sprengt? */
-	private function exceedsLimit(int $already, Request $request): bool {
+	/**
+	 * Freier Platz im Kontingent, $freed Bytes (eine ersetzte Datei bzw. ein
+	 * ersetztes Stück) gutgeschrieben; null ohne Kontingent.
+	 */
+	private function remaining(string $userId, int $freed): ?int {
+		if ($this->quota <= 0) {
+			return null;
+		}
+		return max(0, $this->quota - $this->storage->usedBytes($userId) + $freed);
+	}
+
+	/** Sagt schon Content-Length, dass der Body nicht mehr passt? */
+	private function exceedsLimit(?int $remaining, Request $request): bool {
 		$length = $request->header('content-length');
-		return $this->maxUploadSize > 0 && $length !== null && ctype_digit($length)
-			&& $already + (int) $length > $this->maxUploadSize;
+		return $remaining !== null && $length !== null && ctype_digit($length) && (int) $length > $remaining;
 	}
 
 	/**
-	 * Kopiert den Body, höchstens bis zur Grenze (abzüglich $already); null,
-	 * wenn er länger ist (ohne Content-Length erst beim Lesen erkennbar).
+	 * Kopiert den Body, höchstens $remaining Bytes; null, wenn er länger ist
+	 * (ohne Content-Length erst beim Lesen erkennbar).
 	 *
 	 * @param resource $in
 	 * @param resource $out
 	 */
-	private function copyLimited($in, $out, int $already): int|false|null {
-		if ($this->maxUploadSize <= 0) {
+	private function copyLimited($in, $out, ?int $remaining): int|false|null {
+		if ($remaining === null) {
 			return stream_copy_to_stream($in, $out);
 		}
-		$allowed = max(0, $this->maxUploadSize - $already);
-		$written = stream_copy_to_stream($in, $out, $allowed + 1);
-		return $written !== false && $written > $allowed ? null : $written;
+		$written = stream_copy_to_stream($in, $out, $remaining + 1);
+		return $written !== false && $written > $remaining ? null : $written;
 	}
 
-	/** Summe der Stücke im Upload-Ordner, ohne $except. */
-	private static function chunksSize(string $dir, ?string $except): int {
-		$total = 0;
-		foreach (scandir($dir) ?: [] as $name) {
-			if ($name !== $except && preg_match(self::CHUNK_PATTERN, $name)) {
-				$total += (int) @filesize($dir . '/' . $name);
-			}
-		}
-		return $total;
-	}
-
-	private static function tooLarge(): Response {
-		return self::error(413, 'File is too large');
+	/** 507 wie Nextcloud bei vollem Kontingent. */
+	private static function quotaExceeded(): Response {
+		return self::error(507, 'Insufficient Storage');
 	}
 
 	private static function tempFile(string $dir): string {

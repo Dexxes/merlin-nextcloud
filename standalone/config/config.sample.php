@@ -32,9 +32,10 @@ return [
 	// zählen dann gemeinsam), X-Forwarded-Proto gilt wie bisher von jedem.
 	'trusted_proxies' => [],
 
-	// Größte Datei für „Merlin Dateien“ (WebDAV-Upload, auch Chunked Upload
-	// in Summe): Bytes oder mit K/M/G, 0 = unbegrenzt.
-	'max_upload_size' => '100M',
+	// Speicherkontingent je Konto für „Merlin Dateien“ (alle Dateien plus
+	// laufende Chunked Uploads): Bytes oder mit K/M/G, 0 = unbegrenzt.
+	// Volle Kontingente beantwortet der Upload mit 507.
+	'user_quota' => '100M',
 
 	'mail' => [
 		'from_address' => 'merlin@example.com',

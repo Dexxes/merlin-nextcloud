@@ -157,6 +157,27 @@ final class LocalFileStorage implements FileStorage {
 		return $this->root() . '/.uploads/' . self::userSegment($userId) . '/' . $transferId;
 	}
 
+	/**
+	 * Belegter Platz eines Kontos in Bytes: seine Dateien (auch halbe
+	 * Uploads) und die Stücke laufender Chunked Uploads, für das
+	 * Kontingent in Controller\DavController.
+	 */
+	public function usedBytes(string $userId): int {
+		$total = 0;
+		foreach ([$this->root() . '/' . self::userSegment($userId), $this->root() . '/.uploads/' . self::userSegment($userId)] as $dir) {
+			if (!is_dir($dir)) {
+				continue;
+			}
+			$files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS));
+			foreach ($files as $file) {
+				if ($file->isFile() && !$file->isLink()) {
+					$total += (int) $file->getSize();
+				}
+			}
+		}
+		return $total;
+	}
+
 	public function previewDir(): string {
 		return $this->root() . '/.previews';
 	}

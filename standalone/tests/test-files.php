@@ -40,8 +40,8 @@ file_put_contents($dir . '/config.php', '<?php return ' . var_export([
 	'base_url' => $base,
 	'secret' => base64_encode(random_bytes(32)),
 	'background_jobs' => 'cron',
-	// Klein, damit die Größengrenze (DavController) prüfbar ist.
-	'max_upload_size' => '150K',
+	// Klein, damit das Kontingent (DavController) prüfbar ist.
+	'user_quota' => '200K',
 ], true) . ';');
 
 $cli = static function (string $args) use ($root, $dir): array {
@@ -213,19 +213,25 @@ try {
 	[, $bigEntry] = $json('POST', '/api/files', $admin, ['path' => $big['path']]);
 	[$status, , $body] = $http('GET', $local($bigEntry['url'] ?? ''));
 	check($status === 200 && $body === $whole, 'Stücke in natürlicher Reihenfolge (1, 2, 10)', $status . ' ' . strlen($body));
-	// ── Größengrenze (max_upload_size: 150K) ───────────────────────────────
-	[, $huge] = $json('POST', '/api/files/target', $admin, ['name' => 'riesig.bin', 'mimeType' => 'application/octet-stream']);
-	[$status] = $http('PUT', $huge['davPath'], $admin, str_repeat('Z', 160 * 1024));
-	check($status === 413 && !is_file($filesRoot . '/1' . $huge['path']), 'PUT über der Grenze: 413, nichts gespeichert', (string) $status);
+	// ── Kontingent je Konto (user_quota: 200K), mit bea (noch ohne Dateien) ──
+	[, $huge] = $json('POST', '/api/files/target', $bea, ['name' => 'riesig.bin', 'mimeType' => 'application/octet-stream']);
+	$beaId = basename((string) $huge['uploadsPath']);
+	[$status] = $http('PUT', $huge['davPath'], $bea, str_repeat('Z', 210 * 1024));
+	check($status === 507 && !is_file($filesRoot . '/' . $beaId . $huge['path']), 'PUT über dem Kontingent: 507, nichts gespeichert', (string) $status);
+	[$status] = $http('PUT', $huge['davPath'], $bea, str_repeat('Z', 150 * 1024));
+	check($status === 201, 'PUT im Kontingent: 201', (string) $status);
+	[$status] = $http('PUT', $huge['davPath'], $bea, str_repeat('Y', 150 * 1024));
+	check($status === 204, 'Datei ersetzen zählt nicht doppelt: 204', (string) $status);
+	$json('POST', '/api/files', $bea, ['path' => $huge['path']]); // Eintrag, damit der tägliche Lauf sie behält
 	$limitUpload = $huge['uploadsPath'] . '/grenze';
-	$http('MKCOL', $limitUpload, $admin);
-	[$status] = $http('PUT', $limitUpload . '/1', $admin, str_repeat('A', 100 * 1024));
-	check($status === 201, 'erstes Stück unter der Grenze: 201', (string) $status);
-	[$status] = $http('PUT', $limitUpload . '/2', $admin, str_repeat('B', 100 * 1024));
-	check($status === 413 && !is_file($filesRoot . '/.uploads/1/grenze/2'), 'Stücke zusammen über der Grenze: 413', (string) $status);
-	[$status] = $http('PUT', $limitUpload . '/1', $admin, str_repeat('C', 100 * 1024));
+	$http('MKCOL', $limitUpload, $bea);
+	[$status] = $http('PUT', $limitUpload . '/1', $bea, str_repeat('A', 40 * 1024));
+	check($status === 201, 'Stück im restlichen Kontingent: 201', (string) $status);
+	[$status] = $http('PUT', $limitUpload . '/2', $bea, str_repeat('B', 20 * 1024));
+	check($status === 507 && !is_file($filesRoot . '/.uploads/' . $beaId . '/grenze/2'), 'Stücke zählen mit: 507', (string) $status);
+	[$status] = $http('PUT', $limitUpload . '/1', $bea, str_repeat('C', 40 * 1024));
 	check($status === 201, 'Stück ersetzen zählt nicht doppelt: 201', (string) $status);
-	$http('DELETE', $limitUpload, $admin);
+	$http('DELETE', $limitUpload, $bea);
 
 	[$status] = $http('MKCOL', $big['uploadsPath'] . '/abbruch', $admin);
 	[$status] = $http('DELETE', $big['uploadsPath'] . '/abbruch', $admin);

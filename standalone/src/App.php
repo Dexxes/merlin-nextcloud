@@ -159,7 +159,7 @@ final class App {
 				'mode' => $this->config->string('background_jobs', 'web'),
 			]),
 			\Merlin\Standalone\Controller\DavController::class => $this->autowire($class, [
-				'maxUploadSize' => \Merlin\Standalone\Controller\DavController::parseSize($this->config->get('max_upload_size')),
+				'quota' => \Merlin\Standalone\Controller\DavController::parseSize($this->config->get('user_quota')),
 			]),
 			PasswordResetService::class => $this->autowire($class, [
 				'baseUrl' => $this->config->string('base_url'),

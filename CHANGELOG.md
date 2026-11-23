@@ -41,9 +41,10 @@ All notable changes to Merlin are documented here. Format based on
   behind a reverse proxy, rate limits and the brute-force delay count per
   client (from `X-Forwarded-For`) instead of for everyone together. With the
   setting, `X-Forwarded-Proto` is only honoured from those proxies.
-- [standalone] Merlin files: uploads are limited to `max_upload_size`
-  (Docker: `MERLIN_MAX_UPLOAD_SIZE`, default 100 MB, `0` = unlimited), for
-  whole files and for the sum of a chunked upload; larger uploads get 413.
+- [standalone] Merlin files: storage quota per account `user_quota`
+  (Docker: `MERLIN_USER_QUOTA`, default 100 MB, `0` = unlimited), counting all
+  of the account's files and running chunked uploads; uploads beyond it get
+  507 Insufficient Storage like in Nextcloud.
 - [standalone] Resetting the password signs out all existing browser
   sessions of the account, not only its API tokens (migration
   `004_session_version.sql`, run `bin/merlin migrate`).
