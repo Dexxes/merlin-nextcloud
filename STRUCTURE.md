@@ -26,6 +26,7 @@ merlin-nextcloud/
 │                   # `npm run build` schreibt nach nextcloud/js und nextcloud/css
 ├── docker/, Dockerfile, docker-compose.yml   # Entwicklungs-Setup der Nextcloud-Variante
 ├── .github/workflows/ci.yml                  # PHP-Lint, Kern/Standalone ohne OCP, Testharnesses, Schema-Parität, Frontend-Build, Appstore- und Standalone-Tarball, Standalone-Image mit Starttest
+├── .github/workflows/release.yml             # Tag vX.Y.Z: Appstore- und Standalone-Tarball, Image nach ghcr.io, Release-Entwurf (Notizen: tools/release-notes.sh)
 ├── .github/workflows/nextcloud.yml           # App in echter Nextcloud: alle Versionen aus info.xml × PHP, MariaDB/Postgres, Docker + Browser
 └── README.md, CHANGELOG.md, LICENSE, NOTICE  # werden beim Release in den Tarball kopiert
 ```
