@@ -1,6 +1,6 @@
 <?php $title = $t->t('account.pageTitle'); include __DIR__ . '/partials/header.php'; ?>
 <h1><?= htmlspecialchars($t->t('account.heading', ['username' => $username ?? '']), ENT_QUOTES, 'UTF-8') ?></h1>
-<p class="muted"><a href="<?= url('/'); ?>"><?= htmlspecialchars($t->t('account.navLibrary'), ENT_QUOTES, 'UTF-8') ?></a> · <a href="<?= url('/logout'); ?>"><?= htmlspecialchars($t->t('account.navLogout'), ENT_QUOTES, 'UTF-8') ?></a><?php if (!empty($isAdmin)): ?> · <a href="<?= url('/admin'); ?>"><?= htmlspecialchars($t->t('account.navAdmin'), ENT_QUOTES, 'UTF-8') ?></a><?php endif; ?></p>
+<p class="muted"><a href="<?= url('/'); ?>"><?= htmlspecialchars($t->t('account.navLibrary'), ENT_QUOTES, 'UTF-8') ?></a> · <a href="<?= url('/logout'); ?>"><?= htmlspecialchars($t->t('account.navLogout'), ENT_QUOTES, 'UTF-8') ?></a> · <a href="<?= url('/settings'); ?>"><?= htmlspecialchars($t->t('app.personalSettings'), ENT_QUOTES, 'UTF-8') ?></a><?php if (!empty($isAdmin)): ?> · <a href="<?= url('/settings/admin'); ?>"><?= htmlspecialchars($t->t('app.adminSettings'), ENT_QUOTES, 'UTF-8') ?></a> · <a href="<?= url('/admin'); ?>"><?= htmlspecialchars($t->t('account.navAdmin'), ENT_QUOTES, 'UTF-8') ?></a><?php endif; ?></p>
 
 <h2 style="font-size:1.1em;margin-top:2em;"><?= htmlspecialchars($t->t('account.apiTokensHeading'), ENT_QUOTES, 'UTF-8') ?></h2>
 <p class="muted"><?= htmlspecialchars($t->t('account.apiTokensHint'), ENT_QUOTES, 'UTF-8') ?></p>

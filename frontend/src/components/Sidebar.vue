@@ -168,6 +168,16 @@
 						<Cog :size="20" />
 					</template>
 				</NcAppNavigationItem>
+				<!-- Standalone: Konto & Co. (in Nextcloud in dessen Kopfleiste) -->
+				<NcAppNavigationItem
+					v-for="link in accountLinks"
+					:key="link.id"
+					:name="link.name"
+					:href="link.href">
+					<template #icon>
+						<component :is="link.icon" :size="20" />
+					</template>
+				</NcAppNavigationItem>
 			</ul>
 		</template>
 
@@ -199,6 +209,12 @@ import PlayCircleOutline from 'vue-material-design-icons/PlayCircleOutline.vue'
 import Headphones from 'vue-material-design-icons/Headphones.vue'
 import FolderOutline from 'vue-material-design-icons/FolderOutline.vue'
 import Cog from 'vue-material-design-icons/Cog.vue'
+import AccountCircleOutline from 'vue-material-design-icons/AccountCircleOutline.vue'
+import FilterCogOutline from 'vue-material-design-icons/FilterCogOutline.vue'
+import ShieldAccountOutline from 'vue-material-design-icons/ShieldAccountOutline.vue'
+import Logout from 'vue-material-design-icons/Logout.vue'
+import { markRaw } from 'vue'
+import { accountLinks } from '../platform/index.js'
 import EyeOutline from 'vue-material-design-icons/EyeOutline.vue'
 import EyeOffOutline from 'vue-material-design-icons/EyeOffOutline.vue'
 import Magnify from 'vue-material-design-icons/Magnify.vue'
@@ -388,6 +404,17 @@ export default {
 	},
 
 	computed: {
+		accountLinks() {
+			const labels = {
+				account: [this.t('merlin', 'Account'), AccountCircleOutline],
+				contentFilters: [this.t('merlin', 'My content filters'), FilterCogOutline],
+				admin: [this.t('merlin', 'Administration'), ShieldAccountOutline],
+				logout: [this.t('merlin', 'Log out'), Logout],
+			}
+			return accountLinks()
+				.filter((link) => labels[link.id])
+				.map((link) => ({ ...link, name: labels[link.id][0], icon: markRaw(labels[link.id][1]) }))
+		},
 		mediaTabs() {
 			return [
 				{ group: 'pages', label: this.t('merlin', 'Text') },

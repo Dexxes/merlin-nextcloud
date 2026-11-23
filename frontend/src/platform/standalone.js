@@ -81,3 +81,13 @@ export function loadState(key, fallback) {
 	}
 	throw new Error(`Could not find initial state ${key} of merlin`)
 }
+
+/**
+ * Konto, persönliche Content-Filter, Verwaltung (nur Admins) und Abmelden:
+ * der Server gibt die Links mit (AppController), die Seitenleiste zeigt sie.
+ *
+ * @return {Array<{id: string, href: string}>}
+ */
+export function accountLinks() {
+	return pageState().links || []
+}

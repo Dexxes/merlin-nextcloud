@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Merlin\Standalone\Controller;
 
+use Merlin\Core\Api\ApiRequest;
+use Merlin\Core\Api\ContentFilterApi;
+use Merlin\Core\Api\RetentionApi;
 use Merlin\Core\Port\UserSettings;
 use Merlin\Standalone\Auth\SessionService;
+use Merlin\Standalone\Db\UserRepository;
 use Merlin\Standalone\Http\Request;
 use Merlin\Standalone\Http\Response;
 use Merlin\Standalone\I18n\Translator;
@@ -17,7 +21,11 @@ use Merlin\Standalone\Version;
  * GET /s/{token}, die Gegenstücke zu Nextclouds page#index und
  * public_share#show. Beide Seiten sind nur eine Hülle; das Frontend
  * (npm run build:standalone, Ausgabe public/app/) holt alles Weitere über
- * die gemeinsame API. Startwerte, die in Nextcloud IInitialState liefert,
+ * die gemeinsame API. Dazu die Einstellungsseiten, die in Nextcloud unter
+ * Einstellungen › Merlin stehen: GET /settings (persönliche Content-Filter,
+ * wie Settings\PersonalSettings) und GET /settings/admin (Löschfrist und
+ * Content-Filter, wie Settings\RetentionAdminSettings und AdminSettings).
+ * Startwerte, die in Nextcloud IInitialState liefert,
  * stehen hier als JSON in <script id="merlin-state">
  * (frontend/src/platform/standalone.js).
  */
@@ -27,26 +35,89 @@ final class AppController {
 	public function __construct(
 		private readonly SessionService $sessions,
 		private readonly UserSettings $userSettings,
+		private readonly UserRepository $users,
+		private readonly ContentFilterApi $contentFilters,
+		private readonly RetentionApi $retention,
 	) {
 	}
 
 	public function reader(Request $request): Response {
-		$userId = $this->sessions->currentUserId();
-		if ($userId === null) {
+		$user = $this->currentUser();
+		if ($user === null) {
 			return Response::redirect('/login');
 		}
-		return $this->render($request, 'main', 'merlin-app', [
+		return $this->render($request, 'main', ['merlin-app'], [
 			'appInfo' => Version::appInfo(),
 			// PWA (Service Worker, Manifest) folgt mit Etappe 6.
 			'swUrl' => null,
-		], (string) $userId);
+		], $user);
 	}
 
 	/** Kein Login nötig: der Token ist die einzige Berechtigung (wie in Nextcloud). */
 	public function publicShare(Request $request): Response {
-		return $this->render($request, 'public', 'merlin-public-app', [
+		return $this->render($request, 'public', ['merlin-public-app'], [
 			'shareToken' => (string) $request->routeParam('token'),
 		], null);
+	}
+
+	/** Persönliche Content-Filter (Startwert wie Settings\PersonalSettings). */
+	public function personalSettings(Request $request): Response {
+		$user = $this->currentUser();
+		if ($user === null) {
+			return Response::redirect('/login?return=' . rawurlencode('/settings'));
+		}
+		$isAdmin = $user['role'] === 'admin';
+		$data = $this->contentFilters->userIndex($this->apiRequest($user))->data;
+		return $this->render($request, 'personal', ['merlin-personal-settings'], [
+			'userContentFilters' => $data + [
+				'isAdmin' => $isAdmin,
+				'adminSettingsUrl' => $isAdmin ? rtrim(Response::getBasePath(), '/') . '/settings/admin' : null,
+			],
+		], $user, 'app.personalSettings');
+	}
+
+	/** Löschfrist und Content-Filter der Instanz, nur für Admins. */
+	public function adminSettings(Request $request): Response {
+		$user = $this->currentUser();
+		if ($user === null) {
+			return Response::redirect('/login?return=' . rawurlencode('/settings/admin'));
+		}
+		if ($user['role'] !== 'admin') {
+			return Response::redirect('/settings');
+		}
+		$apiRequest = $this->apiRequest($user);
+		return $this->render($request, 'admin', ['merlin-admin-retention', 'merlin-admin-settings'], [
+			'retentionAdmin' => $this->retention->adminShow($apiRequest)->data,
+			'contentFilters' => $this->contentFilters->index($apiRequest)->data,
+		], $user, 'app.adminSettings');
+	}
+
+	/** @return array<string, mixed>|null aktive users-Zeile der Session */
+	private function currentUser(): ?array {
+		$userId = $this->sessions->currentUserId();
+		$user = $userId === null ? null : $this->users->findById($userId);
+		return $user !== null && (bool) $user['is_active'] ? $user : null;
+	}
+
+	private function apiRequest(array $user): ApiRequest {
+		return new ApiRequest((string) $user['id'], [], static fn (): string => '', [], '');
+	}
+
+	/**
+	 * Konto-Links für die Seitenleiste der App (platform accountLinks()).
+	 *
+	 * @return list<array{id: string, href: string}>
+	 */
+	private static function links(string $basePath, array $user): array {
+		$links = [
+			['id' => 'account', 'href' => $basePath . '/account'],
+			['id' => 'contentFilters', 'href' => $basePath . '/settings'],
+		];
+		if ($user['role'] === 'admin') {
+			$links[] = ['id' => 'admin', 'href' => $basePath . '/settings/admin'];
+		}
+		$links[] = ['id' => 'logout', 'href' => $basePath . '/logout'];
+		return $links;
 	}
 
 	/**
@@ -72,14 +143,18 @@ final class AppController {
 
 	/**
 	 * @param string $entry Name des Vite-Einstiegs (merlin-{entry}.mjs/.css)
+	 * @param list<string> $mountIds Container, in die der Einstieg seine App(s) setzt
 	 * @param array<string, mixed> $values Startwerte für loadState()
+	 * @param array<string, mixed>|null $user angemeldeter Nutzer (null: öffentliche Seite)
+	 * @param string|null $pageTitle Übersetzungs-Key: Seite mit Navigationsleiste (Einstellungen)
 	 */
-	private function render(Request $request, string $entry, string $mountId, array $values, ?string $userId): Response {
+	private function render(Request $request, string $entry, array $mountIds, array $values, ?array $user, ?string $pageTitle = null): Response {
 		$basePath = rtrim(Response::getBasePath(), '/');
-		$t = Translator::forRequest($request, $this->sessions, $this->userSettings, $userId);
+		$t = Translator::forRequest($request, $this->sessions, $this->userSettings, $user === null ? null : (string) $user['id']);
 		$state = [
 			'base' => $basePath,
-			'loginUrl' => $userId === null ? null : $basePath . '/login',
+			'loginUrl' => $user === null ? null : $basePath . '/login',
+			'links' => $user === null ? [] : self::links($basePath, $user),
 			'l10n' => self::translations($t->locale()),
 			'values' => $values,
 		];
@@ -88,7 +163,9 @@ final class AppController {
 			't' => $t,
 			'basePath' => $basePath,
 			'entry' => $entry,
-			'mountId' => $mountId,
+			'mountIds' => $mountIds,
+			'pageTitle' => $pageTitle,
+			'isAdmin' => $user !== null && $user['role'] === 'admin',
 			'built' => $built,
 			// JSON im <script>: "</script>" und "<!--" dürfen nicht entstehen.
 			'stateJson' => json_encode($state, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),

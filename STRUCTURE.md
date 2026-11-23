@@ -137,7 +137,8 @@ Standalone-HTTP: `standalone/public/index.php` baut die Routen aus
 Standalone-eigenen (Login, Registrierung, Passwort-Reset, Konto mit
 API-Tokens, Admin-Nutzer, Login Flow v2 unter `/login/v2`, `/img/{datei}` aus
 `nextcloud/img/`) und die Seiten der Vue-App (`Controller\AppController`:
-Reader unter `/`, Share-Ansicht unter `/s/{token}`).
+Reader unter `/`, Share-Ansicht unter `/s/{token}`, Einstellungen unter
+`/settings` und `/settings/admin`).
 Pfade und Antworten wie in `merlin-standalone-server`, damit Clients mit
 `backendKind: 'standalone'` sie unverändert finden. Die merlin_*-Daten eines
 gelöschten Kontos räumt `Account\UserDataCleaner` ab (wie `UserDeletedListener`
@@ -668,9 +669,10 @@ Vier Vite-Entry-Points (siehe `vite.config.mjs`): Reader, öffentliche Share-Ans
 Verwaltungseinstellungen und persönliche Einstellungen. Ein zweiter Build
 (`npm run build:standalone`, `vite.standalone.config.mjs`) baut Reader und
 Share-Ansicht für den Standalone-Server nach `standalone/public/app/`
-(nicht im Repo): Einstieg über `src/standalone/` (Theme-Shim, dann dieselben
-`main.js`/`public-main.js`), Plattform-Schicht `src/platform/standalone.js`.
-Die Verwaltungseinstellungen folgen dort später.
+(nicht im Repo), dazu Verwaltung und persönliche Content-Filter: Einstieg
+über `src/standalone/` (Theme-Shim, dann dieselben `main.js`,
+`public-main.js`, `admin-main.js`, `personal-main.js`), Plattform-Schicht
+`src/platform/standalone.js`.
 
 Plattform-Schicht (Etappe 5): Komponenten, Store und `api/` holen Axios,
 URLs (`appUrl('/api/…')`, Pfade wie in `core/src/Api/routes.php`), Bilder,
@@ -687,6 +689,12 @@ Angemeldet wird per Session-Cookie; schreibende Anfragen mit Cookie brauchen
 standalone.js immer mitschickt. Bei 401 geht es zum Login und danach zurück.
 `src/standalone/theme.css` setzt die CSS-Variablen, die in Nextcloud das
 Theming liefert (Standard-Theme hell, dunkel nach Systemeinstellung).
+Seiten: `/` (Reader), `/s/{token}` (Share), `/settings` (persönliche
+Content-Filter, wie `Settings\PersonalSettings`) und `/settings/admin`
+(Löschfrist und Content-Filter, wie `RetentionAdminSettings`/`AdminSettings`;
+Startwerte über dieselben Kern-Handler wie die API). Konto, Einstellungen und
+Abmelden, in Nextcloud in dessen Kopfleiste, zeigt die Seitenleiste über
+`accountLinks()` der Plattform-Schicht (Nextcloud: leere Liste).
 
 ```
 frontend/src/
@@ -704,8 +712,8 @@ frontend/src/
 ├── platform/                # einzige Stelle mit @nextcloud/* (außer @nextcloud/vue): http, appUrl(), imageUrl(),
 │   ├── index.js             #   loadState(), showSuccess/showError, translate; reicht 'merlin-platform' durch.
 │   ├── nextcloud.js         #   frontend/tools/check-platform-imports.mjs prüft das in CI
-│   └── standalone.js        #   Standalone: Startwerte aus #merlin-state, Session + X-Requested-With, Login bei 401
-├── standalone/              # Einstiege des Standalone-Builds (main.js, public-main.js) und Theme-Shim (theme.css/.js)
+│   └── standalone.js        #   Standalone: Startwerte aus #merlin-state, Session + X-Requested-With, Login bei 401, accountLinks()
+├── standalone/              # Einstiege des Standalone-Builds (main, public, admin, personal), Theme-Shim (theme.css/.js), settings-page.css
 ├── store/
 │   └── index.js             # State Management
 ├── api/                     # API-Wrapper
