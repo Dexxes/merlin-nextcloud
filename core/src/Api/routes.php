@@ -18,7 +18,11 @@ declare(strict_types=1);
  * 'admin' oder 'public' (ohne Anmeldung), optional rateLimit [limit, period]
  * für öffentliche Schreibrouten: höchstens limit Anfragen je IP in period
  * Sekunden (Nextcloud: #[AnonRateLimit] am Controller, Standalone:
- * RateLimitMiddleware). Reihenfolge zählt: feste Pfade
+ * RateLimitMiddleware), userRateLimit [limit, period] dasselbe je
+ * angemeldetem Nutzer (#[UserRateLimit]), requirements wie in Nextcloud
+ * (Regex je Platzhalter), csrf true für Routen nur der Weboberfläche:
+ * Nextcloud verlangt dort den requesttoken (kein #[NoCSRFRequired]), 'admin'
+ * ist immer so. Reihenfolge zählt: feste Pfade
  * vor Platzhaltern (/api/articles/search vor /api/articles/{id}).
  *
  * Die Datei ist ein reines Array (::class braucht keinen Autoloader), damit
@@ -30,15 +34,27 @@ use Merlin\Core\Api\ArticleApi;
 use Merlin\Core\Api\ArticleStreamApi;
 use Merlin\Core\Api\CapabilitiesApi;
 use Merlin\Core\Api\CommentApi;
+use Merlin\Core\Api\ContentFilterApi;
+use Merlin\Core\Api\ExtensionApi;
 use Merlin\Core\Api\HighlightApi;
 use Merlin\Core\Api\MediaApi;
 use Merlin\Core\Api\PublicCommentApi;
 use Merlin\Core\Api\PublicShareApi;
+use Merlin\Core\Api\ReportApi;
+use Merlin\Core\Api\RetentionApi;
+use Merlin\Core\Api\SettingsApi;
 use Merlin\Core\Api\ShareApi;
+use Merlin\Core\Api\SiteCredentialApi;
+use Merlin\Core\Api\StorageApi;
 use Merlin\Core\Api\TagApi;
 
 // Gast-Schreibzugriffe hinter einem Share-Link: 20 je IP in 5 Minuten.
 $guestLimit = [20, 300];
+// Testlauf eines Content-Filters (Abruf der fremden Seite): 20 je Nutzer in 5 Minuten.
+$filterTestLimit = [20, 300];
+// Platzhalter {domain}: nur Domainzeichen, alles andere endet als 404 im Router.
+$filterDomain = ['domain' => '[a-z0-9._\-]+'];
+$loginDomain = ['domain' => '[a-z0-9.\-]+'];
 
 return [
 	['name' => 'capabilities#show', 'verb' => 'GET', 'url' => '/api/capabilities', 'handler' => [CapabilitiesApi::class, 'show'], 'access' => 'public'],
@@ -112,4 +128,42 @@ return [
 	['name' => 'public_comment#createHighlight', 'verb' => 'POST', 'url' => '/s/{token}/highlights', 'handler' => [PublicCommentApi::class, 'createHighlight'], 'access' => 'public', 'rateLimit' => $guestLimit],
 	['name' => 'public_comment#destroyHighlight', 'verb' => 'DELETE', 'url' => '/s/{token}/highlights/{id}', 'handler' => [PublicCommentApi::class, 'destroyHighlight'], 'access' => 'public', 'rateLimit' => $guestLimit],
 	['name' => 'public_comment#events', 'verb' => 'GET', 'url' => '/s/{token}/events', 'handler' => [PublicCommentApi::class, 'events'], 'access' => 'public'],
+
+	// Leseeinstellungen, Löschfrist (Hinweis bestätigen, Admin-Maximum), Speicherverbrauch
+	['name' => 'settings#get', 'verb' => 'GET', 'url' => '/api/settings', 'handler' => [SettingsApi::class, 'get'], 'access' => 'user'],
+	['name' => 'settings#update', 'verb' => 'PUT', 'url' => '/api/settings', 'handler' => [SettingsApi::class, 'update'], 'access' => 'user'],
+	['name' => 'retention#acknowledgeNotice', 'verb' => 'POST', 'url' => '/api/retention/notice', 'handler' => [RetentionApi::class, 'acknowledgeNotice'], 'access' => 'user'],
+	['name' => 'retentionAdmin#show', 'verb' => 'GET', 'url' => '/api/admin/retention', 'handler' => [RetentionApi::class, 'adminShow'], 'access' => 'admin'],
+	['name' => 'retentionAdmin#update', 'verb' => 'PUT', 'url' => '/api/admin/retention', 'handler' => [RetentionApi::class, 'adminUpdate'], 'access' => 'admin'],
+	['name' => 'retentionAdmin#preview', 'verb' => 'GET', 'url' => '/api/admin/retention/preview', 'handler' => [RetentionApi::class, 'adminPreview'], 'access' => 'admin'],
+	['name' => 'storage#get', 'verb' => 'GET', 'url' => '/api/storage', 'handler' => [StorageApi::class, 'get'], 'access' => 'user'],
+
+	// Content-Filter: Verwaltung (nur Admins, instanzweit) …
+	['name' => 'contentFilter#index', 'verb' => 'GET', 'url' => '/api/admin/content-filters', 'handler' => [ContentFilterApi::class, 'index'], 'access' => 'admin'],
+	['name' => 'contentFilter#import', 'verb' => 'POST', 'url' => '/api/admin/content-filters/import', 'handler' => [ContentFilterApi::class, 'import'], 'access' => 'admin'],
+	['name' => 'contentFilter#show', 'verb' => 'GET', 'url' => '/api/admin/content-filters/{domain}', 'handler' => [ContentFilterApi::class, 'show'], 'access' => 'admin', 'requirements' => $filterDomain],
+	['name' => 'contentFilter#update', 'verb' => 'PUT', 'url' => '/api/admin/content-filters/{domain}', 'handler' => [ContentFilterApi::class, 'update'], 'access' => 'admin', 'requirements' => $filterDomain],
+	['name' => 'contentFilter#destroy', 'verb' => 'DELETE', 'url' => '/api/admin/content-filters/{domain}', 'handler' => [ContentFilterApi::class, 'destroy'], 'access' => 'admin', 'requirements' => $filterDomain],
+	['name' => 'contentFilter#test', 'verb' => 'POST', 'url' => '/api/admin/content-filters/{domain}/test', 'handler' => [ContentFilterApi::class, 'test'], 'access' => 'admin', 'requirements' => $filterDomain, 'userRateLimit' => $filterTestLimit],
+	['name' => 'contentFilter#export', 'verb' => 'GET', 'url' => '/api/admin/content-filters/{domain}/export', 'handler' => [ContentFilterApi::class, 'export'], 'access' => 'admin', 'requirements' => $filterDomain],
+	// … und persönliche Overrides (jeder Nutzer, nur die Weboberfläche)
+	['name' => 'userContentFilter#index', 'verb' => 'GET', 'url' => '/api/user/content-filters', 'handler' => [ContentFilterApi::class, 'userIndex'], 'access' => 'user', 'csrf' => true],
+	['name' => 'userContentFilter#show', 'verb' => 'GET', 'url' => '/api/user/content-filters/{domain}', 'handler' => [ContentFilterApi::class, 'userShow'], 'access' => 'user', 'csrf' => true, 'requirements' => $filterDomain],
+	['name' => 'userContentFilter#update', 'verb' => 'PUT', 'url' => '/api/user/content-filters/{domain}', 'handler' => [ContentFilterApi::class, 'userUpdate'], 'access' => 'user', 'csrf' => true, 'requirements' => $filterDomain],
+	['name' => 'userContentFilter#destroy', 'verb' => 'DELETE', 'url' => '/api/user/content-filters/{domain}', 'handler' => [ContentFilterApi::class, 'userDestroy'], 'access' => 'user', 'csrf' => true, 'requirements' => $filterDomain],
+	['name' => 'userContentFilter#test', 'verb' => 'POST', 'url' => '/api/user/content-filters/{domain}/test', 'handler' => [ContentFilterApi::class, 'userTest'], 'access' => 'user', 'csrf' => true, 'requirements' => $filterDomain, 'userRateLimit' => $filterTestLimit],
+
+	// Paywall-Abo-Zugangsdaten (eigene, private Ebene); Speichern meldet sich gleich an
+	['name' => 'siteCredential#index', 'verb' => 'GET', 'url' => '/api/user/site-credentials', 'handler' => [SiteCredentialApi::class, 'index'], 'access' => 'user'],
+	['name' => 'siteCredential#update', 'verb' => 'PUT', 'url' => '/api/user/site-credentials/{domain}', 'handler' => [SiteCredentialApi::class, 'update'], 'access' => 'user', 'requirements' => $loginDomain, 'userRateLimit' => [10, 300]],
+	['name' => 'siteCredential#destroy', 'verb' => 'DELETE', 'url' => '/api/user/site-credentials/{domain}', 'handler' => [SiteCredentialApi::class, 'destroy'], 'access' => 'user', 'requirements' => $loginDomain],
+
+	// merlin-reports-Meldungsbackend, serverseitig (kein CORS am Backend nötig)
+	['name' => 'report#ping', 'verb' => 'GET', 'url' => '/api/report-backend/ping', 'handler' => [ReportApi::class, 'ping'], 'access' => 'user', 'userRateLimit' => [30, 300]],
+	['name' => 'report#report', 'verb' => 'POST', 'url' => '/api/report-backend/report', 'handler' => [ReportApi::class, 'report'], 'access' => 'user', 'userRateLimit' => [20, 300]],
+
+	// Browser-Erweiterungen (Pocket-kompatibel, Basic Auth)
+	['name' => 'extension#add', 'verb' => 'POST', 'url' => '/api/v1/add', 'handler' => [ExtensionApi::class, 'add'], 'access' => 'user'],
+	['name' => 'extension#get', 'verb' => 'POST', 'url' => '/api/v1/get', 'handler' => [ExtensionApi::class, 'get'], 'access' => 'user'],
+	['name' => 'extension#modify', 'verb' => 'POST', 'url' => '/api/v1/send', 'handler' => [ExtensionApi::class, 'modify'], 'access' => 'user'],
 ];

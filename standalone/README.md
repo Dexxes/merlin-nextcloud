@@ -4,11 +4,12 @@ Eigener Merlin-Server ohne Nextcloud, auf Basis des gemeinsamen Kerns
 (`../core`). Ersetzt [`merlin-standalone-server`](https://github.com/Dexxes/merlin-standalone-server)
 und wird hier neu aufgebaut. Noch nicht für den Einsatz gedacht: Es gibt
 Konten, Login, Login Flow v2, API-Tokens, die Admin-Nutzerverwaltung,
-`/api/capabilities` und aus dem Kern die Artikel- und Schlagwort-API
-(`/api/articles…`, `/api/tags…`, `/api/events`, dieselben Pfade und
-Antworten wie in der Nextcloud-App ohne `/index.php/apps/merlin`). Weitere
-Teile der API (Markierungen, Kommentare, Share-Links …) folgen in Etappe 4,
-die Leseoberfläche mit Etappe 5.
+`/api/capabilities` und aus dem Kern die API der Nextcloud-App mit
+denselben Pfaden und Antworten (ohne `/index.php/apps/merlin`): Artikel,
+Schlagworte, Markierungen, Kommentare, Share-Links, Vorlesen, PDF, Medien,
+Einstellungen, Löschfrist, Speicherverbrauch, Content-Filter,
+Abo-Zugangsdaten, Meldungen und die Browser-Erweiterung (`/api/v1/…`). Die
+Leseoberfläche folgt mit Etappe 5.
 
 ```sh
 cd standalone

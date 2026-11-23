@@ -19,7 +19,11 @@ final class CapabilitiesApi {
 	public const API_VERSION = 1;
 
 	/** @var list<string> */
-	public const CORE_FEATURES = ['articles', 'tags', 'nestedTags', 'articleEvents', 'exportHtml'];
+	public const CORE_FEATURES = [
+		'articles', 'tags', 'nestedTags', 'articleEvents', 'exportHtml',
+		'highlights', 'comments', 'shares', 'pdf', 'media', 'tts', 'retention',
+		'contentFilters', 'siteCredentials', 'reportBackend', 'pocketApi',
+	];
 
 	public function __construct(private Platform $platform) {
 	}

@@ -68,6 +68,11 @@ final class ApiRequest {
 		return array_key_exists($name, $this->params) && $this->params[$name] !== null;
 	}
 
+	/** @return array<string, mixed> alle Parameter (Query, Body, Pfad), wie IRequest::getParams() */
+	public function all(): array {
+		return $this->params;
+	}
+
 	public function param(string $name, mixed $default = null): mixed {
 		return array_key_exists($name, $this->params) ? $this->params[$name] : $default;
 	}

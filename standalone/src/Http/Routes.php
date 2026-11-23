@@ -37,7 +37,8 @@ final class Routes {
 
 		// Gemeinsame API (Kern). 'user' braucht eine Anmeldung (Basic Auth mit
 		// API-Token oder Session), 'admin' zusätzlich Adminrechte; 'rateLimit'
-		// begrenzt öffentliche Schreibrouten je IP.
+		// begrenzt öffentliche Schreibrouten je IP, 'userRateLimit' Routen je
+		// angemeldetem Nutzer; 'requirements' engt Platzhalter ein.
 		foreach (CoreApi::routes() as $route) {
 			$middleware = match ($route['access']) {
 				'public' => [],
@@ -47,7 +48,10 @@ final class Routes {
 			if (isset($route['rateLimit'])) {
 				$middleware[] = $rateLimit->for($route['name'], ...$route['rateLimit']);
 			}
-			$router->add($route['verb'], $route['url'], CoreApi::handler($app, $route['handler']), $middleware);
+			if (isset($route['userRateLimit'])) {
+				$middleware[] = $rateLimit->forUser($route['name'], ...$route['userRateLimit']);
+			}
+			$router->add($route['verb'], $route['url'], CoreApi::handler($app, $route['handler']), $middleware, $route['requirements'] ?? []);
 		}
 
 		// HTML-Seiten

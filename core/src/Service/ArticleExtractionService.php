@@ -26,13 +26,32 @@ final class ArticleExtractionService {
 	) {
 	}
 
-	public function schedule(int $articleId, string $url, string $userId): void {
-		$this->scheduler->afterResponse(fn () => $this->run($articleId, $url, $userId));
+	/**
+	 * @param string|null $html HTML der Seite, falls der Client es mitschickt
+	 *        (Browser-Erweiterung: kein zweiter Abruf, geht auch hinter
+	 *        Paywalls und bei per JavaScript gebauten Seiten)
+	 * @param string|null $title,$author vom Client vorgegeben (z. B. Betreff
+	 *        und Absender einer Mail), gewinnen gegen die Extraktion
+	 */
+	public function schedule(int $articleId, string $url, string $userId, ?string $html = null, ?string $title = null, ?string $author = null): void {
+		$this->scheduler->afterResponse(fn () => $this->run($articleId, $url, $userId, $html, $title, $author));
 	}
 
-	public function run(int $articleId, string $url, string $userId): void {
+	public function run(int $articleId, string $url, string $userId, ?string $html = null, ?string $title = null, ?string $author = null): void {
 		try {
-			$extracted = $this->extractor->extract($url, null, $userId);
+			$extracted = $html !== null && $html !== ''
+				? $this->extractor->extractFromHtml($url, $html, $userId)
+				: $this->extractor->extract($url, null, $userId);
+			if ($title !== null && $title !== '') {
+				$extracted['title'] = $title;
+			}
+			if ($author !== null && $author !== '') {
+				$extracted['author'] = $author;
+				// Der erkannte Profil-Link gehört zum erkannten, nicht zum
+				// mitgegebenen Autor.
+				$extracted['authorUrl'] = null;
+				$extracted['authors'] = null;
+			}
 			$article = $this->articles->find($articleId, $userId);
 			if ($article === null) {
 				return; // inzwischen gelöscht

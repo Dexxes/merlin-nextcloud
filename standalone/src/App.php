@@ -61,6 +61,7 @@ final class App {
 		Port\CommentGuestStore::class   => SqlCommentGuestStore::class,
 		Port\CommentStore::class        => SqlCommentStore::class,
 		Port\Connection::class          => PdoConnection::class,
+		Port\ContentFilterEditor::class => StandaloneContentFilterRepository::class,
 		Port\ContentFilterSource::class => StandaloneContentFilterRepository::class,
 		Port\ContentFilterStore::class  => SqlContentFilterStore::class,
 		Port\Crypto::class              => SodiumCrypto::class,

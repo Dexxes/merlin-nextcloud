@@ -4,42 +4,34 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
-use Merlin\Core\Service\RetentionService;
-use OCP\AppFramework\Controller;
-use OCP\AppFramework\Http\DataResponse;
+use Merlin\Core\Api\RetentionApi;
+use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 
 /**
- * Admin-API der Löschfrist (Verwaltungseinstellungen, RetentionAdmin.vue).
- *
- * Wie ContentFilterController bewusst ohne NoAdminRequired/NoCSRFRequired:
- * nur Admins, und nur aus der Web-Oberfläche mit requesttoken.
+ * Admin-Maximum der Löschfrist: dünner Controller über
+ * Merlin\Core\Api\RetentionApi. Ohne NoAdminRequired/NoCSRFRequired: nur
+ * Admins, nur aus der Weboberfläche mit requesttoken.
  */
-class RetentionAdminController extends Controller {
+class RetentionAdminController extends CoreApiController {
 	public function __construct(
 		string $appName,
 		IRequest $request,
-		private RetentionService $retentionService,
+		private RetentionApi $api,
+		?string $userId,
 	) {
-		parent::__construct($appName, $request);
+		parent::__construct($appName, $request, $userId);
 	}
 
-	public function show(): DataResponse {
-		return new DataResponse($this->retentionService->getAdminLimits());
+	public function show(): Response {
+		return $this->respond($this->api->adminShow($this->apiRequest()));
 	}
 
-	public function update(int $days = 0, int $favoritesDays = 0): DataResponse {
-		$this->retentionService->setAdminLimits($days, $favoritesDays);
-		return new DataResponse($this->retentionService->getAdminLimits());
+	public function update(): Response {
+		return $this->respond($this->api->adminUpdate($this->apiRequest()));
 	}
 
-	/**
-	 * Wie viele archivierte Artikel der nächste Lauf mit diesen Werten löschen
-	 * würde – die Oberfläche fragt vor dem Speichern einer Verkürzung nach.
-	 */
-	public function preview(int $days = 0, int $favoritesDays = 0): DataResponse {
-		return new DataResponse([
-			'count' => $this->retentionService->preview($days, $favoritesDays),
-		]);
+	public function preview(): Response {
+		return $this->respond($this->api->adminPreview($this->apiRequest()));
 	}
 }
