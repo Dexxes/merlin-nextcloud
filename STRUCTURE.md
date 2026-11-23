@@ -93,7 +93,9 @@ Port in einer der beiden Listen steht und alle Kern-Dienste baubar sind.
 
 Gemeinsame API (Etappe 4): `core/src/Api/routes.php` ist die eine
 Routentabelle (Name, Verb, Pfad, Handler, Zugriff `user`/`admin`/`public`).
-Handler wie `Api\ArticleApi`, `Api\TagApi`, `Api\CapabilitiesApi` bekommen ein
+Handler wie `Api\ArticleApi`, `Api\TagApi`, `Api\CapabilitiesApi`,
+`Api\HighlightApi`, `Api\CommentApi`, `Api\ShareApi`, `Api\PublicShareApi` und
+`Api\PublicCommentApi` bekommen ein
 `ApiRequest` (Nutzer, Parameter aus Query, Body und Pfad, umgewandelt wie von
 Nextclouds Dispatcher) und liefern ein `ApiResult` (JSON, Text mit eigenem
 Content-Type oder SSE-Stream). Nextcloud: `appinfo/routes.php` übernimmt die
@@ -103,7 +105,13 @@ Tabelle aus `vendor/merlin/core`, je Ressource ein dünner Controller
 `AuthMiddleware`. Extraktion nach der Antwort: `Service\ArticleExtractionService`
 über den Port `Scheduler` (`Service\ShutdownScheduler` in beiden Varianten).
 `/api/capabilities` meldet `Api\CapabilitiesApi::CORE_FEATURES` plus die Liste
-des Ports `Platform` (was nur die Variante hat). `tools/test-route-parity.php`
+des Ports `Platform` (was nur die Variante hat). Öffentliche Routen können ein
+`rateLimit` [Anzahl, Sekunden] tragen: Nextcloud setzt dafür
+`#[AnonRateLimit]`, Standalone `Http\Middleware\RateLimitMiddleware`. Das
+Entsperren eines Share-Passworts bremst der Port `Throttler`
+(`Adapter\NextcloudThrottler` über IThrottler, Standalone
+`Adapter\SqlThrottler` mit der Tabelle `security_attempts`).
+`tools/test-route-parity.php`
 prüft Tabelle, Nextcloud-Routen und -Controller (Methode, Handler-Aufruf,
 Attribute) und Standalone-Router; Routen nur einer Variante stehen dort in
 `NEXTCLOUD_ONLY`, `NOT_YET_IN_CORE` (wird mit jedem Teil kürzer) oder
@@ -120,7 +128,9 @@ gelöschten Kontos räumt `Account\UserDataCleaner` ab (wie `UserDeletedListener
 in Nextcloud). `/api/capabilities` meldet `backend`, die gemeinsame `version`
 (aus `nextcloud/appinfo/info.xml`), `apiVersion` und `features`; `files` fehlt
 dort bewusst. `standalone/tests/test-article-api.php` spielt die Artikel- und
-Schlagwort-API über HTTP durch (`--live`: echte Artikel-Links). `standalone/tests/test-http.php` startet den eingebauten
+Schlagwort-API über HTTP durch (`--live`: echte Artikel-Links),
+`standalone/tests/test-discussion-api.php` Markierungen, Kommentare,
+Share-Links, Gast-Beiträge, Passwortbremse und Rate-Limit. `standalone/tests/test-http.php` startet den eingebauten
 PHP-Server und spielt Login Flow, Basic Auth, Admin-API und Kontolöschung
 durch. `standalone/bin/merlin extract <url>` ruft die Kern-Extraktion mit den
 Standalone-Adaptern auf; `standalone/tests/test-extraction.php --live` vergleicht
@@ -155,10 +165,8 @@ beide Listen vollständig sind.
 | `RetentionStore` | `Adapter\NextcloudRetentionStore` (ArticleMapper, ArticleShareMapper) |
 | `ArticleDeletion` | `Merlin\Core\Service\ArticleDeletionService` (liegt selbst im Kern) |
 | `Database` | `Adapter\NextcloudDatabase` (IDBConnection/QueryBuilder; Löschen über mehrere Tabellen) |
-| `CommentStore` | `Adapter\NextcloudCommentStore` (CommentMapper) |
-| `HighlightStore` | `Adapter\NextcloudHighlightStore` (HighlightMapper) |
-| `CommentGuestStore` | `Adapter\NextcloudCommentGuestStore` (CommentGuestMapper; eindeutiger Index → `DuplicateEntryException`) |
-| `ShareStore` | `Adapter\NextcloudShareStore` (ArticleShareMapper, nur `findByToken()`) |
+| `CommentStore`, `HighlightStore`, `CommentGuestStore`, `ShareStore` | `Merlin\Core\Persistence\SqlCommentStore`, `SqlHighlightStore`, `SqlCommentGuestStore`, `SqlShareStore` (über `Connection`; eindeutiger Index → `DuplicateEntryException`) |
+| `Throttler` | `Adapter\NextcloudThrottler` (IThrottler, Brute-Force-Schutz beim Passwort eines Share-Links) |
 | `Session` | `Adapter\NextcloudSession` (ISession) |
 | `UserDirectory` | `Adapter\NextcloudUserDirectory` (IUserManager, Anzeigenamen) |
 | `FilePreviews` | `Adapter\NextcloudFilePreviews` (IPreview) |
@@ -181,9 +189,9 @@ Support-Box), bekommen ihn als `Merlin\Core\Domain\ArticleSnapshot`
 Kommentare, Markierungen, Gast-Farben und Share-Links sind im Kern
 `Domain\Comment`, `Domain\Highlight`, `Domain\CommentGuest` und
 `Domain\ArticleShare` (Getter, Setter und `jsonSerialize()` wie bei den
-Entities); `Adapter\EntityCopy` überträgt die Felder. Ein `update()` lädt das
-Entity neu und setzt nur geänderte Felder, damit dieselben Spalten
-geschrieben werden wie vorher.
+Entities) und werden über die SQL-Stores des Kerns gelesen und geschrieben.
+Die Mapper in `Db/` bleiben für Aufräumen (Löschfrist, gelöschte Nutzer) und
+Speicherplatz-Anzeige.
 
 „Merlin Dateien“ ist geteilt: Ordner, Upload-Ziel, Registrieren, Umbenennen
 und das Speichern des Eintrags bleiben in `Service\MerlinFileService` der App
@@ -214,11 +222,11 @@ nextcloud/
 │   │   ├── ArticleController.php             # → Merlin\Core\Api\ArticleApi
 │   │   ├── TagController.php                 # → Merlin\Core\Api\TagApi
 │   │   ├── CapabilitiesController.php        # GET /api/capabilities → Merlin\Core\Api\CapabilitiesApi
-│   │   ├── ShareController.php               # Öffentliche Share-Links verwalten (erstellen, Passwort/Ablauf)
-│   │   ├── PublicShareController.php          # Öffentliche API hinter einem Share-Link (kein Login)
-│   │   ├── HighlightController.php            # REST-API für Textmarkierungen
-│   │   ├── CommentController.php              # Kommentare des Besitzers + Push-Kanal (SSE)
-│   │   ├── PublicCommentController.php        # Gast-Kommentare/-Markierungen hinter Share-Links
+│   │   ├── ShareController.php               # → Merlin\Core\Api\ShareApi
+│   │   ├── PublicShareController.php          # unlock/data → Merlin\Core\Api\PublicShareApi; Seite, Vorlesen, PDF noch hier
+│   │   ├── HighlightController.php            # → Merlin\Core\Api\HighlightApi
+│   │   ├── CommentController.php              # → Merlin\Core\Api\CommentApi
+│   │   ├── PublicCommentController.php        # → Merlin\Core\Api\PublicCommentApi (mit #[AnonRateLimit])
 │   │   ├── TtsController.php
 │   │   ├── PdfController.php                  # GET /api/articles/{id}/pdf: PDF eines PDF-Artikels durchreichen (nichts gespeichert; Datei-Einträge direkt aus Nextcloud)
 │   │   ├── FileController.php                 # Dateien vom Handy: Upload-Ziel, Eintrag anlegen, GET /api/articles/{id}/file (signierter Link)
@@ -241,16 +249,13 @@ nextcloud/
 │   │   ├── NextcloudCrypto.php           # Port Crypto über ICrypto
 │   │   ├── NextcloudRetentionStore.php   # Port RetentionStore über ArticleMapper/ArticleShareMapper
 │   │   ├── NextcloudSiteCredentialStore.php # Port SiteCredentialStore über SiteCredentialMapper
-│   │   ├── NextcloudCommentStore.php / NextcloudHighlightStore.php / NextcloudCommentGuestStore.php
-│   │   │                                 # Ports für Kommentare, Markierungen, Gast-Farben über die Mapper
-│   │   ├── NextcloudShareStore.php       # Port ShareStore (Share-Link per Token)
+│   │   ├── NextcloudThrottler.php        # Port Throttler über IThrottler (Passwort eines Share-Links)
 │   │   ├── NextcloudSession.php          # Port Session über ISession
 │   │   ├── NextcloudUserDirectory.php    # Port UserDirectory über IUserManager
 │   │   ├── NextcloudContentFilterStore.php # Port ContentFilterStore (merlin_cfilter)
 │   │   ├── NextcloudDatabase.php         # Port Database über IDBConnection/QueryBuilder
 │   │   ├── NextcloudStoredFile.php / NextcloudFilePreviews.php  # Ports StoredFile (OCP-Datei) und FilePreviews (IPreview)
-│   │   ├── NextcloudTranslator.php / NextcloudInstanceSecret.php # Ports Translator (IL10N) und InstanceSecret (config.php)
-│   │   └── EntityCopy.php                # Felder zwischen Domain-Objekt und Entity übertragen
+│   │   └── NextcloudTranslator.php / NextcloudInstanceSecret.php # Ports Translator (IL10N) und InstanceSecret (config.php)
 │   ├── Service/              # Geschäftslogik
 │   │   ├── ContentFilterRepository.php   # Kern-Repository mit Ablage und Bundle-Orten der App (Logik im Kern, siehe unten)
 │   │   └── MerlinFileService.php         # „Merlin Dateien“: Ordner (lokalisiert, per ID gemerkt), Upload-Ziel, Einträge anlegen/umbenennen (Inhalt und Streamen im Kern)
@@ -321,6 +326,10 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │   │   ├── ApiRequest.php / ApiResult.php # Eingabe (Nutzer, Parameter) und Antwort (JSON, Text, SSE)
 │   │   ├── ArticleApi.php                # /api/articles…, /api/events
 │   │   ├── TagApi.php                    # /api/tags…, Schlagworte an Artikeln
+│   │   ├── HighlightApi.php / CommentApi.php  # Markierungen, Kommentare des Besitzers, Push-Kanal (SSE)
+│   │   ├── ShareApi.php                  # Share-Link verwalten (erstellen, Passwort, Ablauf, neuer Token)
+│   │   ├── PublicShareApi.php            # Entsperren (Throttler) und Artikeldaten hinter dem Link
+│   │   ├── PublicCommentApi.php          # Gast-Kommentare/-Markierungen, Honeypot, Gast-Push-Kanal
 │   │   └── CapabilitiesApi.php           # /api/capabilities
 │   ├── Persistence/                  # SQL-Stores gegen den Port Connection (Sql…Store, PdoConnection, RowMapper, SqlValue)
 │   ├── Domain/

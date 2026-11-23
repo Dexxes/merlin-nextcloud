@@ -4,59 +4,49 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
-use Merlin\Core\Port\ShareStore;
-use Merlin\Core\Service\CommentService;
+use Merlin\Core\Api\PublicShareApi;
 use Merlin\Core\Service\PdfProxyService;
 use Merlin\Core\Service\ShareAccessDenied;
 use Merlin\Core\Service\ShareAccessService;
-use Merlin\Core\Service\SupportBoxService;
 use Merlin\Core\Service\TtsStreamService;
 use OCA\Merlin\AppInfo\Application;
-use OCA\Merlin\Db\Article;
 use OCA\Merlin\Db\ArticleMapper;
 use OCA\Merlin\Service\MerlinFileService;
-use OCP\AppFramework\Controller;
 use OCP\AppFramework\Db\DoesNotExistException;
-use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\ContentSecurityPolicy;
-use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IRequest;
-use OCP\Security\Bruteforce\IThrottler;
 
 /**
  * Öffentliche Auslieferung eines per Share-Link freigegebenen Artikels –
  * KEIN Login nötig (#[PublicPage]). Der Token aus der URL ist die einzige
- * Berechtigung; alle Lookups gehen über ShareStore::findByToken(),
+ * Berechtigung; alle Lookups gehen über ShareAccessService/ShareStore,
  * NIE über eine vom Client mitgeschickte article_id/user_id (IDOR-Schutz).
  *
- * Passwort-Unlock wird in der PHP-Session gemerkt (analog Nextclouds eigenem
- * Datei-Freigabe-Passwortschutz in files_sharing, siehe ShareAccessService),
- * Brute-Force-Schutz über den Bordmittel-Dienst IThrottler. Markieren und
- * Kommentieren hinter dem Link: PublicCommentController.
+ * Entsperren und Daten (unlock, data) kommen aus dem Kern
+ * (Merlin\Core\Api\PublicShareApi), die HTML-Seite, Vorlesen und PDF noch
+ * von hier. Markieren und Kommentieren hinter dem Link:
+ * PublicCommentController.
  */
-class PublicShareController extends Controller {
-	private const THROTTLE_ACTION = 'merlin_public_share_unlock';
-
+class PublicShareController extends CoreApiController {
 	public function __construct(
 		string $appName,
 		IRequest $request,
-		private ShareStore $shares,
+		private PublicShareApi $api,
 		private ArticleMapper $articleMapper,
 		private TtsStreamService $ttsStream,
 		private PdfProxyService $pdfProxy,
 		private ShareAccessService $access,
-		private CommentService $comments,
-		private IThrottler $throttler,
 		private IInitialState $initialState,
-		private SupportBoxService $supportBox,
 		private MerlinFileService $files,
+		?string $userId,
 	) {
-		parent::__construct($appName, $request);
+		parent::__construct($appName, $request, $userId);
 	}
 
 	/**
@@ -86,100 +76,16 @@ class PublicShareController extends Controller {
 		return $response;
 	}
 
-	/**
-	 * Passwort prüfen und Unlock in der Session merken.
-	 *
-	 * @PublicPage
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
 	#[PublicPage]
-	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function unlock(string $token, string $password = ''): DataResponse {
-		$share = $this->shares->findByToken($token);
-		if ($share === null) {
-			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
-		}
-
-		if ($share->isExpired()) {
-			return new DataResponse(['error' => 'Expired'], Http::STATUS_GONE);
-		}
-
-		if (!$share->hasPassword()) {
-			return new DataResponse(['unlocked' => true]);
-		}
-
-		// Brute-Force-Schutz: künstliche Verzögerung wächst mit der Zahl
-		// vorheriger Fehlversuche von dieser IP (Nextcloud-Bordmittel, gleiches
-		// Muster wie beim Login und bei Nextclouds eigenen Datei-Freigaben).
-		$ip = $this->request->getRemoteAddress();
-		$this->throttler->sleepDelay($ip, self::THROTTLE_ACTION);
-
-		if (!password_verify($password, (string) $share->getPasswordHash())) {
-			$this->throttler->registerAttempt(self::THROTTLE_ACTION, $ip, ['token' => $token]);
-			return new DataResponse(['error' => 'Invalid password'], Http::STATUS_FORBIDDEN);
-		}
-
-		$this->throttler->resetDelay($ip, self::THROTTLE_ACTION, ['token' => $token]);
-		$this->access->markUnlocked($share);
-
-		return new DataResponse(['unlocked' => true]);
+	public function unlock(): Response {
+		return $this->respond($this->api->unlock($this->apiRequest()));
 	}
 
-	/**
-	 * Artikeldaten + Highlights für die öffentliche Ansicht.
-	 *
-	 * @PublicPage
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
 	#[PublicPage]
-	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function data(string $token): DataResponse {
-		$share = $this->access->resolveAccessibleShare($token);
-		if ($share instanceof ShareAccessDenied) {
-			return new DataResponse($share->getData(), $share->getStatus());
-		}
-
-		try {
-			$article = $this->articleMapper->find($share->getArticleId(), $share->getUserId());
-		} catch (DoesNotExistException) {
-			// Artikel wurde gelöscht, Share-Zeile aber (noch) nicht aufgeräumt.
-			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
-		}
-
-		// Markierungen, Threads und Änderungsmarke für den Push-Kanal
-		// (PublicCommentController::events) in einem Rutsch.
-		$discussion = $this->comments->payload($article->getId(), $share->getUserId());
-
-		return new DataResponse([
-			'title'       => $article->getTitle(),
-			'excerpt'     => $article->getExcerpt(),
-			'author'      => $article->getAuthor(),
-			'authorUrl'   => $article->getAuthorUrl(),
-			'authors'     => Article::decodeAuthors($article->getAuthors()),
-			'siteName'    => $article->getSiteName(),
-			'content'     => $article->getContent(),
-			'url'         => $article->getUrl(),
-			'category'    => $article->getCategory(),
-			'publishedAt' => $article->getPublishedAt() ? $article->getPublishedAt()->format('c') : null,
-			'readingTime' => $article->getReadingTime(),
-			'highlights'  => $discussion['highlights'],
-			'comments'    => $discussion['comments'],
-			'signature'   => $discussion['signature'],
-			'generatedAt' => $discussion['generatedAt'],
-			'guests'      => $discussion['guests'],
-			'guestColors' => $discussion['guestColors'],
-			'allowComments' => $share->allowsComments(),
-			'ownerName'   => $this->comments->ownerDisplayName($share->getUserId()),
-			// Akzentfarbe des Erstellers für die Dachzeile, wie im App-Reader.
-			'accentColor' => $this->supportBox->accentColor($share->getUserId()),
-			// Abo-/Spendenlink der Quelle; anders als im Reader immer, auch wenn der
-			// Ersteller dort ein Abo hat (Empfänger sind keine Abonnenten).
-			'supportBox'  => $this->supportBox->forShare($article->toSnapshot(), $share->getUserId()),
-		]);
+	public function data(): Response {
+		return $this->respond($this->api->data($this->apiRequest()));
 	}
 
 	/**

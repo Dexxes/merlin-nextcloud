@@ -34,6 +34,8 @@ final class CoreApi {
 			$request->authUser() !== null ? $request->authUid() : null,
 			$request->params(),
 			static fn (): string => $request->rawBody(),
+			$request->headers(),
+			$request->remoteAddress(),
 		);
 	}
 
@@ -41,7 +43,7 @@ final class CoreApi {
 		return match ($result->kind) {
 			ApiResult::STREAM => Response::stream($result->headers, $result->emitter),
 			ApiResult::BODY => Response::raw($result->status, $result->headers, (string) $result->data),
-			default => Response::json($result->data, $result->status),
+			default => $result->status === 204 ? Response::noContent() : Response::json($result->data, $result->status),
 		};
 	}
 }

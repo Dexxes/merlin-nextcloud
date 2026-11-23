@@ -98,6 +98,31 @@ class ShareApiTest extends ApiTestCase {
 		self::expect(404, self::anonymous('GET', "/s/{$token}/data"));
 	}
 
+	public function testGuestEditsOnlyUnderTheirName(): void {
+		$owner = self::user();
+		$id = self::saveArticle($owner, 'Gast-Rechte')['id'];
+		$token = self::expect(201, self::api('POST', "/api/articles/{$id}/share", [], $owner))['token'];
+
+		$comment = self::expect(201, self::anonymous('POST', "/s/{$token}/comments", ['authorName' => 'Gast Zwei', 'body' => 'Erster Text']));
+		self::expect(403, self::anonymous('PUT', "/s/{$token}/comments/{$comment['id']}", ['body' => 'fremd'], ['X-Merlin-Guest-Name: ' . rawurlencode('Jemand')]));
+		$edited = self::expect(200, self::anonymous('PUT', "/s/{$token}/comments/{$comment['id']}", ['body' => 'Selbst geändert'], ['X-Merlin-Guest-Name: ' . rawurlencode('Gast Zwei')]));
+		$this->assertSame('Selbst geändert', $edited['body']);
+
+		// Honeypot: ein ausgefülltes Feld website kommt von keinem Menschen.
+		self::expect(400, self::anonymous('POST', "/s/{$token}/comments", ['authorName' => 'Gast Zwei', 'body' => 'Spam', 'website' => 'https://spam.example']));
+
+		$highlight = self::expect(201, self::anonymous('POST', "/s/{$token}/highlights", [
+			'authorName' => 'Gast Zwei', 'highlightedText' => 'Zweiter Absatz', 'startXpath' => 'p[1]', 'startOffset' => 0, 'endXpath' => 'p[1]', 'endOffset' => 14,
+		]));
+		$this->assertSame('guest', $highlight['authorType']);
+		self::expect(403, self::anonymous('DELETE', "/s/{$token}/highlights/{$highlight['id']}", null, ['X-Merlin-Guest-Name: ' . rawurlencode('Jemand')]));
+		self::expect(204, self::anonymous('DELETE', "/s/{$token}/highlights/{$highlight['id']}", null, ['X-Merlin-Guest-Name: ' . rawurlencode('Gast Zwei')]));
+
+		// Der Besitzer moderiert: er löscht auch Gast-Beiträge, ändert sie aber nicht.
+		self::expect(403, self::api('PUT', "/api/comments/{$comment['id']}", ['body' => 'Besitzer'], $owner));
+		self::expect(204, self::api('DELETE', "/api/comments/{$comment['id']}", null, $owner));
+	}
+
 	public function testOnlyTheOwnerManagesTheShare(): void {
 		$owner = self::user();
 		$id = self::saveArticle($owner)['id'];
@@ -106,8 +131,8 @@ class ShareApiTest extends ApiTestCase {
 	}
 
 	/** Anonymous request with a cookie session that lasts for the test. */
-	private function anonymous(string $method, string $path, ?array $body = null): array {
+	private function anonymous(string $method, string $path, ?array $body = null, array $headers = []): array {
 		$this->cookieJar ??= (string) tempnam(sys_get_temp_dir(), 'merlin-ci-cookies');
-		return self::request($method, '/index.php/apps/merlin' . $path, $body, null, [], $this->cookieJar);
+		return self::request($method, '/index.php/apps/merlin' . $path, $body, null, $headers, $this->cookieJar);
 	}
 }

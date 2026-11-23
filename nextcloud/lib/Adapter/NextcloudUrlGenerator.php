@@ -30,4 +30,8 @@ class NextcloudUrlGenerator implements UrlGenerator {
 	public function fileContentUrl(array $params): string {
 		return $this->urlGenerator->linkToRouteAbsolute(Application::APP_ID . '.file.content', $params);
 	}
+
+	public function shareUrl(string $token): string {
+		return $this->urlGenerator->linkToRouteAbsolute(Application::APP_ID . '.public_share.show', ['token' => $token]);
+	}
 }

@@ -101,6 +101,19 @@ namespace Merlin\CommentServiceTest {
 		/** @var array<string, ArticleShare> */
 		public array $byToken = [];
 		public function findByToken(string $token): ?ArticleShare { return $this->byToken[$token] ?? null; }
+		public function findByArticleId(int $articleId, string $userId): ?ArticleShare {
+			foreach ($this->byToken as $share) {
+				if ($share->getArticleId() === $articleId && $share->getUserId() === $userId) {
+					return $share;
+				}
+			}
+			return null;
+		}
+		public function insert(ArticleShare $share): ArticleShare { $this->byToken[$share->getToken()] = $share; return $share; }
+		public function update(ArticleShare $share): ArticleShare { return $this->insert($share); }
+		public function deleteByArticleId(int $articleId, string $userId): void {
+			$this->byToken = array_filter($this->byToken, static fn (ArticleShare $s) => $s->getArticleId() !== $articleId || $s->getUserId() !== $userId);
+		}
 	}
 
 	final class ArraySession implements Session {

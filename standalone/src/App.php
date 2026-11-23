@@ -25,6 +25,7 @@ use Merlin\Standalone\Adapter\PhpSession;
 use Merlin\Standalone\Adapter\SodiumCrypto;
 use Merlin\Standalone\Adapter\StandaloneAppSettings;
 use Merlin\Standalone\Adapter\StandaloneContentFilterRepository;
+use Merlin\Standalone\Adapter\SqlThrottler;
 use Merlin\Standalone\Adapter\StandalonePlatform;
 use Merlin\Standalone\Adapter\StandaloneTranslator;
 use Merlin\Standalone\Adapter\StandaloneUrlGenerator;
@@ -74,6 +75,7 @@ final class App {
 		Port\SiteCredentialStore::class => SqlSiteCredentialStore::class,
 		Port\SiteSessions::class        => SiteCredentialService::class,
 		Port\TagStore::class            => SqlTagStore::class,
+		Port\Throttler::class           => SqlThrottler::class,
 		Port\Translator::class          => StandaloneTranslator::class,
 		Port\UrlGenerator::class        => StandaloneUrlGenerator::class,
 		Port\UserDirectory::class       => StandaloneUserDirectory::class,

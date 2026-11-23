@@ -2,7 +2,7 @@
 
 /**
  * Routen der Nextcloud-App. Die gemeinsame API (Artikel, Schlagworte,
- * /api/capabilities …) steht in core/src/Api/routes.php und wird hier
+ * Markierungen, Kommentare, Share-Links, /api/capabilities …) steht in core/src/Api/routes.php und wird hier
  * übernommen; darunter die Routen, die (noch) nur die Nextcloud-App hat.
  * tools/test-route-parity.php prüft beide Listen gegen die Controller.
  */
@@ -41,43 +41,11 @@ return [
         // der Player nicht mit Error 153 abbricht (loadFileURL-Origin ist file://).
         ['name' => 'youtube_embed#show', 'url' => '/api/youtube-embed', 'verb' => 'GET'],
 
-        // Highlight API routes
-        ['name' => 'highlight#index',   'url' => '/api/articles/{articleId}/highlights', 'verb' => 'GET'],
-        ['name' => 'highlight#create',  'url' => '/api/articles/{articleId}/highlights', 'verb' => 'POST'],
-        ['name' => 'highlight#update',  'url' => '/api/highlights/{id}',                 'verb' => 'PUT'],
-        ['name' => 'highlight#destroy', 'url' => '/api/highlights/{id}',                 'verb' => 'DELETE'],
-
-        // Kommentare (Besitzer): Threads an Markierungen oder am ganzen Artikel.
-        // stream = Push-Kanal (SSE), liefert Gast-Beiträge sofort.
-        ['name' => 'comment#index',   'url' => '/api/articles/{articleId}/comments',        'verb' => 'GET'],
-        ['name' => 'comment#create',  'url' => '/api/articles/{articleId}/comments',        'verb' => 'POST'],
-        ['name' => 'comment#stream',  'url' => '/api/articles/{articleId}/comments/stream', 'verb' => 'GET'],
-        ['name' => 'comment#update',  'url' => '/api/comments/{id}',                        'verb' => 'PUT'],
-        ['name' => 'comment#destroy', 'url' => '/api/comments/{id}',                        'verb' => 'DELETE'],
-
-        // Share API routes (authenticated: erstellen/verwalten eines Public-Share-Links)
-        ['name' => 'share#show',       'url' => '/api/articles/{articleId}/share',            'verb' => 'GET'],
-        ['name' => 'share#create',     'url' => '/api/articles/{articleId}/share',            'verb' => 'POST'],
-        ['name' => 'share#update',     'url' => '/api/articles/{articleId}/share',            'verb' => 'PUT'],
-        ['name' => 'share#regenerate', 'url' => '/api/articles/{articleId}/share/regenerate', 'verb' => 'POST'],
-        ['name' => 'share#destroy',    'url' => '/api/articles/{articleId}/share',            'verb' => 'DELETE'],
-
-        // Public Share routes (unauthenticated: öffentliche Ansicht eines geteilten Artikels)
+        // Öffentliche Ansicht eines geteilten Artikels (ohne Anmeldung): HTML-Seite,
+        // Vorlesen und PDF. Entsperren, Daten und Gast-Kommentare kommen aus dem Kern.
         ['name' => 'public_share#show',       'url' => '/s/{token}',              'verb' => 'GET'],
-        ['name' => 'public_share#unlock',     'url' => '/s/{token}/unlock',       'verb' => 'POST'],
-        ['name' => 'public_share#data',       'url' => '/s/{token}/data',         'verb' => 'GET'],
         ['name' => 'public_share#tts',        'url' => '/s/{token}/tts',          'verb' => 'GET'],
         ['name' => 'public_share#pdf',        'url' => '/s/{token}/pdf',          'verb' => 'GET'],
-
-        // Markieren und Kommentieren als Gast hinter dem Share-Link (PublicCommentController)
-        ['name' => 'public_comment#index',            'url' => '/s/{token}/comments',        'verb' => 'GET'],
-        ['name' => 'public_comment#guest',            'url' => '/s/{token}/guest',           'verb' => 'POST'],
-        ['name' => 'public_comment#create',           'url' => '/s/{token}/comments',        'verb' => 'POST'],
-        ['name' => 'public_comment#update',           'url' => '/s/{token}/comments/{id}',   'verb' => 'PUT'],
-        ['name' => 'public_comment#destroy',          'url' => '/s/{token}/comments/{id}',   'verb' => 'DELETE'],
-        ['name' => 'public_comment#createHighlight',  'url' => '/s/{token}/highlights',      'verb' => 'POST'],
-        ['name' => 'public_comment#destroyHighlight', 'url' => '/s/{token}/highlights/{id}', 'verb' => 'DELETE'],
-        ['name' => 'public_comment#events',           'url' => '/s/{token}/events',          'verb' => 'GET'],
 
         // Settings routes
         ['name' => 'settings#get', 'url' => '/api/settings', 'verb' => 'GET'],

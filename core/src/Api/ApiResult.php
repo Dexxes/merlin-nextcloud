@@ -43,6 +43,11 @@ final class ApiResult {
 		return new self(self::JSON, $status, $data);
 	}
 
+	/** 204 ohne Inhalt (Nextcloud: DataResponse([], 204), wie bisher). */
+	public static function noContent(): self {
+		return new self(self::JSON, 204, []);
+	}
+
 	public static function error(string $message, int $status, array $extra = []): self {
 		return new self(self::JSON, $status, ['error' => $message] + $extra);
 	}

@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Merlin\Core\Domain;
 
 /**
- * Öffentlicher Share-Link eines Artikels, so weit ihn die Zugriffsprüfung
- * braucht (Service\ShareAccessService). Getter wie beim Nextcloud-Entity
+ * Öffentlicher Share-Link eines Artikels (Tabelle merlin_shares, genau einer
+ * je Artikel). Getter und jsonSerialize() wie beim Nextcloud-Entity
  * OCA\Merlin\Db\ArticleShare.
  */
-final class ArticleShare {
+final class ArticleShare implements \JsonSerializable {
+	/** Felder für Persistence\RowMapper. */
+	public const FIELDS = ['userId', 'articleId', 'token', 'passwordHash', 'expiresAt', 'allowComments', 'createdAt', 'updatedAt'];
+
 	private ?int $id = null;
 	private string $userId = '';
 	private int $articleId = 0;
@@ -17,6 +20,8 @@ final class ArticleShare {
 	private ?string $passwordHash = null;
 	private ?\DateTimeInterface $expiresAt = null;
 	private ?bool $allowComments = true;
+	private ?\DateTimeInterface $createdAt = null;
+	private ?\DateTimeInterface $updatedAt = null;
 
 	public function getId(): ?int {
 		return $this->id;
@@ -74,6 +79,22 @@ final class ArticleShare {
 		$this->allowComments = $allowComments;
 	}
 
+	public function getCreatedAt(): ?\DateTimeInterface {
+		return $this->createdAt;
+	}
+
+	public function setCreatedAt(?\DateTimeInterface $createdAt): void {
+		$this->createdAt = $createdAt;
+	}
+
+	public function getUpdatedAt(): ?\DateTimeInterface {
+		return $this->updatedAt;
+	}
+
+	public function setUpdatedAt(?\DateTimeInterface $updatedAt): void {
+		$this->updatedAt = $updatedAt;
+	}
+
 	/**
 	 * Dürfen Gäste über diesen Link markieren und kommentieren? NULL (Zeilen
 	 * vor der Migration ohne Default) zählt wie true.
@@ -88,5 +109,17 @@ final class ArticleShare {
 
 	public function isExpired(): bool {
 		return $this->expiresAt !== null && $this->expiresAt < new \DateTime();
+	}
+
+	public function jsonSerialize(): array {
+		return [
+			'articleId'  => $this->articleId,
+			'token'      => $this->token,
+			'hasPassword' => $this->hasPassword(),
+			'expiresAt'  => $this->expiresAt?->format('c'),
+			'allowComments' => $this->allowsComments(),
+			'createdAt'  => $this->createdAt?->format('c'),
+			'updatedAt'  => $this->updatedAt?->format('c'),
+		];
 	}
 }

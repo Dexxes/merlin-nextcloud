@@ -31,6 +31,10 @@ final class StandaloneUrlGenerator implements UrlGenerator {
 			. ($params === [] ? '' : '?' . http_build_query($params));
 	}
 
+	public function shareUrl(string $token): string {
+		return $this->baseUrl . '/s/' . rawurlencode($token);
+	}
+
 	public function absolute(string $path): string {
 		return $this->baseUrl . '/' . ltrim($path, '/');
 	}

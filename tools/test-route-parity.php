@@ -41,12 +41,7 @@ const NEXTCLOUD_ONLY = ['file#target', 'file#register', 'file#content', 'file#re
 const NOT_YET_IN_CORE = [
 	'page#index', 'manifest#index', 'service_worker#index',
 	'tts#synthesize', 'pdf#show', 'media#resolve', 'videoStream#resolve', 'youtube_embed#show',
-	'highlight#index', 'highlight#create', 'highlight#update', 'highlight#destroy',
-	'comment#index', 'comment#create', 'comment#stream', 'comment#update', 'comment#destroy',
-	'share#show', 'share#create', 'share#update', 'share#regenerate', 'share#destroy',
-	'public_share#show', 'public_share#unlock', 'public_share#data', 'public_share#tts', 'public_share#pdf',
-	'public_comment#index', 'public_comment#guest', 'public_comment#create', 'public_comment#update',
-	'public_comment#destroy', 'public_comment#createHighlight', 'public_comment#destroyHighlight', 'public_comment#events',
+	'public_share#show', 'public_share#tts', 'public_share#pdf',
 	'settings#get', 'settings#update', 'retention#acknowledgeNotice',
 	'retentionAdmin#show', 'retentionAdmin#update', 'retentionAdmin#preview', 'storage#get',
 	'contentFilter#index', 'contentFilter#import', 'contentFilter#show', 'contentFilter#update',
@@ -98,6 +93,10 @@ foreach ($core as $i => $route) {
 	if (!in_array($route['access'], ['user', 'admin', 'public'], true)) {
 		$fail("routes.php {$route['name']}: access '{$route['access']}' unbekannt");
 	}
+	if (isset($route['rateLimit']) && (!is_array($route['rateLimit']) || count($route['rateLimit']) !== 2
+		|| !is_int($route['rateLimit'][0]) || !is_int($route['rateLimit'][1]) || $route['access'] !== 'public')) {
+		$fail("routes.php {$route['name']}: rateLimit muss [limit, period] an einer öffentlichen Route sein");
+	}
 	[$class, $method] = $route['handler'];
 	if (!method_exists($class, $method)) {
 		$fail("routes.php {$route['name']}: Handler {$class}::{$method} fehlt");
@@ -139,7 +138,7 @@ if (!is_file($root . '/nextcloud/vendor/merlin/core/src/Api/routes.php')) {
 		$method = explode('#', $route['name'])[1];
 		$source = $controllerSource($route['name']);
 		// Attribute direkt vor der Methode, Aufruf des Handlers im Rumpf.
-		if ($source === null || !preg_match('/((?:\s*#\[\w+\])*)\s*public function ' . preg_quote($method, '/') . '\(\)[^{]*\{([^}]*)\}/', $source, $m)) {
+		if ($source === null || !preg_match('/((?:\s*#\[[^\]]+\])*)\s*public function ' . preg_quote($method, '/') . '\(\)[^{]*\{([^}]*)\}/', $source, $m)) {
 			$fail("Nextcloud: Controller-Methode für {$route['name']} fehlt");
 			continue;
 		}
@@ -155,6 +154,12 @@ if (!is_file($root . '/nextcloud/vendor/merlin/core/src/Api/routes.php')) {
 		};
 		if (!$expected) {
 			$fail("Nextcloud: Zugriffsattribute von {$route['name']} passen nicht zu access '{$route['access']}'");
+		}
+		$rateAttr = isset($route['rateLimit'])
+			? "#[AnonRateLimit(limit: {$route['rateLimit'][0]}, period: {$route['rateLimit'][1]})]"
+			: null;
+		if ($rateAttr !== null ? !str_contains($attrs, $rateAttr) : str_contains($attrs, 'AnonRateLimit')) {
+			$fail("Nextcloud: {$route['name']} braucht " . ($rateAttr ?? 'kein #[AnonRateLimit]') . ' wie in routes.php');
 		}
 	}
 	foreach ($byName as $name => $route) {

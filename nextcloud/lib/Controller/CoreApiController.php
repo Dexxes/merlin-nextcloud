@@ -34,10 +34,16 @@ abstract class CoreApiController extends Controller {
 
 	/** Parameter wie bei Nextclouds Controller-Argumenten: Query, Body, Pfad. */
 	protected function apiRequest(): ApiRequest {
+		$headers = [];
+		foreach (ApiRequest::HEADERS as $name) {
+			$headers[$name] = $this->request->getHeader($name);
+		}
 		return new ApiRequest(
 			$this->userId,
 			$this->request->getParams(),
 			static fn (): string => (string) file_get_contents('php://input'),
+			$headers,
+			$this->request->getRemoteAddress(),
 		);
 	}
 

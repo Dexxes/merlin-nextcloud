@@ -13,20 +13,44 @@ namespace Merlin\Core\Api;
  * Parametertypen eines Controllers: "false" ist false, sonst settype().
  */
 final class ApiRequest {
+	/**
+	 * Header, die Handler lesen. Adapter, die nicht alle Header durchreichen
+	 * (Nextcloud: IRequest::getHeader()), geben mindestens diese mit.
+	 */
+	public const HEADERS = ['Last-Event-ID', 'X-Merlin-Guest-Name'];
+
 	/** @var \Closure(): string|null */
 	private ?\Closure $rawBody;
 	private ?array $decodedBody = null;
+	/** @var array<string, string> */
+	private array $headers = [];
 
 	/**
 	 * @param array<string, mixed> $params
 	 * @param (\Closure(): string)|null $rawBody roher Body, erst bei Bedarf gelesen
+	 * @param array<string, string> $headers Name => Wert (Groß-/Kleinschreibung egal)
+	 * @param string $remoteAddress IP des Clients (Brute-Force-Schutz)
 	 */
 	public function __construct(
 		private ?string $userId,
 		private array $params = [],
 		?\Closure $rawBody = null,
+		array $headers = [],
+		private string $remoteAddress = '',
 	) {
 		$this->rawBody = $rawBody;
+		foreach ($headers as $name => $value) {
+			$this->headers[strtolower((string) $name)] = (string) $value;
+		}
+	}
+
+	/** Wert eines Request-Headers, '' wenn er fehlt (wie IRequest::getHeader()). */
+	public function header(string $name): string {
+		return $this->headers[strtolower($name)] ?? '';
+	}
+
+	public function remoteAddress(): string {
+		return $this->remoteAddress;
 	}
 
 	public function userId(): string {

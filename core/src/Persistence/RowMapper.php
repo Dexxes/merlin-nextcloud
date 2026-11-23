@@ -44,7 +44,7 @@ final class RowMapper {
 			$value = $row[$meta['column']] ?? null;
 			if ($value === null) {
 				// Spalten ohne Wert, die das Objekt nicht als null kennt, behalten
-				// dessen Standardwert (wie Adapter\EntityCopy in der Nextcloud-App).
+				// dessen Standardwert (wie früher Adapter\EntityCopy in der Nextcloud-App).
 				if ($meta['nullable']) {
 					$object->{'set' . ucfirst($field)}(null);
 				}

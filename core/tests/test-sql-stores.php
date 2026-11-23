@@ -40,6 +40,7 @@ namespace {
 	use Merlin\Core\Persistence\SqlHighlightStore;
 	use Merlin\Core\Persistence\SqlRetentionStore;
 	use Merlin\Core\Persistence\SqlShareStore;
+	use Merlin\Core\Domain\ArticleShare;
 	use Merlin\Core\Persistence\SqlSiteCredentialStore;
 	use Merlin\Core\Persistence\SqlTagStore;
 	use Merlin\Core\Persistence\SqlValue;
@@ -155,6 +156,32 @@ namespace {
 	$share = $shares->findByToken('tok');
 	$check($share !== null && $share->getArticleId() === $a1 && $share->getAllowComments() === false && $share->getExpiresAt() !== null, 'findByToken');
 	$check($shares->findByToken('nope') === null, 'unbekanntes Token: null');
+	$check($shares->findByArticleId($a1, '1')?->getToken() === 'tok' && $shares->findByArticleId($a1, '2') === null, 'findByArticleId nur für den Besitzer');
+	$share->setToken('tok-neu');
+	$share->setAllowComments(true);
+	$share->setPasswordHash('hash');
+	$share->setUpdatedAt(new DateTime('2026-01-02 00:00:00'));
+	$shares->update($share);
+	$again = $shares->findByToken('tok-neu');
+	$check($again !== null && $again->getAllowComments() === true && $again->hasPassword() && $again->getUpdatedAt()?->format('Y-m-d') === '2026-01-02'
+		&& $again->getCreatedAt()?->format('Y-m-d') === '2026-01-01', 'update: Token, Passwort, Schalter, Zeitstempel');
+	$json = $again->jsonSerialize();
+	$check($json['token'] === 'tok-neu' && $json['hasPassword'] === true && $json['allowComments'] === true && !isset($json['passwordHash']),
+		'jsonSerialize ohne Passwort-Hash', json_encode($json));
+	$shares->deleteByArticleId($a1, '2');
+	$check($shares->findByToken('tok-neu') !== null, 'deleteByArticleId eines anderen Nutzers löscht nichts');
+	$shares->deleteByArticleId($a1, '1');
+	$check($shares->findByToken('tok-neu') === null, 'deleteByArticleId');
+	$fresh = new ArticleShare();
+	$fresh->setUserId('1');
+	$fresh->setArticleId($a1);
+	$fresh->setToken('tok');
+	$fresh->setExpiresAt(new DateTime('2026-01-10 00:00:00'));
+	$fresh->setAllowComments(false);
+	$fresh->setCreatedAt(new DateTime('2026-01-01 00:00:00'));
+	$fresh->setUpdatedAt(new DateTime('2026-01-01 00:00:00'));
+	$shares->insert($fresh);
+	$check($fresh->getId() !== null && $shares->findByToken('tok')?->getAllowComments() === false, 'insert');
 	try {
 		$db->insert('merlin_shares', ['user_id' => '1', 'article_id' => $a1, 'token' => 'tok2',
 			'created_at' => '2026-01-01 00:00:00', 'updated_at' => '2026-01-01 00:00:00']);
