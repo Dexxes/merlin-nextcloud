@@ -5,7 +5,6 @@ import { translate, translatePlural } from '@nextcloud/l10n'
 import { loadState } from '@nextcloud/initial-state'
 
 // Nextcloud Vue styles
-import '@nextcloud/dialogs/style.css'
 
 const app = createApp(App)
 

@@ -5,7 +5,6 @@ import RetentionAdmin from './components/admin/RetentionAdmin.vue'
 
 // Kein Vuex-Store: die Admin-Oberfläche hält ihren Zustand lokal in der
 // Wurzelkomponente und teilt ihn mit niemandem (siehe vite.config.mjs).
-import '@nextcloud/dialogs/style.css'
 
 // Die Merlin-Admin-Sektion besteht aus zwei ISettings (RetentionAdminSettings,
 // AdminSettings), die sich dieses Skript teilen: jede App nur montieren, wenn
