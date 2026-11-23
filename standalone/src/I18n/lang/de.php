@@ -37,6 +37,7 @@ return [
     'account.statusOk' => 'Verbunden',
     'account.statusPending' => 'Noch nicht geprüft',
     'account.updateLogin' => 'Login aktualisieren',
+    'app.notBuilt' => 'Die Weboberfläche ist noch nicht gebaut. Im Projektordner ausführen:',
     'adminCf.badgeCustom' => 'Custom',
     'adminCf.bundleLabel' => 'Bundle (read-only, mitgeliefert)',
     'adminCf.confirmDeleteCustom' => 'Admin-Custom-Filter für "{domain}" wirklich löschen?',

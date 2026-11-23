@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:standalone": "vite build -c vite.standalone.config.mjs",
     "watch": "vite build --watch",
     "build:stamp": "git rev-parse --short HEAD > appinfo/build.txt",
     "lint": "eslint --ext .js,.vue src",
@@ -29,6 +30,7 @@
     "@nextcloud/l10n": "^3.1.0",
     "@nextcloud/router": "^3.0.1",
     "@nextcloud/vue": "^9.0.0",
+    "axios": "^1.15.0",
     "debounce": "^4.0.0",
     "hls.js": "^1.7.1",
     "pdfjs-dist": "^6.5.438",

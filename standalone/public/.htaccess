@@ -1,3 +1,8 @@
+# Die Vue-App (app/js/*.mjs) sind ES-Module; ältere mime.types kennen .mjs nicht.
+<IfModule mod_mime.c>
+    AddType text/javascript .mjs
+</IfModule>
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
 

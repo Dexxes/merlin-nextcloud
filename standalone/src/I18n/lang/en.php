@@ -37,6 +37,7 @@ return [
     'account.statusOk' => 'Connected',
     'account.statusPending' => 'Not checked yet',
     'account.updateLogin' => 'Update login',
+    'app.notBuilt' => 'The web interface has not been built yet. Run in the project folder:',
     'adminCf.badgeCustom' => 'Custom',
     'adminCf.bundleLabel' => 'Bundle (read-only, shipped with the app)',
     'adminCf.confirmDeleteCustom' => 'Really delete the admin custom filter for "{domain}"?',

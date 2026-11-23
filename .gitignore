@@ -6,6 +6,7 @@ node_modules/
 /nextcloud/js/
 /nextcloud/css/
 /nextcloud/appinfo/build.txt
+/standalone/public/app/
 
 # Development
 .vscode/

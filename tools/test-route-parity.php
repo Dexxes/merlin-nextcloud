@@ -38,14 +38,18 @@ const NEXTCLOUD_ONLY = ['file#target', 'file#register', 'file#content', 'file#re
  * Noch nicht in den Kern umgezogen. Wird mit jedem Teil von Etappe 4
  * kürzer; was hier steht, hat der Standalone-Server noch nicht.
  */
-const NOT_YET_IN_CORE = [
-	'page#index', 'manifest#index', 'service_worker#index',
-	'public_share#show',
-];
+const NOT_YET_IN_CORE = ['manifest#index', 'service_worker#index'];
+
+/**
+ * HTML-Seiten der Vue-App: in beiden Varianten unter demselben Pfad, aber
+ * keine API und damit nicht in der Routentabelle des Kerns. Nextcloud:
+ * PageController/PublicShareController, Standalone: Controller\AppController.
+ */
+const PLATFORM_PAGES = ['page#index' => 'GET /', 'public_share#show' => 'GET /s/{token}'];
 
 /** Nur im Standalone-Server: Seiten, Konten, Login Flow v2, Admin-Nutzer (Methode Pfad). */
 const STANDALONE_ONLY = [
-	'GET /', 'GET /login', 'POST /login', 'GET /logout', 'GET /register', 'POST /register',
+	'GET /login', 'POST /login', 'GET /logout', 'GET /register', 'POST /register',
 	'GET /password/forgot', 'POST /password/forgot', 'GET /password/reset', 'POST /password/reset',
 	'GET /account', 'GET /admin', 'GET /lang/{code}', 'GET /img/{file}',
 	'POST /login/v2', 'POST /login/v2/poll', 'GET /login/v2/flow/{token}', 'POST /login/v2/flow/{token}',
@@ -177,7 +181,11 @@ if (!is_file($root . '/nextcloud/vendor/merlin/core/src/Api/routes.php')) {
 		if (isset($names[$name])) {
 			continue;
 		}
-		if (!in_array($name, NEXTCLOUD_ONLY, true) && !in_array($name, NOT_YET_IN_CORE, true)) {
+		if (isset(PLATFORM_PAGES[$name])) {
+			if (PLATFORM_PAGES[$name] !== "{$route['verb']} {$route['url']}") {
+				$fail("Nextcloud: {$name} liegt unter {$route['verb']} {$route['url']}, PLATFORM_PAGES erwartet " . PLATFORM_PAGES[$name]);
+			}
+		} elseif (!in_array($name, NEXTCLOUD_ONLY, true) && !in_array($name, NOT_YET_IN_CORE, true)) {
 			$fail("Nextcloud: {$name} ({$route['verb']} {$route['url']}) steht weder in core/src/Api/routes.php noch in NEXTCLOUD_ONLY/NOT_YET_IN_CORE");
 		}
 		$method = explode('#', $name)[1];
@@ -186,7 +194,7 @@ if (!is_file($root . '/nextcloud/vendor/merlin/core/src/Api/routes.php')) {
 			$fail("Nextcloud: Controller-Methode für {$name} fehlt");
 		}
 	}
-	foreach ([...NEXTCLOUD_ONLY, ...NOT_YET_IN_CORE] as $name) {
+	foreach ([...NEXTCLOUD_ONLY, ...NOT_YET_IN_CORE, ...array_keys(PLATFORM_PAGES)] as $name) {
 		if (isset($names[$name])) {
 			$fail("{$name} steht in der Routentabelle des Kerns: aus NEXTCLOUD_ONLY/NOT_YET_IN_CORE streichen");
 		} elseif (!isset($byName[$name])) {
@@ -214,13 +222,13 @@ try {
 	}
 	foreach ($standalone as $key) {
 		$checks++;
-		if (!isset($keys[$key]) && !in_array($key, STANDALONE_ONLY, true)) {
-			$fail("Standalone: {$key} steht weder in core/src/Api/routes.php noch in STANDALONE_ONLY");
+		if (!isset($keys[$key]) && !in_array($key, STANDALONE_ONLY, true) && !in_array($key, PLATFORM_PAGES, true)) {
+			$fail("Standalone: {$key} steht weder in core/src/Api/routes.php noch in STANDALONE_ONLY/PLATFORM_PAGES");
 		}
 	}
-	foreach (STANDALONE_ONLY as $key) {
+	foreach ([...STANDALONE_ONLY, ...PLATFORM_PAGES] as $key) {
 		if (!in_array($key, $standalone, true)) {
-			$fail("STANDALONE_ONLY: {$key} gibt es nicht mehr");
+			$fail("STANDALONE_ONLY/PLATFORM_PAGES: {$key} gibt es im Standalone-Server nicht");
 		}
 	}
 	if (count($standalone) !== count(array_unique($standalone))) {
@@ -234,7 +242,7 @@ try {
 }
 
 echo 'Kern-Routen: ' . count($core) . ', Nextcloud noch ohne Kern: ' . count(NOT_YET_IN_CORE)
-	. ', nur Nextcloud: ' . count(NEXTCLOUD_ONLY) . ', nur Standalone: ' . count(STANDALONE_ONLY) . "\n";
+	. ', Seiten: ' . count(PLATFORM_PAGES) . ', nur Nextcloud: ' . count(NEXTCLOUD_ONLY) . ', nur Standalone: ' . count(STANDALONE_ONLY) . "\n";
 if ($errors !== []) {
 	foreach ($errors as $e) {
 		echo "  ✗ {$e}\n";

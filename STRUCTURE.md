@@ -122,19 +122,22 @@ Entsperren eines Share-Passworts bremst der Port `Throttler`
 `requirements` engt Platzhalter ein (beide Router), `csrf` markiert
 `user`-Routen nur für die Weboberfläche: Nextcloud lässt dort
 `#[NoCSRFRequired]` weg und verlangt den requesttoken (wie immer bei `admin`).
-Der Standalone-Server hat dafür noch keinen eigenen Schutz; bis Etappe 5 gibt
-es dort keine Weboberfläche, die solche Anfragen mit Session-Cookie schickt.
+Der Standalone-Server schützt alle schreibenden Anfragen mit Session-Cookie
+über den Header `X-Requested-With` (`Http\Middleware\CsrfHeaderMiddleware`,
+gilt auch für Konto und Admin-Nutzer); API-Tokens sind davon ausgenommen.
 `tools/test-route-parity.php`
 prüft Tabelle, Nextcloud-Routen und -Controller (Methode, Handler-Aufruf,
 Attribute) und Standalone-Router; Routen nur einer Variante stehen dort in
 `NEXTCLOUD_ONLY`, `NOT_YET_IN_CORE` (wird mit jedem Teil kürzer) oder
-`STANDALONE_ONLY`.
+`STANDALONE_ONLY`; die HTML-Seiten der Vue-App (`/`, `/s/{token}`) gibt es in
+beiden unter demselben Pfad (`PLATFORM_PAGES`).
 
 Standalone-HTTP: `standalone/public/index.php` baut die Routen aus
 `src/Http/Routes.php`: die gemeinsame API aus dem Kern, dazu die
 Standalone-eigenen (Login, Registrierung, Passwort-Reset, Konto mit
 API-Tokens, Admin-Nutzer, Login Flow v2 unter `/login/v2`, `/img/{datei}` aus
-`nextcloud/img/`).
+`nextcloud/img/`) und die Seiten der Vue-App (`Controller\AppController`:
+Reader unter `/`, Share-Ansicht unter `/s/{token}`).
 Pfade und Antworten wie in `merlin-standalone-server`, damit Clients mit
 `backendKind: 'standalone'` sie unverändert finden. Die merlin_*-Daten eines
 gelöschten Kontos räumt `Account\UserDataCleaner` ab (wie `UserDeletedListener`
@@ -662,13 +665,28 @@ stillen Extraktions-Fehlschlag – Grundlage für einen Login-Dialog in allen Cl
 ## Frontend (Vue 3)
 
 Vier Vite-Entry-Points (siehe `vite.config.mjs`): Reader, öffentliche Share-Ansicht,
-Verwaltungseinstellungen und persönliche Einstellungen.
+Verwaltungseinstellungen und persönliche Einstellungen. Ein zweiter Build
+(`npm run build:standalone`, `vite.standalone.config.mjs`) baut Reader und
+Share-Ansicht für den Standalone-Server nach `standalone/public/app/`
+(nicht im Repo): Einstieg über `src/standalone/` (Theme-Shim, dann dieselben
+`main.js`/`public-main.js`), Plattform-Schicht `src/platform/standalone.js`.
+Die Verwaltungseinstellungen folgen dort später.
 
 Plattform-Schicht (Etappe 5): Komponenten, Store und `api/` holen Axios,
 URLs (`appUrl('/api/…')`, Pfade wie in `core/src/Api/routes.php`), Bilder,
 Startwerte, Toasts und Übersetzungen nur aus `src/platform/index.js`.
 `@nextcloud/vue` bleibt in beiden Varianten. `/apps/merlin` und `OC.*`
-stehen nur in `src/platform/`.
+stehen nur in `src/platform/`. Welche Umsetzung gilt, entscheidet der
+Vite-Alias `merlin-platform` (nextcloud.js bzw. standalone.js).
+
+Standalone: Die Seite (`standalone/templates/app.php`, Controller
+`AppController`) liefert Startwerte, Basis-Pfad und Übersetzungen
+(`nextcloud/l10n/{Sprache}.json`) als JSON in `<script id="merlin-state">`.
+Angemeldet wird per Session-Cookie; schreibende Anfragen mit Cookie brauchen
+`X-Requested-With: XMLHttpRequest` (`CsrfHeaderMiddleware`), das `http` aus
+standalone.js immer mitschickt. Bei 401 geht es zum Login und danach zurück.
+`src/standalone/theme.css` setzt die CSS-Variablen, die in Nextcloud das
+Theming liefert (Standard-Theme hell, dunkel nach Systemeinstellung).
 
 ```
 frontend/src/
@@ -684,8 +702,10 @@ frontend/src/
 ├── tag-tree.js              # Verschachtelte Tags im Browser: Kinder, Nachfahren, Baumreihenfolge, Pfad (Gegenstück zu TagTree.php)
 ├── App.vue                  # Hauptkomponente
 ├── platform/                # einzige Stelle mit @nextcloud/* (außer @nextcloud/vue): http, appUrl(), imageUrl(),
-│   ├── index.js             #   loadState(), showSuccess/showError, translate; Standalone-Build tauscht nextcloud.js später aus
-│   └── nextcloud.js         #   (Etappe 5). frontend/tools/check-platform-imports.mjs prüft das in CI
+│   ├── index.js             #   loadState(), showSuccess/showError, translate; reicht 'merlin-platform' durch.
+│   ├── nextcloud.js         #   frontend/tools/check-platform-imports.mjs prüft das in CI
+│   └── standalone.js        #   Standalone: Startwerte aus #merlin-state, Session + X-Requested-With, Login bei 401
+├── standalone/              # Einstiege des Standalone-Builds (main.js, public-main.js) und Theme-Shim (theme.css/.js)
 ├── store/
 │   └── index.js             # State Management
 ├── api/                     # API-Wrapper

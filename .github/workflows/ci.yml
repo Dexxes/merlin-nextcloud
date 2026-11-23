@@ -135,6 +135,15 @@ jobs:
           if find merlin -type l | grep .; then echo "::error::symlinks in tarball"; exit 1; fi
           grep -qF 'Merlin\\Core\\ContentFilter\\ContentFilterSchema' merlin/vendor/composer/autoload_classmap.php \
             || { echo "::error::merlin/core missing from the composer classmap"; exit 1; }
+      - name: vite build (Standalone)
+        working-directory: frontend
+        run: npm run build:standalone
+      - name: Standalone pages with the built app
+        # test-http.php checks / and /s/{token} against standalone/public/app/.
+        run: |
+          test -f standalone/public/app/js/merlin-main.mjs && test -f standalone/public/app/css/merlin-public.css
+          composer install --no-dev --no-interaction --no-progress --working-dir=standalone
+          php standalone/tests/test-http.php
       - uses: actions/upload-artifact@v7
         with:
           name: merlin-appstore-tarball

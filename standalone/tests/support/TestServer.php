@@ -140,7 +140,7 @@ final class TestServer {
 	public function tokenFor(string $username, string $password): array {
 		$jar = $this->dir . '/cookies-' . $username . '.txt';
 		$this->http('POST', '/login', null, [], ['username' => $username, 'password' => $password], $jar);
-		[, $token] = $this->http('POST', '/account/tokens', ['name' => 'Test'], [], null, $jar);
+		[, $token] = $this->http('POST', '/account/tokens', ['name' => 'Test'], ['X-Requested-With' => 'XMLHttpRequest'], null, $jar);
 		return ['Authorization' => 'Basic ' . base64_encode($username . ':' . ($token['plainText'] ?? ''))];
 	}
 

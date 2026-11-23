@@ -152,11 +152,35 @@ try {
 	// Web-Login mit Session-Cookie, dann Token anlegen.
 	$jar = $dir . '/cookies.txt';
 	[$status, , , $headers] = $http('POST', '/login', null, [], ['username' => 'bea', 'password' => 'passwort1'], $jar);
-	check($status === 303 && str_ends_with($headers['location'] ?? '', '/account'), 'Web-Login leitet zum Konto');
+	check($status === 303 && str_ends_with($headers['location'] ?? '', '/'), 'Web-Login leitet zum Reader');
 	[$status, , $body] = $http('GET', '/account', null, [], null, $jar);
 	check($status === 200 && str_contains($body, 'bea'), 'Kontoseite mit Session');
-	[$status, $token] = $http('POST', '/account/tokens', ['name' => 'Firefox'], [], null, $jar);
+	[$status] = $http('POST', '/account/tokens', ['name' => 'Firefox'], [], null, $jar);
+	check($status === 403, 'Session ohne X-Requested-With: schreibende Anfrage 403 (CSRF)');
+	[$status] = $http('POST', '/api/tags', ['name' => 'csrf'], [], null, $jar);
+	check($status === 403, 'auch für die gemeinsame API');
+	[$status, $token] = $http('POST', '/account/tokens', ['name' => 'Firefox'], ['X-Requested-With' => 'XMLHttpRequest'], null, $jar);
 	check($status === 201 && strlen((string) ($token['plainText'] ?? '')) === 64, 'Token über die Session anlegen');
+
+	// Vue-App: Reader unter /, Share-Ansicht unter /s/{token}. Ohne Build
+	// (npm run build:standalone) 503 mit Hinweis.
+	$built = is_file(dirname(__DIR__) . '/public/app/js/merlin-main.mjs');
+	[$status, , $body] = $http('GET', '/', null, [], null, $jar);
+	check($built
+		? $status === 200 && str_contains($body, 'id="merlin-app"') && str_contains($body, '"loginUrl":"/login"') && str_contains($body, '"appInfo":{"version"')
+		: $status === 503 && str_contains($body, 'build:standalone'), 'Reader-Seite mit Session', substr($body, 0, 300));
+	[$status, , , $headers] = $http('GET', '/');
+	check($status === 303 && str_ends_with($headers['location'] ?? '', '/login'), 'Reader ohne Anmeldung: zum Login');
+	[$status, , $body] = $http('GET', '/s/abc_123');
+	check($built
+		? $status === 200 && str_contains($body, 'id="merlin-public-app"') && str_contains($body, '"shareToken":"abc_123"')
+		: $status === 503, 'Share-Seite ohne Anmeldung', substr($body, 0, 300));
+	[, , $body] = $http('GET', '/s/' . rawurlencode('</script><b>x'));
+	check(!str_contains($body, '</script><b>'), 'Token im Seitenzustand ist maskiert');
+	[$status, , , $headers] = $http('POST', '/login', null, [], ['username' => 'bea', 'password' => 'passwort1', 'return' => '/s/abc'], $dir . '/cookies2.txt');
+	check($status === 303 && str_ends_with($headers['location'] ?? '', '/s/abc'), 'Login springt zu return zurück');
+	[$status, , , $headers] = $http('POST', '/login', null, [], ['username' => 'bea', 'password' => 'passwort1', 'return' => '//evil.example'], $dir . '/cookies3.txt');
+	check($status === 303 && !str_contains($headers['location'] ?? '', 'evil'), 'fremdes return-Ziel wird ignoriert');
 	[$status] = $http('GET', '/admin/users', null, [], null, $jar);
 	check($status === 403, 'Nicht-Admin: Admin-API 403');
 

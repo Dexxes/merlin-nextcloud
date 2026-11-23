@@ -13,6 +13,9 @@ final class Request {
     /** Vom jeweiligen Auth-Middleware gesetzt: die users-Zeile des angemeldeten Accounts. */
     private ?array $authUser = null;
 
+    /** Wie sich der Nutzer angemeldet hat: 'token' (Basic Auth) oder 'session' (Cookie). */
+    private ?string $authMethod = null;
+
     public function __construct(
         private readonly string $method,
         private readonly string $path,
@@ -160,8 +163,13 @@ final class Request {
         return $this->remoteAddress;
     }
 
-    public function setAuthUser(array $user): void {
+    public function setAuthUser(array $user, ?string $method = null): void {
         $this->authUser = $user;
+        $this->authMethod = $method;
+    }
+
+    public function authMethod(): ?string {
+        return $this->authMethod;
     }
 
     public function authUser(): ?array {

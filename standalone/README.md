@@ -8,8 +8,11 @@ Konten, Login, Login Flow v2, API-Tokens, die Admin-Nutzerverwaltung,
 denselben Pfaden und Antworten (ohne `/index.php/apps/merlin`): Artikel,
 Schlagworte, Markierungen, Kommentare, Share-Links, Vorlesen, PDF, Medien,
 Einstellungen, Löschfrist, Speicherverbrauch, Content-Filter,
-Abo-Zugangsdaten, Meldungen und die Browser-Erweiterung (`/api/v1/…`). Die
-Leseoberfläche folgt mit Etappe 5.
+Abo-Zugangsdaten, Meldungen und die Browser-Erweiterung (`/api/v1/…`). Nach
+dem Login öffnet `/` die Weboberfläche (dieselbe Vue-App wie in Nextcloud),
+Share-Links `/s/{token}` die öffentliche Artikelansicht. Die
+Verwaltungseinstellungen (Content-Filter, Löschfrist) gibt es dort noch nicht,
+ebensowenig PWA/Offline (Etappe 6).
 
 ```sh
 cd standalone
@@ -17,6 +20,7 @@ composer install
 cp config/config.sample.php config/config.php   # anpassen, vor allem 'secret'
 bin/merlin migrate                              # SQLite-Datenbank anlegen
 bin/merlin create-admin --username=admin --email=admin@example.org
+(cd ../frontend && npm install && npm run build:standalone)   # Weboberfläche nach public/app/
 php -S localhost:8080 -t public public/index.php
 bin/merlin extract https://netzpolitik.org/… --content   # Extraktion prüfen (JSON)
 ```
@@ -36,7 +40,14 @@ Antwort auf `POST /api/articles` erst nach der Extraktion (kein
 
 Mit Apache zeigt der DocumentRoot auf `public/` (dort liegt die
 `.htaccess`), oder `.htaccess` im Ordner `standalone/` leitet alles nach
-`public/` weiter.
+`public/` weiter. Die Weboberfläche lädt `public/app/js/*.mjs` als
+ES-Module: der Webserver muss `.mjs` als `text/javascript` ausliefern
+(`public/.htaccess` setzt das für Apache, nginx braucht einen Eintrag in
+`mime.types`).
+
+Schreibende Anfragen, die nur mit dem Session-Cookie angemeldet sind,
+brauchen den Header `X-Requested-With: XMLHttpRequest` (CSRF-Schutz,
+`CsrfHeaderMiddleware`); mit API-Token (Basic Auth) nicht.
 
 Vorerst nur SQLite. Das Schema der `merlin_*`-Tabellen ist das der
 Nextcloud-App, siehe `migrations/001_initial.sql` und STRUCTURE.md im Repo.

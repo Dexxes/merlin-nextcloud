@@ -4,6 +4,9 @@
     <p class="error"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
 <?php endif; ?>
 <form method="post" action="<?= url('/login'); ?>">
+    <?php if (($return ?? '/') !== '/'): ?>
+        <input type="hidden" name="return" value="<?= htmlspecialchars($return, ENT_QUOTES, 'UTF-8') ?>">
+    <?php endif; ?>
     <label for="username"><?= htmlspecialchars($t->t('common.username'), ENT_QUOTES, 'UTF-8') ?></label>
     <input type="text" id="username" name="username" required autofocus>
 

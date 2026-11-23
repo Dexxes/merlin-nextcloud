@@ -24,11 +24,8 @@ use Merlin\Standalone\I18n\Translator;
  * der JSON-API (AccountController/AdminController) nach.
  */
 final class PageController {
-    /**
-     * Startseite nach dem Login. Eine Leseoberfläche gibt es im neuen
-     * Standalone-Server erst mit dem Vue-Frontend (Etappe 5), bis dahin das Konto.
-     */
-    public const HOME = '/account';
+    /** Startseite nach dem Login: der Reader (AppController::reader). */
+    public const HOME = '/';
 
     public function __construct(
         private readonly UserRepository $users,
@@ -48,24 +45,26 @@ final class PageController {
         }
         return $this->render('login', $request, [
             'allowSelfRegistration' => $this->settings->getBool(ServerSettings::ALLOW_SELF_REGISTRATION),
+            'return' => self::safeReturn($request->query('return')),
         ]);
     }
 
     public function login(Request $request): Response {
         $username = (string) $request->input('username', '');
         $password = (string) $request->input('password', '');
+        $return = self::safeReturn($request->input('return'));
         $t = $this->translator($request);
 
         $user = $this->users->findByUsername($username);
         if ($user === null || !$this->hasher->verify($password, $user['password_hash'])) {
-            return $this->render('login', $request, ['error' => $t->t('login.invalidCredentials')]);
+            return $this->render('login', $request, ['error' => $t->t('login.invalidCredentials'), 'return' => $return]);
         }
         if (!(bool) $user['is_active']) {
-            return $this->render('login', $request, ['error' => $t->t('login.accountDisabled')]);
+            return $this->render('login', $request, ['error' => $t->t('login.accountDisabled'), 'return' => $return]);
         }
 
         $this->sessions->login((int) $user['id']);
-        return Response::redirect(self::HOME);
+        return Response::redirect($return);
     }
 
     public function logout(Request $request): Response {
@@ -75,9 +74,7 @@ final class PageController {
 
     /**
      * Setzt die Sprachpräferenz (Session, plus user_settings falls
-     * eingeloggt) und springt zur aufrufenden Seite zurück. `return` kommt
-     * unauthentifiziert aus der URL - nur ein Pfad-Präfix wird akzeptiert
-     * (kein "//host"-Protocol-Relative-Redirect), sonst Fallback /library.
+     * eingeloggt) und springt zur aufrufenden Seite zurück (safeReturn).
      */
     public function setLanguage(Request $request): Response {
         $code = (string) $request->routeParam('code');
@@ -89,11 +86,22 @@ final class PageController {
             }
         }
 
-        $return = (string) $request->query('return', self::HOME);
-        if (!str_starts_with($return, '/') || str_starts_with($return, '//')) {
-            $return = self::HOME;
+        return Response::redirect(self::safeReturn($request->query('return')));
+    }
+
+    /**
+     * Rücksprungziel aus `return` (Sprachumschalter, Login nach abgelaufener
+     * Session, siehe frontend/src/platform/standalone.js). Kommt
+     * unauthentifiziert aus der URL: nur ein Pfad auf diesem Server
+     * (kein "//host" und kein "/\host"), sonst die Startseite.
+     */
+    private static function safeReturn(?string $return): string {
+        $return = (string) $return;
+        if (!str_starts_with($return, '/') || str_starts_with($return, '//') || str_starts_with($return, '/\\')
+            || preg_match('/[\x00-\x1f]/', $return)) {
+            return self::HOME;
         }
-        return Response::redirect($return);
+        return $return;
     }
 
     public function registerForm(Request $request): Response {
