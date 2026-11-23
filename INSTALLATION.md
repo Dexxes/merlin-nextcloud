@@ -1,12 +1,12 @@
 # Merlin – Installation Guide
 
-Merlin is a read-it-later app for Nextcloud: save articles, read them in a clean interface, optionally have them read aloud via Piper TTS.
+Merlin is a read-it-later app: save articles, read them in a clean interface, optionally have them read aloud via Piper TTS. It runs as a Nextcloud app or as a standalone server without Nextcloud ([below](#standalone-server)).
 
 ## Requirements
 
 - **Nextcloud**: version 33–35
 - **PHP**: 8.4–8.6 (extensions: `php-xml`, `php-mbstring`, `php-curl`, `php-json`)
-- **Database**: MySQL, PostgreSQL, or SQLite
+- **Database**: MySQL/MariaDB, PostgreSQL, or SQLite
 
 ## Installation
 
@@ -70,6 +70,60 @@ php core/tests/test-content-filter-merge.php
 
 Exit code 0 means all checks passed.
 
+## Standalone server
+
+The same reader without Nextcloud: own accounts, login flow for the apps, API
+tokens, admin settings, SQLite. Every release (tag `vX.Y.Z`) publishes a
+Docker image and a tarball with the same version as the Nextcloud app.
+
+### Docker (recommended)
+
+```bash
+docker run -d --name merlin -p 8080:8080 -v merlin-data:/data \
+  -e MERLIN_BASE_URL=https://merlin.example.com \
+  -e MERLIN_ADMIN_USER=admin -e MERLIN_ADMIN_EMAIL=admin@example.org \
+  -e MERLIN_ADMIN_PASSWORD=change-me \
+  ghcr.io/dexxes/merlin-standalone:latest
+```
+
+or with [`standalone/docker-compose.yml`](standalone/docker-compose.yml). The
+image (amd64 and arm64) contains nginx and PHP-FPM; database, log and the
+instance secret live in the `/data` volume. Migrations run on every start, the
+admin account is created on the first start, and the daily cleanup runs inside
+the container. Put a reverse proxy with HTTPS in front and set
+`MERLIN_BASE_URL` to the public address. All variables are listed in
+[standalone/README.md](standalone/README.md#docker).
+
+Updating: `docker pull` the new tag and recreate the container; the volume
+stays.
+
+### Tarball
+
+`merlin-standalone-X.Y.Z.tar.gz` from the GitHub release contains the server
+with all PHP dependencies and the built web interface:
+
+```bash
+tar -xzf merlin-standalone-X.Y.Z.tar.gz        # → merlin-standalone/
+cd merlin-standalone
+cp config/config.sample.php config/config.php  # set base_url and secret
+bin/merlin migrate
+bin/merlin create-admin --username=admin --email=admin@example.org
+```
+
+Point the web server's document root to `public/` (Apache uses
+`public/.htaccess`; nginx needs `try_files $uri /index.php$is_args$args;` and
+`.mjs` as `text/javascript`, see `standalone/docker/nginx.conf`). Use PHP-FPM,
+so saving an article answers before the extraction. `data/` must be writable
+by the web server. For the daily cleanup either keep
+`'background_jobs' => 'web'` or set `'cron'` and add
+`0 * * * * php /path/to/merlin-standalone/bin/merlin cron`.
+
+### TTS in the standalone server
+
+Same Piper daemon as below, on `127.0.0.1:5051` of the machine that runs PHP.
+In Docker that is the container itself: run the container with
+`--network host` or leave read-aloud off.
+
 ## TTS read-aloud feature (optional)
 
 The audio read-aloud feature (used by iOS/iPad via `PiperAudioService.swift`) requires a separate Piper daemon that runs **locally on the Nextcloud server** and is not part of the App Store package – this part still needs to be set up manually.
@@ -125,7 +179,7 @@ The browser extension sends the client-rendered page HTML for some sites instead
 - Check the Nextcloud log: `tail -f /path/to/nextcloud/data/nextcloud.log`
 
 ### PHP errors
-- Check the PHP version (8.4–8.6): `php --version`
+- Check the PHP version (8.0–8.4): `php --version`
 - Check required extensions: `php-xml`, `php-mbstring`, `php-curl`, `php-json`
 
 ### Database errors
