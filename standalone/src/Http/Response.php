@@ -20,7 +20,31 @@ final class Response {
         private readonly string $contentType,
         private readonly string $body,
         private readonly array $extraHeaders = [],
+        private readonly ?\Closure $emitter = null,
     ) {
+    }
+
+    /**
+     * Beliebiger Text mit Status und Headern (Content-Type in $headers).
+     *
+     * @param array<string, string> $headers
+     */
+    public static function raw(int $status, array $headers, string $body): self {
+        $contentType = $headers['Content-Type'] ?? 'text/plain; charset=utf-8';
+        unset($headers['Content-Type']);
+        return new self($status, $contentType, $body, $headers);
+    }
+
+    /**
+     * Server-Sent Events: send() setzt die Header, gibt die Session frei und
+     * lässt den Emitter schreiben (echo/flush).
+     *
+     * @param array<string, string> $headers
+     */
+    public static function stream(array $headers, \Closure $emitter): self {
+        $contentType = $headers['Content-Type'] ?? 'text/event-stream; charset=utf-8';
+        unset($headers['Content-Type']);
+        return new self(200, $contentType, '', $headers, $emitter);
     }
 
     public static function json(mixed $data, int $status = 200): self {
@@ -72,11 +96,28 @@ final class Response {
         return $this->body;
     }
 
+    public function isStream(): bool {
+        return $this->emitter !== null;
+    }
+
     public function send(): void {
+        if ($this->emitter !== null) {
+            while (ob_get_level() > 0) {
+                ob_end_clean();
+            }
+        }
         http_response_code($this->status);
         header('Content-Type: ' . $this->contentType);
         foreach ($this->extraHeaders as $name => $value) {
             header("{$name}: {$value}");
+        }
+        if ($this->emitter !== null) {
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                session_write_close();
+            }
+            ob_implicit_flush(true);
+            ($this->emitter)();
+            return;
         }
         echo $this->body;
     }

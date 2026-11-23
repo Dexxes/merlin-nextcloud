@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Merlin\Standalone;
 
 use Merlin\Core\Persistence\PdoConnection;
+use Merlin\Core\Persistence\SqlArticleStore;
 use Merlin\Core\Persistence\SqlCommentGuestStore;
 use Merlin\Core\Persistence\SqlCommentStore;
 use Merlin\Core\Persistence\SqlContentFilterStore;
@@ -13,14 +14,18 @@ use Merlin\Core\Persistence\SqlHighlightStore;
 use Merlin\Core\Persistence\SqlRetentionStore;
 use Merlin\Core\Persistence\SqlShareStore;
 use Merlin\Core\Persistence\SqlSiteCredentialStore;
+use Merlin\Core\Persistence\SqlTagStore;
 use Merlin\Core\Port;
 use Merlin\Core\Service\ArticleDeletionService;
+use Merlin\Core\Service\ShutdownScheduler;
 use Merlin\Core\Service\SiteCredentialService;
 use Merlin\Standalone\Adapter\ConfigInstanceSecret;
+use Merlin\Standalone\Adapter\NoArticleFiles;
 use Merlin\Standalone\Adapter\PhpSession;
 use Merlin\Standalone\Adapter\SodiumCrypto;
 use Merlin\Standalone\Adapter\StandaloneAppSettings;
 use Merlin\Standalone\Adapter\StandaloneContentFilterRepository;
+use Merlin\Standalone\Adapter\StandalonePlatform;
 use Merlin\Standalone\Adapter\StandaloneTranslator;
 use Merlin\Standalone\Adapter\StandaloneUrlGenerator;
 use Merlin\Standalone\Adapter\StandaloneUserDirectory;
@@ -50,6 +55,8 @@ final class App {
 	public const PORTS = [
 		Port\AppSettings::class         => StandaloneAppSettings::class,
 		Port\ArticleDeletion::class     => ArticleDeletionService::class,
+		Port\ArticleFiles::class        => NoArticleFiles::class,
+		Port\ArticleStore::class        => SqlArticleStore::class,
 		Port\CommentGuestStore::class   => SqlCommentGuestStore::class,
 		Port\CommentStore::class        => SqlCommentStore::class,
 		Port\Connection::class          => PdoConnection::class,
@@ -59,11 +66,14 @@ final class App {
 		Port\Database::class            => SqlDatabase::class,
 		Port\HighlightStore::class      => SqlHighlightStore::class,
 		Port\InstanceSecret::class      => ConfigInstanceSecret::class,
+		Port\Platform::class            => StandalonePlatform::class,
 		Port\RetentionStore::class      => SqlRetentionStore::class,
+		Port\Scheduler::class           => ShutdownScheduler::class,
 		Port\Session::class             => PhpSession::class,
 		Port\ShareStore::class          => SqlShareStore::class,
 		Port\SiteCredentialStore::class => SqlSiteCredentialStore::class,
 		Port\SiteSessions::class        => SiteCredentialService::class,
+		Port\TagStore::class            => SqlTagStore::class,
 		Port\Translator::class          => StandaloneTranslator::class,
 		Port\UrlGenerator::class        => StandaloneUrlGenerator::class,
 		Port\UserDirectory::class       => StandaloneUserDirectory::class,

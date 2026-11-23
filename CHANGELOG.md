@@ -7,6 +7,12 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- `GET /api/capabilities` now also in the Nextcloud app (no login needed):
+  `backend`, the shared `version`, `apiVersion` and `features`, so clients can
+  switch features on by capability instead of by `backendKind`.
+- [standalone] Article and tag API from the shared core: `/api/articles…`,
+  `/api/tags…` and `/api/events` with the same paths (without
+  `/index.php/apps/merlin`), parameters and responses as the Nextcloud app.
 - spiegel.de: author box at the end of the article with name and profile link
   for every author in the byline (`/impressum/autor-…`). Columns take photo
   and bio from the byline and the "Zum Autor" box in the text (which no longer
@@ -173,6 +179,12 @@ All notable changes to Merlin are documented here. Format based on
   single quote instead of repeating the quote above each thread.
 
 ### Changed
+- Article and tag API (`/api/articles…`, `/api/tags…`, `/api/events`) now
+  run on the shared core (`core/src/Api/`, one route table for both
+  variants) and its SQL stores; responses are unchanged. Small differences:
+  `POST /api/articles` without `url` answers 400 instead of 500, `tagIds`
+  only links the user's own tags, and article lists load the tags of all
+  listed articles in one query.
 - Repository layout: the Nextcloud app now lives in `nextcloud/`, the Vue
   sources in `frontend/` (first step towards one repository for the Nextcloud
   app and the standalone server). `make dist` is run from `nextcloud/`. The

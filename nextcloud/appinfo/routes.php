@@ -1,28 +1,24 @@
 <?php
 
+/**
+ * Routen der Nextcloud-App. Die gemeinsame API (Artikel, Schlagworte,
+ * /api/capabilities …) steht in core/src/Api/routes.php und wird hier
+ * übernommen; darunter die Routen, die (noch) nur die Nextcloud-App hat.
+ * tools/test-route-parity.php prüft beide Listen gegen die Controller.
+ */
+
+// Im Checkout ein Symlink auf ../core, im App-Store-Tarball eine Kopie.
+$coreRoutes = array_map(
+    static fn (array $route): array => array_intersect_key($route, array_flip(['name', 'url', 'verb', 'requirements'])),
+    require __DIR__ . '/../vendor/merlin/core/src/Api/routes.php',
+);
+
 return [
     'routes' => [
+        ...$coreRoutes,
+
         // Page routes
         ['name' => 'page#index', 'url' => '/', 'verb' => 'GET'],
-
-        // Article API routes
-        ['name' => 'article#counts', 'url' => '/api/articles/counts', 'verb' => 'GET'],
-        ['name' => 'article#index', 'url' => '/api/articles', 'verb' => 'GET'],
-        // Muss vor /api/articles/{id} stehen, sonst matcht "search" als {id}
-        // (article#show) und die Suche liefert immer 404.
-        ['name' => 'article#search', 'url' => '/api/articles/search', 'verb' => 'GET'],
-        ['name' => 'article#show', 'url' => '/api/articles/{id}', 'verb' => 'GET'],
-        ['name' => 'article#create', 'url' => '/api/articles', 'verb' => 'POST'],
-        ['name' => 'article#update', 'url' => '/api/articles/{id}', 'verb' => 'PUT'],
-        ['name' => 'article#destroy', 'url' => '/api/articles/{id}', 'verb' => 'DELETE'],
-        ['name' => 'article#toggleRead', 'url' => '/api/articles/{id}/read', 'verb' => 'PUT'],
-        ['name' => 'article#toggleFavorite', 'url' => '/api/articles/{id}/favorite', 'verb' => 'PUT'],
-        ['name' => 'article#toggleArchive', 'url' => '/api/articles/{id}/archive', 'verb' => 'PUT'],
-        ['name' => 'article#updateProgress', 'url' => '/api/articles/{id}/progress', 'verb' => 'PUT'],
-        ['name' => 'article#retryExtraction', 'url' => '/api/articles/{id}/retry-extraction', 'verb' => 'POST'],
-
-        // SSE: push article-ready events when processing finishes
-        ['name' => 'article#stream', 'url' => '/api/events', 'verb' => 'GET'],
 
         // TTS route (kombinierter Proxy-Endpunkt: Synthese + Streaming in einem Request)
         ['name' => 'tts#synthesize', 'url' => '/api/articles/{id}/tts', 'verb' => 'GET'],
@@ -44,17 +40,6 @@ return [
         // iOS/iPad-Reader eine echte https-Origin für YouTube-iframes, damit
         // der Player nicht mit Error 153 abbricht (loadFileURL-Origin ist file://).
         ['name' => 'youtube_embed#show', 'url' => '/api/youtube-embed', 'verb' => 'GET'],
-
-        // Export routes
-        ['name' => 'article#exportHtml', 'url' => '/api/articles/{id}/export/html', 'verb' => 'GET'],
-
-        // Tag API routes
-        ['name' => 'tag#index', 'url' => '/api/tags', 'verb' => 'GET'],
-        ['name' => 'tag#create', 'url' => '/api/tags', 'verb' => 'POST'],
-        ['name' => 'tag#update', 'url' => '/api/tags/{id}', 'verb' => 'PUT'],
-        ['name' => 'tag#destroy', 'url' => '/api/tags/{id}', 'verb' => 'DELETE'],
-        ['name' => 'tag#addToArticle', 'url' => '/api/articles/{articleId}/tags/{tagId}', 'verb' => 'POST'],
-        ['name' => 'tag#removeFromArticle', 'url' => '/api/articles/{articleId}/tags/{tagId}', 'verb' => 'DELETE'],
 
         // Highlight API routes
         ['name' => 'highlight#index',   'url' => '/api/articles/{articleId}/highlights', 'verb' => 'GET'],

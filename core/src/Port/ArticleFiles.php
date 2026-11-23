@@ -1,0 +1,32 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Merlin\Core\Port;
+
+use Merlin\Core\Domain\Article;
+
+/**
+ * Einträge aus „Merlin Dateien“ (Artikel mit fileId) neu aufbauen: Titel =
+ * Dateiname, Inhalt mit Metadaten und Download-Link. Die Artikel-API ruft das
+ * nur für Artikel mit fileId auf.
+ *
+ * Nextcloud: Adapter\NextcloudArticleFiles über Service\MerlinFileService.
+ * Standalone: Merlin Dateien gibt es dort noch nicht (Adapter\NoArticleFiles).
+ */
+interface ArticleFiles {
+	/**
+	 * Beim Öffnen: neu aufbauen, wenn die Datei umbenannt wurde oder der
+	 * Inhalt von vor Metadaten/Download-Link stammt.
+	 *
+	 * @return Article der neu geladene oder der unveränderte Eintrag
+	 */
+	public function refreshIfNeeded(Article $article): Article;
+
+	/**
+	 * „Neu laden“: Eintrag aus der Datei neu aufbauen.
+	 *
+	 * @return Article der neu geladene Eintrag, unverändert wenn die Datei fehlt
+	 */
+	public function refresh(Article $article): Article;
+}

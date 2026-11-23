@@ -27,9 +27,11 @@ class FileApiTest extends ApiTestCase {
 		$this->assertSame('text/plain', $entry['fileMime']);
 		$this->assertGreaterThan(0, $entry['fileId']);
 
-		// Signed link from the entry's content.
-		$this->assertMatchesRegularExpression('~/api/articles/' . $entry['id'] . '/file\?t=[a-f0-9]+~', $entry['content']);
-		preg_match('~/api/articles/' . $entry['id'] . '/file\?t=([a-f0-9]+)~', $entry['content'], $m);
+		// Signed link from the entry's content. For a text file that is the
+		// download link (file?download=1&amp;t=…), see FileEntryService::buildContent.
+		$link = '~/api/articles/' . $entry['id'] . '/file\?(?:download=1&amp;)?t=([a-f0-9]+)~';
+		$this->assertMatchesRegularExpression($link, $entry['content']);
+		preg_match($link, $entry['content'], $m);
 		$download = self::api('GET', "/api/articles/{$entry['id']}/file?t={$m[1]}&download=1", null, $user);
 		$this->assertSame(200, $download['status']);
 		$this->assertSame($content, $download['body']);

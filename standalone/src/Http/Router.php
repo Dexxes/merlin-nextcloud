@@ -27,10 +27,20 @@ final class Router {
 
         $this->routes[] = [
             'method' => $method,
+            'path' => $path,
             'regex' => '#^' . $pattern . '$#',
             'handler' => $handler,
             'middleware' => $middleware,
         ];
+    }
+
+    /**
+     * Registrierte Routen (für tools/test-route-parity.php).
+     *
+     * @return list<array{method: string, path: string}>
+     */
+    public function routes(): array {
+        return array_map(static fn (array $r) => ['method' => $r['method'], 'path' => $r['path']], $this->routes);
     }
 
     public function dispatch(Request $request): Response {

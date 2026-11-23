@@ -37,4 +37,34 @@ final class SqlValue {
 		}
 		return $parsed->setTimezone(new \DateTimeZone(date_default_timezone_get()));
 	}
+
+	/**
+	 * Platzhalter für `spalte IN (…)`: liefert `(:name0, :name1, …)` und die
+	 * Parameter dazu. Eine leere Liste ergibt `(NULL)`, das nichts trifft (wie
+	 * IN () in Nextclouds QueryBuilder).
+	 *
+	 * @param list<int|string> $values
+	 * @return array{0: string, 1: array<string, int|string>}
+	 */
+	public static function inList(string $name, array $values): array {
+		if ($values === []) {
+			return ['(NULL)', []];
+		}
+		$placeholders = [];
+		$params = [];
+		foreach (array_values($values) as $i => $value) {
+			$placeholders[] = ':' . $name . $i;
+			$params[$name . $i] = $value;
+		}
+		return ['(' . implode(', ', $placeholders) . ')', $params];
+	}
+
+	/**
+	 * Suchbegriff für `LIKE :param ESCAPE '!'`: %, _ und ! im Begriff gelten
+	 * wörtlich, davor und danach steht %. Das Escape-Zeichen ist ! statt \,
+	 * weil MySQL Backslashes in Literalen selbst auswertet.
+	 */
+	public static function likeContains(string $term): string {
+		return '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term) . '%';
+	}
 }

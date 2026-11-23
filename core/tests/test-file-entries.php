@@ -71,6 +71,9 @@ namespace Merlin\FileEntriesTest {
 		public function absoluteImageUrl(string $file): string {
 			return 'https://cloud.test/img/' . $file;
 		}
+		public function imagePath(string $file): string {
+			return '/img/' . $file;
+		}
 		public function fileContentUrl(array $params): string {
 			return 'https://cloud.test/file?' . http_build_query($params);
 		}

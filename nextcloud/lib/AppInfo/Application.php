@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\AppInfo;
 
+use Merlin\Core\Api\ArticleApi;
+use Merlin\Core\Api\CapabilitiesApi;
+use Merlin\Core\Api\TagApi;
 use Merlin\Core\ContentFilter\ContentFilterMerger;
 use Merlin\Core\ContentFilter\ContentFilterSerializer;
 use Merlin\Core\ContentFilter\ContentFilterValidator;
@@ -22,10 +25,15 @@ use Merlin\Core\Extraction\Media\Provider\ZdfProvider;
 use Merlin\Core\Extraction\Social\BlueskyThreadResolverService;
 use Merlin\Core\Extraction\Social\MastodonPostResolverService;
 use Merlin\Core\Extraction\Social\TikTokPostResolverService;
+use Merlin\Core\Persistence\SqlArticleStore;
+use Merlin\Core\Persistence\SqlTagStore;
 use Merlin\Core\Port\AppSettings;
 use Merlin\Core\Port\ArticleDeletion;
+use Merlin\Core\Port\ArticleFiles;
+use Merlin\Core\Port\ArticleStore;
 use Merlin\Core\Port\CommentGuestStore;
 use Merlin\Core\Port\CommentStore;
+use Merlin\Core\Port\Connection;
 use Merlin\Core\Port\ContentFilterSource;
 use Merlin\Core\Port\ContentFilterStore;
 use Merlin\Core\Port\Crypto;
@@ -33,15 +41,19 @@ use Merlin\Core\Port\Database;
 use Merlin\Core\Port\FilePreviews;
 use Merlin\Core\Port\HighlightStore;
 use Merlin\Core\Port\InstanceSecret;
+use Merlin\Core\Port\Platform;
 use Merlin\Core\Port\RetentionStore;
+use Merlin\Core\Port\Scheduler;
 use Merlin\Core\Port\Session;
 use Merlin\Core\Port\ShareStore;
 use Merlin\Core\Port\SiteCredentialStore;
 use Merlin\Core\Port\SiteSessions;
+use Merlin\Core\Port\TagStore;
 use Merlin\Core\Port\UrlGenerator;
 use Merlin\Core\Port\UserDirectory;
 use Merlin\Core\Port\UserSettings;
 use Merlin\Core\Service\ArticleDeletionService;
+use Merlin\Core\Service\ArticleExtractionService;
 use Merlin\Core\Service\CommentService;
 use Merlin\Core\Service\ExportService;
 use Merlin\Core\Service\FileEntryService;
@@ -49,18 +61,22 @@ use Merlin\Core\Service\PdfProxyService;
 use Merlin\Core\Service\ReportBackendService;
 use Merlin\Core\Service\RetentionService;
 use Merlin\Core\Service\ShareAccessService;
+use Merlin\Core\Service\ShutdownScheduler;
 use Merlin\Core\Service\SiteCredentialService;
 use Merlin\Core\Service\SupportBoxService;
 use Merlin\Core\Service\TtsStreamService;
 use OCA\Merlin\Adapter\NextcloudAppSettings;
+use OCA\Merlin\Adapter\NextcloudArticleFiles;
 use OCA\Merlin\Adapter\NextcloudCommentGuestStore;
 use OCA\Merlin\Adapter\NextcloudCommentStore;
+use OCA\Merlin\Adapter\NextcloudConnection;
 use OCA\Merlin\Adapter\NextcloudContentFilterStore;
 use OCA\Merlin\Adapter\NextcloudCrypto;
 use OCA\Merlin\Adapter\NextcloudDatabase;
 use OCA\Merlin\Adapter\NextcloudFilePreviews;
 use OCA\Merlin\Adapter\NextcloudHighlightStore;
 use OCA\Merlin\Adapter\NextcloudInstanceSecret;
+use OCA\Merlin\Adapter\NextcloudPlatform;
 use OCA\Merlin\Adapter\NextcloudRetentionStore;
 use OCA\Merlin\Adapter\NextcloudSession;
 use OCA\Merlin\Adapter\NextcloudShareStore;
@@ -92,8 +108,11 @@ class Application extends App implements IBootstrap {
 	public const CORE_PORTS = [
 		AppSettings::class         => NextcloudAppSettings::class,
 		ArticleDeletion::class     => ArticleDeletionService::class,
+		ArticleFiles::class        => NextcloudArticleFiles::class,
+		ArticleStore::class        => SqlArticleStore::class,
 		CommentGuestStore::class   => NextcloudCommentGuestStore::class,
 		CommentStore::class        => NextcloudCommentStore::class,
+		Connection::class          => NextcloudConnection::class,
 		ContentFilterSource::class => ContentFilterRepository::class,
 		ContentFilterStore::class  => NextcloudContentFilterStore::class,
 		Crypto::class              => NextcloudCrypto::class,
@@ -101,11 +120,14 @@ class Application extends App implements IBootstrap {
 		FilePreviews::class        => NextcloudFilePreviews::class,
 		HighlightStore::class      => NextcloudHighlightStore::class,
 		InstanceSecret::class      => NextcloudInstanceSecret::class,
+		Platform::class            => NextcloudPlatform::class,
 		RetentionStore::class      => NextcloudRetentionStore::class,
+		Scheduler::class           => ShutdownScheduler::class,
 		Session::class             => NextcloudSession::class,
 		ShareStore::class          => NextcloudShareStore::class,
 		SiteCredentialStore::class => NextcloudSiteCredentialStore::class,
 		SiteSessions::class        => SiteCredentialService::class,
+		TagStore::class            => SqlTagStore::class,
 		UrlGenerator::class        => NextcloudUrlGenerator::class,
 		UserDirectory::class       => NextcloudUserDirectory::class,
 		UserSettings::class        => NextcloudUserSettings::class,
@@ -148,6 +170,13 @@ class Application extends App implements IBootstrap {
 		ShareAccessService::class,
 		ArticleDeletionService::class,
 		FileEntryService::class,
+		ArticleExtractionService::class,
+		ShutdownScheduler::class,
+		SqlArticleStore::class,
+		SqlTagStore::class,
+		ArticleApi::class,
+		TagApi::class,
+		CapabilitiesApi::class,
 	];
 
 	public function __construct(array $urlParams = []) {

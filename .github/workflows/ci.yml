@@ -122,6 +122,7 @@ jobs:
                    merlin/vendor/merlin/core/src/ContentFilter/ContentFilterSchema.php \
                    merlin/vendor/merlin/core/src/Extraction/ContentExtractorService.php \
                    merlin/vendor/merlin/core/resources/url-shorteners.json \
+                   merlin/vendor/merlin/core/src/Api/routes.php \
                    merlin/CHANGELOG.md merlin/LICENSE merlin/README.md; do
             test -e "$f" || { echo "::error::missing in tarball: $f"; exit 1; }
           done

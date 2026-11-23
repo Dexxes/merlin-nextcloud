@@ -8,7 +8,7 @@ namespace Merlin\Core\Persistence;
  * Überträgt die Felder eines Domain-Objekts (Getter/Setter wie
  * `getArticleId()`/`setArticleId()`) in Tabellenspalten (`article_id`) und
  * zurück. Den Spaltentyp leitet sie aus dem Setter-Parameter ab: int, bool,
- * string oder \DateTimeInterface, jeweils auch nullbar.
+ * float, string oder \DateTimeInterface, jeweils auch nullbar.
  *
  * @template T of object
  */
@@ -53,6 +53,7 @@ final class RowMapper {
 			$object->{'set' . ucfirst($field)}(match ($meta['type']) {
 				'int' => (int) $value,
 				'bool' => (bool) (int) $value,
+				'float' => (float) $value,
 				'datetime' => SqlValue::toDateTime($value),
 				default => (string) $value,
 			});
