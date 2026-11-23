@@ -33,7 +33,7 @@ concurrency:
 
 env:
   # Same PHP as the app store tarball build in ci.yml.
-  BUILD_PHP: '8.3'
+  BUILD_PHP: '8.4'
 
 jobs:
   matrix:

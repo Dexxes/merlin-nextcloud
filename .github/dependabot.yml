@@ -17,12 +17,6 @@ updates:
     groups:
       composer:
         patterns: ["*"]
-    ignore:
-      # PHPUnit 11+ needs PHP 8.2, 12 needs 8.3, 13 needs 8.4. Merlin still
-      # supports PHP 8.1 (appinfo/info.xml), so composer cannot resolve a
-      # newer major on the 8.1/8.3 CI jobs. Lift this when the PHP floor rises.
-      - dependency-name: "phpunit/phpunit"
-        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directories: ["/frontend", "/nextcloud/tests/e2e"]
