@@ -25,3 +25,11 @@ updates:
     groups:
       npm:
         patterns: ["*"]
+    ignore:
+      # Held back by peer ranges of the Nextcloud tooling: @nextcloud/vite-config
+      # wants vite ^7, @nextcloud/stylelint-config wants stylelint ^17. Lift
+      # once those packages release versions that accept the new majors.
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "stylelint"
+        update-types: ["version-update:semver-major"]

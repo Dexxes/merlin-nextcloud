@@ -6,7 +6,7 @@ description: Run nextcloud/tests against the installed Nextcloud
 runs:
   using: composite
   steps:
-    - uses: actions/cache@v4
+    - uses: actions/cache@v6
       with:
         path: ~/.cache/composer
         key: tests-composer-${{ runner.os }}-${{ hashFiles('merlin/nextcloud/tests/composer.json') }}
@@ -57,7 +57,7 @@ runs:
       run: |
         mkdir -p "$RUNNER_TEMP/logs"
         cp server/data/nextcloud.log "$RUNNER_TEMP/php-server.log" "$RUNNER_TEMP/logs/" 2>/dev/null || true
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       if: failure()
       with:
         name: logs-${{ github.job }}-${{ strategy.job-index }}

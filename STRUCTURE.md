@@ -9,7 +9,7 @@ Standalone-Server umgebaut. Aktueller Stand (Etappe 4 von 7, erster Teil):
 
 ```
 merlin-nextcloud/
-├── core/           # framework-freier PHP-Kern, Composer-Paket merlin/core, Namespace Merlin\Core\, PHP ≥ 8.1,
+├── core/           # framework-freier PHP-Kern, Composer-Paket merlin/core, Namespace Merlin\Core\, PHP ≥ 8.4,
 │                   # kein OCP: src/ContentFilter/, src/Extraction/ (Extraktor, Medien, Login, Social, SSRF),
 │                   # src/Api/ (Handler + Routentabelle der gemeinsamen API), src/Persistence/ (SQL-Stores),
 │                   # src/Port/ (Schnittstellen zu den Adaptern), resources/, tests/

@@ -179,6 +179,8 @@ All notable changes to Merlin are documented here. Format based on
   single quote instead of repeating the quote above each thread.
 
 ### Changed
+- Requires PHP 8.4 or newer (was 8.1) and Nextcloud 33 or newer (was 30).
+  Tests run on PHPUnit 13.
 - Article and tag API (`/api/articles…`, `/api/tags…`, `/api/events`) now
   run on the shared core (`core/src/Api/`, one route table for both
   variants) and its SQL stores; responses are unchanged. Small differences:
