@@ -446,28 +446,14 @@ class CommentService {
 	 * $stillAllowed wird je Runde geprüft (z. B. Link widerrufen/abgelaufen) und
 	 * beendet den Kanal mit einem `closed`-Ereignis.
 	 *
-	 * Beendet den Prozess selbst (exit), wie ArticleController::stream().
+	 * Emitter für ApiResult::stream(): Header, Puffer und Ende des Requests
+	 * übernimmt der Adapter der Variante.
 	 *
 	 * @param callable(): bool $stillAllowed
 	 */
 	public function stream(int $articleId, string $ownerId, string $since, callable $stillAllowed): void {
-		while (ob_get_level() > 0) {
-			ob_end_clean();
-		}
-		header('Content-Type: text/event-stream; charset=utf-8');
-		header('Cache-Control: no-cache');
-		header('Connection: keep-alive');
-		header('X-Accel-Buffering: no');
-
-		if (session_status() === PHP_SESSION_ACTIVE) {
-			session_write_close();
-		}
-
 		ignore_user_abort(true);
 		set_time_limit(self::STREAM_SECONDS + 15);
-		@ini_set('output_buffering', 'Off');
-		@ini_set('implicit_flush', '1');
-		ob_implicit_flush(true);
 
 		// Padding gegen Puffer in PHP-FPM/nginx (siehe ArticleController::stream()),
 		// dazu die Wartezeit, nach der EventSource neu verbindet.
@@ -487,7 +473,7 @@ class CommentService {
 				if (!$stillAllowed()) {
 					echo "event: closed\ndata: {}\n\n";
 					flush();
-					exit(0);
+					return;
 				}
 				$current = $this->signature($articleId, $ownerId);
 				if ($current !== $last) {
@@ -507,7 +493,5 @@ class CommentService {
 			}
 			usleep(self::STREAM_TICK_US);
 		}
-
-		exit(0);
 	}
 }

@@ -31,4 +31,7 @@ interface UrlGenerator {
 	 * @param array<string, int|string> $params
 	 */
 	public function fileContentUrl(array $params): string;
+
+	/** Absolute URL der öffentlichen Ansicht eines Share-Links (/s/{token}). */
+	public function shareUrl(string $token): string;
 }

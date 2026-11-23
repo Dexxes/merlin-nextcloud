@@ -20,6 +20,7 @@ final class Request {
         private readonly array $headers,
         private readonly string $rawBody,
         private readonly bool $isHttps = false,
+        private readonly string $remoteAddress = '',
     ) {
         $decoded = json_decode($this->rawBody, true);
         $this->jsonBody = is_array($decoded) ? $decoded : [];
@@ -66,6 +67,9 @@ final class Request {
             ($_SERVER['HTTPS'] ?? '') !== ''
                 || ($_SERVER['SERVER_PORT'] ?? '') === '443'
                 || strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https',
+            // Bewusst nicht X-Forwarded-For: den Header kann jeder Client setzen
+            // und damit den Brute-Force-Schutz umgehen.
+            (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
         );
     }
 
@@ -145,6 +149,15 @@ final class Request {
 
     public function header(string $name): ?string {
         return $this->headers[strtolower($name)] ?? null;
+    }
+
+    /** @return array<string, string> alle Header, Namen klein geschrieben */
+    public function headers(): array {
+        return $this->headers;
+    }
+
+    public function remoteAddress(): string {
+        return $this->remoteAddress;
     }
 
     public function setAuthUser(array $user): void {

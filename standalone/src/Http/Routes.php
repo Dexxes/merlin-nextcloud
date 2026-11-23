@@ -12,6 +12,7 @@ use Merlin\Standalone\Controller\LoginFlowController;
 use Merlin\Standalone\Controller\PageController;
 use Merlin\Standalone\Http\Middleware\AdminOnlyMiddleware;
 use Merlin\Standalone\Http\Middleware\AuthMiddleware;
+use Merlin\Standalone\Http\Middleware\RateLimitMiddleware;
 
 /**
  * Routen des Servers: zuerst die gemeinsame API aus der Routentabelle des
@@ -30,17 +31,23 @@ final class Routes {
 		$assets = $app->get(AssetController::class);
 		$auth = $app->get(AuthMiddleware::class)->handle(...);
 		$adminOnly = $app->get(AdminOnlyMiddleware::class)->handle(...);
+		$rateLimit = $app->get(RateLimitMiddleware::class);
 
 		$router = new Router();
 
 		// Gemeinsame API (Kern). 'user' braucht eine Anmeldung (Basic Auth mit
-		// API-Token oder Session), 'admin' zusätzlich Adminrechte.
+		// API-Token oder Session), 'admin' zusätzlich Adminrechte; 'rateLimit'
+		// begrenzt öffentliche Schreibrouten je IP.
 		foreach (CoreApi::routes() as $route) {
-			$router->add($route['verb'], $route['url'], CoreApi::handler($app, $route['handler']), match ($route['access']) {
+			$middleware = match ($route['access']) {
 				'public' => [],
 				'admin' => [$auth, $adminOnly],
 				default => [$auth],
-			});
+			};
+			if (isset($route['rateLimit'])) {
+				$middleware[] = $rateLimit->for($route['name'], ...$route['rateLimit']);
+			}
+			$router->add($route['verb'], $route['url'], CoreApi::handler($app, $route['handler']), $middleware);
 		}
 
 		// HTML-Seiten

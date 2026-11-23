@@ -4,241 +4,47 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
-use Merlin\Core\Domain\Highlight;
-use Merlin\Core\Port\HighlightStore;
-use Merlin\Core\Service\CommentRules;
-use Merlin\Core\Service\CommentService;
-use OCA\Merlin\Db\ArticleMapper;
-use OCP\AppFramework\Controller;
-use OCP\AppFramework\Db\DoesNotExistException;
-use OCP\AppFramework\Http;
+use Merlin\Core\Api\HighlightApi;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
-use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 
 /**
- * REST API for highlights.
- *
- * Security note – NoCSRFRequired:
- * All API routes carry #[NoCSRFRequired] because the same endpoints serve
- * both the Vue web-UI (session cookie) and native clients (iOS, Android,
- * browser extensions) that authenticate via HTTP Basic Auth and cannot
- * supply a Nextcloud requesttoken. Removing the attribute would break all
- * native clients. CSRF protection for the cookie-authenticated web-UI path is
- * instead enforced centrally by CsrfCookieAuthMiddleware, which demands a
- * valid requesttoken for state-changing browser requests while skipping
- * Basic/Bearer-authenticated (native) requests and safe methods. SameSite=Lax
- * session cookies remain as an additional layer of defense.
+ * Markierungen des Besitzers: dünner Controller über Merlin\Core\Api\HighlightApi
+ * (Routen in core/src/Api/routes.php, CSRF siehe CoreApiController).
  */
-class HighlightController extends Controller {
-	private HighlightStore $highlightStore;
-	private ArticleMapper $articleMapper;
-	private CommentService $comments;
-	private ?string $userId;
-
+class HighlightController extends CoreApiController {
 	public function __construct(
 		string $appName,
 		IRequest $request,
-		HighlightStore $highlightStore,
-		ArticleMapper $articleMapper,
-		CommentService $comments,
-		?string $userId
+		private HighlightApi $api,
+		?string $userId,
 	) {
-		parent::__construct($appName, $request);
-		$this->highlightStore = $highlightStore;
-		$this->articleMapper = $articleMapper;
-		$this->comments = $comments;
-		$this->userId = $userId;
+		parent::__construct($appName, $request, $userId);
 	}
 
-	/**
-	 * List all highlights for an article.
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function index(int $articleId): DataResponse {
-		if ($this->userId === null) {
-			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
-		}
-		$highlights = $this->highlightStore->findByArticleId($articleId, $this->userId);
-		return new DataResponse(array_map(fn($h) => $h->jsonSerialize(), $highlights));
+	public function index(): Response {
+		return $this->respond($this->api->index($this->apiRequest()));
 	}
 
-	/**
-	 * Create a new highlight.
-	 *
-	 * In PDF articles (category 'PDF') the passage is anchored by pdfPage and
-	 * pdfRects instead of XPaths; the XPath fields are then ignored and get
-	 * the placeholder CommentRules::pdfXpath().
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function create(
-		int    $articleId,
-		string $highlightedText,
-		string $startXpath = '',
-		int    $startOffset = 0,
-		string $endXpath = '',
-		int    $endOffset = 0,
-		string $color = 'yellow',
-		?int   $pdfPage = null,
-		mixed  $pdfRects = null
-	): DataResponse {
-		if ($this->userId === null) {
-			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
-		}
-
-		// Ownership-Prüfung: Der Artikel muss dem Nutzer gehören, bevor ein
-		// Highlight daran gespeichert wird (verhindert Highlights auf fremden/
-		// geratenen article_ids – analog zu TagController::addToArticle()).
-		try {
-			$article = $this->articleMapper->find($articleId, $this->userId);
-		} catch (DoesNotExistException) {
-			return new DataResponse(['error' => 'Article not found'], Http::STATUS_NOT_FOUND);
-		}
-
-		$rectsJson = null;
-		if ($pdfPage !== null) {
-			$rectsJson = CommentRules::normalizePdfRects($pdfRects);
-			if ($article->getCategory() !== 'PDF' || !CommentRules::isValidPdfPage($pdfPage) || $rectsJson === null) {
-				return new DataResponse(['error' => 'highlight_invalid'], Http::STATUS_BAD_REQUEST);
-			}
-			$startXpath = $endXpath = CommentRules::pdfXpath($pdfPage);
-			$startOffset = $endOffset = 0;
-		}
-
-		// Dieselben Regeln wie für Gäste (nur mit längerem Text): Markierungen
-		// des Besitzers sieht jetzt auch jeder Besucher des Share-Links.
-		$error = CommentRules::validateHighlight(
-			$highlightedText, $startXpath, $startOffset, $endXpath, $endOffset, CommentRules::OWNER_HIGHLIGHT_TEXT_MAX);
-		if ($error !== null) {
-			return new DataResponse(['error' => $error], Http::STATUS_BAD_REQUEST);
-		}
-
-		$highlight = new Highlight();
-		$highlight->setUserId($this->userId);
-		$highlight->setArticleId($articleId);
-		$highlight->setHighlightedText(CommentRules::normalizeHighlightText($highlightedText));
-		$highlight->setStartXpath($startXpath);
-		$highlight->setStartOffset($startOffset);
-		$highlight->setEndXpath($endXpath);
-		$highlight->setEndOffset($endOffset);
-		$highlight->setColor(CommentRules::sanitizeColor($color));
-		$highlight->setCreatedAt(new \DateTime());
-		$highlight->setPdfPage($pdfPage);
-		$highlight->setPdfRects($rectsJson);
-
-		$saved = $this->highlightStore->insert($highlight);
-		return new DataResponse($saved->jsonSerialize(), Http::STATUS_CREATED);
+	public function create(): Response {
+		return $this->respond($this->api->create($this->apiRequest()));
 	}
 
-	/**
-	 * Change an existing highlight in place: its passage (dragged longer or
-	 * shorter in the reader) and optionally its colour. The id stays, so
-	 * comment threads stay attached; their quoted text follows the new
-	 * passage (CommentService::updateHighlight()).
-	 *
-	 * Only the owner's own colour highlights change their passage or colour.
-	 * Guest highlights and comment anchors ('comment') may only be
-	 * re-anchored with the same text: their XPaths are relative to the marks
-	 * of all older highlights, so resizing one shifts the anchors of newer
-	 * ones in the same paragraph, and the client sends those along.
-	 * A PDF highlight stays a PDF highlight (pdfPage and pdfRects required),
-	 * an HTML one stays an HTML one.
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function update(
-		int     $id,
-		string  $highlightedText,
-		string  $startXpath = '',
-		int     $startOffset = 0,
-		string  $endXpath = '',
-		int     $endOffset = 0,
-		?string $color = null,
-		?int    $pdfPage = null,
-		mixed   $pdfRects = null
-	): DataResponse {
-		if ($this->userId === null) {
-			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
-		}
-		$highlight = $this->highlightStore->findById($id, $this->userId);
-		if ($highlight === null) {
-			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
-		}
-		$ownColour = ($highlight->getAuthorType() ?? 'owner') === 'owner'
-			&& $highlight->getColor() !== CommentRules::COLOR_COMMENT;
-		if (!$ownColour && ($color !== null || $highlight->getPdfPage() !== null
-			|| CommentRules::normalizeHighlightText($highlightedText) !== $highlight->getHighlightedText())) {
-			return new DataResponse(['error' => 'highlight_not_editable'], Http::STATUS_FORBIDDEN);
-		}
-		if ($color !== null && !in_array($color, CommentRules::COLORS, true)) {
-			return new DataResponse(['error' => 'highlight_invalid'], Http::STATUS_BAD_REQUEST);
-		}
-
-		$rectsJson = null;
-		if ($highlight->getPdfPage() !== null) {
-			$rectsJson = CommentRules::normalizePdfRects($pdfRects);
-			if ($pdfPage === null || !CommentRules::isValidPdfPage($pdfPage) || $rectsJson === null) {
-				return new DataResponse(['error' => 'highlight_invalid'], Http::STATUS_BAD_REQUEST);
-			}
-			$startXpath = $endXpath = CommentRules::pdfXpath($pdfPage);
-			$startOffset = $endOffset = 0;
-		} elseif ($pdfPage !== null) {
-			return new DataResponse(['error' => 'highlight_invalid'], Http::STATUS_BAD_REQUEST);
-		}
-
-		$error = CommentRules::validateHighlight(
-			$highlightedText, $startXpath, $startOffset, $endXpath, $endOffset, CommentRules::OWNER_HIGHLIGHT_TEXT_MAX);
-		if ($error !== null) {
-			return new DataResponse(['error' => $error], Http::STATUS_BAD_REQUEST);
-		}
-
-		$highlight->setHighlightedText(CommentRules::normalizeHighlightText($highlightedText));
-		$highlight->setStartXpath($startXpath);
-		$highlight->setStartOffset($startOffset);
-		$highlight->setEndXpath($endXpath);
-		$highlight->setEndOffset($endOffset);
-		if ($color !== null) {
-			$highlight->setColor($color);
-		}
-		if ($rectsJson !== null) {
-			$highlight->setPdfPage($pdfPage);
-			$highlight->setPdfRects($rectsJson);
-		}
-		$saved = $this->comments->updateHighlight($highlight);
-		return new DataResponse($saved->jsonSerialize());
+	public function update(): Response {
+		return $this->respond($this->api->update($this->apiRequest()));
 	}
 
-	/**
-	 * Delete a highlight – also one a guest set via the public share link
-	 * (the owner moderates everything on their article). Comment threads on it
-	 * stay, keeping the quoted text (CommentService::deleteHighlight()).
-	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function destroy(int $id): DataResponse {
-		if ($this->userId === null) {
-			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
-		}
-		$highlight = $this->highlightStore->findById($id, $this->userId);
-		if ($highlight === null) {
-			return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
-		}
-		$this->comments->deleteHighlight($highlight);
-		return new DataResponse([], Http::STATUS_NO_CONTENT);
+	public function destroy(): Response {
+		return $this->respond($this->api->destroy($this->apiRequest()));
 	}
 }

@@ -6,6 +6,11 @@ namespace OCA\Merlin\AppInfo;
 
 use Merlin\Core\Api\ArticleApi;
 use Merlin\Core\Api\CapabilitiesApi;
+use Merlin\Core\Api\CommentApi;
+use Merlin\Core\Api\HighlightApi;
+use Merlin\Core\Api\PublicCommentApi;
+use Merlin\Core\Api\PublicShareApi;
+use Merlin\Core\Api\ShareApi;
 use Merlin\Core\Api\TagApi;
 use Merlin\Core\ContentFilter\ContentFilterMerger;
 use Merlin\Core\ContentFilter\ContentFilterSerializer;
@@ -26,6 +31,10 @@ use Merlin\Core\Extraction\Social\BlueskyThreadResolverService;
 use Merlin\Core\Extraction\Social\MastodonPostResolverService;
 use Merlin\Core\Extraction\Social\TikTokPostResolverService;
 use Merlin\Core\Persistence\SqlArticleStore;
+use Merlin\Core\Persistence\SqlCommentGuestStore;
+use Merlin\Core\Persistence\SqlCommentStore;
+use Merlin\Core\Persistence\SqlHighlightStore;
+use Merlin\Core\Persistence\SqlShareStore;
 use Merlin\Core\Persistence\SqlTagStore;
 use Merlin\Core\Port\AppSettings;
 use Merlin\Core\Port\ArticleDeletion;
@@ -49,6 +58,7 @@ use Merlin\Core\Port\ShareStore;
 use Merlin\Core\Port\SiteCredentialStore;
 use Merlin\Core\Port\SiteSessions;
 use Merlin\Core\Port\TagStore;
+use Merlin\Core\Port\Throttler;
 use Merlin\Core\Port\UrlGenerator;
 use Merlin\Core\Port\UserDirectory;
 use Merlin\Core\Port\UserSettings;
@@ -67,20 +77,17 @@ use Merlin\Core\Service\SupportBoxService;
 use Merlin\Core\Service\TtsStreamService;
 use OCA\Merlin\Adapter\NextcloudAppSettings;
 use OCA\Merlin\Adapter\NextcloudArticleFiles;
-use OCA\Merlin\Adapter\NextcloudCommentGuestStore;
-use OCA\Merlin\Adapter\NextcloudCommentStore;
 use OCA\Merlin\Adapter\NextcloudConnection;
 use OCA\Merlin\Adapter\NextcloudContentFilterStore;
 use OCA\Merlin\Adapter\NextcloudCrypto;
 use OCA\Merlin\Adapter\NextcloudDatabase;
 use OCA\Merlin\Adapter\NextcloudFilePreviews;
-use OCA\Merlin\Adapter\NextcloudHighlightStore;
 use OCA\Merlin\Adapter\NextcloudInstanceSecret;
 use OCA\Merlin\Adapter\NextcloudPlatform;
 use OCA\Merlin\Adapter\NextcloudRetentionStore;
 use OCA\Merlin\Adapter\NextcloudSession;
-use OCA\Merlin\Adapter\NextcloudShareStore;
 use OCA\Merlin\Adapter\NextcloudSiteCredentialStore;
+use OCA\Merlin\Adapter\NextcloudThrottler;
 use OCA\Merlin\Adapter\NextcloudUrlGenerator;
 use OCA\Merlin\Adapter\NextcloudUserDirectory;
 use OCA\Merlin\Adapter\NextcloudUserSettings;
@@ -110,24 +117,25 @@ class Application extends App implements IBootstrap {
 		ArticleDeletion::class     => ArticleDeletionService::class,
 		ArticleFiles::class        => NextcloudArticleFiles::class,
 		ArticleStore::class        => SqlArticleStore::class,
-		CommentGuestStore::class   => NextcloudCommentGuestStore::class,
-		CommentStore::class        => NextcloudCommentStore::class,
+		CommentGuestStore::class   => SqlCommentGuestStore::class,
+		CommentStore::class        => SqlCommentStore::class,
 		Connection::class          => NextcloudConnection::class,
 		ContentFilterSource::class => ContentFilterRepository::class,
 		ContentFilterStore::class  => NextcloudContentFilterStore::class,
 		Crypto::class              => NextcloudCrypto::class,
 		Database::class            => NextcloudDatabase::class,
 		FilePreviews::class        => NextcloudFilePreviews::class,
-		HighlightStore::class      => NextcloudHighlightStore::class,
+		HighlightStore::class      => SqlHighlightStore::class,
 		InstanceSecret::class      => NextcloudInstanceSecret::class,
 		Platform::class            => NextcloudPlatform::class,
 		RetentionStore::class      => NextcloudRetentionStore::class,
 		Scheduler::class           => ShutdownScheduler::class,
 		Session::class             => NextcloudSession::class,
-		ShareStore::class          => NextcloudShareStore::class,
+		ShareStore::class          => SqlShareStore::class,
 		SiteCredentialStore::class => NextcloudSiteCredentialStore::class,
 		SiteSessions::class        => SiteCredentialService::class,
 		TagStore::class            => SqlTagStore::class,
+		Throttler::class           => NextcloudThrottler::class,
 		UrlGenerator::class        => NextcloudUrlGenerator::class,
 		UserDirectory::class       => NextcloudUserDirectory::class,
 		UserSettings::class        => NextcloudUserSettings::class,
@@ -174,9 +182,18 @@ class Application extends App implements IBootstrap {
 		ShutdownScheduler::class,
 		SqlArticleStore::class,
 		SqlTagStore::class,
+		SqlCommentStore::class,
+		SqlCommentGuestStore::class,
+		SqlHighlightStore::class,
+		SqlShareStore::class,
 		ArticleApi::class,
 		TagApi::class,
 		CapabilitiesApi::class,
+		HighlightApi::class,
+		CommentApi::class,
+		ShareApi::class,
+		PublicShareApi::class,
+		PublicCommentApi::class,
 	];
 
 	public function __construct(array $urlParams = []) {
