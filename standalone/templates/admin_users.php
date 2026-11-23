@@ -1,6 +1,6 @@
 <?php $title = $t->t('adminUsers.pageTitle'); $layout = 'wide'; include __DIR__ . '/partials/header.php'; ?>
 <h1><?= htmlspecialchars($t->t('adminUsers.heading'), ENT_QUOTES, 'UTF-8') ?></h1>
-<p class="muted"><a href="<?= url('/account'); ?>"><?= htmlspecialchars($t->t('adminUsers.navMyAccount'), ENT_QUOTES, 'UTF-8') ?></a></p>
+<p class="muted"><a href="<?= url('/'); ?>"><?= htmlspecialchars($t->t('adminUsers.navLibrary'), ENT_QUOTES, 'UTF-8') ?></a> · <a href="<?= url('/account'); ?>"><?= htmlspecialchars($t->t('adminUsers.navMyAccount'), ENT_QUOTES, 'UTF-8') ?></a></p>
 
 <label style="margin-top:1.5em;">
     <input type="checkbox" id="allow-registration" style="width:auto;display:inline;margin-right:0.5em;">
@@ -47,7 +47,7 @@ document.getElementById('allow-registration').addEventListener('change', async (
     await fetch(basePath + '/admin/settings', {
         method: 'PUT',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         body: JSON.stringify({ allowSelfRegistration: e.target.checked }),
     });
 });
@@ -71,14 +71,14 @@ async function loadUsers() {
         await fetch(basePath + '/admin/users/' + btn.dataset.id, {
             method: 'PUT',
             credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             body: JSON.stringify({ isActive: btn.dataset.active === '1' }),
         });
         loadUsers();
     }));
     body.querySelectorAll('.delete').forEach(btn => btn.addEventListener('click', async () => {
         if (!confirm(I18N['adminUsers.confirmDeleteUser'])) return;
-        await fetch(basePath + '/admin/users/' + btn.dataset.id, { method: 'DELETE', credentials: 'same-origin' });
+        await fetch(basePath + '/admin/users/' + btn.dataset.id, { method: 'DELETE', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
         loadUsers();
     }));
 }
@@ -88,7 +88,7 @@ document.getElementById('create-user').addEventListener('submit', async (e) => {
     await fetch(basePath + '/admin/users', {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         body: JSON.stringify({
             username: document.getElementById('new-username').value,
             email: document.getElementById('new-email').value,

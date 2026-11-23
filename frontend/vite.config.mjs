@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { createAppConfig } from '@nextcloud/vite-config'
 
 export default createAppConfig({
@@ -13,6 +14,13 @@ export default createAppConfig({
     personal: 'src/personal-main.js',
 }, {
     config: {
+        // Plattform-Schicht (src/platform/index.js): Nextcloud-Umsetzung.
+        // vite.standalone.config.mjs setzt hier ./standalone.js ein.
+        resolve: {
+            alias: {
+                'merlin-platform': fileURLToPath(new URL('./src/platform/nextcloud.js', import.meta.url)),
+            },
+        },
         // Die Build-Ausgabe (js/, css/) gehört zur Nextcloud-App, nicht zum
         // Frontend-Quellordner: ../nextcloud/js und ../nextcloud/css.
         build: {

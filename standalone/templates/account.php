@@ -1,6 +1,6 @@
 <?php $title = $t->t('account.pageTitle'); include __DIR__ . '/partials/header.php'; ?>
 <h1><?= htmlspecialchars($t->t('account.heading', ['username' => $username ?? '']), ENT_QUOTES, 'UTF-8') ?></h1>
-<p class="muted"><a href="<?= url('/logout'); ?>"><?= htmlspecialchars($t->t('account.navLogout'), ENT_QUOTES, 'UTF-8') ?></a><?php if (!empty($isAdmin)): ?> · <a href="<?= url('/admin'); ?>"><?= htmlspecialchars($t->t('account.navAdmin'), ENT_QUOTES, 'UTF-8') ?></a><?php endif; ?></p>
+<p class="muted"><a href="<?= url('/'); ?>"><?= htmlspecialchars($t->t('account.navLibrary'), ENT_QUOTES, 'UTF-8') ?></a> · <a href="<?= url('/logout'); ?>"><?= htmlspecialchars($t->t('account.navLogout'), ENT_QUOTES, 'UTF-8') ?></a><?php if (!empty($isAdmin)): ?> · <a href="<?= url('/admin'); ?>"><?= htmlspecialchars($t->t('account.navAdmin'), ENT_QUOTES, 'UTF-8') ?></a><?php endif; ?></p>
 
 <h2 style="font-size:1.1em;margin-top:2em;"><?= htmlspecialchars($t->t('account.apiTokensHeading'), ENT_QUOTES, 'UTF-8') ?></h2>
 <p class="muted"><?= htmlspecialchars($t->t('account.apiTokensHint'), ENT_QUOTES, 'UTF-8') ?></p>
@@ -33,7 +33,7 @@ async function loadTokens() {
         body.appendChild(tr);
     }
     body.querySelectorAll('.revoke').forEach(btn => btn.addEventListener('click', async () => {
-        await fetch(basePath + '/account/tokens/' + btn.dataset.id, { method: 'DELETE', credentials: 'same-origin' });
+        await fetch(basePath + '/account/tokens/' + btn.dataset.id, { method: 'DELETE', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
         loadTokens();
     }));
 }
@@ -44,7 +44,7 @@ document.getElementById('create-token').addEventListener('submit', async (e) => 
     const res = await fetch(basePath + '/account/tokens', {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         body: JSON.stringify({ name }),
     });
     const data = await res.json();

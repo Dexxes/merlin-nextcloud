@@ -123,7 +123,7 @@ $http = static function (string $method, string $path, ?array $json = null, arra
 $tokenFor = static function (string $username, string $password) use ($http, $dir): array {
 	$jar = $dir . '/cookies-' . $username . '.txt';
 	$http('POST', '/login', null, [], ['username' => $username, 'password' => $password], $jar);
-	[, $token] = $http('POST', '/account/tokens', ['name' => 'Test'], [], null, $jar);
+	[, $token] = $http('POST', '/account/tokens', ['name' => 'Test'], ['X-Requested-With' => 'XMLHttpRequest'], null, $jar);
 	return ['Authorization' => 'Basic ' . base64_encode($username . ':' . ($token['plainText'] ?? ''))];
 };
 

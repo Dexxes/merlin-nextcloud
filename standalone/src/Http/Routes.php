@@ -7,11 +7,13 @@ namespace Merlin\Standalone\Http;
 use Merlin\Standalone\App;
 use Merlin\Standalone\Controller\AccountController;
 use Merlin\Standalone\Controller\AdminController;
+use Merlin\Standalone\Controller\AppController;
 use Merlin\Standalone\Controller\AssetController;
 use Merlin\Standalone\Controller\LoginFlowController;
 use Merlin\Standalone\Controller\PageController;
 use Merlin\Standalone\Http\Middleware\AdminOnlyMiddleware;
 use Merlin\Standalone\Http\Middleware\AuthMiddleware;
+use Merlin\Standalone\Http\Middleware\CsrfHeaderMiddleware;
 use Merlin\Standalone\Http\Middleware\RateLimitMiddleware;
 
 /**
@@ -29,7 +31,12 @@ final class Routes {
 		$admin = $app->get(AdminController::class);
 		$loginFlow = $app->get(LoginFlowController::class);
 		$assets = $app->get(AssetController::class);
-		$auth = $app->get(AuthMiddleware::class)->handle(...);
+		$vueApp = $app->get(AppController::class);
+		$authOnly = $app->get(AuthMiddleware::class)->handle(...);
+		$csrf = $app->get(CsrfHeaderMiddleware::class)->handle(...);
+		// Anmeldung plus CSRF-Schutz für Anfragen mit Session-Cookie
+		// (CsrfHeaderMiddleware); als Liste wie die anderen Middleware.
+		$auth = [$authOnly, $csrf];
 		$adminOnly = $app->get(AdminOnlyMiddleware::class)->handle(...);
 		$rateLimit = $app->get(RateLimitMiddleware::class);
 
@@ -42,8 +49,8 @@ final class Routes {
 		foreach (CoreApi::routes() as $route) {
 			$middleware = match ($route['access']) {
 				'public' => [],
-				'admin' => [$auth, $adminOnly],
-				default => [$auth],
+				'admin' => [...$auth, $adminOnly],
+				default => $auth,
 			};
 			if (isset($route['rateLimit'])) {
 				$middleware[] = $rateLimit->for($route['name'], ...$route['rateLimit']);
@@ -55,7 +62,10 @@ final class Routes {
 		}
 
 		// HTML-Seiten
-		$router->add('GET', '/', fn () => Response::redirect(PageController::HOME));
+		// Vue-App (frontend/, npm run build:standalone): Reader und
+		// öffentliche Share-Ansicht wie page#index und public_share#show in Nextcloud.
+		$router->add('GET', '/', $vueApp->reader(...));
+		$router->add('GET', '/s/{token}', $vueApp->publicShare(...));
 		$router->add('GET', '/login', $pages->loginForm(...));
 		$router->add('POST', '/login', $pages->login(...));
 		$router->add('GET', '/logout', $pages->logout(...));
@@ -77,17 +87,17 @@ final class Routes {
 		$router->add('POST', '/login/v2/flow/{token}', $pages->loginFlowSubmit(...));
 
 		// Konto: API-Tokens (Session oder Basic Auth mit Token)
-		$router->add('GET', '/account/tokens', $account->listTokens(...), [$auth]);
-		$router->add('POST', '/account/tokens', $account->createToken(...), [$auth]);
-		$router->add('DELETE', '/account/tokens/{id}', $account->revokeToken(...), [$auth]);
+		$router->add('GET', '/account/tokens', $account->listTokens(...), $auth);
+		$router->add('POST', '/account/tokens', $account->createToken(...), $auth);
+		$router->add('DELETE', '/account/tokens/{id}', $account->revokeToken(...), $auth);
 
 		// Admin: Nutzer und Schalter
-		$router->add('GET', '/admin/users', $admin->listUsers(...), [$auth, $adminOnly]);
-		$router->add('POST', '/admin/users', $admin->createUser(...), [$auth, $adminOnly]);
-		$router->add('PUT', '/admin/users/{id}', $admin->updateUser(...), [$auth, $adminOnly]);
-		$router->add('DELETE', '/admin/users/{id}', $admin->deleteUser(...), [$auth, $adminOnly]);
-		$router->add('GET', '/admin/settings', $admin->getSettings(...), [$auth, $adminOnly]);
-		$router->add('PUT', '/admin/settings', $admin->updateSettings(...), [$auth, $adminOnly]);
+		$router->add('GET', '/admin/users', $admin->listUsers(...), [...$auth, $adminOnly]);
+		$router->add('POST', '/admin/users', $admin->createUser(...), [...$auth, $adminOnly]);
+		$router->add('PUT', '/admin/users/{id}', $admin->updateUser(...), [...$auth, $adminOnly]);
+		$router->add('DELETE', '/admin/users/{id}', $admin->deleteUser(...), [...$auth, $adminOnly]);
+		$router->add('GET', '/admin/settings', $admin->getSettings(...), [...$auth, $adminOnly]);
+		$router->add('PUT', '/admin/settings', $admin->updateSettings(...), [...$auth, $adminOnly]);
 
 		return $router;
 	}

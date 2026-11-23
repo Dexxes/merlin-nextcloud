@@ -26,6 +26,14 @@ All notable changes to Merlin are documented here. Format based on
   backend and the browser extension API (`/api/v1/add`, `/get`, `/send`)
   from the shared core. Test runs, login attempts and reports are limited per
   user like in Nextcloud.
+- [standalone] The reader web app: after login `/` opens the same Vue app as
+  in Nextcloud (library, reader, settings), and share links `/s/{token}` show
+  the public article view. Built with `npm run build:standalone` into
+  `standalone/public/app/`; German texts come from the app's translations,
+  light or dark theme follows the system setting.
+- [standalone] CSRF protection: requests that change data and are signed in
+  with the browser session now need the `X-Requested-With: XMLHttpRequest`
+  header. API tokens (native apps, browser extension) are not affected.
 - spiegel.de: author box at the end of the article with name and profile link
   for every author in the byline (`/impressum/autor-…`). Columns take photo
   and bio from the byline and the "Zum Autor" box in the text (which no longer

@@ -28,7 +28,12 @@ final class AuthMiddleware {
     }
 
     public function handle(Request $request): ?Response {
-        $user = $this->resolveViaApiToken($request) ?? $this->resolveViaSession();
+        $method = 'token';
+        $user = $this->resolveViaApiToken($request);
+        if ($user === null) {
+            $method = 'session';
+            $user = $this->resolveViaSession();
+        }
 
         if ($user === null) {
             return Response::json(['error' => 'Not authenticated'], 401);
@@ -37,7 +42,7 @@ final class AuthMiddleware {
             return Response::json(['error' => 'Account disabled'], 403);
         }
 
-        $request->setAuthUser($user);
+        $request->setAuthUser($user, $method);
         return null;
     }
 
