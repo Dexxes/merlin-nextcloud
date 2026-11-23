@@ -57,6 +57,10 @@ final class DavController {
 		$written = stream_copy_to_stream($in, $out);
 		fclose($in);
 		fclose($out);
+		if (self::lostChunkedBody($request, $written)) {
+			@unlink($temp);
+			return self::error(411, 'Length Required');
+		}
 		$expected = $request->header('content-length');
 		if ($written === false || ($expected !== null && $expected !== '' && (int) $expected !== $written)) {
 			@unlink($temp);
@@ -98,6 +102,10 @@ final class DavController {
 		$written = stream_copy_to_stream($in, $out);
 		fclose($in);
 		fclose($out);
+		if (self::lostChunkedBody($request, $written)) {
+			@unlink($temp);
+			return self::error(411, 'Length Required');
+		}
 		$expected = $request->header('content-length');
 		if ($written === false || ($expected !== null && $expected !== '' && (int) $expected !== $written)
 			|| !@rename($temp, $dir . '/' . $chunk)) {
@@ -237,6 +245,17 @@ final class DavController {
 			return null;
 		}
 		return [$request->authUid(), rawurldecode(substr($rest, $slash))];
+	}
+
+	/**
+	 * PHP-FPM liest ohne CONTENT_LENGTH keinen Body; nginx reicht ihn bei
+	 * Transfer-Encoding: chunked so weiter. Statt einer leeren Datei 411,
+	 * damit der Client mit Content-Length wiederholt (die Apps senden ihn).
+	 */
+	private static function lostChunkedBody(Request $request, int|false $written): bool {
+		return $written === 0
+			&& ($request->header('content-length') ?? '') === ''
+			&& str_contains(strtolower((string) $request->header('transfer-encoding')), 'chunked');
 	}
 
 	private static function tempFile(string $dir): string {

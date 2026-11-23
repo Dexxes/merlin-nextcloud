@@ -201,8 +201,13 @@ final class LocalFileStorage implements FileStorage {
 	}
 
 	public static function removeDir(string $dir): void {
-		foreach (glob($dir . '/{,.}[!.,!..]*', GLOB_BRACE) ?: [] as $entry) {
-			is_dir($entry) ? self::removeDir($entry) : @unlink($entry);
+		// scandir statt glob(GLOB_BRACE): das gibt es mit musl (Alpine) nicht.
+		foreach (@scandir($dir) ?: [] as $name) {
+			if ($name === '.' || $name === '..') {
+				continue;
+			}
+			$entry = $dir . '/' . $name;
+			is_dir($entry) && !is_link($entry) ? self::removeDir($entry) : @unlink($entry);
 		}
 		@rmdir($dir);
 	}

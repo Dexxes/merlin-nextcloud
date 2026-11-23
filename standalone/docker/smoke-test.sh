@@ -33,23 +33,30 @@ ok "basic auth api"
 # Merlin Dateien: Ziel holen, per WebDAV hochladen (auch in Stücken), eintragen
 field() { sed -n "s/.*\"$1\":\"\([^\"]*\)\".*/\1/p" | sed 's#\\/#/#g'; }
 target=$(curl -fsS -u "$user:$token" -H 'Content-Type: application/json' \
-	-d '{"name":"smoke.txt","mime":"text/plain"}' "$base/api/files/target")
+	-d '{"name":"smoke.txt","mimeType":"text/plain"}' "$base/api/files/target")
 dav=$(echo "$target" | field davPath)
 path=$(echo "$target" | field path)
 uploads=$(echo "$target" | field uploadsPath)
 [ -n "$dav" ] && [ -n "$path" ] && [ -n "$uploads" ] || fail "POST /api/files/target: $target"
-code=$(printf 'Hallo von smoke-test' | curl -s -o /dev/null -w '%{http_code}' -u "$user:$token" -T - -H 'Content-Type: text/plain' "$base$dav")
+# Mit Content-Length (--data-binary wie die Apps); PHP-FPM liest keinen Body
+# mit Transfer-Encoding: chunked, das gibt 411 (siehe DavController).
+code=$(curl -s -o /dev/null -w '%{http_code}' -u "$user:$token" -X PUT --data-binary 'Hallo von smoke-test' -H 'Content-Type: text/plain' "$base$dav")
 [ "$code" = 201 ] || fail "PUT $dav: HTTP $code"
 code=$(curl -s -o /dev/null -w '%{http_code}' -u "$user:$token" -H 'Content-Type: application/json' \
 	-d "{\"path\":\"$path\"}" "$base/api/files")
 [ "$code" = 201 ] || fail "POST /api/files: HTTP $code"
 transfer="smoke-$$"
 curl -fsS -o /dev/null -u "$user:$token" -X MKCOL "$base$uploads/$transfer" || fail "MKCOL"
-printf 'Teil 1 ' | curl -fsS -o /dev/null -u "$user:$token" -T - "$base$uploads/$transfer/1" || fail "PUT Stück 1"
-printf 'Teil 2' | curl -fsS -o /dev/null -u "$user:$token" -T - "$base$uploads/$transfer/2" || fail "PUT Stück 2"
+curl -fsS -o /dev/null -u "$user:$token" -X PUT --data-binary 'Teil 1 ' "$base$uploads/$transfer/1" || fail "PUT Stück 1"
+curl -fsS -o /dev/null -u "$user:$token" -X PUT --data-binary 'Teil 2' "$base$uploads/$transfer/2" || fail "PUT Stück 2"
 code=$(curl -s -o /dev/null -w '%{http_code}' -u "$user:$token" -X MOVE -H "Destination: $base$dav" \
 	-H 'OC-Total-Length: 13' "$base$uploads/$transfer/.file")
 [ "$code" = 204 ] || fail "MOVE .file: HTTP $code"
+entry=$(curl -fsS -u "$user:$token" -H 'Content-Type: application/json' -d "{\"path\":\"$path\"}" "$base/api/files")
+link=$(echo "$entry" | field url)
+[ "$(curl -fsS "$link")" = 'Teil 1 Teil 2' ] || fail "Download über den signierten Link"
+code=$(printf 'x' | curl -s -o /dev/null -w '%{http_code}' -u "$user:$token" -T - "$base$dav")
+case "$code" in 411|204) ;; *) fail "PUT mit Transfer-Encoding chunked: HTTP $code" ;; esac
 ok "merlin dateien"
 
 page=$(curl -fsS -b "$jar" "$base/")
