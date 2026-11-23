@@ -10,11 +10,11 @@ use Merlin\Standalone\Version;
 /**
  * Platform-Port für /api/capabilities: gemeinsame Version und die
  * Funktionen, die nur der Standalone-Server hat (eigene Konten, API-Tokens,
- * Nachbau von Login Flow v2). "files" (Merlin Dateien) fehlt bewusst, bis es
- * einen lokalen Speicher gibt.
+ * Nachbau von Login Flow v2) sowie "files" (Merlin Dateien, Ablage im
+ * Datenverzeichnis über Adapter\LocalFileStorage).
  */
 final class StandalonePlatform implements Platform {
-	public const FEATURES = ['accounts', 'apiTokens', 'loginFlowV2'];
+	public const FEATURES = ['accounts', 'apiTokens', 'files', 'loginFlowV2'];
 
 	public function backend(): string {
 		return 'standalone';

@@ -135,7 +135,7 @@ try {
 
 	[$status, $caps] = $http('GET', '/api/capabilities');
 	check($status === 200 && in_array('articles', $caps['features'] ?? [], true) && in_array('nestedTags', $caps['features'] ?? [], true)
-		&& in_array('accounts', $caps['features'] ?? [], true) && !in_array('files', $caps['features'] ?? [], true),
+		&& in_array('accounts', $caps['features'] ?? [], true) && in_array('files', $caps['features'] ?? [], true),
 		'capabilities: Kern-Funktionen plus Standalone-eigene, ohne files', json_encode($caps));
 
 	[$status] = $http('GET', '/api/articles');

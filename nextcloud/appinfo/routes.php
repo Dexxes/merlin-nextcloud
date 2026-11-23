@@ -22,13 +22,6 @@ return [
         // Page routes
         ['name' => 'page#index', 'url' => '/', 'verb' => 'GET'],
 
-        // Dateien vom Handy in „Merlin Dateien“ (FileController, Service\MerlinFileService):
-        // Zielpfad für den WebDAV-Upload, Eintrag anlegen, Datei über signierten Link.
-        ['name' => 'file#target',   'url' => '/api/files/target',       'verb' => 'POST'],
-        ['name' => 'file#register', 'url' => '/api/files',              'verb' => 'POST'],
-        ['name' => 'file#content',  'url' => '/api/articles/{id}/file', 'verb' => 'GET'],
-        ['name' => 'file#rename',   'url' => '/api/articles/{id}/file-name', 'verb' => 'PUT'],
-
         // HTML-Seite der öffentlichen Ansicht eines geteilten Artikels (ohne
         // Anmeldung). Entsperren, Daten, Vorlesen, PDF und Gast-Kommentare kommen aus dem Kern.
         ['name' => 'public_share#show',       'url' => '/s/{token}',              'verb' => 'GET'],

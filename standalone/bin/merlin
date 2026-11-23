@@ -135,6 +135,7 @@ try {
 				fwrite(STDOUT, "Nichts fällig (letzter Lauf vor weniger als 24 Stunden).\n");
 			} else {
 				fwrite(STDOUT, "Löschfrist: {$result['articles']} Artikel, {$result['shares']} abgelaufene Share-Links gelöscht.\n");
+				fwrite(STDOUT, "Merlin Dateien: {$result['files']} Dateien ohne Eintrag gelöscht.\n");
 			}
 			exit(0);
 

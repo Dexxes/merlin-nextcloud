@@ -11,6 +11,7 @@ use Merlin\Core\Api\PwaApi;
 use Merlin\Core\Api\CommentApi;
 use Merlin\Core\Api\ContentFilterApi;
 use Merlin\Core\Api\ExtensionApi;
+use Merlin\Core\Api\FileApi;
 use Merlin\Core\Api\HighlightApi;
 use Merlin\Core\Api\MediaApi;
 use Merlin\Core\Api\PublicCommentApi;
@@ -59,6 +60,7 @@ use Merlin\Core\Port\ContentFilterStore;
 use Merlin\Core\Port\Crypto;
 use Merlin\Core\Port\Database;
 use Merlin\Core\Port\FilePreviews;
+use Merlin\Core\Port\FileStorage;
 use Merlin\Core\Port\HighlightStore;
 use Merlin\Core\Port\InstanceSecret;
 use Merlin\Core\Port\Platform;
@@ -70,6 +72,7 @@ use Merlin\Core\Port\SiteCredentialStore;
 use Merlin\Core\Port\SiteSessions;
 use Merlin\Core\Port\TagStore;
 use Merlin\Core\Port\Throttler;
+use Merlin\Core\Port\Translations;
 use Merlin\Core\Port\UrlGenerator;
 use Merlin\Core\Port\UserDirectory;
 use Merlin\Core\Port\UserSettings;
@@ -77,6 +80,7 @@ use Merlin\Core\Service\ArticleDeletionService;
 use Merlin\Core\Service\ArticleExtractionService;
 use Merlin\Core\Service\CommentService;
 use Merlin\Core\Service\ExportService;
+use Merlin\Core\Service\FileEntries;
 use Merlin\Core\Service\FileEntryService;
 use Merlin\Core\Service\PdfProxyService;
 use Merlin\Core\Service\ReportBackendService;
@@ -87,18 +91,19 @@ use Merlin\Core\Service\SiteCredentialService;
 use Merlin\Core\Service\SupportBoxService;
 use Merlin\Core\Service\TtsStreamService;
 use OCA\Merlin\Adapter\NextcloudAppSettings;
-use OCA\Merlin\Adapter\NextcloudArticleFiles;
 use OCA\Merlin\Adapter\NextcloudConnection;
 use OCA\Merlin\Adapter\NextcloudContentFilterStore;
 use OCA\Merlin\Adapter\NextcloudCrypto;
 use OCA\Merlin\Adapter\NextcloudDatabase;
 use OCA\Merlin\Adapter\NextcloudFilePreviews;
+use OCA\Merlin\Adapter\NextcloudFileStorage;
 use OCA\Merlin\Adapter\NextcloudInstanceSecret;
 use OCA\Merlin\Adapter\NextcloudPlatform;
 use OCA\Merlin\Adapter\NextcloudRetentionStore;
 use OCA\Merlin\Adapter\NextcloudSession;
 use OCA\Merlin\Adapter\NextcloudSiteCredentialStore;
 use OCA\Merlin\Adapter\NextcloudThrottler;
+use OCA\Merlin\Adapter\NextcloudTranslations;
 use OCA\Merlin\Adapter\NextcloudUrlGenerator;
 use OCA\Merlin\Adapter\NextcloudUserDirectory;
 use OCA\Merlin\Adapter\NextcloudUserSettings;
@@ -126,7 +131,7 @@ class Application extends App implements IBootstrap {
 	public const CORE_PORTS = [
 		AppSettings::class         => NextcloudAppSettings::class,
 		ArticleDeletion::class     => ArticleDeletionService::class,
-		ArticleFiles::class        => NextcloudArticleFiles::class,
+		ArticleFiles::class        => FileEntries::class,
 		ArticleStore::class        => SqlArticleStore::class,
 		CommentGuestStore::class   => SqlCommentGuestStore::class,
 		CommentStore::class        => SqlCommentStore::class,
@@ -137,6 +142,7 @@ class Application extends App implements IBootstrap {
 		Crypto::class              => NextcloudCrypto::class,
 		Database::class            => NextcloudDatabase::class,
 		FilePreviews::class        => NextcloudFilePreviews::class,
+		FileStorage::class         => NextcloudFileStorage::class,
 		HighlightStore::class      => SqlHighlightStore::class,
 		InstanceSecret::class      => NextcloudInstanceSecret::class,
 		Platform::class            => NextcloudPlatform::class,
@@ -148,6 +154,7 @@ class Application extends App implements IBootstrap {
 		SiteSessions::class        => SiteCredentialService::class,
 		TagStore::class            => SqlTagStore::class,
 		Throttler::class           => NextcloudThrottler::class,
+		Translations::class        => NextcloudTranslations::class,
 		UrlGenerator::class        => NextcloudUrlGenerator::class,
 		UserDirectory::class       => NextcloudUserDirectory::class,
 		UserSettings::class        => NextcloudUserSettings::class,
@@ -190,6 +197,7 @@ class Application extends App implements IBootstrap {
 		ShareAccessService::class,
 		ArticleDeletionService::class,
 		FileEntryService::class,
+		FileEntries::class,
 		ArticleExtractionService::class,
 		ShutdownScheduler::class,
 		SqlArticleStore::class,
@@ -216,6 +224,7 @@ class Application extends App implements IBootstrap {
 		SiteCredentialApi::class,
 		ReportApi::class,
 		ExtensionApi::class,
+		FileApi::class,
 	];
 
 	public function __construct(array $urlParams = []) {

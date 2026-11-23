@@ -11,7 +11,7 @@ namespace Merlin\Core\Service;
  * Frei von Nextcloud-Abhängigkeiten, damit core/tests/test-file-rules.php sie ohne
  * Server prüfen kann (wie TagTree, RetentionPolicy). Inhalt, Links und
  * Streamen stehen in FileEntryService, Ordner und Registrierung in der
- * Nextcloud-App (MerlinFileService).
+ * Plattform (Port\FileStorage, Service\FileEntries).
  */
 class FileRules {
 	public const KIND_IMAGE = 'image';

@@ -9,6 +9,7 @@ use Merlin\Standalone\Controller\AccountController;
 use Merlin\Standalone\Controller\AdminController;
 use Merlin\Standalone\Controller\AppController;
 use Merlin\Standalone\Controller\AssetController;
+use Merlin\Standalone\Controller\DavController;
 use Merlin\Standalone\Controller\LoginFlowController;
 use Merlin\Standalone\Controller\PageController;
 use Merlin\Standalone\Http\Middleware\AdminOnlyMiddleware;
@@ -20,7 +21,7 @@ use Merlin\Standalone\Http\Middleware\RateLimitMiddleware;
  * Routen des Servers: zuerst die gemeinsame API aus der Routentabelle des
  * Kerns (core/src/Api/routes.php: /api/capabilities, Artikel, Schlagworte …,
  * Pfade ohne Nextclouds /index.php/apps/merlin), dann die Standalone-eigenen
- * (Konto, Login, Login-Flow, Admin-Nutzer). Pfade wie in
+ * (Konto, Login, Login-Flow, Admin-Nutzer, WebDAV-Upload für Merlin Dateien). Pfade wie in
  * merlin-standalone-server, damit bestehende Clients (backendKind
  * 'standalone') sie unverändert finden.
  */
@@ -32,6 +33,7 @@ final class Routes {
 		$loginFlow = $app->get(LoginFlowController::class);
 		$assets = $app->get(AssetController::class);
 		$vueApp = $app->get(AppController::class);
+		$dav = $app->get(DavController::class);
 		$authOnly = $app->get(AuthMiddleware::class)->handle(...);
 		$csrf = $app->get(CsrfHeaderMiddleware::class)->handle(...);
 		// Anmeldung plus CSRF-Schutz für Anfragen mit Session-Cookie
@@ -88,6 +90,14 @@ final class Routes {
 		$router->add('POST', '/login/v2/poll', $loginFlow->poll(...));
 		$router->add('GET', '/login/v2/flow/{token}', $pages->loginFlowForm(...));
 		$router->add('POST', '/login/v2/flow/{token}', $pages->loginFlowSubmit(...));
+
+		// Merlin Dateien: Upload über dieselben WebDAV-Pfade wie in Nextcloud
+		// (Ziel aus POST /api/files/target), siehe DavController.
+		$router->add('PUT', '/remote.php/dav/files/{user}/{path}', $dav->putFile(...), $auth, ['path' => '.+']);
+		$router->add('MKCOL', '/remote.php/dav/uploads/{user}/{transfer}', $dav->startUpload(...), $auth);
+		$router->add('DELETE', '/remote.php/dav/uploads/{user}/{transfer}', $dav->cancelUpload(...), $auth);
+		$router->add('MOVE', '/remote.php/dav/uploads/{user}/{transfer}/.file', $dav->assemble(...), $auth);
+		$router->add('PUT', '/remote.php/dav/uploads/{user}/{transfer}/{chunk}', $dav->putChunk(...), $auth, ['chunk' => '[A-Za-z0-9_-]+']);
 
 		// Konto: API-Tokens (Session oder Basic Auth mit Token)
 		$router->add('GET', '/account/tokens', $account->listTokens(...), $auth);

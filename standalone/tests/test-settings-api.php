@@ -201,7 +201,7 @@ try {
 
 	[$status, $caps] = $http('GET', '/api/capabilities');
 	$missing = array_diff(['retention', 'contentFilters', 'siteCredentials', 'reportBackend', 'pocketApi', 'comments', 'shares'], $caps['features'] ?? []);
-	check($status === 200 && $missing === [] && in_array('pwa', $caps['features'], true) && !in_array('files', $caps['features'], true), 'capabilities melden die Funktionen', implode(', ', $missing));
+	check($status === 200 && $missing === [] && in_array('pwa', $caps['features'], true) && in_array('files', $caps['features'], true), 'capabilities melden die Funktionen', implode(', ', $missing));
 
 	[$status, $manifest, , $headers] = $http('GET', '/manifest.webmanifest');
 	check($status === 200 && str_contains($headers['content-type'] ?? '', 'application/manifest+json') && ($manifest['start_url'] ?? null) === './'

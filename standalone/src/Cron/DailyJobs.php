@@ -6,6 +6,7 @@ namespace Merlin\Standalone\Cron;
 
 use Merlin\Core\Port\Scheduler;
 use Merlin\Core\Service\RetentionService;
+use Merlin\Standalone\Adapter\LocalFileStorage;
 use Merlin\Standalone\Db\ServerSettings;
 use Psr\Log\LoggerInterface;
 
@@ -13,7 +14,9 @@ use Psr\Log\LoggerInterface;
  * Tägliche Hintergrundarbeit des Standalone-Servers, das Gegenstück zu
  * Nextclouds BackgroundJob\RetentionCleanupJob: archivierte Artikel nach
  * Ablauf der Löschfrist und lange abgelaufene Share-Links löschen
- * (Core RetentionService::run()).
+ * (Core RetentionService::run()), danach Merlin Dateien ohne Eintrag und
+ * liegen gebliebene Uploads wegräumen (LocalFileStorage::cleanup(); in
+ * Nextcloud bleiben solche Dateien in Files liegen).
  *
  * Zwei Auslöser, wie bei Nextcloud (Cron oder AJAX):
  *  - bin/merlin cron, aus dem System-Cron (z. B. stündlich; gearbeitet wird
@@ -31,6 +34,7 @@ final class DailyJobs {
 	public function __construct(
 		private readonly ServerSettings $settings,
 		private readonly RetentionService $retention,
+		private readonly LocalFileStorage $files,
 		private readonly Scheduler $scheduler,
 		private readonly LoggerInterface $logger,
 		private readonly string $mode = 'web',
@@ -44,7 +48,7 @@ final class DailyJobs {
 	}
 
 	/**
-	 * @return array{articles: int, shares: int, users: array<string, int>}|null null, wenn nicht fällig
+	 * @return array{articles: int, shares: int, users: array<string, int>, files: int}|null null, wenn nicht fällig
 	 */
 	public function runIfDue(bool $force = false): ?array {
 		if (!$force && !$this->isDue()) {
@@ -52,9 +56,11 @@ final class DailyJobs {
 		}
 		$this->settings->set(self::LAST_RUN, (string) time());
 		$result = $this->retention->run();
-		$this->logger->info('Tägliche Aufgaben: {articles} Artikel, {shares} Share-Links gelöscht', [
+		$result['files'] = $this->files->cleanup();
+		$this->logger->info('Tägliche Aufgaben: {articles} Artikel, {shares} Share-Links, {files} Dateien gelöscht', [
 			'articles' => $result['articles'],
 			'shares' => $result['shares'],
+			'files' => $result['files'],
 		]);
 		return $result;
 	}

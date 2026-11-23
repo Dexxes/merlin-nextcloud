@@ -26,7 +26,7 @@ use Psr\Log\LoggerInterface;
  * Löschen des Eintrags macht die Links ungültig.
  *
  * Ordner, Upload-Ziel und das Anlegen des Eintrags hängen am Speicher der
- * Plattform und stehen dort (Nextcloud: OCA\Merlin\Service\MerlinFileService).
+ * Plattform (Port\FileStorage); den Ablauf steuert Service\FileEntries.
  */
 class FileEntryService {
 	/** Kantenlänge der Vorschaubilder: Listen/Karten bzw. Bild im Reader. */

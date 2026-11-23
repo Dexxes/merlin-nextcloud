@@ -30,6 +30,19 @@ final class SqlArticleStore implements ArticleStore {
 		return $row === null ? null : $this->toArticle($row);
 	}
 
+	public function findById(int $id): ?Article {
+		$row = $this->db->fetchRow('SELECT * FROM *PREFIX*merlin_articles WHERE id = :id', ['id' => $id]);
+		return $row === null ? null : $this->toArticle($row);
+	}
+
+	public function findByFileId(string $userId, int $fileId): ?Article {
+		$row = $this->db->fetchRow(
+			'SELECT * FROM *PREFIX*merlin_articles WHERE user_id = :user_id AND file_id = :file_id ORDER BY id ASC',
+			['user_id' => $userId, 'file_id' => $fileId],
+		);
+		return $row === null ? null : $this->toArticle($row);
+	}
+
 	public function findAll(string $userId, array $filters = [], int $limit = 50, int $offset = 0): array {
 		$where = ['a.user_id = :user_id'];
 		$params = ['user_id' => $userId];

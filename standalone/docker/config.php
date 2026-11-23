@@ -10,6 +10,7 @@ $env = static fn (string $name, string $default = ''): string => (string) (geten
 return [
 	'db_path' => '/data/merlin.sqlite',
 	'log_path' => '/data/merlin.log',
+	'files_path' => '/data/files',
 	'base_url' => rtrim($env('MERLIN_BASE_URL', 'http://localhost:8080'), '/'),
 	'base_path' => $env('MERLIN_BASE_PATH', '/'),
 	'mail' => [

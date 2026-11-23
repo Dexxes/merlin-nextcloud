@@ -11,6 +11,11 @@ return [
 	'db_path' => __DIR__ . '/../data/merlin.sqlite',
 	'log_path' => __DIR__ . '/../data/merlin.log',
 
+	// Ablage für Merlin Dateien (Uploads vom Handy). Ohne Angabe: Ordner
+	// files/ neben der Datenbank. Muss für den Webserver beschreibbar sein und
+	// darf nicht im Webroot liegen.
+	// 'files_path' => __DIR__ . '/../data/files',
+
 	// Basis-URL des Servers ohne Schrägstrich am Ende: für Links in Mails,
 	// signierte Links und absolute Bild-URLs (auch bei CLI-Aufrufen).
 	'base_url' => 'https://merlin.example.com',

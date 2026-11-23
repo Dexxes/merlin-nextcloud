@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 /**
  * Verdrahtung des Standalone-Servers: Jeder Port in core/src/Port/ hat in
- * App::PORTS einen Adapter oder steht in App::UNAVAILABLE_PORTS, und jeder
+ * App::PORTS einen Adapter oder steht in App::VALUE_PORTS, und jeder
  * Kern-Dienst, den der Server braucht, lässt sich aus dem Container bauen.
  * Dazu ein Rundweg durch die Adapter für Einstellungen, Verschlüsselung,
  * Nutzernamen und Content-Filter auf einer frisch migrierten Datenbank.
@@ -57,8 +57,8 @@ foreach (glob(dirname(__DIR__, 2) . '/core/src/Port/*.php') ?: [] as $file) {
 	if (!interface_exists($port)) {
 		continue;
 	}
-	$known = isset(App::PORTS[$port]) || in_array($port, App::UNAVAILABLE_PORTS, true);
-	check($known, "Port {$port} hat einen Adapter oder gilt als nicht verfügbar");
+	$known = isset(App::PORTS[$port]) || isset(App::VALUE_PORTS[$port]);
+	check($known, "Port {$port} hat einen Adapter oder ist ein Wertobjekt");
 	if (isset(App::PORTS[$port])) {
 		try {
 			$adapter = $app->get($port);
@@ -86,11 +86,12 @@ foreach ([
 
 check($app->get(Port\SiteSessions::class) === $app->get(SiteCredentialService::class), 'Port und Dienst sind dieselbe Instanz');
 try {
-	$app->get(Port\FilePreviews::class);
-	check(false, 'Dateien-Ports melden sich als nicht verfügbar');
+	$app->get(Port\StoredFile::class);
+	check(false, 'StoredFile entsteht nicht im Container');
 } catch (\LogicException) {
-	check(true, 'Dateien-Ports melden sich als nicht verfügbar');
+	check(true, 'StoredFile entsteht nicht im Container');
 }
+check($app->get(Port\FileStorage::class)->root() === $dir . '/files', 'Dateiablage neben der Datenbank (files_path)');
 
 $app->get(Port\AppSettings::class)->setInt('retention_max_days', 30);
 $app->get(Port\AppSettings::class)->setInt('retention_max_days', 60);
@@ -117,10 +118,7 @@ check($filters->getMerged($filters->normalizeUrlDomain('https://www.spiegel.de/p
 
 $app = null;
 $pdo = null;
-foreach (glob($dir . '/*') ?: [] as $file) {
-	unlink($file);
-}
-@rmdir($dir);
+\Merlin\Standalone\Adapter\LocalFileStorage::removeDir($dir);
 
 if ($failures > 0) {
 	echo "\n{$failures} Fehler\n";

@@ -6,6 +6,21 @@ All notable changes to Merlin are documented here. Format based on
 
 ## [Unreleased]
 
+### Added
+- [standalone] Merlin files: uploads from the iOS share extension work with the
+  standalone server too. Files are stored in the data directory (`files_path`,
+  `/data/files` in Docker) and uploaded over the same WebDAV paths as in
+  Nextcloud (`PUT /remote.php/dav/files/…` and chunked upload v2 under
+  `/remote.php/dav/uploads/…`), so the apps need no changes. Thumbnails for
+  JPEG, PNG, GIF and WebP via GD. `/api/capabilities` now lists `files`.
+  Unlike Nextcloud, where files stay in Files, the daily job deletes files
+  whose entry is gone after one day, as well as abandoned uploads.
+
+### Changed
+- The file API (`/api/files/target`, `/api/files`, `/api/articles/{id}/file`,
+  `/api/articles/{id}/file-name`) now runs on the shared core in the Nextcloud
+  app too; paths and responses are unchanged.
+
 ## [1.1.0] - 2026-11-23
 
 First release of both variants from one repository: the Nextcloud app and

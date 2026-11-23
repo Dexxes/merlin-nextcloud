@@ -6,7 +6,7 @@ namespace Merlin\Core\Service;
 
 /**
  * Liest die eingebetteten Metadaten einer Datei aus „Merlin Dateien“ für die
- * Anzeige unter der Datei im Reader (siehe MerlinFileService::buildContent()):
+ * Anzeige unter der Datei im Reader (siehe FileEntryService::render()):
  *
  *   EXIF (inkl. GPS)   JPEG, TIFF, HEIC – über ext-exif, wenn vorhanden
  *   IPTC               JPEG (APP13)

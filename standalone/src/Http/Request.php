@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Merlin\Standalone\Http;
 
 final class Request {
+    /** Pfade der WebDAV-Uploads (wie in Nextcloud). */
+    public const DAV_PREFIX = '/remote.php/dav/';
+
     /** @var array<string, string> */
     private array $routeParams = [];
 
@@ -24,6 +27,7 @@ final class Request {
         private readonly string $rawBody,
         private readonly bool $isHttps = false,
         private readonly string $remoteAddress = '',
+        private readonly bool $streamBody = false,
     ) {
         $decoded = json_decode($this->rawBody, true);
         $this->jsonBody = is_array($decoded) ? $decoded : [];
@@ -58,12 +62,19 @@ final class Request {
             $headers['php-auth-pw'] = $_SERVER['PHP_AUTH_PW'] ?? '';
         }
 
+        if (isset($_SERVER['CONTENT_LENGTH'])) {
+            $headers['content-length'] = $_SERVER['CONTENT_LENGTH'];
+        }
+        // WebDAV-Uploads (Controller\DavController) können groß sein: den
+        // Body dort nicht in den Speicher lesen, sondern über bodyStream().
+        $streamBody = str_starts_with($path, self::DAV_PREFIX);
+
         return new self(
             $_SERVER['REQUEST_METHOD'] ?? 'GET',
             $path,
             $_GET,
             $headers,
-            (string) file_get_contents('php://input'),
+            $streamBody ? '' : (string) file_get_contents('php://input'),
             // Gleiche Erkennung wie SessionService::start() (cookie_secure): ein
             // Synology-Reverse-Proxy terminiert TLS typischerweise und reicht
             // intern per HTTP weiter, daher zählt X-Forwarded-Proto mit.
@@ -73,7 +84,30 @@ final class Request {
             // Bewusst nicht X-Forwarded-For: den Header kann jeder Client setzen
             // und damit den Brute-Force-Schutz umgehen.
             (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
+            $streamBody,
         );
+    }
+
+    /**
+     * Body zum Lesen in Stücken: php://input bei WebDAV-Uploads, sonst der
+     * schon gelesene Body (auch in Tests).
+     *
+     * @return resource
+     */
+    public function bodyStream() {
+        if ($this->streamBody) {
+            $stream = fopen('php://input', 'rb');
+        } else {
+            $stream = fopen('php://memory', 'w+b');
+            if ($stream !== false) {
+                fwrite($stream, $this->rawBody);
+                rewind($stream);
+            }
+        }
+        if ($stream === false) {
+            throw new \RuntimeException('Could not read request body');
+        }
+        return $stream;
     }
 
     public function method(): string {
