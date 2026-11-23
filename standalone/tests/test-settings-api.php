@@ -201,7 +201,15 @@ try {
 
 	[$status, $caps] = $http('GET', '/api/capabilities');
 	$missing = array_diff(['retention', 'contentFilters', 'siteCredentials', 'reportBackend', 'pocketApi', 'comments', 'shares'], $caps['features'] ?? []);
-	check($status === 200 && $missing === [] && !in_array('pwa', $caps['features'], true), 'capabilities melden die Funktionen', implode(', ', $missing));
+	check($status === 200 && $missing === [] && in_array('pwa', $caps['features'], true) && !in_array('files', $caps['features'], true), 'capabilities melden die Funktionen', implode(', ', $missing));
+
+	[$status, $manifest, , $headers] = $http('GET', '/manifest.webmanifest');
+	check($status === 200 && str_contains($headers['content-type'] ?? '', 'application/manifest+json') && ($manifest['start_url'] ?? null) === './'
+		&& ($manifest['icons'][0]['src'] ?? null) === '/img/icon-192.png', 'Web-App-Manifest ohne Anmeldung', json_encode($manifest));
+	[$status, , $body, $headers] = $http('GET', '/sw.js');
+	check($status === 200 && str_contains($headers['content-type'] ?? '', 'javascript') && str_contains($body, 'respondWith'), 'Service Worker');
+	[$status] = $http('GET', '/img/icon-192.png');
+	check($status === 200, 'Manifest-Icon erreichbar');
 
 	echo "Ohne Anmeldung\n";
 	foreach (['GET /api/settings', 'GET /api/storage', 'POST /api/v1/add', 'GET /api/user/content-filters', 'GET /api/user/site-credentials'] as $route) {

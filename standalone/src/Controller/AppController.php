@@ -52,8 +52,8 @@ final class AppController {
 		$this->dailyJobs->scheduleFromWebRequest();
 		return $this->render($request, 'main', ['merlin-app'], [
 			'appInfo' => Version::appInfo(),
-			// PWA (Service Worker, Manifest) folgt mit Etappe 6.
-			'swUrl' => null,
+			// PWA wie in Nextclouds PageController (Manifest-Link im Template)
+			'swUrl' => rtrim(Response::getBasePath(), '/') . '/sw.js',
 		], $user);
 	}
 
@@ -169,6 +169,7 @@ final class AppController {
 			'entry' => $entry,
 			'mountIds' => $mountIds,
 			'pageTitle' => $pageTitle,
+			'pwa' => $entry === 'main',
 			'isAdmin' => $user !== null && $user['role'] === 'admin',
 			'built' => $built,
 			// JSON im <script>: "</script>" und "<!--" dürfen nicht entstehen.

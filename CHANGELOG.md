@@ -39,6 +39,9 @@ All notable changes to Merlin are documented here. Format based on
   and long expired share links are deleted once a day, like Nextcloud's
   background job. Runs from `bin/merlin cron` (system cron) or, without one,
   after the reader is opened.
+- [standalone] Installable as an app (PWA): the reader page links the web
+  app manifest (`/manifest.webmanifest`) and registers the service worker
+  (`/sw.js`), like in Nextcloud. No offline cache yet.
 - [standalone] CSRF protection: requests that change data and are signed in
   with the browser session now need the `X-Requested-With: XMLHttpRequest`
   header. API tokens (native apps, browser extension) are not affected.
@@ -208,6 +211,10 @@ All notable changes to Merlin are documented here. Format based on
   single quote instead of repeating the quote above each thread.
 
 ### Changed
+- PWA manifest and service worker now come from the shared core. The
+  manifest no longer needs a login, uses relative `start_url`/`scope` (`./`,
+  same address as before) and `pwa` is listed with the core features in
+  `/api/capabilities`.
 - Requires PHP 8.4 or newer (was 8.1) and Nextcloud 33 or newer (was 30).
   Tests run on PHPUnit 13.
 - Highlights, comments, share links and the public share/comment API now run

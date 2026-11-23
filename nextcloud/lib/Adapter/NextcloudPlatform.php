@@ -17,7 +17,7 @@ class NextcloudPlatform implements Platform {
 	 * Funktionen außerhalb der Kern-API (Api\CapabilitiesApi::CORE_FEATURES).
 	 * Zieht eine davon in den Kern um, wandert ihr Name dorthin.
 	 */
-	public const FEATURES = ['files', 'pwa'];
+	public const FEATURES = ['files'];
 
 	public function __construct(
 		private IAppManager $appManager,

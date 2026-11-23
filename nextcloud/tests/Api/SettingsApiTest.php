@@ -66,8 +66,18 @@ class SettingsApiTest extends ApiTestCase {
 		$manifest = self::expect(200, self::api('GET', '/manifest.webmanifest', null, $user));
 		$this->assertSame('Merlin', $manifest['name'] ?? $manifest['short_name'] ?? null);
 
+		// Browsers fetch the manifest without cookies: no login needed (shared
+		// core handler PwaApi since Etappe 6). start_url resolves against the
+		// manifest URL, i.e. /index.php/apps/merlin/.
+		$anonymous = self::api('GET', '/manifest.webmanifest');
+		$this->assertSame(200, $anonymous['status']);
+		$this->assertStringContainsString('application/manifest+json', $anonymous['headers']['content-type'] ?? '');
+		$this->assertSame('./', $anonymous['json']['start_url'] ?? null);
+		$this->assertStringEndsWith('/apps/merlin/img/icon-192.png', $anonymous['json']['icons'][0]['src'] ?? '');
+
 		$sw = self::api('GET', '/sw.js', null, $user);
 		$this->assertSame(200, $sw['status']);
 		$this->assertStringContainsString('javascript', $sw['headers']['content-type'] ?? '');
+		$this->assertStringContainsString('respondWith', $sw['body']);
 	}
 }

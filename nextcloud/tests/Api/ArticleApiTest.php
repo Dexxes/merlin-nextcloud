@@ -144,7 +144,7 @@ class ArticleApiTest extends ApiTestCase {
 		$this->assertSame('nextcloud', $caps['backend']);
 		$this->assertSame(1, $caps['apiVersion']);
 		$this->assertMatchesRegularExpression('/^\d+\.\d+\.\d+/', (string) $caps['version']);
-		foreach (['articles', 'tags', 'nestedTags', 'files', 'comments'] as $feature) {
+		foreach (['articles', 'tags', 'nestedTags', 'files', 'comments', 'pwa'] as $feature) {
 			$this->assertContains($feature, $caps['features']);
 		}
 	}

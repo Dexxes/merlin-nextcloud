@@ -38,7 +38,7 @@ const NEXTCLOUD_ONLY = ['file#target', 'file#register', 'file#content', 'file#re
  * Noch nicht in den Kern umgezogen. Wird mit jedem Teil von Etappe 4
  * kürzer; was hier steht, hat der Standalone-Server noch nicht.
  */
-const NOT_YET_IN_CORE = ['manifest#index', 'service_worker#index'];
+const NOT_YET_IN_CORE = [];
 
 /**
  * HTML-Seiten der Vue-App: in beiden Varianten unter demselben Pfad, aber

@@ -22,7 +22,7 @@ final class CapabilitiesApi {
 	public const CORE_FEATURES = [
 		'articles', 'tags', 'nestedTags', 'articleEvents', 'exportHtml',
 		'highlights', 'comments', 'shares', 'pdf', 'media', 'tts', 'retention',
-		'contentFilters', 'siteCredentials', 'reportBackend', 'pocketApi',
+		'contentFilters', 'siteCredentials', 'reportBackend', 'pocketApi', 'pwa',
 	];
 
 	public function __construct(private Platform $platform) {
