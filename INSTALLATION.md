@@ -4,8 +4,8 @@ Merlin is a read-it-later app for Nextcloud: save articles, read them in a clean
 
 ## Requirements
 
-- **Nextcloud**: version 30–35
-- **PHP**: 8.0–8.4 (extensions: `php-xml`, `php-mbstring`, `php-curl`, `php-json`)
+- **Nextcloud**: version 33–35
+- **PHP**: 8.4–8.6 (extensions: `php-xml`, `php-mbstring`, `php-curl`, `php-json`)
 - **Database**: MySQL, PostgreSQL, or SQLite
 
 ## Installation
@@ -125,7 +125,7 @@ The browser extension sends the client-rendered page HTML for some sites instead
 - Check the Nextcloud log: `tail -f /path/to/nextcloud/data/nextcloud.log`
 
 ### PHP errors
-- Check the PHP version (8.0–8.4): `php --version`
+- Check the PHP version (8.4–8.6): `php --version`
 - Check required extensions: `php-xml`, `php-mbstring`, `php-curl`, `php-json`
 
 ### Database errors
