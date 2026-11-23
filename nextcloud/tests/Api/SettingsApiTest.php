@@ -73,7 +73,8 @@ class SettingsApiTest extends ApiTestCase {
 		$this->assertSame(200, $anonymous['status']);
 		$this->assertStringContainsString('application/manifest+json', $anonymous['headers']['content-type'] ?? '');
 		$this->assertSame('./', $anonymous['json']['start_url'] ?? null);
-		$this->assertStringEndsWith('/apps/merlin/img/icon-192.png', $anonymous['json']['icons'][0]['src'] ?? '');
+		// The app lives in apps/ or custom_apps/, depending on the install.
+		$this->assertStringEndsWith('/merlin/img/icon-192.png', $anonymous['json']['icons'][0]['src'] ?? '');
 
 		$sw = self::api('GET', '/sw.js', null, $user);
 		$this->assertSame(200, $sw['status']);
