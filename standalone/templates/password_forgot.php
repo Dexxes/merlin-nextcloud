@@ -2,6 +2,8 @@
 <h1><?= htmlspecialchars($t->t('passwordForgot.heading'), ENT_QUOTES, 'UTF-8') ?></h1>
 <?php if (!empty($message)): ?>
     <p class="success"><?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?></p>
+<?php elseif (isset($mailAvailable) && !$mailAvailable): ?>
+    <p class="muted"><?= htmlspecialchars($t->t('passwordForgot.noMail'), ENT_QUOTES, 'UTF-8') ?></p>
 <?php else: ?>
     <form method="post" action="<?= url('/password/forgot'); ?>">
         <label for="email"><?= htmlspecialchars($t->t('common.email'), ENT_QUOTES, 'UTF-8') ?></label>

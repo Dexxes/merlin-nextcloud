@@ -20,6 +20,16 @@ return [
 	'mail' => [
 		'from_address' => $env('MERLIN_MAIL_FROM', 'merlin@localhost'),
 		'from_name' => $env('MERLIN_MAIL_FROM_NAME', 'Merlin'),
+		// Ohne MERLIN_SMTP_HOST kein Mailversand (das Image hat keinen Sendmail).
+		'transport' => $env('MERLIN_SMTP_HOST') !== '' ? 'smtp' : 'none',
+		'smtp' => [
+			'host' => $env('MERLIN_SMTP_HOST'),
+			'port' => (int) $env('MERLIN_SMTP_PORT', $env('MERLIN_SMTP_ENCRYPTION') === 'tls' ? '465' : '587'),
+			'encryption' => $env('MERLIN_SMTP_ENCRYPTION', 'starttls'),
+			'username' => $env('MERLIN_SMTP_USER'),
+			// Der Entrypoint legt MERLIN_SMTP_PASSWORD in dieser Datei ab.
+			'password_file' => $env('MERLIN_SMTP_PASSWORD_FILE', '/data/smtp-password'),
+		],
 	],
 	// Ohne MERLIN_SECRET erzeugt der Container beim ersten Start /data/secret.
 	'secret' => $env('MERLIN_SECRET') ?: trim((string) @file_get_contents('/data/secret')),

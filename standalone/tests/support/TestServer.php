@@ -16,7 +16,8 @@ final class TestServer {
 	/** @var resource */
 	private $process;
 
-	public function __construct(string $prefix = 'merlin-test') {
+	/** @param array<string, mixed> $config ergänzt/überschreibt die Test-config.php */
+	public function __construct(string $prefix = 'merlin-test', array $config = []) {
 		$this->root = dirname(__DIR__, 2);
 		$this->dir = sys_get_temp_dir() . '/' . $prefix . '-' . bin2hex(random_bytes(4));
 		mkdir($this->dir, 0700, true);
@@ -30,7 +31,7 @@ final class TestServer {
 			'log_path' => $this->dir . '/merlin.log',
 			'base_url' => $this->base,
 			'secret' => base64_encode(random_bytes(32)),
-		], true) . ';');
+		] + $config, true) . ';');
 	}
 
 	/** @return array{0: int, 1: string} Exit-Code, Ausgabe von bin/merlin */

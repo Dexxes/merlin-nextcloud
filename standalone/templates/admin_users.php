@@ -3,9 +3,12 @@
 <p class="muted"><a href="<?= url('/'); ?>"><?= htmlspecialchars($t->t('adminUsers.navLibrary'), ENT_QUOTES, 'UTF-8') ?></a> · <a href="<?= url('/account'); ?>"><?= htmlspecialchars($t->t('adminUsers.navMyAccount'), ENT_QUOTES, 'UTF-8') ?></a> · <a href="<?= url('/settings/admin'); ?>"><?= htmlspecialchars($t->t('app.adminSettings'), ENT_QUOTES, 'UTF-8') ?></a></p>
 
 <label style="margin-top:1.5em;">
-    <input type="checkbox" id="allow-registration" style="width:auto;display:inline;margin-right:0.5em;">
+    <input type="checkbox" id="allow-registration" style="width:auto;display:inline;margin-right:0.5em;"<?= empty($mailAvailable) ? ' disabled' : '' ?>>
     <?= htmlspecialchars($t->t('adminUsers.allowSelfRegistration'), ENT_QUOTES, 'UTF-8') ?>
 </label>
+<?php if (empty($mailAvailable)): ?>
+    <p class="muted"><?= htmlspecialchars($t->t('adminUsers.registrationNeedsMail'), ENT_QUOTES, 'UTF-8') ?></p>
+<?php endif; ?>
 
 <table id="users"><tbody></tbody></table>
 

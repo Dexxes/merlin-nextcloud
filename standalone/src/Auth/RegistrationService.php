@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Merlin\Standalone\Auth;
 
 use Merlin\Standalone\Db\EmailConfirmationRepository;
+use Merlin\Standalone\Db\ServerSettings;
 use Merlin\Standalone\Db\UserRepository;
 use Merlin\Standalone\Mail\MailerInterface;
 
@@ -12,8 +13,11 @@ use Merlin\Standalone\Mail\MailerInterface;
  * Selbstregistrierung mit Bestätigung per E-Mail. Die Antwort an den Client
  * ist für neue und schon bekannte Adressen gleich ("Mail ist unterwegs"):
  * so lässt sich nicht erraten, welche Adressen ein Konto haben. Eine
- * bekannte Adresse bekommt statt des Links einen Hinweis (oder, wenn ihr
- * Konto noch unbestätigt ist, einen neuen Link).
+ * bekannte Adresse bekommt statt des Links einen Hinweis; eine noch
+ * unbestätigte Registrierung wird durch die neue ersetzt.
+ *
+ * Offen ist die Registrierung nur, wenn der Admin sie freigibt UND ein
+ * Mailversand eingerichtet ist (isOpen()).
  */
 final class RegistrationService {
     /** Gültigkeit des Bestätigungslinks. */
@@ -25,7 +29,17 @@ final class RegistrationService {
         private readonly PasswordHasher $hasher,
         private readonly MailerInterface $mailer,
         private readonly string $baseUrl,
+        private readonly ServerSettings $settings,
     ) {
+    }
+
+    /** Freigegeben (Verwaltung) und Mailversand eingerichtet? */
+    public function isOpen(): bool {
+        return $this->mailer->isAvailable() && $this->settings->getBool(ServerSettings::ALLOW_SELF_REGISTRATION);
+    }
+
+    public function mailAvailable(): bool {
+        return $this->mailer->isAvailable();
     }
 
     /**

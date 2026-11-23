@@ -5,16 +5,19 @@ declare(strict_types=1);
 namespace Merlin\Standalone\Mail;
 
 /**
- * Nutzt PHPs eingebaute mail() (lokaler Sendmail/Postfix auf dem Server).
- * v1 bewusst ohne SMTP - siehe merlin-server/config/config.sample.php. Das
- * MailerInterface hält den Wechsel auf eine spätere SmtpMailer-Implementierung
- * transparent für alle Aufrufer (PasswordResetService etc.).
+ * Nutzt PHPs eingebaute mail() (lokaler Sendmail/Postfix auf dem Server),
+ * 'mail' => ['transport' => 'sendmail']. Alternativen: SmtpMailer,
+ * FileMailer, DisabledMailer (MailerFactory).
  */
 final class PhpMailMailer implements MailerInterface {
     public function __construct(
         private readonly string $fromAddress,
         private readonly string $fromName,
     ) {
+    }
+
+    public function isAvailable(): bool {
+        return true;
     }
 
     public function send(string $toAddress, string $subject, string $bodyText): void {

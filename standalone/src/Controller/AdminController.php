@@ -10,6 +10,7 @@ use Merlin\Standalone\Db\ServerSettings;
 use Merlin\Standalone\Db\UserRepository;
 use Merlin\Standalone\Http\Request;
 use Merlin\Standalone\Http\Response;
+use Merlin\Standalone\Mail\MailerInterface;
 
 final class AdminController {
     public function __construct(
@@ -17,6 +18,7 @@ final class AdminController {
         private readonly ServerSettings $settings,
         private readonly PasswordHasher $hasher,
         private readonly UserDataCleaner $userData,
+        private readonly MailerInterface $mailer,
     ) {
     }
 
@@ -92,13 +94,20 @@ final class AdminController {
     }
 
     public function getSettings(Request $request): Response {
+        $mailAvailable = $this->mailer->isAvailable();
         return Response::json([
-            'allowSelfRegistration' => $this->settings->getBool(ServerSettings::ALLOW_SELF_REGISTRATION),
+            // Wirksam nur mit Mailversand (RegistrationService::isOpen()).
+            'allowSelfRegistration' => $mailAvailable && $this->settings->getBool(ServerSettings::ALLOW_SELF_REGISTRATION),
+            'mailAvailable' => $mailAvailable,
         ]);
     }
 
     public function updateSettings(Request $request): Response {
         $value = $request->input('allowSelfRegistration');
+        if ($value !== null && filter_var($value, FILTER_VALIDATE_BOOLEAN) && !$this->mailer->isAvailable()) {
+            // Ohne Mailversand käme niemand an den Bestätigungslink.
+            return Response::json(['error' => 'mail_unavailable'], 409);
+        }
         if ($value !== null) {
             $this->settings->set(
                 ServerSettings::ALLOW_SELF_REGISTRATION,

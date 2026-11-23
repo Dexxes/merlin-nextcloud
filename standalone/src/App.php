@@ -39,7 +39,7 @@ use Merlin\Standalone\Auth\PasswordResetService;
 use Merlin\Standalone\Cron\DailyJobs;
 use Merlin\Standalone\Db\Sqlite;
 use Merlin\Standalone\Mail\MailerInterface;
-use Merlin\Standalone\Mail\PhpMailMailer;
+use Merlin\Standalone\Mail\MailerFactory;
 use Merlin\Standalone\Logging\FileLogger;
 use Psr\Log\LoggerInterface;
 
@@ -89,7 +89,6 @@ final class App {
 		Port\UserDirectory::class       => StandaloneUserDirectory::class,
 		Port\UserSettings::class        => StandaloneUserSettings::class,
 		LoggerInterface::class          => FileLogger::class,
-		MailerInterface::class          => PhpMailMailer::class,
 	];
 
 	/**
@@ -151,12 +150,7 @@ final class App {
 				$this->config->string('files_path', dirname($this->config->string('db_path', $root . '/data/merlin.sqlite')) . '/files')),
 			StandaloneUrlGenerator::class => new StandaloneUrlGenerator($this->config->string('base_url', 'http://localhost')),
 			\PDO::class => $this->connection()->pdo(),
-			PhpMailMailer::class => isset($this->config->section('mail')['file'])
-				? new \Merlin\Standalone\Mail\FileMailer((string) $this->config->section('mail')['file'])
-				: new PhpMailMailer(
-				(string) ($this->config->section('mail')['from_address'] ?? 'merlin@localhost'),
-				(string) ($this->config->section('mail')['from_name'] ?? 'Merlin'),
-			),
+			MailerInterface::class => MailerFactory::create($this->config->section('mail')),
 			DailyJobs::class => $this->autowire($class, [
 				'mode' => $this->config->string('background_jobs', 'web'),
 			]),
