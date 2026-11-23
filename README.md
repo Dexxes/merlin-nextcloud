@@ -1,6 +1,6 @@
 # Merlin
 
-A cross-platform read-it-later app that uses Nextcloud as its backend (and frontend). Articles land in a clean, ad-free reading view via browser extension, mobile apps, or a direct link – synced across all your devices.
+A cross-platform read-it-later app with two server variants: a Nextcloud app, or a standalone server without Nextcloud (Docker image or tarball). Both share one core, one API and one web interface. Articles land in a clean, ad-free reading view via browser extension, mobile apps, or a direct link – synced across all your devices.
 
 Born out of frustration with Mozilla killing off Pocket.
 
@@ -8,8 +8,9 @@ Born out of frustration with Mozilla killing off Pocket.
 
 | Directory | Platform | Stack |
 |---|---|---|
-| [`merlin-nextcloud`](https://github.com/Dexxes/merlin-nextcloud) | Nextcloud app (backend + web UI) | PHP 8.4-8.6, Nextcloud 33-35, Vue 3, OCP framework |
-| [`merlin-standalone-server`](https://github.com/Dexxes/merlin-standalone-server) | Standalone server (backend, no Nextcloud) | PHP 8.4, no framework, PDO/SQLite |
+| [`merlin-nextcloud`](https://github.com/Dexxes/merlin-nextcloud) `nextcloud/` | Nextcloud app (backend + web UI) | PHP 8.4–8.6, Nextcloud 33–35, Vue 3, OCP framework |
+| [`merlin-nextcloud`](https://github.com/Dexxes/merlin-nextcloud) `standalone/` | Standalone server (backend + web UI, no Nextcloud) | PHP 8.4, no framework, SQLite; Docker image `ghcr.io/dexxes/merlin-standalone` |
+| [`merlin-standalone-server`](https://github.com/Dexxes/merlin-standalone-server) (to be archived) | old standalone server, replaced by `standalone/` | – |
 | [`merlin-ios`](https://github.com/Dexxes/merlin-ios) | iOS 18+ | Swift 6, SwiftUI, AVFoundation, SPM |
 | `merlin-ipad` (unreleased) | iPadOS 15+ | like iOS (own, lower deployment target) |
 | [`merlin-android`](https://github.com/Dexxes/merlin-android) | Android 6.0+ (minSdk 23, target 34) | Kotlin, Jetpack Compose  |
@@ -41,9 +42,11 @@ Articles can be read aloud via a local Piper TTS pipeline (currently via the iOS
 
 ## Requirements
 
-- Nextcloud 33–35
-- PHP 8.4–8.6
-- MySQL, PostgreSQL, or SQLite
+**Nextcloud app:** Nextcloud 33–35, PHP 8.4–8.6, MySQL/MariaDB, PostgreSQL or SQLite.
+
+**Standalone server:** Docker, or PHP 8.4+ with SQLite and a web server (nginx/Apache with PHP-FPM). Existing installations of the old `merlin-standalone-server` are not migrated.
+
+Both variants report their features at `GET /api/capabilities`; clients switch features on from there.
 
 Details on installation, the build process, and the optional TTS pipeline are in **[INSTALLATION.md](INSTALLATION.md)**, architecture in **[STRUCTURE.md](STRUCTURE.md)**.
 
