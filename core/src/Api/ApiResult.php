@@ -12,11 +12,15 @@ namespace Merlin\Core\Api;
  * - body: fertiger Text mit eigenem Content-Type (HTML-Export)
  * - stream: Server-Sent Events; der Emitter schreibt selbst mit echo/flush,
  *   der Adapter setzt vorher die Header und beendet danach den Request
+ * - passthrough: der Emitter schreibt die ganze Antwort selbst (Status,
+ *   Header, Inhalt: MP3 vom Vorlese-Dienst, durchgereichte PDF, Datei); der
+ *   Adapter leert nur die Puffer, gibt die Session frei und beendet danach
  */
 final class ApiResult {
 	public const JSON = 'json';
 	public const BODY = 'body';
 	public const STREAM = 'stream';
+	public const PASSTHROUGH = 'passthrough';
 
 	/** Header einer Server-Sent-Events-Antwort. */
 	public const SSE_HEADERS = [
@@ -60,5 +64,10 @@ final class ApiResult {
 	/** @param callable(): void $emitter */
 	public static function stream(callable $emitter): self {
 		return new self(self::STREAM, 200, null, self::SSE_HEADERS, \Closure::fromCallable($emitter));
+	}
+
+	/** @param callable(): void $emitter */
+	public static function passthrough(callable $emitter): self {
+		return new self(self::PASSTHROUGH, 200, null, [], \Closure::fromCallable($emitter));
 	}
 }

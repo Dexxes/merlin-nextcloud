@@ -34,4 +34,10 @@ interface UrlGenerator {
 
 	/** Absolute URL der öffentlichen Ansicht eines Share-Links (/s/{token}). */
 	public function shareUrl(string $token): string;
+
+	/**
+	 * Schema und Host der Instanz ohne Pfad (https://host[:port]), z. B. als
+	 * origin für den eingebetteten YouTube-Player.
+	 */
+	public function origin(): string;
 }

@@ -4,56 +4,31 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
-use Merlin\Core\Service\PdfProxyService;
-use OCA\Merlin\Db\ArticleMapper;
-use OCA\Merlin\Service\MerlinFileService;
-use OCP\AppFramework\Controller;
-use OCP\AppFramework\Db\DoesNotExistException;
+use Merlin\Core\Api\ArticleStreamApi;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 
 /**
- * GET /api/articles/{id}/pdf – reicht die PDF eines PDF-Artikels vom Quellserver
- * durch (nichts wird gespeichert), damit der Web-Reader sie mit pdf.js vom
- * eigenen Origin laden kann. Nur Auth + Artikel-Lookup; die Proxy-Logik und ihre
- * Sicherheitsbegründung stehen in PdfProxyService (wie bei TtsController/
- * TtsStreamService, mit dem sich der öffentliche Share-Endpunkt sie teilt).
+ * PDF eines PDF-Artikels: dünner Controller über Merlin\Core\Api\ArticleStreamApi
+ * (Durchreichung in PdfProxyService, Dateien aus „Merlin Dateien“ über den
+ * Port ArticleFiles).
  */
-class PdfController extends Controller {
+class PdfController extends CoreApiController {
 	public function __construct(
-		string                 $appName,
-		IRequest               $request,
-		private ArticleMapper  $articleMapper,
-		private PdfProxyService $pdfProxy,
-		private MerlinFileService $files,
-		private ?string        $userId,
+		string $appName,
+		IRequest $request,
+		private ArticleStreamApi $api,
+		?string $userId,
 	) {
-		parent::__construct($appName, $request);
+		parent::__construct($appName, $request, $userId);
 	}
 
-	/**
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
+	/** GET /api/articles/{id}/pdf */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function show(int $id): void {
-		try {
-			$article = $this->articleMapper->find($id, $this->userId);
-		} catch (DoesNotExistException) {
-			http_response_code(404);
-			header('Content-Type: application/json');
-			echo json_encode(['error' => 'Article not found']);
-			exit();
-		}
-
-		// PDF aus „Merlin Dateien“: direkt aus Nextcloud statt über den Proxy.
-		if ($article->getFileId() !== null) {
-			$this->files->stream($article);
-		}
-
-		// Läuft nie normal zurück: PdfProxyService::stream() beendet den Prozess selbst per exit().
-		$this->pdfProxy->stream($article->toSnapshot());
+	public function show(): Response {
+		return $this->respond($this->api->show($this->apiRequest()));
 	}
 }

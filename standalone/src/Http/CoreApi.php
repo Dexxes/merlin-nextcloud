@@ -42,6 +42,7 @@ final class CoreApi {
 	public static function toResponse(ApiResult $result): Response {
 		return match ($result->kind) {
 			ApiResult::STREAM => Response::stream($result->headers, $result->emitter),
+			ApiResult::PASSTHROUGH => Response::passthrough($result->emitter),
 			ApiResult::BODY => Response::raw($result->status, $result->headers, (string) $result->data),
 			default => $result->status === 204 ? Response::noContent() : Response::json($result->data, $result->status),
 		};

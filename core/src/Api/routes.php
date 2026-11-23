@@ -27,9 +27,11 @@ declare(strict_types=1);
  */
 
 use Merlin\Core\Api\ArticleApi;
+use Merlin\Core\Api\ArticleStreamApi;
 use Merlin\Core\Api\CapabilitiesApi;
 use Merlin\Core\Api\CommentApi;
 use Merlin\Core\Api\HighlightApi;
+use Merlin\Core\Api\MediaApi;
 use Merlin\Core\Api\PublicCommentApi;
 use Merlin\Core\Api\PublicShareApi;
 use Merlin\Core\Api\ShareApi;
@@ -57,6 +59,15 @@ return [
 	['name' => 'article#exportHtml', 'verb' => 'GET', 'url' => '/api/articles/{id}/export/html', 'handler' => [ArticleApi::class, 'exportHtml'], 'access' => 'user'],
 	// Server-Sent Events: article-ready, sobald die Extraktion fertig ist
 	['name' => 'article#stream', 'verb' => 'GET', 'url' => '/api/events', 'handler' => [ArticleApi::class, 'stream'], 'access' => 'user'],
+
+	// Vorlesen (MP3-Stream), PDF-Durchreichung, Audio-/Videoquellen
+	['name' => 'tts#synthesize', 'verb' => 'GET', 'url' => '/api/articles/{id}/tts', 'handler' => [ArticleStreamApi::class, 'synthesize'], 'access' => 'user'],
+	['name' => 'pdf#show', 'verb' => 'GET', 'url' => '/api/articles/{id}/pdf', 'handler' => [ArticleStreamApi::class, 'show'], 'access' => 'user'],
+	['name' => 'media#resolve', 'verb' => 'GET', 'url' => '/api/articles/{id}/media', 'handler' => [MediaApi::class, 'resolve'], 'access' => 'user'],
+	// Veraltet, nur für bestehende Clients: altes Format, nur HLS-Video
+	['name' => 'videoStream#resolve', 'verb' => 'GET', 'url' => '/api/articles/{id}/video-stream', 'handler' => [MediaApi::class, 'videoStream'], 'access' => 'user'],
+	// YouTube-Seite mit echter https-Origin für die nativen Reader (ohne Anmeldung)
+	['name' => 'youtube_embed#show', 'verb' => 'GET', 'url' => '/api/youtube-embed', 'handler' => [MediaApi::class, 'youtubeEmbed'], 'access' => 'public'],
 
 	// Schlagworte (verschachtelt)
 	['name' => 'tag#index', 'verb' => 'GET', 'url' => '/api/tags', 'handler' => [TagApi::class, 'index'], 'access' => 'user'],
@@ -89,6 +100,8 @@ return [
 	// Öffentliche Ansicht hinter dem Link (ohne Anmeldung)
 	['name' => 'public_share#unlock', 'verb' => 'POST', 'url' => '/s/{token}/unlock', 'handler' => [PublicShareApi::class, 'unlock'], 'access' => 'public'],
 	['name' => 'public_share#data', 'verb' => 'GET', 'url' => '/s/{token}/data', 'handler' => [PublicShareApi::class, 'data'], 'access' => 'public'],
+	['name' => 'public_share#tts', 'verb' => 'GET', 'url' => '/s/{token}/tts', 'handler' => [ArticleStreamApi::class, 'tts'], 'access' => 'public'],
+	['name' => 'public_share#pdf', 'verb' => 'GET', 'url' => '/s/{token}/pdf', 'handler' => [ArticleStreamApi::class, 'pdf'], 'access' => 'public'],
 
 	// Gäste markieren und kommentieren hinter dem Link, events: Server-Sent Events
 	['name' => 'public_comment#index', 'verb' => 'GET', 'url' => '/s/{token}/comments', 'handler' => [PublicCommentApi::class, 'index'], 'access' => 'public'],

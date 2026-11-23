@@ -21,6 +21,7 @@ final class Response {
         private readonly string $body,
         private readonly array $extraHeaders = [],
         private readonly ?\Closure $emitter = null,
+        private readonly bool $passthrough = false,
     ) {
     }
 
@@ -45,6 +46,14 @@ final class Response {
         $contentType = $headers['Content-Type'] ?? 'text/event-stream; charset=utf-8';
         unset($headers['Content-Type']);
         return new self(200, $contentType, '', $headers, $emitter);
+    }
+
+    /**
+     * Der Emitter schreibt Status, Header und Inhalt selbst (MP3 vom
+     * Vorlese-Dienst, durchgereichte PDF) und beendet den Request meist selbst.
+     */
+    public static function passthrough(\Closure $emitter): self {
+        return new self(200, '', '', [], $emitter, true);
     }
 
     public static function json(mixed $data, int $status = 200): self {
@@ -105,6 +114,13 @@ final class Response {
             while (ob_get_level() > 0) {
                 ob_end_clean();
             }
+        }
+        if ($this->passthrough) {
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                session_write_close();
+            }
+            ($this->emitter)();
+            return;
         }
         http_response_code($this->status);
         header('Content-Type: ' . $this->contentType);

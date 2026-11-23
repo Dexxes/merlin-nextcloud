@@ -94,11 +94,13 @@ Port in einer der beiden Listen steht und alle Kern-Dienste baubar sind.
 Gemeinsame API (Etappe 4): `core/src/Api/routes.php` ist die eine
 Routentabelle (Name, Verb, Pfad, Handler, Zugriff `user`/`admin`/`public`).
 Handler wie `Api\ArticleApi`, `Api\TagApi`, `Api\CapabilitiesApi`,
-`Api\HighlightApi`, `Api\CommentApi`, `Api\ShareApi`, `Api\PublicShareApi` und
-`Api\PublicCommentApi` bekommen ein
+`Api\HighlightApi`, `Api\CommentApi`, `Api\ShareApi`, `Api\PublicShareApi`,
+`Api\PublicCommentApi`, `Api\ArticleStreamApi` (Vorlesen, PDF) und
+`Api\MediaApi` (Medienquellen, YouTube-Seite) bekommen ein
 `ApiRequest` (Nutzer, Parameter aus Query, Body und Pfad, umgewandelt wie von
 Nextclouds Dispatcher) und liefern ein `ApiResult` (JSON, Text mit eigenem
-Content-Type oder SSE-Stream). Nextcloud: `appinfo/routes.php` übernimmt die
+Content-Type, SSE-Stream oder `passthrough`: der Dienst schreibt die ganze
+Antwort selbst, etwa MP3 vom Piper-Daemon oder die durchgereichte PDF). Nextcloud: `appinfo/routes.php` übernimmt die
 Tabelle aus `vendor/merlin/core`, je Ressource ein dünner Controller
 (`Controller\CoreApiController`) mit den Zugriffsattributen. Standalone:
 `Http\Routes` registriert jede Zeile über `Http\CoreApi`, `user`-Routen hinter
@@ -130,7 +132,9 @@ in Nextcloud). `/api/capabilities` meldet `backend`, die gemeinsame `version`
 dort bewusst. `standalone/tests/test-article-api.php` spielt die Artikel- und
 Schlagwort-API über HTTP durch (`--live`: echte Artikel-Links),
 `standalone/tests/test-discussion-api.php` Markierungen, Kommentare,
-Share-Links, Gast-Beiträge, Passwortbremse und Rate-Limit. `standalone/tests/test-http.php` startet den eingebauten
+Share-Links, Gast-Beiträge, Passwortbremse und Rate-Limit,
+`standalone/tests/test-media-api.php` Vorlesen, PDF, Medienquellen und die
+YouTube-Seite, auch hinter einem Share-Link. `standalone/tests/test-http.php` startet den eingebauten
 PHP-Server und spielt Login Flow, Basic Auth, Admin-API und Kontolöschung
 durch. `standalone/bin/merlin extract <url>` ruft die Kern-Extraktion mit den
 Standalone-Adaptern auf; `standalone/tests/test-extraction.php --live` vergleicht
@@ -223,19 +227,19 @@ nextcloud/
 │   │   ├── TagController.php                 # → Merlin\Core\Api\TagApi
 │   │   ├── CapabilitiesController.php        # GET /api/capabilities → Merlin\Core\Api\CapabilitiesApi
 │   │   ├── ShareController.php               # → Merlin\Core\Api\ShareApi
-│   │   ├── PublicShareController.php          # unlock/data → Merlin\Core\Api\PublicShareApi; Seite, Vorlesen, PDF noch hier
+│   │   ├── PublicShareController.php          # unlock/data → PublicShareApi, tts/pdf → ArticleStreamApi; nur die HTML-Seite noch hier
 │   │   ├── HighlightController.php            # → Merlin\Core\Api\HighlightApi
 │   │   ├── CommentController.php              # → Merlin\Core\Api\CommentApi
 │   │   ├── PublicCommentController.php        # → Merlin\Core\Api\PublicCommentApi (mit #[AnonRateLimit])
-│   │   ├── TtsController.php
-│   │   ├── PdfController.php                  # GET /api/articles/{id}/pdf: PDF eines PDF-Artikels durchreichen (nichts gespeichert; Datei-Einträge direkt aus Nextcloud)
+│   │   ├── TtsController.php              # → Merlin\Core\Api\ArticleStreamApi
+│   │   ├── PdfController.php                  # → Merlin\Core\Api\ArticleStreamApi (Datei-Einträge über den Port ArticleFiles)
 │   │   ├── FileController.php                 # Dateien vom Handy: Upload-Ziel, Eintrag anlegen, GET /api/articles/{id}/file (signierter Link)
 │   │   ├── ExtensionController.php
 │   │   ├── ManifestController.php             # PWA-Manifest
 │   │   ├── ServiceWorkerController.php         # Liefert den Service-Worker (PWA)
-│   │   ├── YoutubeEmbedController.php          # Proxy für eingebettete YouTube-Player (CSP)
-│   │   ├── MediaController.php                 # GET /api/articles/{id}/media: Audio-/Video-Quelle eines Artikels
-│   │   ├── VideoStreamController.php           # Veraltet: /video-stream im alten Format (nur HLS-Video)
+│   │   ├── YoutubeEmbedController.php          # → Merlin\Core\Api\MediaApi (YouTube-Seite mit eigener CSP)
+│   │   ├── MediaController.php                 # → Merlin\Core\Api\MediaApi
+│   │   ├── VideoStreamController.php           # → Merlin\Core\Api\MediaApi (veraltet, nur HLS-Video)
 │   │   ├── SettingsController.php             # GET/PUT /api/settings (inkl. Löschfrist des Nutzers, nur lesend: Admin-Maximum/effektive Frist)
 │   │   ├── RetentionController.php            # POST /api/retention/notice: Löschfrist-Hinweis bestätigen
 │   │   ├── RetentionAdminController.php       # Admin-API der Löschfrist (Maximum, Vorschau)
@@ -330,6 +334,8 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │   │   ├── ShareApi.php                  # Share-Link verwalten (erstellen, Passwort, Ablauf, neuer Token)
 │   │   ├── PublicShareApi.php            # Entsperren (Throttler) und Artikeldaten hinter dem Link
 │   │   ├── PublicCommentApi.php          # Gast-Kommentare/-Markierungen, Honeypot, Gast-Push-Kanal
+│   │   ├── ArticleStreamApi.php          # Vorlesen und PDF, für den Besitzer und hinter dem Link
+│   │   ├── MediaApi.php                  # Audio-/Videoquellen, altes /video-stream, YouTube-Seite
 │   │   └── CapabilitiesApi.php           # /api/capabilities
 │   ├── Persistence/                  # SQL-Stores gegen den Port Connection (Sql…Store, PdoConnection, RowMapper, SqlValue)
 │   ├── Domain/
@@ -341,7 +347,7 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │   │   └── FileEntry.php / FilePreview.php  # Datei-Eintrag (ID, Datei, Besitzer, erkannter Text), Vorschaubild
 │   ├── Service/
 │   │   ├── SupportBoxService.php         # Daten der Support-Infobox (<paywall><subscribe> + <metadata><donations>, Seiten-Icon, Akzentfarbe); Reader: entfällt bei aktivem Abo-Login, Share: immer
-│   │   ├── PdfProxyService.php           # PDF-Durchreichung für PdfController und öffentlichen Share-Endpunkt (SSRF-Guard je Hop, %PDF-Prüfung, Range, 100-MB-Limit)
+│   │   ├── PdfProxyService.php           # PDF-Durchreichung für Api\ArticleStreamApi (eigener und geteilter Artikel) (SSRF-Guard je Hop, %PDF-Prüfung, Range, 100-MB-Limit)
 │   │   ├── TtsStreamService.php          # gemeinsamer Stream-Pfad für authentifizierten und öffentlichen (Share-)Endpunkt
 │   │   ├── ExportService.php             # Artikel als eigenständiges HTML
 │   │   ├── ReportBackendService.php / ReportBackendRules.php  # „Fehlerhaft dargestellt melden“

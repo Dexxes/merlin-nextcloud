@@ -2,7 +2,8 @@
 
 /**
  * Routen der Nextcloud-App. Die gemeinsame API (Artikel, Schlagworte,
- * Markierungen, Kommentare, Share-Links, /api/capabilities …) steht in core/src/Api/routes.php und wird hier
+ * Markierungen, Kommentare, Share-Links, Vorlesen, PDF, Medien,
+ * /api/capabilities …) steht in core/src/Api/routes.php und wird hier
  * übernommen; darunter die Routen, die (noch) nur die Nextcloud-App hat.
  * tools/test-route-parity.php prüft beide Listen gegen die Controller.
  */
@@ -20,10 +21,6 @@ return [
         // Page routes
         ['name' => 'page#index', 'url' => '/', 'verb' => 'GET'],
 
-        // TTS route (kombinierter Proxy-Endpunkt: Synthese + Streaming in einem Request)
-        ['name' => 'tts#synthesize', 'url' => '/api/articles/{id}/tts', 'verb' => 'GET'],
-        ['name' => 'pdf#show',       'url' => '/api/articles/{id}/pdf', 'verb' => 'GET'],
-
         // Dateien vom Handy in „Merlin Dateien“ (FileController, Service\MerlinFileService):
         // Zielpfad für den WebDAV-Upload, Eintrag anlegen, Datei über signierten Link.
         ['name' => 'file#target',   'url' => '/api/files/target',       'verb' => 'POST'],
@@ -31,21 +28,9 @@ return [
         ['name' => 'file#content',  'url' => '/api/articles/{id}/file', 'verb' => 'GET'],
         ['name' => 'file#rename',   'url' => '/api/articles/{id}/file-name', 'verb' => 'PUT'],
 
-        // Audio-/Video-Quelle eines Artikels (siehe Service/Media/MediaResolverService)
-        ['name' => 'media#resolve', 'url' => '/api/articles/{id}/media', 'verb' => 'GET'],
-        // Veraltet, nur für bestehende Clients: altes Format, nur HLS-Video
-        ['name' => 'videoStream#resolve', 'url' => '/api/articles/{id}/video-stream', 'verb' => 'GET'],
-
-        // YouTube-Embed-Proxy (siehe YoutubeEmbedController-Docblock): gibt dem
-        // iOS/iPad-Reader eine echte https-Origin für YouTube-iframes, damit
-        // der Player nicht mit Error 153 abbricht (loadFileURL-Origin ist file://).
-        ['name' => 'youtube_embed#show', 'url' => '/api/youtube-embed', 'verb' => 'GET'],
-
-        // Öffentliche Ansicht eines geteilten Artikels (ohne Anmeldung): HTML-Seite,
-        // Vorlesen und PDF. Entsperren, Daten und Gast-Kommentare kommen aus dem Kern.
+        // HTML-Seite der öffentlichen Ansicht eines geteilten Artikels (ohne
+        // Anmeldung). Entsperren, Daten, Vorlesen, PDF und Gast-Kommentare kommen aus dem Kern.
         ['name' => 'public_share#show',       'url' => '/s/{token}',              'verb' => 'GET'],
-        ['name' => 'public_share#tts',        'url' => '/s/{token}/tts',          'verb' => 'GET'],
-        ['name' => 'public_share#pdf',        'url' => '/s/{token}/pdf',          'verb' => 'GET'],
 
         // Settings routes
         ['name' => 'settings#get', 'url' => '/api/settings', 'verb' => 'GET'],

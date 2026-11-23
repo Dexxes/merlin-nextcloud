@@ -78,6 +78,7 @@ namespace Merlin\FileEntriesTest {
 			return 'https://cloud.test/file?' . http_build_query($params);
 		}
 		public function shareUrl(string $token): string { return 'https://cloud.example/s/' . $token; }
+		public function origin(): string { return 'https://cloud.example'; }
 	}
 
 	final class Secret implements InstanceSecret {

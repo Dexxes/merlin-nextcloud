@@ -35,6 +35,12 @@ final class StandaloneUrlGenerator implements UrlGenerator {
 		return $this->baseUrl . '/s/' . rawurlencode($token);
 	}
 
+	public function origin(): string {
+		$parts = parse_url($this->baseUrl);
+		$port = isset($parts['port']) ? ':' . $parts['port'] : '';
+		return ($parts['scheme'] ?? 'http') . '://' . ($parts['host'] ?? 'localhost') . $port;
+	}
+
 	public function absolute(string $path): string {
 		return $this->baseUrl . '/' . ltrim($path, '/');
 	}
