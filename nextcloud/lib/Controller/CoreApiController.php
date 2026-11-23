@@ -53,6 +53,9 @@ abstract class CoreApiController extends Controller {
 				$this->stream($result);
 				// stream() endet mit exit; nur für statische Analyse:
 				return new DataResponse(null);
+			case ApiResult::PASSTHROUGH:
+				$this->passthrough($result);
+				return new DataResponse(null);
 			case ApiResult::BODY:
 				$response = new DataDisplayResponse((string) $result->data, $result->status);
 				foreach ($result->headers as $name => $value) {
@@ -82,6 +85,21 @@ abstract class CoreApiController extends Controller {
 		@ini_set('output_buffering', 'Off');
 		@ini_set('implicit_flush', '1');
 		ob_implicit_flush(true);
+		($result->emitter)();
+		exit(0);
+	}
+
+	/**
+	 * Der Emitter schreibt Status, Header und Inhalt selbst (MP3, PDF, Datei).
+	 * Beenden, bevor Nextcloud eigene Response-Bytes anhängt.
+	 */
+	private function passthrough(ApiResult $result): never {
+		while (ob_get_level() > 0) {
+			ob_end_clean();
+		}
+		if (session_status() === PHP_SESSION_ACTIVE) {
+			session_write_close();
+		}
 		($result->emitter)();
 		exit(0);
 	}

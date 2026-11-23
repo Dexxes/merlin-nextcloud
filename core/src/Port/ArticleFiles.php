@@ -29,4 +29,11 @@ interface ArticleFiles {
 	 * @return Article der neu geladene Eintrag, unverändert wenn die Datei fehlt
 	 */
 	public function refresh(Article $article): Article;
+
+	/**
+	 * Die Datei eines Eintrags mit fileId ausliefern (PDF im Reader, auch
+	 * hinter einem Share-Link). Schreibt die Antwort selbst und beendet den
+	 * Request (wie PdfProxyService).
+	 */
+	public function stream(Article $article): never;
 }

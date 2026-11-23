@@ -17,6 +17,9 @@ All notable changes to Merlin are documented here. Format based on
   the public share API (`/s/{token}/data`, unlock, guest comments and
   highlights) from the shared core. Wrong share passwords slow down per IP
   address, guest writes are limited to 20 per 5 minutes, like in Nextcloud.
+- [standalone] Read aloud (`/api/articles/{id}/tts`, needs the Piper daemon),
+  PDF pass-through, media sources (`/media`, `/video-stream`) and the
+  YouTube page for the native readers, also behind a share link.
 - spiegel.de: author box at the end of the article with name and profile link
   for every author in the byline (`/impressum/autor-…`). Columns take photo
   and bio from the byline and the "Zum Autor" box in the text (which no longer
@@ -187,6 +190,8 @@ All notable changes to Merlin are documented here. Format based on
   Tests run on PHPUnit 13.
 - Highlights, comments, share links and the public share/comment API now run
   on the shared core and its SQL stores; responses are unchanged.
+- Read aloud, PDF, media sources and the YouTube page now run on the shared
+  core too. The YouTube page sends its own, stricter Content-Security-Policy.
 - Article and tag API (`/api/articles…`, `/api/tags…`, `/api/events`) now
   run on the shared core (`core/src/Api/`, one route table for both
   variants) and its SQL stores; responses are unchanged. Small differences:

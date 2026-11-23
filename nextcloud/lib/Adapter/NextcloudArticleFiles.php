@@ -42,4 +42,9 @@ class NextcloudArticleFiles implements ArticleFiles {
 		}
 		return $this->articles->find((int) $article->getId(), $article->getUserId()) ?? $article;
 	}
+
+	/** Datei aus „Merlin Dateien“ direkt aus Nextcloud (MerlinFileService::stream). */
+	public function stream(Article $article): never {
+		$this->files->stream($this->mapper->find((int) $article->getId(), $article->getUserId()));
+	}
 }

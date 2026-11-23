@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace OCA\Merlin\AppInfo;
 
 use Merlin\Core\Api\ArticleApi;
+use Merlin\Core\Api\ArticleStreamApi;
 use Merlin\Core\Api\CapabilitiesApi;
 use Merlin\Core\Api\CommentApi;
 use Merlin\Core\Api\HighlightApi;
+use Merlin\Core\Api\MediaApi;
 use Merlin\Core\Api\PublicCommentApi;
 use Merlin\Core\Api\PublicShareApi;
 use Merlin\Core\Api\ShareApi;
@@ -194,6 +196,8 @@ class Application extends App implements IBootstrap {
 		ShareApi::class,
 		PublicShareApi::class,
 		PublicCommentApi::class,
+		ArticleStreamApi::class,
+		MediaApi::class,
 	];
 
 	public function __construct(array $urlParams = []) {

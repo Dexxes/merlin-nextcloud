@@ -19,4 +19,12 @@ final class NoArticleFiles implements ArticleFiles {
 	public function refresh(Article $article): Article {
 		return $article;
 	}
+
+	/** Ohne Datei-Einträge hat kein Artikel eine fileId; nur zur Sicherheit. */
+	public function stream(Article $article): never {
+		http_response_code(404);
+		header('Content-Type: application/json');
+		echo json_encode(['error' => 'File not found']);
+		exit();
+	}
 }

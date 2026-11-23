@@ -40,8 +40,7 @@ const NEXTCLOUD_ONLY = ['file#target', 'file#register', 'file#content', 'file#re
  */
 const NOT_YET_IN_CORE = [
 	'page#index', 'manifest#index', 'service_worker#index',
-	'tts#synthesize', 'pdf#show', 'media#resolve', 'videoStream#resolve', 'youtube_embed#show',
-	'public_share#show', 'public_share#tts', 'public_share#pdf',
+	'public_share#show',
 	'settings#get', 'settings#update', 'retention#acknowledgeNotice',
 	'retentionAdmin#show', 'retentionAdmin#update', 'retentionAdmin#preview', 'storage#get',
 	'contentFilter#index', 'contentFilter#import', 'contentFilter#show', 'contentFilter#update',

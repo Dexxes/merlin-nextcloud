@@ -9,10 +9,9 @@ use Merlin\Core\Domain\ArticleSnapshot;
 /**
  * TTS-Streaming: HTML → Plaintext → Piper-Daemon → MP3-Stream direkt an den Client.
  *
- * Ausgelagert aus TtsController, damit sowohl der authentifizierte Endpunkt
- * (TtsController, Basic Auth) als auch der öffentliche Share-Endpunkt
- * (PublicShareController, Token/Passwort) dieselbe – sicherheitskritische –
- * curl-Proxy-Logik verwenden, statt sie zu duplizieren.
+ * Gemeinsam für den authentifizierten Endpunkt und den öffentlichen
+ * Share-Endpunkt (beide in Api\ArticleStreamApi), damit sie dieselbe,
+ * sicherheitskritische curl-Proxy-Logik verwenden, statt sie zu duplizieren.
  */
 class TtsStreamService {
 	/** Piper-Daemon (nur localhost, kein Auth) */

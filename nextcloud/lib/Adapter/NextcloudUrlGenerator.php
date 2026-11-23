@@ -34,4 +34,11 @@ class NextcloudUrlGenerator implements UrlGenerator {
 	public function shareUrl(string $token): string {
 		return $this->urlGenerator->linkToRouteAbsolute(Application::APP_ID . '.public_share.show', ['token' => $token]);
 	}
+
+	/** Wie bisher im YoutubeEmbedController: Protokoll und Host des Requests (samt overwritehost). */
+	public function origin(): string {
+		$parts = parse_url($this->urlGenerator->getAbsoluteURL('/'));
+		$port = isset($parts['port']) ? ':' . $parts['port'] : '';
+		return ($parts['scheme'] ?? 'https') . '://' . ($parts['host'] ?? '') . $port;
+	}
 }

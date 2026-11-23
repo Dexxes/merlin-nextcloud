@@ -4,15 +4,9 @@ declare(strict_types=1);
 
 namespace OCA\Merlin\Controller;
 
+use Merlin\Core\Api\ArticleStreamApi;
 use Merlin\Core\Api\PublicShareApi;
-use Merlin\Core\Service\PdfProxyService;
-use Merlin\Core\Service\ShareAccessDenied;
-use Merlin\Core\Service\ShareAccessService;
-use Merlin\Core\Service\TtsStreamService;
 use OCA\Merlin\AppInfo\Application;
-use OCA\Merlin\Db\ArticleMapper;
-use OCA\Merlin\Service\MerlinFileService;
-use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
@@ -29,8 +23,9 @@ use OCP\IRequest;
  * NIE über eine vom Client mitgeschickte article_id/user_id (IDOR-Schutz).
  *
  * Entsperren und Daten (unlock, data) kommen aus dem Kern
- * (Merlin\Core\Api\PublicShareApi), die HTML-Seite, Vorlesen und PDF noch
- * von hier. Markieren und Kommentieren hinter dem Link:
+ * (Merlin\Core\Api\PublicShareApi), Vorlesen und PDF ebenfalls
+ * (Merlin\Core\Api\ArticleStreamApi); nur die HTML-Seite noch von hier.
+ * Markieren und Kommentieren hinter dem Link:
  * PublicCommentController.
  */
 class PublicShareController extends CoreApiController {
@@ -38,12 +33,8 @@ class PublicShareController extends CoreApiController {
 		string $appName,
 		IRequest $request,
 		private PublicShareApi $api,
-		private ArticleMapper $articleMapper,
-		private TtsStreamService $ttsStream,
-		private PdfProxyService $pdfProxy,
-		private ShareAccessService $access,
+		private ArticleStreamApi $streams,
 		private IInitialState $initialState,
-		private MerlinFileService $files,
 		?string $userId,
 	) {
 		parent::__construct($appName, $request, $userId);
@@ -88,77 +79,19 @@ class PublicShareController extends CoreApiController {
 		return $this->respond($this->api->data($this->apiRequest()));
 	}
 
-	/**
-	 * TTS-Streaming für den geteilten Artikel – nutzt denselben
-	 * TtsStreamService (und damit dieselbe Piper-Daemon-Proxy-Logik) wie der
-	 * authentifizierte Endpunkt in TtsController.
-	 *
-	 * @PublicPage
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
+	/** GET /s/{token}/tts: Vorlesen des geteilten Artikels (Merlin\Core\Api\ArticleStreamApi). */
 	#[PublicPage]
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function tts(string $token, string $lang = 'de', int $speaker = -1): void {
-		$share = $this->access->resolveAccessibleShare($token);
-		if ($share instanceof ShareAccessDenied) {
-			http_response_code($share->getStatus());
-			header('Content-Type: application/json');
-			echo json_encode($share->getData());
-			exit();
-		}
-
-		try {
-			$article = $this->articleMapper->find($share->getArticleId(), $share->getUserId());
-		} catch (DoesNotExistException) {
-			http_response_code(404);
-			header('Content-Type: application/json');
-			echo json_encode(['error' => 'Article not found']);
-			exit();
-		}
-
-		// Läuft nie normal zurück: TtsStreamService::stream() beendet den
-		// Prozess selbst per exit().
-		$this->ttsStream->stream($article->toSnapshot(), $lang, $speaker);
+	public function tts(): Response {
+		return $this->respond($this->streams->tts($this->apiRequest()));
 	}
 
-	/**
-	 * PDF-Durchreichung für den geteilten PDF-Artikel – dieselbe Proxy-Logik
-	 * (PdfProxyService) wie der authentifizierte Endpunkt in PdfController, damit
-	 * die Share-Ansicht die PDF vom eigenen Origin laden kann.
-	 *
-	 * @PublicPage
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
+	/** GET /s/{token}/pdf: PDF des geteilten PDF-Artikels (Merlin\Core\Api\ArticleStreamApi). */
 	#[PublicPage]
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function pdf(string $token): void {
-		$share = $this->access->resolveAccessibleShare($token);
-		if ($share instanceof ShareAccessDenied) {
-			http_response_code($share->getStatus());
-			header('Content-Type: application/json');
-			echo json_encode($share->getData());
-			exit();
-		}
-
-		try {
-			$article = $this->articleMapper->find($share->getArticleId(), $share->getUserId());
-		} catch (DoesNotExistException) {
-			http_response_code(404);
-			header('Content-Type: application/json');
-			echo json_encode(['error' => 'Article not found']);
-			exit();
-		}
-
-		// PDF aus „Merlin Dateien“: direkt aus Nextcloud statt über den Proxy.
-		if ($article->getFileId() !== null) {
-			$this->files->stream($article);
-		}
-
-		// Läuft nie normal zurück: PdfProxyService::stream() beendet den Prozess selbst per exit().
-		$this->pdfProxy->stream($article->toSnapshot());
+	public function pdf(): Response {
+		return $this->respond($this->streams->pdf($this->apiRequest()));
 	}
 }
