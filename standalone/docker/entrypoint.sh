@@ -28,6 +28,14 @@ else
 		chmod 600 /data/secret
 		echo "merlin: Instanz-Geheimnis in /data/secret angelegt"
 	fi
+	# SMTP-Passwort wie das Geheimnis: in die Datei, nicht in die Umgebung von PHP.
+	if [ -n "${MERLIN_SMTP_PASSWORD:-}" ]; then
+		umask 077
+		printf '%s\n' "$MERLIN_SMTP_PASSWORD" > /data/smtp-password
+		umask 022
+		chown www-data:www-data /data/smtp-password
+		chmod 600 /data/smtp-password
+	fi
 fi
 
 as_www php bin/merlin migrate
@@ -54,7 +62,7 @@ fi
 # und nginx weiterreichen.
 unset MERLIN_ADMIN_USER MERLIN_ADMIN_EMAIL MERLIN_ADMIN_PASSWORD
 if [ "$MERLIN_CONFIG" = /var/www/merlin/config/docker.php ]; then
-	unset MERLIN_SECRET
+	unset MERLIN_SECRET MERLIN_SMTP_PASSWORD
 fi
 
 if [ "${1:-}" = "nginx" ]; then

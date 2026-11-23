@@ -23,6 +23,12 @@ services:
       MERLIN_ADMIN_EMAIL: admin@example.org
       MERLIN_ADMIN_PASSWORD: bitte-aendern
       # MERLIN_MAIL_FROM: merlin@example.org
+      # Mailversand (Passwort-Reset, Bestätigung offener Registrierungen):
+      # MERLIN_SMTP_HOST: smtp.example.org
+      # MERLIN_SMTP_PORT: 587
+      # MERLIN_SMTP_ENCRYPTION: starttls
+      # MERLIN_SMTP_USER: merlin@example.org
+      # MERLIN_SMTP_PASSWORD: …
       # MERLIN_PHP_WORKERS: 16
       # Speicherkontingent je Konto für Merlin Dateien (0 = unbegrenzt)
       MERLIN_USER_QUOTA: 100M

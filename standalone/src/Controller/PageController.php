@@ -13,7 +13,6 @@ use Merlin\Standalone\Auth\PasswordResetService;
 use Merlin\Standalone\Auth\RegistrationService;
 use Merlin\Standalone\Auth\SessionService;
 use Merlin\Standalone\Db\LoginFlowRepository;
-use Merlin\Standalone\Db\ServerSettings;
 use Merlin\Standalone\Db\UserRepository;
 use Merlin\Standalone\Http\Request;
 use Merlin\Standalone\Http\Response;
@@ -55,7 +54,6 @@ final class PageController {
 
     public function __construct(
         private readonly UserRepository $users,
-        private readonly ServerSettings $settings,
         private readonly PasswordHasher $hasher,
         private readonly PasswordResetService $passwordReset,
         private readonly SessionService $sessions,
@@ -74,7 +72,7 @@ final class PageController {
             return Response::redirect(self::HOME);
         }
         return $this->render('login', $request, [
-            'allowSelfRegistration' => $this->settings->getBool(ServerSettings::ALLOW_SELF_REGISTRATION),
+            'allowSelfRegistration' => $this->registration->isOpen(),
             'return' => self::safeReturn($request->query('return')),
         ]);
     }
@@ -156,14 +154,14 @@ final class PageController {
     }
 
     public function registerForm(Request $request): Response {
-        if (!$this->settings->getBool(ServerSettings::ALLOW_SELF_REGISTRATION)) {
+        if (!$this->registration->isOpen()) {
             return Response::redirect('/login');
         }
         return $this->render('register', $request);
     }
 
     public function register(Request $request): Response {
-        if (!$this->settings->getBool(ServerSettings::ALLOW_SELF_REGISTRATION)) {
+        if (!$this->registration->isOpen()) {
             return Response::redirect('/login');
         }
 
@@ -198,7 +196,7 @@ final class PageController {
     }
 
     public function passwordForgotForm(Request $request): Response {
-        return $this->render('password_forgot', $request);
+        return $this->render('password_forgot', $request, ['mailAvailable' => $this->registration->mailAvailable()]);
     }
 
     public function passwordForgot(Request $request): Response {
@@ -268,7 +266,7 @@ final class PageController {
             return Response::redirect('/login');
         }
 
-        return $this->render('admin_users', $request);
+        return $this->render('admin_users', $request, ['mailAvailable' => $this->registration->mailAvailable()]);
     }
 
     /**

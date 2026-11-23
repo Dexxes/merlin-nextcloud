@@ -16,6 +16,15 @@ All notable changes to Merlin are documented here. Format based on
   Unlike Nextcloud, where files stay in Files, the daily job deletes files
   whose entry is gone after one day, as well as abandoned uploads.
 
+- [standalone] Sending mail over SMTP (`'mail' => ['transport' => 'smtp',
+  'smtp' => […]]`, Docker: `MERLIN_SMTP_HOST`, `MERLIN_SMTP_PORT`,
+  `MERLIN_SMTP_ENCRYPTION`, `MERLIN_SMTP_USER`, `MERLIN_SMTP_PASSWORD` or
+  `MERLIN_SMTP_PASSWORD_FILE`) with STARTTLS or TLS and AUTH PLAIN/LOGIN.
+  Without a way to send mail (`'transport' => 'none'`, Docker without
+  `MERLIN_SMTP_HOST`) open registration cannot be enabled and "forgot
+  password" asks users to contact the admin. Existing configurations keep
+  using `mail()`.
+
 ### Changed
 - The file API (`/api/files/target`, `/api/files`, `/api/articles/{id}/file`,
   `/api/articles/{id}/file-name`) now runs on the shared core in the Nextcloud

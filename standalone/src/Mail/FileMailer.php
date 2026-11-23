@@ -13,6 +13,10 @@ final class FileMailer implements MailerInterface {
     public function __construct(private readonly string $file) {
     }
 
+    public function isAvailable(): bool {
+        return true;
+    }
+
     public function send(string $toAddress, string $subject, string $bodyText): void {
         $line = json_encode(['to' => $toAddress, 'subject' => $subject, 'body' => $bodyText], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         if (@file_put_contents($this->file, $line . "\n", FILE_APPEND | LOCK_EX) === false) {

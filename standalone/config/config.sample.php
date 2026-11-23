@@ -40,10 +40,26 @@ return [
 	// Abmeldung nach so vielen Sekunden ohne Anfrage (Standard 8 Stunden).
 	'session_idle_timeout' => 28800,
 
+	// Mailversand für Passwort-Reset und die Bestätigung offener
+	// Registrierungen. transport: 'smtp', 'sendmail' (PHPs mail() über den
+	// lokalen Sendmail/Postfix, Standard) oder 'none' (kein Versand: offene
+	// Registrierung gesperrt, "Passwort vergessen" verweist an den Admin).
 	'mail' => [
 		'from_address' => 'merlin@example.com',
 		'from_name' => 'Merlin',
-		// Nur für Entwicklung: Mails als JSON-Zeilen in diese Datei statt mail().
+		'transport' => 'sendmail',
+		// Nur mit 'transport' => 'smtp':
+		'smtp' => [
+			'host' => 'smtp.example.com',
+			// 'starttls' (Port 587), 'tls' (Port 465) oder 'none' (nur Relay im eigenen Netz)
+			'encryption' => 'starttls',
+			'port' => 587,
+			'username' => 'merlin@example.com',
+			'password' => '',
+			// statt password: Datei mit dem Passwort (z. B. Docker-Secret)
+			// 'password_file' => '/run/secrets/smtp_password',
+		],
+		// Nur für Entwicklung: Mails als JSON-Zeilen in diese Datei.
 		// 'file' => '/tmp/merlin-mails.log',
 	],
 

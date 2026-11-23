@@ -56,9 +56,16 @@ Anfrage, Vorgabe `28800` = 8 Stunden). `MERLIN_SECRET` und die
 `MERLIN_ADMIN_*`-Variablen nimmt der Container nach dem Start aus der
 Umgebung von PHP und nginx; das Geheimnis steht dann in `/data/secret`. Wer mehr einstellen will, legt `/data/config.php` an (Vorlage
 `config/config.sample.php`, Pfade auf `/data/…`); dann gelten die Variablen
-nicht. Mails verschickt der Container ohne eigenen Mailserver nicht
-(`mail()`), Passwort-Reset und die E-Mail-Bestätigung offener Registrierungen
-brauchen deshalb einen eigenen Weg.
+nicht.
+
+Mails (Passwort-Reset, Bestätigung offener Registrierungen) verschickt der
+Container über SMTP: `MERLIN_SMTP_HOST`, `MERLIN_SMTP_PORT` (Vorgabe 587,
+bei `tls` 465), `MERLIN_SMTP_ENCRYPTION` (`starttls`, `tls` oder `none`),
+`MERLIN_SMTP_USER` und `MERLIN_SMTP_PASSWORD` (landet beim Start in
+`/data/smtp-password`, alternativ `MERLIN_SMTP_PASSWORD_FILE` für ein
+Docker-Secret). Ohne `MERLIN_SMTP_HOST` gibt es keinen Mailversand: die
+offene Registrierung lässt sich dann nicht freigeben, und „Passwort
+vergessen“ verweist an den Admin.
 HTTPS übernimmt ein Reverse-Proxy davor. `docker/smoke-test.sh <url> <admin>
 <passwort>` prüft einen laufenden Container.
 
