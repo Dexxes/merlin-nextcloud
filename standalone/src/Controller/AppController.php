@@ -9,6 +9,7 @@ use Merlin\Core\Api\ContentFilterApi;
 use Merlin\Core\Api\RetentionApi;
 use Merlin\Core\Port\UserSettings;
 use Merlin\Standalone\Auth\SessionService;
+use Merlin\Standalone\Cron\DailyJobs;
 use Merlin\Standalone\Db\UserRepository;
 use Merlin\Standalone\Http\Request;
 use Merlin\Standalone\Http\Response;
@@ -38,6 +39,7 @@ final class AppController {
 		private readonly UserRepository $users,
 		private readonly ContentFilterApi $contentFilters,
 		private readonly RetentionApi $retention,
+		private readonly DailyJobs $dailyJobs,
 	) {
 	}
 
@@ -46,6 +48,8 @@ final class AppController {
 		if ($user === null) {
 			return Response::redirect('/login');
 		}
+		// Ohne System-Cron: Löschfrist hier nachholen (siehe DailyJobs).
+		$this->dailyJobs->scheduleFromWebRequest();
 		return $this->render($request, 'main', ['merlin-app'], [
 			'appInfo' => Version::appInfo(),
 			// PWA (Service Worker, Manifest) folgt mit Etappe 6.

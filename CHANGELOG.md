@@ -35,6 +35,10 @@ All notable changes to Merlin are documented here. Format based on
   `/settings/admin` for the retention period and the instance's content
   filters (admins only), the same screens as in Nextcloud's settings. The
   sidebar links to account, content filters, administration and log out.
+- [standalone] Daily cleanup: archived articles past the retention period
+  and long expired share links are deleted once a day, like Nextcloud's
+  background job. Runs from `bin/merlin cron` (system cron) or, without one,
+  after the reader is opened.
 - [standalone] CSRF protection: requests that change data and are signed in
   with the browser session now need the `X-Requested-With: XMLHttpRequest`
   header. API tokens (native apps, browser extension) are not affected.

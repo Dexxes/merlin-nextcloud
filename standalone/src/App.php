@@ -32,6 +32,7 @@ use Merlin\Standalone\Adapter\StandaloneUrlGenerator;
 use Merlin\Standalone\Adapter\StandaloneUserDirectory;
 use Merlin\Standalone\Adapter\StandaloneUserSettings;
 use Merlin\Standalone\Auth\PasswordResetService;
+use Merlin\Standalone\Cron\DailyJobs;
 use Merlin\Standalone\Db\Sqlite;
 use Merlin\Standalone\Mail\MailerInterface;
 use Merlin\Standalone\Mail\PhpMailMailer;
@@ -147,6 +148,9 @@ final class App {
 				(string) ($this->config->section('mail')['from_address'] ?? 'merlin@localhost'),
 				(string) ($this->config->section('mail')['from_name'] ?? 'Merlin'),
 			),
+			DailyJobs::class => $this->autowire($class, [
+				'mode' => $this->config->string('background_jobs', 'web'),
+			]),
 			PasswordResetService::class => $this->autowire($class, [
 				'baseUrl' => $this->config->string('base_url'),
 				'ttlSeconds' => $this->config->int('password_reset_ttl', 3600),

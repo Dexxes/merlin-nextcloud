@@ -14,6 +14,15 @@ Share-Links `/s/{token}` die öffentliche Artikelansicht, `/settings` die
 eigenen Content-Filter und `/settings/admin` (nur Admins) Löschfrist und
 Content-Filter der Instanz. PWA/Offline folgt mit Etappe 6.
 
+Tägliche Aufgaben (Löschfrist für archivierte Artikel, abgelaufene
+Share-Links) holt der Server ohne weitere Einrichtung beim Öffnen des
+Readers nach, sobald der letzte Lauf 24 Stunden zurückliegt. Mit
+`'background_jobs' => 'cron'` in `config.php` übernimmt das der System-Cron:
+
+```sh
+0 * * * * php /pfad/zu/standalone/bin/merlin cron   # arbeitet höchstens einmal am Tag
+```
+
 ```sh
 cd standalone
 composer install

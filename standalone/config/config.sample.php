@@ -34,6 +34,13 @@ return [
 	// Zugangsdaten unlesbar.
 	'secret' => '',
 
+	// Tägliche Aufgaben (Löschfrist für archivierte Artikel, abgelaufene
+	// Share-Links): 'web' holt sie beim Öffnen des Readers nach, sobald der
+	// letzte Lauf 24 Stunden zurückliegt; 'cron', wenn der System-Cron
+	//   0 * * * * php /pfad/zu/standalone/bin/merlin cron
+	// sie übernimmt (beide Wege laufen höchstens einmal am Tag).
+	'background_jobs' => 'web',
+
 	// Mindeststufe für die Logdatei: debug, info, notice, warning, error.
 	'log_level' => 'info',
 ];

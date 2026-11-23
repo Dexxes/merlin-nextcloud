@@ -132,6 +132,12 @@ Attribute) und Standalone-Router; Routen nur einer Variante stehen dort in
 `STANDALONE_ONLY`; die HTML-Seiten der Vue-App (`/`, `/s/{token}`) gibt es in
 beiden unter demselben Pfad (`PLATFORM_PAGES`).
 
+Standalone-Hintergrundarbeit: `Cron\DailyJobs` (Löschfrist über den
+Kern-`RetentionService`, wie `BackgroundJob\RetentionCleanupJob` in Nextcloud)
+läuft über `bin/merlin cron` oder, mit `'background_jobs' => 'web'`
+(Standard), nach dem Ausliefern des Readers; höchstens einmal in 24 Stunden
+(Zeitpunkt in `settings.daily_jobs_last_run`).
+
 Standalone-HTTP: `standalone/public/index.php` baut die Routen aus
 `src/Http/Routes.php`: die gemeinsame API aus dem Kern, dazu die
 Standalone-eigenen (Login, Registrierung, Passwort-Reset, Konto mit
