@@ -15,8 +15,11 @@
  * - loadState(key, fallback): Startwerte, die die Seite mitliefert
  * - showSuccess(text), showError(text): kurze Rückmeldungen (Toasts)
  * - translate, translatePlural: Texte der App (Keys nextcloudWeb.*)
+ * - accountLinks(): Konto-Links der Plattform für die Seitenleiste, je
+ *   { id: 'account'|'contentFilters'|'admin'|'logout', href }. Nextcloud
+ *   hat dafür seine eigene Kopfleiste (leere Liste).
  *
  * frontend/tools/check-platform-imports.mjs prüft, dass nur dieser Ordner
  * @nextcloud/* (außer @nextcloud/vue) importiert.
  */
-export { http, appUrl, imageUrl, loadState, showSuccess, showError, translate, translatePlural } from 'merlin-platform'
+export { http, appUrl, imageUrl, loadState, showSuccess, showError, translate, translatePlural, accountLinks } from 'merlin-platform'

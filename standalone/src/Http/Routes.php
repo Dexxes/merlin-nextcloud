@@ -66,6 +66,9 @@ final class Routes {
 		// öffentliche Share-Ansicht wie page#index und public_share#show in Nextcloud.
 		$router->add('GET', '/', $vueApp->reader(...));
 		$router->add('GET', '/s/{token}', $vueApp->publicShare(...));
+		// Einstellungen › Merlin in Nextcloud: persönliche Content-Filter und Verwaltung
+		$router->add('GET', '/settings', $vueApp->personalSettings(...));
+		$router->add('GET', '/settings/admin', $vueApp->adminSettings(...));
 		$router->add('GET', '/login', $pages->loginForm(...));
 		$router->add('POST', '/login', $pages->login(...));
 		$router->add('GET', '/logout', $pages->logout(...));

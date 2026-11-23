@@ -171,6 +171,25 @@ try {
 		: $status === 503 && str_contains($body, 'build:standalone'), 'Reader-Seite mit Session', substr($body, 0, 300));
 	[$status, , , $headers] = $http('GET', '/');
 	check($status === 303 && str_ends_with($headers['location'] ?? '', '/login'), 'Reader ohne Anmeldung: zum Login');
+	[$status, , $body] = $http('GET', '/settings', null, [], null, $jar);
+	check($built
+		? $status === 200 && str_contains($body, 'id="merlin-personal-settings"') && str_contains($body, '"userContentFilters":{"domains":') && str_contains($body, '"adminSettingsUrl":null')
+		: $status === 503, 'persönliche Content-Filter', substr($body, 0, 300));
+	[$status, , , $headers] = $http('GET', '/settings/admin', null, [], null, $jar);
+	check($status === 303 && str_ends_with($headers['location'] ?? '', '/settings'), 'Verwaltung: Nicht-Admin zu den eigenen Einstellungen');
+	$adminJar = $dir . '/cookies-admin.txt';
+	$http('POST', '/login', null, [], ['username' => 'admin', 'password' => 'geheim123'], $adminJar);
+	[$status, , $body] = $http('GET', '/settings/admin', null, [], null, $adminJar);
+	check($built
+		? $status === 200 && str_contains($body, 'id="merlin-admin-retention"') && str_contains($body, 'id="merlin-admin-settings"')
+			&& str_contains($body, '"retentionAdmin":{') && str_contains($body, '"contentFilters":{"filters":')
+		: $status === 503, 'Verwaltung für Admins', substr($body, 0, 300));
+	[, , $body] = $http('GET', '/', null, [], null, $adminJar);
+	check(!$built || str_contains($body, '{"id":"admin","href":"/settings/admin"}'), 'Reader: Admin bekommt den Verwaltungs-Link');
+	[, , $body] = $http('GET', '/', null, [], null, $jar);
+	check(!$built || (str_contains($body, '{"id":"logout","href":"/logout"}') && !str_contains($body, '"id":"admin"')), 'Reader: Nutzer ohne Verwaltungs-Link');
+	[$status, , , $headers] = $http('GET', '/settings');
+	check($status === 303 && str_contains($headers['location'] ?? '', '/login?return=%2Fsettings'), 'Einstellungen ohne Anmeldung: zum Login');
 	[$status, , $body] = $http('GET', '/s/abc_123');
 	check($built
 		? $status === 200 && str_contains($body, 'id="merlin-public-app"') && str_contains($body, '"shareToken":"abc_123"')

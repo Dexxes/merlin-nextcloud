@@ -1,6 +1,6 @@
 <?php $title = $t->t('adminUsers.pageTitle'); $layout = 'wide'; include __DIR__ . '/partials/header.php'; ?>
 <h1><?= htmlspecialchars($t->t('adminUsers.heading'), ENT_QUOTES, 'UTF-8') ?></h1>
-<p class="muted"><a href="<?= url('/'); ?>"><?= htmlspecialchars($t->t('adminUsers.navLibrary'), ENT_QUOTES, 'UTF-8') ?></a> · <a href="<?= url('/account'); ?>"><?= htmlspecialchars($t->t('adminUsers.navMyAccount'), ENT_QUOTES, 'UTF-8') ?></a></p>
+<p class="muted"><a href="<?= url('/'); ?>"><?= htmlspecialchars($t->t('adminUsers.navLibrary'), ENT_QUOTES, 'UTF-8') ?></a> · <a href="<?= url('/account'); ?>"><?= htmlspecialchars($t->t('adminUsers.navMyAccount'), ENT_QUOTES, 'UTF-8') ?></a> · <a href="<?= url('/settings/admin'); ?>"><?= htmlspecialchars($t->t('app.adminSettings'), ENT_QUOTES, 'UTF-8') ?></a></p>
 
 <label style="margin-top:1.5em;">
     <input type="checkbox" id="allow-registration" style="width:auto;display:inline;margin-right:0.5em;">

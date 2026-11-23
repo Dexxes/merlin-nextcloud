@@ -1,0 +1,47 @@
+/*
+ * Rahmen der Einstellungsseiten im Standalone-Server (standalone/templates/app.php
+ * mit Navigationsleiste): in Nextcloud kommen Kopfleiste und die Klasse
+ * .section aus dem Server.
+ */
+.merlin-settings-nav {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: calc(2 * var(--default-grid-baseline)) calc(4 * var(--default-grid-baseline));
+	padding: calc(3 * var(--default-grid-baseline)) 16px;
+	border-bottom: 1px solid var(--color-border);
+}
+
+.merlin-settings-nav strong {
+	margin-inline-end: auto;
+}
+
+.merlin-settings-nav a {
+	color: var(--color-primary-element);
+}
+
+.merlin-settings-nav a:hover,
+.merlin-settings-nav a:focus-visible {
+	text-decoration: underline;
+}
+
+.merlin-settings-main {
+	max-width: 900px;
+	margin: 0 auto;
+}
+
+.merlin-settings-main .section {
+	display: block;
+	padding: 30px 16px;
+	border-bottom: 1px solid var(--color-border);
+}
+
+.merlin-settings-main .section:last-child {
+	border-bottom: none;
+}
+
+.merlin-settings-main h2 {
+	font-size: 20px;
+	font-weight: bold;
+	margin: 0 0 12px;
+}

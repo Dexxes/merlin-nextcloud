@@ -47,7 +47,7 @@ const NOT_YET_IN_CORE = ['manifest#index', 'service_worker#index'];
  */
 const PLATFORM_PAGES = ['page#index' => 'GET /', 'public_share#show' => 'GET /s/{token}'];
 
-/** Nur im Standalone-Server: Seiten, Konten, Login Flow v2, Admin-Nutzer (Methode Pfad). */
+/** Nur im Standalone-Server: Seiten, Konten, Login Flow v2, Admin-Nutzer, Einstellungsseiten (Methode Pfad). */
 const STANDALONE_ONLY = [
 	'GET /login', 'POST /login', 'GET /logout', 'GET /register', 'POST /register',
 	'GET /password/forgot', 'POST /password/forgot', 'GET /password/reset', 'POST /password/reset',
@@ -56,6 +56,8 @@ const STANDALONE_ONLY = [
 	'GET /account/tokens', 'POST /account/tokens', 'DELETE /account/tokens/{id}',
 	'GET /admin/users', 'POST /admin/users', 'PUT /admin/users/{id}', 'DELETE /admin/users/{id}',
 	'GET /admin/settings', 'PUT /admin/settings',
+	// Einstellungsseiten der Vue-App; in Nextcloud ISettings statt Routen
+	'GET /settings', 'GET /settings/admin',
 ];
 
 $errors = [];

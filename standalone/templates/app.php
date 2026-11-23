@@ -7,7 +7,9 @@
  * @var \Merlin\Standalone\I18n\Translator $t
  * @var string $basePath
  * @var string $entry
- * @var string $mountId
+ * @var list<string> $mountIds
+ * @var string|null $pageTitle Einstellungsseite: Titel-Key, mit Navigationsleiste
+ * @var bool $isAdmin
  * @var bool $built
  * @var string $stateJson
  */
@@ -19,7 +21,7 @@ $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="referrer" content="no-referrer">
-<title>Merlin</title>
+<title><?= $pageTitle === null ? 'Merlin' : $e($t->t($pageTitle)) . ' · Merlin' ?></title>
 <link rel="icon" href="<?= $e($basePath . '/img/app.svg') ?>">
 <?php if ($built): ?>
 <link rel="stylesheet" href="<?= $e($basePath . '/app/css/merlin-' . $entry . '.css') ?>">
@@ -33,7 +35,25 @@ $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 <?php if ($built): ?>
 <?php /* Ziel der Tastatur-Sprunglinks von NcContent; in Nextcloud Teil der Seite. */ ?>
 <div id="skip-actions"></div>
+<?php if ($pageTitle === null): ?>
+<?php foreach ($mountIds as $mountId): ?>
 <div id="<?= $e($mountId) ?>"></div>
+<?php endforeach; ?>
+<?php else: ?>
+<nav class="merlin-settings-nav">
+<strong><?= $e($t->t($pageTitle)) ?></strong>
+<a href="<?= $e($basePath . '/') ?>"><?= $e($t->t('account.navLibrary')) ?></a>
+<a href="<?= $e($basePath . '/account') ?>"><?= $e($t->t('library.navMyAccount')) ?></a>
+<?php if ($pageTitle !== 'app.personalSettings'): ?><a href="<?= $e($basePath . '/settings') ?>"><?= $e($t->t('app.personalSettings')) ?></a><?php endif; ?>
+<?php if ($isAdmin && $pageTitle !== 'app.adminSettings'): ?><a href="<?= $e($basePath . '/settings/admin') ?>"><?= $e($t->t('app.adminSettings')) ?></a><?php endif; ?>
+<a href="<?= $e($basePath . '/logout') ?>"><?= $e($t->t('library.navLogout')) ?></a>
+</nav>
+<main class="merlin-settings-main">
+<?php foreach ($mountIds as $mountId): ?>
+<div id="<?= $e($mountId) ?>" class="section"></div>
+<?php endforeach; ?>
+</main>
+<?php endif; ?>
 <?php else: ?>
 <main class="narrow">
 <h1>Merlin</h1>

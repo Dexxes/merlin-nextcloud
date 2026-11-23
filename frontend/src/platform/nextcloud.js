@@ -30,3 +30,8 @@ export function imageUrl(file) {
 export function loadState(key, fallback) {
 	return ncLoadState(APP_ID, key, fallback)
 }
+
+/** Konto, Einstellungen und Abmelden stehen in Nextclouds Kopfleiste. */
+export function accountLinks() {
+	return []
+}

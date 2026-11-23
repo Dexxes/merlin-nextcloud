@@ -31,6 +31,10 @@ All notable changes to Merlin are documented here. Format based on
   the public article view. Built with `npm run build:standalone` into
   `standalone/public/app/`; German texts come from the app's translations,
   light or dark theme follows the system setting.
+- [standalone] Settings pages: `/settings` for your own content filters and
+  `/settings/admin` for the retention period and the instance's content
+  filters (admins only), the same screens as in Nextcloud's settings. The
+  sidebar links to account, content filters, administration and log out.
 - [standalone] CSRF protection: requests that change data and are signed in
   with the browser session now need the `X-Requested-With: XMLHttpRequest`
   header. API tokens (native apps, browser extension) are not affected.

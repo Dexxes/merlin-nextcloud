@@ -10,9 +10,9 @@ Schlagworte, Markierungen, Kommentare, Share-Links, Vorlesen, PDF, Medien,
 Einstellungen, Löschfrist, Speicherverbrauch, Content-Filter,
 Abo-Zugangsdaten, Meldungen und die Browser-Erweiterung (`/api/v1/…`). Nach
 dem Login öffnet `/` die Weboberfläche (dieselbe Vue-App wie in Nextcloud),
-Share-Links `/s/{token}` die öffentliche Artikelansicht. Die
-Verwaltungseinstellungen (Content-Filter, Löschfrist) gibt es dort noch nicht,
-ebensowenig PWA/Offline (Etappe 6).
+Share-Links `/s/{token}` die öffentliche Artikelansicht, `/settings` die
+eigenen Content-Filter und `/settings/admin` (nur Admins) Löschfrist und
+Content-Filter der Instanz. PWA/Offline folgt mit Etappe 6.
 
 ```sh
 cd standalone

@@ -250,7 +250,7 @@ button, input, select, textarea {
 	color: inherit;
 }
 
-input:not([type=checkbox], [type=radio], [type=range]),
+input:not([type=checkbox], [type=radio], [type=range], [type=file]),
 select, textarea {
 	background-color: var(--color-main-background);
 	border: var(--border-width-input) solid var(--color-border-maxcontrast);
