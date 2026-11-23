@@ -33,7 +33,7 @@
 
 <script>
 import { mapActions } from 'vuex'
-import { showSuccess, showError } from '@nextcloud/dialogs'
+import { showError, showSuccess } from '../platform/index.js'
 import {
     NcDialog,
     NcButton,

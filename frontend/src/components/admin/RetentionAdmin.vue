@@ -61,7 +61,7 @@
 </template>
 
 <script>
-import { loadState } from '@nextcloud/initial-state'
+import { loadState } from '../../platform/index.js'
 import {
 	previewAdminRetention,
 	saveAdminRetention,
@@ -73,7 +73,7 @@ export default {
 	name: 'RetentionAdmin',
 
 	data() {
-		const initial = loadState('merlin', 'retentionAdmin', { days: 0, favoritesDays: 0 })
+		const initial = loadState('retentionAdmin', { days: 0, favoritesDays: 0 })
 		return {
 			saved: { ...initial },
 			days: initial.days,

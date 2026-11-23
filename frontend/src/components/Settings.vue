@@ -561,7 +561,7 @@
 
 <script>
 import { mapState, mapActions } from 'vuex'
-import { loadState } from '@nextcloud/initial-state'
+import { loadState } from '../platform/index.js'
 import BookOpen from 'vue-material-design-icons/BookOpen.vue'
 import Clock from 'vue-material-design-icons/Clock.vue'
 import ViewGrid from 'vue-material-design-icons/ViewGrid.vue'
@@ -670,7 +670,7 @@ export default {
 			localSettings: { ...DEFAULTS },
 			// Vom Server per Initial-State geliefert (siehe PageController::buildAppInfo());
 			// leeres Objekt als Fallback, falls appInfo aus irgendeinem Grund fehlt.
-			appInfo: loadState('merlin', 'appInfo', {}),
+			appInfo: loadState('appInfo', {}),
 			savedFlash: false,
 			// Rückmeldung zur freien Tage-Eingabe, je Feld (retentionDays/retentionFavoritesDays).
 			retentionMessages: {},

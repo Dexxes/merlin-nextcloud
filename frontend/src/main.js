@@ -1,8 +1,7 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import store from './store'
-import { translate, translatePlural } from '@nextcloud/l10n'
-import { loadState } from '@nextcloud/initial-state'
+import { loadState, translate, translatePlural } from './platform/index.js'
 
 // Nextcloud Vue styles
 
@@ -25,7 +24,7 @@ if (viewportMeta && !viewportMeta.content.includes('viewport-fit')) {
 }
 
 // Register PWA service worker
-const swUrl = loadState('merlin', 'swUrl', null)
+const swUrl = loadState('swUrl', null)
 if ('serviceWorker' in navigator && swUrl) {
 	window.addEventListener('load', () => {
 		navigator.serviceWorker.register(swUrl)

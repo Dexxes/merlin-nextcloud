@@ -69,7 +69,7 @@
 </template>
 
 <script>
-import { loadState } from '@nextcloud/initial-state'
+import { loadState } from '../../platform/index.js'
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
 import Check from 'vue-material-design-icons/Check.vue'
 import Close from 'vue-material-design-icons/Close.vue'
@@ -100,7 +100,7 @@ export default {
 		// Erststand kommt aus PersonalSettings::getForm(); ohne ihn wüsste die
 		// Oberfläche erst nach einem Roundtrip, welche Domains es gibt, und ob
 		// der aktuelle Nutzer Admin ist (nur dann existiert adminSettingsUrl).
-		const initial = loadState('merlin', 'userContentFilters', null) || {}
+		const initial = loadState('userContentFilters', null) || {}
 		return {
 			domains: initial.domains || [],
 			schema: initial.schema || null,

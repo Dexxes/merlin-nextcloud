@@ -62,7 +62,7 @@
 </template>
 
 <script>
-import { loadState } from '@nextcloud/initial-state'
+import { loadState } from '../../platform/index.js'
 import AlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
 import Check from 'vue-material-design-icons/Check.vue'
 import Close from 'vue-material-design-icons/Close.vue'
@@ -91,7 +91,7 @@ export default {
 	data() {
 		// Erststand kommt aus AdminSettings::getForm(); ohne ihn wüsste die
 		// Oberfläche erst nach einem Roundtrip, ob überhaupt gespeichert werden kann.
-		const initial = loadState('merlin', 'contentFilters', null) || {}
+		const initial = loadState('contentFilters', null) || {}
 		return {
 			filters: initial.filters || [],
 			schema: initial.schema || null,

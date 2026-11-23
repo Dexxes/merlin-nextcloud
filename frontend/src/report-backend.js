@@ -3,8 +3,7 @@
 // andere Origin scheitert an CORS, sobald das Backend keinen
 // Access-Control-Allow-Origin-Header schickt (z. B. bei einem per HTTP Basic
 // Auth geschützten Verzeichnis, das mit 401 antwortet).
-import axios from '@nextcloud/axios'
-import { generateUrl } from '@nextcloud/router'
+import { appUrl, http } from './platform/index.js'
 
 /**
  * Prüft die Backend-URL.
@@ -14,7 +13,7 @@ import { generateUrl } from '@nextcloud/router'
  */
 export async function pingReportBackend(url) {
 	try {
-		const { data } = await axios.get(generateUrl('/apps/merlin/api/report-backend/ping'), {
+		const { data } = await http.get(appUrl('/api/report-backend/ping'), {
 			params: { url },
 			timeout: 15000,
 		})
@@ -34,7 +33,7 @@ export async function pingReportBackend(url) {
  */
 export async function sendArticleReport(articleUrl, comment) {
 	try {
-		await axios.post(generateUrl('/apps/merlin/api/report-backend/report'), {
+		await http.post(appUrl('/api/report-backend/report'), {
 			url: articleUrl,
 			comment,
 		})

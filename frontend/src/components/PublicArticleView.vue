@@ -168,10 +168,7 @@
 </template>
 
 <script>
-import axios from '@nextcloud/axios'
-import { generateUrl } from '@nextcloud/router'
-import { loadState } from '@nextcloud/initial-state'
-import { showSuccess } from '@nextcloud/dialogs'
+import { appUrl, http, loadState, showSuccess } from '../platform/index.js'
 import { markRaw } from 'vue'
 import { HighlightEngine } from '../highlight-engine'
 import { guestCommentsClient } from '../api/comments'
@@ -195,7 +192,7 @@ export default {
 
 	data() {
 		return {
-			token: loadState('merlin', 'shareToken', ''),
+			token: loadState('shareToken', ''),
 			state: 'loading',
 			article: null,
 			password: '',
@@ -308,11 +305,11 @@ export default {
 
 		/** Durchreich-Endpunkt für die PDF eines PDF-Artikels (siehe PdfProxyService). */
 		pdfProxyUrl() {
-			return generateUrl(`/apps/merlin/s/${this.token}/pdf`)
+			return appUrl(`/s/${this.token}/pdf`)
 		},
 
 		ttsUrl() {
-			return generateUrl(`/apps/merlin/s/${this.token}/tts`)
+			return appUrl(`/s/${this.token}/tts`)
 		},
 
 		// Nur http(s)/relative/Anker-URLs im href zulassen. article.url wird vom
@@ -373,8 +370,8 @@ export default {
 		async fetchData() {
 			this.state = 'loading'
 			try {
-				const url = generateUrl(`/apps/merlin/s/${this.token}/data`)
-				const response = await axios.get(url)
+				const url = appUrl(`/s/${this.token}/data`)
+				const response = await http.get(url)
 				this.article = response.data
 				this.state = 'ready'
 				this.$nextTick(() => {
@@ -429,8 +426,8 @@ export default {
 			this.unlocking = true
 			this.unlockError = ''
 			try {
-				const url = generateUrl(`/apps/merlin/s/${this.token}/unlock`)
-				await axios.post(url, { password: this.password })
+				const url = appUrl(`/s/${this.token}/unlock`)
+				await http.post(url, { password: this.password })
 				await this.fetchData()
 			} catch (error) {
 				this.unlockError = this.t('merlin', 'Incorrect password')

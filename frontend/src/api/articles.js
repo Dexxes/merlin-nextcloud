@@ -1,9 +1,8 @@
-import axios from '@nextcloud/axios'
-import { generateUrl } from '@nextcloud/router'
+import { appUrl, http } from '../platform/index.js'
 
 export async function getCounts() {
-	const url = generateUrl('/apps/merlin/api/articles/counts')
-	const response = await axios.get(url)
+	const url = appUrl('/api/articles/counts')
+	const response = await http.get(url)
 	return response.data
 }
 
@@ -29,14 +28,14 @@ export async function getArticles(filters = {}) {
 		params.append('contentType', filters.contentType)
 	}
 
-	const url = generateUrl(`/apps/merlin/api/articles?${params.toString()}`)
-	const response = await axios.get(url)
+	const url = appUrl(`/api/articles?${params.toString()}`)
+	const response = await http.get(url)
 	return response.data
 }
 
 export async function getArticle(id) {
-	const url = generateUrl(`/apps/merlin/api/articles/${id}`)
-	const response = await axios.get(url)
+	const url = appUrl(`/api/articles/${id}`)
+	const response = await http.get(url)
 	return response.data
 }
 
@@ -45,14 +44,14 @@ export async function getArticle(id) {
 // eines Fehlers, wenn sich nichts abspielen lässt, sonst
 // { available: true, kind, delivery, variants, defaultIndex }.
 export async function resolveMedia(id) {
-	const url = generateUrl(`/apps/merlin/api/articles/${id}/media`)
-	const response = await axios.get(url)
+	const url = appUrl(`/api/articles/${id}/media`)
+	const response = await http.get(url)
 	return response.data
 }
 
 export async function createArticle(articleUrl, tagIds = []) {
-	const url = generateUrl('/apps/merlin/api/articles')
-	const response = await axios.post(url, {
+	const url = appUrl('/api/articles')
+	const response = await http.post(url, {
 		url: articleUrl,
 		tagIds,
 		// Domains aus content-filters/$unsupported.xml sofort mit HTTP 422
@@ -64,8 +63,8 @@ export async function createArticle(articleUrl, tagIds = []) {
 }
 
 export async function updateArticle(id, data) {
-	const url = generateUrl(`/apps/merlin/api/articles/${id}`)
-	const response = await axios.put(url, data)
+	const url = appUrl(`/api/articles/${id}`)
+	const response = await http.put(url, data)
 	return response.data
 }
 
@@ -74,32 +73,32 @@ export async function updateArticle(id, data) {
  * die Endung bleibt). Liefert den neu aufgebauten Eintrag; 409 = Name vergeben.
  */
 export async function renameFile(id, name) {
-	const url = generateUrl(`/apps/merlin/api/articles/${id}/file-name`)
-	const response = await axios.put(url, { name })
+	const url = appUrl(`/api/articles/${id}/file-name`)
+	const response = await http.put(url, { name })
 	return response.data
 }
 
 export async function deleteArticle(id) {
-	const url = generateUrl(`/apps/merlin/api/articles/${id}`)
-	const response = await axios.delete(url)
+	const url = appUrl(`/api/articles/${id}`)
+	const response = await http.delete(url)
 	return response.data
 }
 
 export async function toggleRead(id) {
-	const url = generateUrl(`/apps/merlin/api/articles/${id}/read`)
-	const response = await axios.put(url)
+	const url = appUrl(`/api/articles/${id}/read`)
+	const response = await http.put(url)
 	return response.data
 }
 
 export async function toggleFavorite(id) {
-	const url = generateUrl(`/apps/merlin/api/articles/${id}/favorite`)
-	const response = await axios.put(url)
+	const url = appUrl(`/api/articles/${id}/favorite`)
+	const response = await http.put(url)
 	return response.data
 }
 
 export async function toggleArchive(id) {
-	const url = generateUrl(`/apps/merlin/api/articles/${id}/archive`)
-	const response = await axios.put(url)
+	const url = appUrl(`/api/articles/${id}/archive`)
+	const response = await http.put(url)
 	return response.data
 }
 
@@ -113,18 +112,18 @@ export async function toggleArchive(id) {
  * @return {Promise<object>} { scrollProgress, scrollUpdatedAt }
  */
 export async function updateProgress(id, progress, updatedAt) {
-	const url = generateUrl(`/apps/merlin/api/articles/${id}/progress`)
-	const response = await axios.put(url, { progress, updatedAt })
+	const url = appUrl(`/api/articles/${id}/progress`)
+	const response = await http.put(url, { progress, updatedAt })
 	return response.data
 }
 
 export async function searchArticles(query) {
-	const url = generateUrl('/apps/merlin/api/articles/search')
-	const response = await axios.get(url, { params: { query } })
+	const url = appUrl('/api/articles/search')
+	const response = await http.get(url, { params: { query } })
 	return response.data
 }
 
 export async function exportHtml(id) {
-	const url = generateUrl(`/apps/merlin/api/articles/${id}/export/html`)
+	const url = appUrl(`/api/articles/${id}/export/html`)
 	window.location.href = url
 }

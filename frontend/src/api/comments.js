@@ -1,5 +1,4 @@
-import axios from '@nextcloud/axios'
-import { generateUrl } from '@nextcloud/router'
+import { appUrl, http } from '../platform/index.js'
 
 /**
  * Zwei gleich gebaute Clients für Kommentare und Markierungen: einer für den
@@ -11,27 +10,27 @@ import { generateUrl } from '@nextcloud/router'
  */
 
 export function ownerCommentsClient(articleId) {
-	const base = `/apps/merlin/api/articles/${articleId}`
+	const base = `/api/articles/${articleId}`
 	return {
 		async list() {
-			return (await axios.get(generateUrl(`${base}/comments`))).data
+			return (await http.get(appUrl(`${base}/comments`))).data
 		},
 		// anchor: neue Textstelle ({ highlightedText, startXpath, … }), die mit
 		// diesem Kommentar entsteht (unterstrichen, siehe COMMENT_COLOR)
 		async create({ body, highlightId = null, parentId = null, anchor = null }) {
-			return (await axios.post(generateUrl(`${base}/comments`), { body, highlightId, parentId, anchor })).data
+			return (await http.post(appUrl(`${base}/comments`), { body, highlightId, parentId, anchor })).data
 		},
 		async update(id, body) {
-			return (await axios.put(generateUrl(`/apps/merlin/api/comments/${id}`), { body })).data
+			return (await http.put(appUrl(`/api/comments/${id}`), { body })).data
 		},
 		async remove(id) {
-			await axios.delete(generateUrl(`/apps/merlin/api/comments/${id}`))
+			await http.delete(appUrl(`/api/comments/${id}`))
 		},
 		async removeHighlight(id) {
-			await axios.delete(generateUrl(`/apps/merlin/api/highlights/${id}`))
+			await http.delete(appUrl(`/api/highlights/${id}`))
 		},
 		streamUrl(since) {
-			return generateUrl(`${base}/comments/stream`) + '?since=' + encodeURIComponent(since || '')
+			return appUrl(`${base}/comments/stream`) + '?since=' + encodeURIComponent(since || '')
 		},
 	}
 }
@@ -45,35 +44,35 @@ export function ownerCommentsClient(articleId) {
  * @param {Function} getName liefert den aktuell gewählten Gast-Namen
  */
 export function guestCommentsClient(token, getName) {
-	const base = `/apps/merlin/s/${token}`
+	const base = `/s/${token}`
 	const headers = () => ({ 'X-Merlin-Guest-Name': encodeURIComponent(getName() || '') })
 	return {
 		async list() {
-			return (await axios.get(generateUrl(`${base}/comments`))).data
+			return (await http.get(appUrl(`${base}/comments`))).data
 		},
 		/** Namen wählen und Farbe festlegen; Antwort { name, color }. */
 		async claimGuest(name, color) {
-			return (await axios.post(generateUrl(`${base}/guest`), { authorName: name, color: color || '' })).data
+			return (await http.post(appUrl(`${base}/guest`), { authorName: name, color: color || '' })).data
 		},
 		async create({ body, highlightId = null, parentId = null, anchor = null, website = '' }) {
-			return (await axios.post(generateUrl(`${base}/comments`), {
+			return (await http.post(appUrl(`${base}/comments`), {
 				authorName: getName(), body, highlightId, parentId, anchor, website,
 			})).data
 		},
 		async update(id, body) {
-			return (await axios.put(generateUrl(`${base}/comments/${id}`), { body }, { headers: headers() })).data
+			return (await http.put(appUrl(`${base}/comments/${id}`), { body }, { headers: headers() })).data
 		},
 		async remove(id) {
-			await axios.delete(generateUrl(`${base}/comments/${id}`), { headers: headers() })
+			await http.delete(appUrl(`${base}/comments/${id}`), { headers: headers() })
 		},
 		async createHighlight(data) {
-			return (await axios.post(generateUrl(`${base}/highlights`), { ...data, authorName: getName() })).data
+			return (await http.post(appUrl(`${base}/highlights`), { ...data, authorName: getName() })).data
 		},
 		async removeHighlight(id) {
-			await axios.delete(generateUrl(`${base}/highlights/${id}`), { headers: headers() })
+			await http.delete(appUrl(`${base}/highlights/${id}`), { headers: headers() })
 		},
 		streamUrl(since) {
-			return generateUrl(`${base}/events`) + '?since=' + encodeURIComponent(since || '')
+			return appUrl(`${base}/events`) + '?since=' + encodeURIComponent(since || '')
 		},
 	}
 }

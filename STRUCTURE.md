@@ -664,6 +664,12 @@ stillen Extraktions-Fehlschlag – Grundlage für einen Login-Dialog in allen Cl
 Vier Vite-Entry-Points (siehe `vite.config.mjs`): Reader, öffentliche Share-Ansicht,
 Verwaltungseinstellungen und persönliche Einstellungen.
 
+Plattform-Schicht (Etappe 5): Komponenten, Store und `api/` holen Axios,
+URLs (`appUrl('/api/…')`, Pfade wie in `core/src/Api/routes.php`), Bilder,
+Startwerte, Toasts und Übersetzungen nur aus `src/platform/index.js`.
+`@nextcloud/vue` bleibt in beiden Varianten. `/apps/merlin` und `OC.*`
+stehen nur in `src/platform/`.
+
 ```
 frontend/src/
 ├── main.js                  # Einstiegspunkt Reader
@@ -677,6 +683,9 @@ frontend/src/
 ├── comment-session.js       # Kommentar-Zustand + SSE-Verbindung
 ├── tag-tree.js              # Verschachtelte Tags im Browser: Kinder, Nachfahren, Baumreihenfolge, Pfad (Gegenstück zu TagTree.php)
 ├── App.vue                  # Hauptkomponente
+├── platform/                # einzige Stelle mit @nextcloud/* (außer @nextcloud/vue): http, appUrl(), imageUrl(),
+│   ├── index.js             #   loadState(), showSuccess/showError, translate; Standalone-Build tauscht nextcloud.js später aus
+│   └── nextcloud.js         #   (Etappe 5). frontend/tools/check-platform-imports.mjs prüft das in CI
 ├── store/
 │   └── index.js             # State Management
 ├── api/                     # API-Wrapper

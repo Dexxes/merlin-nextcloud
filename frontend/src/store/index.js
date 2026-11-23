@@ -1,5 +1,5 @@
 import { createStore } from 'vuex'
-import { generateUrl } from '@nextcloud/router'
+import { appUrl } from '../platform/index.js'
 import * as articlesAPI from '../api/articles'
 import * as tagsAPI from '../api/tags'
 import * as settingsAPI from '../api/settings'
@@ -176,7 +176,7 @@ export default createStore({
 				_sseSource = null
 			}
 
-			const url = generateUrl('/apps/merlin/api/events')
+			const url = appUrl('/api/events')
 			_sseSource = new EventSource(url)
 
 			_sseSource.addEventListener('article-ready', (event) => {

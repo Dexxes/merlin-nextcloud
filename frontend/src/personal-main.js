@@ -1,5 +1,5 @@
 import { createApp } from 'vue'
-import { translate, translatePlural } from '@nextcloud/l10n'
+import { translate, translatePlural } from './platform/index.js'
 import PersonalContentFilters from './components/personal/PersonalContentFilters.vue'
 
 // Kein Vuex-Store: wie die Admin-Oberfläche hält auch diese Seite ihren
