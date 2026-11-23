@@ -42,6 +42,12 @@ All notable changes to Merlin are documented here. Format based on
 - [standalone] Installable as an app (PWA): the reader page links the web
   app manifest (`/manifest.webmanifest`) and registers the service worker
   (`/sw.js`), like in Nextcloud. No offline cache yet.
+- [standalone] Docker image (`standalone/Dockerfile`, nginx and PHP-FPM on
+  Alpine): data in the `/data` volume, settings from `MERLIN_*` environment
+  variables, migrations on start, optional admin account on first start and
+  the daily cleanup inside the container. `standalone/tools/assemble.sh`
+  builds the same package as a tarball; CI builds both and smoke-tests the
+  image.
 - [standalone] CSRF protection: requests that change data and are signed in
   with the browser session now need the `X-Requested-With: XMLHttpRequest`
   header. API tokens (native apps, browser extension) are not affected.
@@ -211,6 +217,8 @@ All notable changes to Merlin are documented here. Format based on
   single quote instead of repeating the quote above each thread.
 
 ### Changed
+- [standalone] Log messages fill in their `{placeholders}` like Nextcloud's
+  log does.
 - PWA manifest and service worker now come from the shared core. The
   manifest no longer needs a login, uses relative `start_url`/`scope` (`./`,
   same address as before) and `pwa` is listed with the core features in

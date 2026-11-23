@@ -15,6 +15,37 @@ eigenen Content-Filter und `/settings/admin` (nur Admins) Löschfrist und
 Content-Filter der Instanz. Der Reader lässt sich als App installieren (PWA,
 Manifest und Service-Worker wie in Nextcloud, noch ohne Offline-Cache).
 
+## Docker
+
+Das Image enthält Weboberfläche, nginx und PHP-FPM; Datenbank, Log und das
+Instanz-Geheimnis liegen im Volume `/data`. Beim Start laufen die Migrationen,
+beim ersten Start legt der Container mit `MERLIN_ADMIN_*` ein Admin-Konto an,
+und die täglichen Aufgaben ruft er stündlich selbst auf.
+
+```sh
+docker build -f standalone/Dockerfile -t merlin-standalone .    # aus dem Repo-Wurzelordner
+docker run -d -p 8080:8080 -v merlin-data:/data \
+  -e MERLIN_BASE_URL=https://merlin.example.com \
+  -e MERLIN_ADMIN_USER=admin -e MERLIN_ADMIN_EMAIL=admin@example.org \
+  -e MERLIN_ADMIN_PASSWORD=… merlin-standalone
+```
+
+Oder mit `standalone/docker-compose.yml`. Variablen: `MERLIN_BASE_URL`
+(öffentliche Adresse, Pflicht hinter einem Reverse-Proxy), `MERLIN_BASE_PATH`,
+`MERLIN_MAIL_FROM`, `MERLIN_MAIL_FROM_NAME`, `MERLIN_SECRET` (sonst erzeugt
+der Container `/data/secret`), `MERLIN_LOG_LEVEL`, `MERLIN_PHP_WORKERS`
+(Vorgabe 16). Wer mehr einstellen will, legt `/data/config.php` an (Vorlage
+`config/config.sample.php`, Pfade auf `/data/…`); dann gelten die Variablen
+nicht. Mails verschickt der Container ohne eigenen Mailserver nicht
+(`mail()`), Passwort-Reset per Mail braucht deshalb einen eigenen Weg.
+HTTPS übernimmt ein Reverse-Proxy davor. `docker/smoke-test.sh <url> <admin>
+<passwort>` prüft einen laufenden Container.
+
+`tools/assemble.sh <ziel>` baut dasselbe Paket ohne Docker (nach
+`npm run build:standalone`), so entsteht der Release-Tarball.
+
+## Ohne Docker
+
 Tägliche Aufgaben (Löschfrist für archivierte Artikel, abgelaufene
 Share-Links) holt der Server ohne weitere Einrichtung beim Öffnen des
 Readers nach, sobald der letzte Lauf 24 Stunden zurückliegt. Mit
