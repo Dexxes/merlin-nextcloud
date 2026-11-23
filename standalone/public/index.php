@@ -28,7 +28,7 @@ try {
 	$app = App::fromConfigFile();
 	$basePath = $app->config()->string('base_path', '/');
 	Response::setBasePath($basePath);
-	Routes::build($app)->dispatch(Request::fromGlobals($basePath))->send();
+	Routes::build($app)->dispatch(Request::fromGlobals($basePath, $app->config()->stringList('trusted_proxies')))->send();
 } catch (\Throwable $e) {
 	try {
 		$app?->get(LoggerInterface::class)->error('Unbehandelter Fehler', ['exception' => $e]);

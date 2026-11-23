@@ -23,7 +23,7 @@
 ARG NEXTCLOUD_VERSION=35-apache
 
 # ---------------------------------------------------------------------------
-FROM alpine:3.22 AS source
+FROM alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f AS source
 ARG MERLIN_REPO=https://github.com/Dexxes/merlin-nextcloud.git
 ARG MERLIN_REF=main
 # BuildKit re-checks the remote ref on every build, so a new commit on
@@ -39,19 +39,19 @@ RUN if [ -f /ctx/nextcloud/appinfo/info.xml ]; then \
            /app/nextcloud/js /app/docker /app/Dockerfile /app/docker-compose.yml
 
 # ---------------------------------------------------------------------------
-FROM node:22-alpine AS frontend
+FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS frontend
 WORKDIR /build
-# No package-lock.json is committed, so this resolves fresh like `npm install`.
+# Installs exactly what frontend/package-lock.json pins (npm ci).
 # Same layout as the repository: frontend/ builds into ../nextcloud/js and
 # ../nextcloud/css (see frontend/vite.config.mjs).
-COPY --from=source /app/frontend/package.json ./frontend/
-RUN cd frontend && npm install --no-audit --no-fund
+COPY --from=source /app/frontend/package.json /app/frontend/package-lock.json ./frontend/
+RUN cd frontend && npm ci --no-audit --no-fund
 COPY --from=source /app/frontend ./frontend
 COPY --from=source /app/nextcloud/css ./nextcloud/css
 RUN cd frontend && npm run build
 
 # ---------------------------------------------------------------------------
-FROM composer:2 AS vendor
+FROM composer:2@sha256:50ea4d33fdcde1adb0f045547295faa1548b33872e5f789dae5b02ce2fb5de93 AS vendor
 # Same layout as the repository: nextcloud/composer.json pulls the shared core
 # (composer package merlin/core) from the path repository ../core. Mirroring
 # copies it into vendor/merlin/core instead of symlinking it.

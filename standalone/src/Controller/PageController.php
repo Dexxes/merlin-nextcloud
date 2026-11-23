@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Merlin\Standalone\Controller;
 
+use Merlin\Core\Port\ThrottledException;
+use Merlin\Core\Port\Throttler;
 use Merlin\Core\Port\UserSettings;
 use Merlin\Standalone\Auth\ApiTokenService;
 use Merlin\Standalone\Auth\PasswordHasher;
 use Merlin\Standalone\Auth\PasswordResetService;
+use Merlin\Standalone\Auth\RegistrationService;
 use Merlin\Standalone\Auth\SessionService;
 use Merlin\Standalone\Db\LoginFlowRepository;
 use Merlin\Standalone\Db\ServerSettings;
@@ -16,6 +19,7 @@ use Merlin\Standalone\Http\Request;
 use Merlin\Standalone\Http\Response;
 use Merlin\Standalone\I18n\LocaleResolver;
 use Merlin\Standalone\I18n\Translator;
+use Psr\Log\LoggerInterface;
 
 /**
  * HTML-Seiten für Login/Registrierung/Passwort-Reset/Konto/Admin/Login-Flow -
@@ -27,6 +31,28 @@ final class PageController {
     /** Startseite nach dem Login: der Reader (AppController::reader). */
     public const HOME = '/';
 
+    /** Throttler-Aktion für Passwortprüfungen (Login und Login Flow), je IP. */
+    public const THROTTLE_LOGIN = 'merlin_login';
+
+    /**
+     * Hash eines zufälligen Passworts: unbekannte Anmeldenamen brauchen so
+     * genauso lange wie falsche Passwörter (keine Konten-Erkennung über die
+     * Antwortzeit).
+     */
+    private const DUMMY_HASH = '$2y$10$SmYY3R8piIRo4cdkjEY9a.4aFuvo7WkKtXb8HR5YtEyz3ULWpWv8G';
+
+    /**
+     * Sicherheits-Header der HTML-Seiten (Login, Registrierung, Konto, Admin,
+     * Login Flow): nicht einbettbar (Clickjacking), kein Referrer (der
+     * Reset-Link trägt das Token in der URL).
+     */
+    private const SECURITY_HEADERS = [
+        'Content-Security-Policy' => "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+        'X-Frame-Options' => 'DENY',
+        'X-Content-Type-Options' => 'nosniff',
+        'Referrer-Policy' => 'no-referrer',
+    ];
+
     public function __construct(
         private readonly UserRepository $users,
         private readonly ServerSettings $settings,
@@ -36,6 +62,10 @@ final class PageController {
         private readonly LoginFlowRepository $loginFlows,
         private readonly ApiTokenService $apiTokenService,
         private readonly UserSettings $userSettings,
+        private readonly Throttler $throttler,
+        private readonly LoginFlowController $loginFlowApi,
+        private readonly RegistrationService $registration,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -55,8 +85,12 @@ final class PageController {
         $return = self::safeReturn($request->input('return'));
         $t = $this->translator($request);
 
-        $user = $this->users->findByUsername($username);
-        if ($user === null || !$this->hasher->verify($password, $user['password_hash'])) {
+        try {
+            $user = $this->checkPassword($request, $username, $password);
+        } catch (ThrottledException $e) {
+            return $this->throttled('login', $request, $e, ['return' => $return]);
+        }
+        if ($user === null) {
             return $this->render('login', $request, ['error' => $t->t('login.invalidCredentials'), 'return' => $return]);
         }
         if (!(bool) $user['is_active']) {
@@ -67,9 +101,26 @@ final class PageController {
         return Response::redirect($return);
     }
 
+    /**
+     * GET /logout?token=… (Links der Oberfläche) und POST /logout (Formular
+     * der Rückfrage): abmelden nur mit dem Token der Session. Ohne gültiges
+     * Token fragt eine Seite nach, damit fremde Links nicht abmelden.
+     */
     public function logout(Request $request): Response {
+        $token = (string) ($request->method() === 'POST' ? $request->input('token', '') : $request->query('token', ''));
+        if ($this->sessions->currentUserId() === null) {
+            return Response::redirect('/login');
+        }
+        if (!$this->sessions->isValidLogoutToken($token)) {
+            return $this->render('logout', $request, ['logoutToken' => $this->sessions->logoutToken()]);
+        }
         $this->sessions->logout();
         return Response::redirect('/login');
+    }
+
+    /** Abmelde-Link mit Token für Templates und die App-Seitenleiste. */
+    public static function logoutUrl(SessionService $sessions): string {
+        return '/logout?token=' . rawurlencode($sessions->logoutToken());
     }
 
     /**
@@ -126,8 +177,23 @@ final class PageController {
             return $this->render('register', $request, ['error' => $error]);
         }
 
-        $user = $this->users->create($username, $email, $this->hasher->hash($password), 'user');
-        $this->sessions->login((int) $user['id']);
+        try {
+            $this->registration->register($username, $email, $password);
+        } catch (\Throwable $e) {
+            $this->logger->error('Registrierung: Bestätigungsmail nicht verschickt', ['exception' => $e]);
+            return $this->render('register', $request, ['error' => $t->t('register.mailFailed')]);
+        }
+        // Gleiche Antwort für neue und schon bekannte Adressen (RegistrationService).
+        return $this->render('register', $request, ['message' => $t->t('register.checkMail')]);
+    }
+
+    /** GET /register/confirm?token=…: Link aus der Bestätigungsmail. */
+    public function registerConfirm(Request $request): Response {
+        $userId = $this->registration->confirm((string) $request->query('token', ''));
+        if ($userId === null) {
+            return $this->render('register', $request, ['error' => $this->translator($request)->t('register.confirmInvalid'), 'confirmFailed' => true]);
+        }
+        $this->sessions->login($userId);
         return Response::redirect(self::HOME);
     }
 
@@ -137,7 +203,12 @@ final class PageController {
 
     public function passwordForgot(Request $request): Response {
         $email = trim((string) $request->input('email', ''));
-        $this->passwordReset->requestReset($email);
+        try {
+            $this->passwordReset->requestReset($email);
+        } catch (\Throwable $e) {
+            // Mail ging nicht raus: nur ins Log, die Antwort bleibt dieselbe.
+            $this->logger->error('Passwort vergessen: Mail nicht verschickt', ['exception' => $e]);
+        }
         // Immer dieselbe Meldung, unabhängig davon ob die E-Mail existiert -
         // sonst liesse sich die Existenz von Accounts erraten.
         return $this->render('password_forgot', $request, [
@@ -184,6 +255,7 @@ final class PageController {
         }
 
         return $this->render('account', $request, [
+            'logoutUrl' => self::logoutUrl($this->sessions),
             'username' => $user['username'],
             'isAdmin' => $user['role'] === 'admin',
         ]);
@@ -217,7 +289,7 @@ final class PageController {
             return $this->render('login_flow', $request, ['state' => 'done']);
         }
 
-        return $this->render('login_flow', $request, ['state' => 'form', 'flowToken' => $flowToken]);
+        return $this->render('login_flow', $request, ['state' => 'form', 'flowToken' => $flowToken, 'clientName' => $flow['client_name'] ?? null]);
     }
 
     public function loginFlowSubmit(Request $request): Response {
@@ -232,11 +304,20 @@ final class PageController {
         $password = (string) $request->input('password', '');
         $t = $this->translator($request);
 
-        $user = $this->users->findByUsername($username);
-        if ($user === null || !$this->hasher->verify($password, $user['password_hash'])) {
+        try {
+            $user = $this->checkPassword($request, $username, $password);
+        } catch (ThrottledException $e) {
+            return $this->throttled('login_flow', $request, $e, [
+                'state' => 'form',
+                'flowToken' => $flowToken,
+                'clientName' => $flow['client_name'] ?? null,
+            ]);
+        }
+        if ($user === null) {
             return $this->render('login_flow', $request, [
                 'state' => 'form',
                 'flowToken' => $flowToken,
+                'clientName' => $flow['client_name'] ?? null,
                 'error' => $t->t('login.invalidCredentials'),
             ]);
         }
@@ -244,18 +325,41 @@ final class PageController {
             return $this->render('login_flow', $request, [
                 'state' => 'form',
                 'flowToken' => $flowToken,
+                'clientName' => $flow['client_name'] ?? null,
                 'error' => $t->t('login.accountDisabled'),
             ]);
         }
 
-        $result = $this->apiTokenService->create((int) $user['id'], 'Login Flow');
-        $this->loginFlows->complete((int) $flow['id'], (int) $user['id'], $result['plainText']);
+        $client = trim((string) ($flow['client_name'] ?? ''));
+        $result = $this->apiTokenService->create((int) $user['id'], $client === '' ? 'Login Flow' : 'Login Flow: ' . mb_substr($client, 0, 80));
+        $this->loginFlows->complete((int) $flow['id'], (int) $user['id'], $this->loginFlowApi->sealToken($result['plainText']));
 
         // Gleich auch die Browser-Session einloggen - ein Klick auf /account
         // direkt nach dem Verbinden fragt sonst erneut nach Zugangsdaten.
         $this->sessions->login((int) $user['id']);
 
         return $this->render('login_flow', $request, ['state' => 'done']);
+    }
+
+    /**
+     * Passwortprüfung mit Brute-Force-Bremse wie Nextclouds IThrottler: jeder
+     * Fehlversuch dieser IP verlängert die Wartezeit vor dem nächsten
+     * (SqlThrottler, bis 25 Sekunden, 12 Stunden lang). Lange Wartezeiten
+     * weist SqlThrottler mit ThrottledException ab (throttled(): 429).
+     *
+     * @return array<string, mixed>|null users-Zeile bei richtigem Passwort
+     * @throws ThrottledException
+     */
+    private function checkPassword(Request $request, string $username, string $password): ?array {
+        $address = $request->remoteAddress();
+        $this->throttler->sleepDelay(self::THROTTLE_LOGIN, $address);
+        $user = $username === '' ? null : $this->users->findByUsername($username);
+        $valid = $this->hasher->verify($password, $user['password_hash'] ?? self::DUMMY_HASH);
+        if ($user === null || !$valid) {
+            $this->throttler->registerFailure(self::THROTTLE_LOGIN, $address);
+            return null;
+        }
+        return $user;
     }
 
     private function validateNewAccount(Translator $t, string $username, string $email, string $password): ?string {
@@ -265,8 +369,9 @@ final class PageController {
         if ($this->users->findByUsername($username) !== null) {
             return $t->t('register.usernameTaken');
         }
-        if ($this->users->findByEmail($email) !== null) {
-            return $t->t('register.emailTaken');
+        // Eine vergebene E-Mail-Adresse verrät die Antwort nicht (RegistrationService).
+        if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            return $t->t('register.invalidEmail');
         }
         return null;
     }
@@ -281,12 +386,18 @@ final class PageController {
      * (Base-Path-frei, siehe Request::fromGlobals) speist den
      * Sprachumschalter in partials/footer.php (GET /lang/{code}?return=...).
      */
-    private function render(string $template, Request $request, array $vars = [], array $extraHeaders = []): Response {
+    /** Formular erneut mit Hinweis, Status 429 und Retry-After. */
+    private function throttled(string $template, Request $request, ThrottledException $e, array $vars): Response {
+        $vars['error'] = $this->translator($request)->t('login.throttled', ['seconds' => $e->retryAfter]);
+        return $this->render($template, $request, $vars, ['Retry-After' => (string) $e->retryAfter], 429);
+    }
+
+    private function render(string $template, Request $request, array $vars = [], array $extraHeaders = [], int $status = 200): Response {
         $vars['t'] = $this->translator($request);
         $vars['requestPath'] = $request->path();
         extract($vars);
         ob_start();
         include __DIR__ . "/../../templates/{$template}.php";
-        return Response::html((string) ob_get_clean(), 200, $extraHeaders);
+        return Response::html((string) ob_get_clean(), $status, $extraHeaders + self::SECURITY_HEADERS);
     }
 }

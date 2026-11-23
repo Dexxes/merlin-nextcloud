@@ -151,12 +151,24 @@ final class App {
 				$this->config->string('files_path', dirname($this->config->string('db_path', $root . '/data/merlin.sqlite')) . '/files')),
 			StandaloneUrlGenerator::class => new StandaloneUrlGenerator($this->config->string('base_url', 'http://localhost')),
 			\PDO::class => $this->connection()->pdo(),
-			PhpMailMailer::class => new PhpMailMailer(
+			PhpMailMailer::class => isset($this->config->section('mail')['file'])
+				? new \Merlin\Standalone\Mail\FileMailer((string) $this->config->section('mail')['file'])
+				: new PhpMailMailer(
 				(string) ($this->config->section('mail')['from_address'] ?? 'merlin@localhost'),
 				(string) ($this->config->section('mail')['from_name'] ?? 'Merlin'),
 			),
 			DailyJobs::class => $this->autowire($class, [
 				'mode' => $this->config->string('background_jobs', 'web'),
+			]),
+			\Merlin\Standalone\Controller\DavController::class => $this->autowire($class, [
+				'quota' => \Merlin\Standalone\Controller\DavController::parseSize($this->config->get('user_quota')),
+			]),
+			\Merlin\Standalone\Auth\RegistrationService::class => $this->autowire($class, [
+				'baseUrl' => $this->config->string('base_url'),
+			]),
+			\Merlin\Standalone\Auth\SessionService::class => $this->autowire($class, [
+				'trustedProxies' => $this->config->stringList('trusted_proxies'),
+				'idleTimeout' => $this->config->int('session_idle_timeout', \Merlin\Standalone\Auth\SessionService::DEFAULT_IDLE_TIMEOUT),
 			]),
 			PasswordResetService::class => $this->autowire($class, [
 				'baseUrl' => $this->config->string('base_url'),

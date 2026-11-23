@@ -21,6 +21,67 @@ All notable changes to Merlin are documented here. Format based on
   `/api/articles/{id}/file-name`) now runs on the shared core in the Nextcloud
   app too; paths and responses are unchanged.
 
+### Security
+- The SSRF guard for article fetching, PDF proxy, media, social and login
+  requests now also rejects IPv6 addresses that embed an internal IPv4
+  address (`::ffff:127.0.0.1`, NAT64, 6to4, Teredo) as well as
+  carrier-grade NAT (`100.64.0.0/10`), `192.0.0.0/24` and `198.18.0.0/15`.
+- [standalone] Failed logins (web login and Login Flow v2) slow down further
+  attempts from the same IP, like Nextcloud's brute-force protection;
+  unknown usernames take as long as wrong passwords. Registration, "forgot
+  password" and starting a Login Flow are rate limited per IP.
+- [standalone] A successful share-link unlock or login no longer clears the
+  failed attempts of that IP, which allowed resetting the brute-force delay
+  with a link or account of one's own.
+- [standalone] Login, registration, account, admin and Login Flow pages
+  cannot be framed (clickjacking) and send no referrer.
+- [standalone] The Docker image refuses to create the admin account with the
+  example password from `docker-compose.yml` or one shorter than 8 characters.
+- [standalone] New setting `trusted_proxies` (Docker: `MERLIN_TRUSTED_PROXIES`):
+  behind a reverse proxy, rate limits and the brute-force delay count per
+  client (from `X-Forwarded-For`) instead of for everyone together. With the
+  setting, `X-Forwarded-Proto` is only honoured from those proxies.
+- [standalone] Merlin files: storage quota per account `user_quota`
+  (Docker: `MERLIN_USER_QUOTA`, default 100 MB, `0` = unlimited), counting all
+  of the account's files and running chunked uploads; uploads beyond it get
+  507 Insufficient Storage like in Nextcloud.
+- [standalone] Resetting the password signs out all existing browser
+  sessions of the account, not only its API tokens (migration
+  `004_session_version.sql`, run `bin/merlin migrate`).
+- [standalone] Open self-registration needs a confirmed e-mail address: the
+  account stays inactive until the link in the confirmation mail (valid 24
+  hours) is opened, unconfirmed accounts are removed by the daily job.
+  Registering with an address that is already in use no longer says so; the
+  owner gets a notice mail instead. E-mail lookups ignore case (migration
+  `005_login_flow_client_email_confirmation.sql`). New option
+  `'mail' => ['file' => …]` writes mails to a file for development.
+- [standalone] The Login Flow page names the requesting client (from its
+  User-Agent) and warns to grant access only to one's own apps; the token
+  name contains the client. The app password waiting to be picked up is
+  stored encrypted, and expired flows are removed by the daily job.
+- [standalone] Logging out needs the session's token (links in the
+  interface carry it); a bare `/logout` link from elsewhere shows a
+  confirmation page instead. Sessions end after `session_idle_timeout`
+  seconds without a request (Docker: `MERLIN_SESSION_IDLE_TIMEOUT`, default
+  8 hours) and use strict session mode.
+- [standalone] The Docker image removes `MERLIN_SECRET` and the
+  `MERLIN_ADMIN_*` variables from the environment of PHP-FPM, nginx and the
+  cron loop after startup; a secret given via `MERLIN_SECRET` is written to
+  `/data/secret`.
+- Too many failed share-link passwords (and, in the standalone server,
+  logins) are answered at once with 429 and `Retry-After` instead of keeping
+  a PHP worker asleep for up to 25 seconds. In Nextcloud this uses
+  `sleepDelayOrThrowOnMax()`.
+- [nextcloud] Merlin's Content Security Policy additions (video embeds,
+  widget scripts, media and HLS hosts, service worker) only apply to Merlin's
+  own pages instead of every Nextcloud page.
+- The sanitizer drops `poster` URLs of videos with `javascript:`, `vbscript:`
+  or `data:` like it already did for `src` and `href`.
+- Builds are reproducible: `frontend/package-lock.json` is committed and
+  CI, release and Docker builds use `npm ci`; GitHub Actions are pinned to
+  commit SHAs, Docker base images and `tonistiigi/binfmt` to digests
+  (Dependabot keeps them current).
+
 ## [1.1.0] - 2026-11-23
 
 First release of both variants from one repository: the Nextcloud app and

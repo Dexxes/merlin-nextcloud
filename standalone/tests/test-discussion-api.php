@@ -163,9 +163,21 @@ try {
 	[$status] = $http('POST', "/s/{$token}/unlock", ['password' => 'geheim-123'], [], null, $lockedJar);
 	check($status === 200 && microtime(true) - $start >= 0.15, 'richtiges Passwort nach Wartezeit');
 	$attempts = (int) $pdo->query("SELECT COUNT(*) FROM security_attempts WHERE action = 'throttle:merlin_public_share_unlock'")->fetchColumn();
-	check($attempts === 0, 'Erfolg setzt die Bremse zurück');
+	// SqlThrottler::reset() leert nichts: sonst setzte ein Erfolg mit einem
+	// eigenen Link die Bremse für Rateversuche an fremden Links zurück.
+	check($attempts === 1, 'Erfolg leert die Bremse nicht');
 	[$status, $data] = $http('GET', "/s/{$token}/data", null, [], null, $lockedJar);
 	check($status === 200 && $data['title'] === 'Geteilter Artikel', 'entsperrt (Session)');
+
+	// Viele Fehlversuche: 429 sofort, ohne Passwortprüfung und ohne langes Warten.
+	$pdo->exec("INSERT INTO security_attempts (action, address, created_at) SELECT action, address, " . time() . " FROM security_attempts WHERE action = 'throttle:merlin_public_share_unlock'");
+	for ($i = 0; $i < 3; $i++) {
+		$pdo->exec("INSERT INTO security_attempts (action, address, created_at) SELECT action, address, " . time() . " FROM security_attempts WHERE action = 'throttle:merlin_public_share_unlock'");
+	}
+	$start = microtime(true);
+	[$status, $throttled] = $http('POST', "/s/{$token}/unlock", ['password' => 'geheim-123'], [], null, $server->dir . '/cookies-dritter-gast.txt');
+	check($status === 429 && ($throttled['retryAfter'] ?? 0) > 0 && microtime(true) - $start < 2, 'zu viele Fehlversuche: 429 mit retryAfter', json_encode($throttled));
+	$pdo->exec("DELETE FROM security_attempts WHERE action = 'throttle:merlin_public_share_unlock'");
 
 	[$status, $renewed] = $http('POST', "/api/articles/{$id}/share/regenerate", null, $owner);
 	check($status === 200 && $renewed['token'] !== $token && $renewed['hasPassword'] === true, 'Token erneuern');

@@ -74,10 +74,15 @@ final class Routes {
 		$router->add('GET', '/login', $pages->loginForm(...));
 		$router->add('POST', '/login', $pages->login(...));
 		$router->add('GET', '/logout', $pages->logout(...));
+		$router->add('POST', '/logout', $pages->logout(...));
 		$router->add('GET', '/register', $pages->registerForm(...));
-		$router->add('POST', '/register', $pages->register(...));
+		// Öffentliche Formulare je IP begrenzen: Registrierung (Massenkonten)
+		// und Passwort vergessen (Mailflut). Passwortprüfungen bremst der
+		// Throttler in PageController.
+		$router->add('POST', '/register', $pages->register(...), [$rateLimit->for('register', 10, 3600)]);
+		$router->add('GET', '/register/confirm', $pages->registerConfirm(...), [$rateLimit->for('register_confirm', 30, 3600)]);
 		$router->add('GET', '/password/forgot', $pages->passwordForgotForm(...));
-		$router->add('POST', '/password/forgot', $pages->passwordForgot(...));
+		$router->add('POST', '/password/forgot', $pages->passwordForgot(...), [$rateLimit->for('password_forgot', 5, 900)]);
 		$router->add('GET', '/password/reset', $pages->passwordResetForm(...));
 		$router->add('POST', '/password/reset', $pages->passwordReset(...));
 		$router->add('GET', '/account', $pages->account(...));
@@ -86,7 +91,7 @@ final class Routes {
 		$router->add('GET', '/img/{file}', $assets->image(...));
 
 		// Nachbau von Nextclouds Login Flow v2 für die nativen Clients
-		$router->add('POST', '/login/v2', $loginFlow->start(...));
+		$router->add('POST', '/login/v2', $loginFlow->start(...), [$rateLimit->for('login_flow_start', 30, 300)]);
 		$router->add('POST', '/login/v2/poll', $loginFlow->poll(...));
 		$router->add('GET', '/login/v2/flow/{token}', $pages->loginFlowForm(...));
 		$router->add('POST', '/login/v2/flow/{token}', $pages->loginFlowSubmit(...));

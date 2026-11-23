@@ -33,6 +33,15 @@ final class AttemptLog {
 		);
 	}
 
+	/** Zeitpunkt des letzten Versuchs im Zeitraum, null ohne Versuch. */
+	public function latest(string $action, string $address, int $withinSeconds): ?int {
+		$value = $this->db->fetchValue(
+			'SELECT MAX(created_at) FROM security_attempts WHERE action = :action AND address = :address AND created_at >= :since',
+			['action' => $action, 'address' => $address, 'since' => time() - $withinSeconds],
+		);
+		return $value === null || $value === false ? null : (int) $value;
+	}
+
 	public function clear(string $action, string $address): void {
 		$this->db->execute(
 			'DELETE FROM security_attempts WHERE action = :action AND address = :address',

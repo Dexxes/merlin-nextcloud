@@ -10,6 +10,15 @@ updates:
       actions:
         patterns: ["*"]
 
+  # Basis-Images sind per Digest gepinnt; Dependabot zieht neue Digests nach.
+  - package-ecosystem: docker
+    directories: ["/", "/standalone"]
+    schedule:
+      interval: weekly
+    groups:
+      docker:
+        patterns: ["*"]
+
   - package-ecosystem: composer
     directories: ["/nextcloud", "/core", "/nextcloud/tests"]
     schedule:

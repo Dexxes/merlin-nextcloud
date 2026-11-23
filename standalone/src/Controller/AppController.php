@@ -113,7 +113,7 @@ final class AppController {
 	 *
 	 * @return list<array{id: string, href: string}>
 	 */
-	private static function links(string $basePath, array $user): array {
+	private static function links(string $basePath, array $user, string $logoutPath): array {
 		$links = [
 			['id' => 'account', 'href' => $basePath . '/account'],
 			['id' => 'contentFilters', 'href' => $basePath . '/settings'],
@@ -121,7 +121,7 @@ final class AppController {
 		if ($user['role'] === 'admin') {
 			$links[] = ['id' => 'admin', 'href' => $basePath . '/settings/admin'];
 		}
-		$links[] = ['id' => 'logout', 'href' => $basePath . '/logout'];
+		$links[] = ['id' => 'logout', 'href' => $basePath . $logoutPath];
 		return $links;
 	}
 
@@ -138,7 +138,7 @@ final class AppController {
 		$state = [
 			'base' => $basePath,
 			'loginUrl' => $user === null ? null : $basePath . '/login',
-			'links' => $user === null ? [] : self::links($basePath, $user),
+			'links' => $user === null ? [] : self::links($basePath, $user, PageController::logoutUrl($this->sessions)),
 			'l10n' => AppTranslations::load($t->locale()),
 			'values' => $values,
 		];
@@ -146,6 +146,7 @@ final class AppController {
 		$vars = [
 			't' => $t,
 			'basePath' => $basePath,
+			'logoutUrl' => $basePath . PageController::logoutUrl($this->sessions),
 			'entry' => $entry,
 			'mountIds' => $mountIds,
 			'pageTitle' => $pageTitle,

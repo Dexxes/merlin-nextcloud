@@ -16,16 +16,16 @@
 # oder, falls vorhanden, aus /data/config.php. Siehe standalone/README.md.
 
 # ---------------------------------------------------------------------------
-FROM node:22-alpine AS frontend
+FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS frontend
 WORKDIR /build
-# Kein package-lock.json im Repo, daher wie `npm install` frisch aufgelöst.
-COPY frontend/package.json ./frontend/
-RUN cd frontend && npm install --no-audit --no-fund
+# Genau die Versionen aus frontend/package-lock.json (npm ci).
+COPY frontend/package.json frontend/package-lock.json ./frontend/
+RUN cd frontend && npm ci --no-audit --no-fund
 COPY frontend ./frontend
 RUN mkdir -p standalone/public && cd frontend && npm run build:standalone
 
 # ---------------------------------------------------------------------------
-FROM composer:2 AS package
+FROM composer:2@sha256:50ea4d33fdcde1adb0f045547295faa1548b33872e5f789dae5b02ce2fb5de93 AS package
 WORKDIR /build
 COPY core ./core
 COPY content-filters ./content-filters
@@ -39,7 +39,7 @@ RUN rm -rf standalone/vendor standalone/data standalone/config/config.php \
  && sh standalone/tools/assemble.sh /merlin
 
 # ---------------------------------------------------------------------------
-FROM php:8.4-fpm-alpine
+FROM php:8.4-fpm-alpine@sha256:c0e41e0c856bf97b2e749f40a804031ce938d0d496c4c7d91ad416d993172826
 
 RUN apk add --no-cache nginx su-exec icu-libs libpng libjpeg-turbo libwebp \
  && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS icu-dev libpng-dev libjpeg-turbo-dev libwebp-dev \

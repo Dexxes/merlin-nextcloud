@@ -7,6 +7,8 @@ namespace Merlin\Standalone\Cron;
 use Merlin\Core\Port\Scheduler;
 use Merlin\Core\Service\RetentionService;
 use Merlin\Standalone\Adapter\LocalFileStorage;
+use Merlin\Standalone\Db\EmailConfirmationRepository;
+use Merlin\Standalone\Db\LoginFlowRepository;
 use Merlin\Standalone\Db\ServerSettings;
 use Psr\Log\LoggerInterface;
 
@@ -37,6 +39,8 @@ final class DailyJobs {
 		private readonly LocalFileStorage $files,
 		private readonly Scheduler $scheduler,
 		private readonly LoggerInterface $logger,
+		private readonly LoginFlowRepository $loginFlows,
+		private readonly EmailConfirmationRepository $confirmations,
 		private readonly string $mode = 'web',
 	) {
 	}
@@ -57,6 +61,10 @@ final class DailyJobs {
 		$this->settings->set(self::LAST_RUN, (string) time());
 		$result = $this->retention->run();
 		$result['files'] = $this->files->cleanup();
+		// Abgelaufene Login Flows (mit noch nicht abgeholtem Token) und nie
+		// bestätigte Registrierungen.
+		$this->loginFlows->deleteExpired();
+		$this->confirmations->deleteExpiredUnconfirmed();
 		$this->logger->info('Tägliche Aufgaben: {articles} Artikel, {shares} Share-Links, {files} Dateien gelöscht', [
 			'articles' => $result['articles'],
 			'shares' => $result['shares'],

@@ -16,14 +16,16 @@ final class LoginFlowRepository {
     public function __construct(private readonly PDO $db) {
     }
 
-    public function create(string $flowToken, string $pollToken, string $expiresAt): void {
+    /** @param string|null $clientName User-Agent beim Start, für die Anmeldeseite */
+    public function create(string $flowToken, string $pollToken, string $expiresAt, ?string $clientName = null): void {
         $stmt = $this->db->prepare(
-            'INSERT INTO login_flow_tokens (flow_token, poll_token, created_at, expires_at)
-             VALUES (:flow_token, :poll_token, :created_at, :expires_at)'
+            'INSERT INTO login_flow_tokens (flow_token, poll_token, client_name, created_at, expires_at)
+             VALUES (:flow_token, :poll_token, :client_name, :created_at, :expires_at)'
         );
         $stmt->execute([
             'flow_token' => $flowToken,
             'poll_token' => $pollToken,
+            'client_name' => $clientName,
             'created_at' => gmdate('c'),
             'expires_at' => $expiresAt,
         ]);
@@ -43,15 +45,18 @@ final class LoginFlowRepository {
         return $row === false ? null : $row;
     }
 
-    /** Bindet den Flow an den erfolgreich angemeldeten Nutzer und das dabei erzeugte API-Token. */
-    public function complete(int $id, int $userId, string $apiTokenPlaintext): void {
+    /**
+     * Bindet den Flow an den erfolgreich angemeldeten Nutzer und das dabei
+     * erzeugte API-Token ($apiToken verschlüsselt, siehe LoginFlowController).
+     */
+    public function complete(int $id, int $userId, string $apiToken): void {
         $stmt = $this->db->prepare(
             'UPDATE login_flow_tokens SET user_id = :user_id, api_token_plaintext = :api_token_plaintext
              WHERE id = :id'
         );
         $stmt->execute([
             'user_id' => $userId,
-            'api_token_plaintext' => $apiTokenPlaintext,
+            'api_token_plaintext' => $apiToken,
             'id' => $id,
         ]);
     }
@@ -63,9 +68,8 @@ final class LoginFlowRepository {
     }
 
     /**
-     * Räumt abgelaufene Flows auf (analog zu ArticleRepository::
-     * clearStuckProcessing()) - läuft lazy bei jedem neuen start(), kein
-     * Cronjob nötig.
+     * Räumt abgelaufene Flows auf: bei jedem neuen start() und im täglichen
+     * Lauf (Cron\DailyJobs), damit kein Token liegen bleibt.
      */
     public function deleteExpired(): void {
         $stmt = $this->db->prepare('DELETE FROM login_flow_tokens WHERE expires_at < :now');

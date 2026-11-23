@@ -10,7 +10,12 @@ namespace Merlin\Core\Port;
  * dem nächsten Versuch. Nextcloud: IThrottler; Standalone: eigene Tabelle.
  */
 interface Throttler {
-	/** Wartet so lange, wie es die bisherigen Fehlversuche verlangen. */
+	/**
+	 * Wartet kurz, wie es die bisherigen Fehlversuche verlangen, oder weist
+	 * den Versuch ab, wenn die Wartezeit dafür zu lang wäre.
+	 *
+	 * @throws ThrottledException
+	 */
 	public function sleepDelay(string $action, string $address): void;
 
 	/** @param array<string, string> $metadata */

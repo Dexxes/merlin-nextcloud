@@ -30,8 +30,7 @@ npm-debug.log*
 composer.lock
 composer.phar
 
-# NPM
-package-lock.json
+# NPM (package-lock.json ist eingecheckt: Builds und Releases mit npm ci)
 .npm/
 
 # Build

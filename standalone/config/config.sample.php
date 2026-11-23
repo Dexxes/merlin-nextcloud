@@ -24,9 +24,27 @@ return [
 	// '/tools/merlin'). Der Router zieht ihn von REQUEST_URI ab.
 	'base_path' => '/',
 
+	// Reverse-Proxys vor dem Server (IPs oder CIDR, z. B. '172.16.0.0/12'
+	// für ein Docker-Netz). Nur Anfragen von dort dürfen mit X-Forwarded-For
+	// die Client-Adresse (Rate-Limits, Brute-Force-Bremse) und mit
+	// X-Forwarded-Proto HTTPS angeben. Leer: Client-Adresse ist immer die
+	// Verbindungsadresse (hinter einem Proxy also die des Proxys, alle Limits
+	// zählen dann gemeinsam), X-Forwarded-Proto gilt wie bisher von jedem.
+	'trusted_proxies' => [],
+
+	// Speicherkontingent je Konto für „Merlin Dateien“ (alle Dateien plus
+	// laufende Chunked Uploads): Bytes oder mit K/M/G, 0 = unbegrenzt.
+	// Volle Kontingente beantwortet der Upload mit 507.
+	'user_quota' => '100M',
+
+	// Abmeldung nach so vielen Sekunden ohne Anfrage (Standard 8 Stunden).
+	'session_idle_timeout' => 28800,
+
 	'mail' => [
 		'from_address' => 'merlin@example.com',
 		'from_name' => 'Merlin',
+		// Nur für Entwicklung: Mails als JSON-Zeilen in diese Datei statt mail().
+		// 'file' => '/tmp/merlin-mails.log',
 	],
 
 	// Gültigkeit von Passwort-Reset-Tokens in Sekunden.

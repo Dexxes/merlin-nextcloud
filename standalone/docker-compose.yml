@@ -24,6 +24,10 @@ services:
       MERLIN_ADMIN_PASSWORD: bitte-aendern
       # MERLIN_MAIL_FROM: merlin@example.org
       # MERLIN_PHP_WORKERS: 16
+      # Speicherkontingent je Konto für Merlin Dateien (0 = unbegrenzt)
+      MERLIN_USER_QUOTA: 100M
+      # Hinter einem Reverse-Proxy dessen Adresse(n), z. B. das Docker-Netz:
+      # MERLIN_TRUSTED_PROXIES: 172.16.0.0/12
 
 volumes:
   merlin-data:

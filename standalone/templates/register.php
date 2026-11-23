@@ -3,6 +3,9 @@
 <?php if (!empty($error)): ?>
     <p class="error"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
 <?php endif; ?>
+<?php if (!empty($message)): ?>
+    <p class="success"><?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?></p>
+<?php elseif (empty($confirmFailed)): ?>
 <form method="post" action="<?= url('/register'); ?>">
     <label for="username"><?= htmlspecialchars($t->t('common.username'), ENT_QUOTES, 'UTF-8') ?></label>
     <input type="text" id="username" name="username" required autofocus>
@@ -15,5 +18,6 @@
 
     <button type="submit"><?= htmlspecialchars($t->t('register.submit'), ENT_QUOTES, 'UTF-8') ?></button>
 </form>
+<?php endif; ?>
 <p class="muted"><a href="<?= url('/login'); ?>"><?= htmlspecialchars($t->t('common.backToLogin'), ENT_QUOTES, 'UTF-8') ?></a></p>
 <?php include __DIR__ . '/partials/footer.php'; ?>

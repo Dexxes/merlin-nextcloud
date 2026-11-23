@@ -47,10 +47,18 @@ Oder mit `standalone/docker-compose.yml`. Variablen: `MERLIN_BASE_URL`
 (öffentliche Adresse, Pflicht hinter einem Reverse-Proxy), `MERLIN_BASE_PATH`,
 `MERLIN_MAIL_FROM`, `MERLIN_MAIL_FROM_NAME`, `MERLIN_SECRET` (sonst erzeugt
 der Container `/data/secret`), `MERLIN_LOG_LEVEL`, `MERLIN_PHP_WORKERS`
-(Vorgabe 16). Wer mehr einstellen will, legt `/data/config.php` an (Vorlage
+(Vorgabe 16), `MERLIN_TRUSTED_PROXIES` (IPs/CIDR des Reverse-Proxys, z. B.
+`172.16.0.0/12`; erst damit zählen Rate-Limits und Login-Bremse je Client
+statt gemeinsam für alle), `MERLIN_USER_QUOTA` (Speicherkontingent je
+Konto für Merlin Dateien, Vorgabe `100M`, `0` = unbegrenzt) und
+`MERLIN_SESSION_IDLE_TIMEOUT` (Abmeldung nach so vielen Sekunden ohne
+Anfrage, Vorgabe `28800` = 8 Stunden). `MERLIN_SECRET` und die
+`MERLIN_ADMIN_*`-Variablen nimmt der Container nach dem Start aus der
+Umgebung von PHP und nginx; das Geheimnis steht dann in `/data/secret`. Wer mehr einstellen will, legt `/data/config.php` an (Vorlage
 `config/config.sample.php`, Pfade auf `/data/…`); dann gelten die Variablen
 nicht. Mails verschickt der Container ohne eigenen Mailserver nicht
-(`mail()`), Passwort-Reset per Mail braucht deshalb einen eigenen Weg.
+(`mail()`), Passwort-Reset und die E-Mail-Bestätigung offener Registrierungen
+brauchen deshalb einen eigenen Weg.
 HTTPS übernimmt ein Reverse-Proxy davor. `docker/smoke-test.sh <url> <admin>
 <passwort>` prüft einen laufenden Container.
 

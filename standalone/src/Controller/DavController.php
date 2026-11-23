@@ -27,7 +27,33 @@ use Merlin\Standalone\Http\Response;
 final class DavController {
 	private const CHUNK_PATTERN = '/^[A-Za-z0-9_-]{1,64}$/';
 
-	public function __construct(private readonly LocalFileStorage $storage) {
+	/** Vorgabe für 'user_quota': 100 MB je Konto. */
+	public const DEFAULT_QUOTA = 100 * 1024 * 1024;
+
+	/**
+	 * @param int $quota Speicherkontingent je Konto in Bytes ('user_quota' in
+	 *        config.php, 0 = unbegrenzt): alle Dateien des Kontos plus die
+	 *        Stücke laufender Chunked Uploads
+	 */
+	public function __construct(
+		private readonly LocalFileStorage $storage,
+		private readonly int $quota = self::DEFAULT_QUOTA,
+	) {
+	}
+
+	/**
+	 * Größenangabe aus der Konfiguration: Bytes oder mit K/M/G (1024er),
+	 * z. B. "100M". Leer oder ungültig: Vorgabe.
+	 */
+	public static function parseSize(mixed $value): int {
+		if (is_int($value)) {
+			return max(0, $value);
+		}
+		if (!is_string($value) || !preg_match('/^\s*(\d+)\s*([KMG]?)B?\s*$/i', $value, $m)) {
+			return self::DEFAULT_QUOTA;
+		}
+		$factor = ['' => 1, 'K' => 1024, 'M' => 1024 ** 2, 'G' => 1024 ** 3][strtoupper($m[2])];
+		return (int) $m[1] * $factor;
 	}
 
 	/** PUT /remote.php/dav/files/{user}/{path} */
@@ -47,6 +73,11 @@ final class DavController {
 		if (!is_dir(dirname($target))) {
 			return self::error(409, 'Parent folder does not exist');
 		}
+		// Eine ersetzte Datei gibt ihren Platz frei.
+		$remaining = $this->remaining($userId, is_file($target) ? (int) filesize($target) : 0);
+		if ($this->exceedsLimit($remaining, $request)) {
+			return self::quotaExceeded();
+		}
 		self::unlimited();
 		$temp = self::tempFile(dirname($target));
 		$out = @fopen($temp, 'wb');
@@ -54,9 +85,13 @@ final class DavController {
 			return self::error(500, 'Could not write file');
 		}
 		$in = $request->bodyStream();
-		$written = stream_copy_to_stream($in, $out);
+		$written = $this->copyLimited($in, $out, $remaining);
 		fclose($in);
 		fclose($out);
+		if ($written === null) {
+			@unlink($temp);
+			return self::quotaExceeded();
+		}
 		if (self::lostChunkedBody($request, $written)) {
 			@unlink($temp);
 			return self::error(411, 'Length Required');
@@ -92,6 +127,12 @@ final class DavController {
 		if (!is_dir($dir)) {
 			return self::error(404, 'Upload not found');
 		}
+		// Ein ersetztes Stück gleichen Namens gibt seinen Platz frei.
+		$userId = (string) $request->authUid();
+		$remaining = $this->remaining($userId, is_file($dir . '/' . $chunk) ? (int) filesize($dir . '/' . $chunk) : 0);
+		if ($this->exceedsLimit($remaining, $request)) {
+			return self::quotaExceeded();
+		}
 		self::unlimited();
 		$temp = self::tempFile($dir);
 		$out = @fopen($temp, 'wb');
@@ -99,9 +140,13 @@ final class DavController {
 			return self::error(500, 'Could not write chunk');
 		}
 		$in = $request->bodyStream();
-		$written = stream_copy_to_stream($in, $out);
+		$written = $this->copyLimited($in, $out, $remaining);
 		fclose($in);
 		fclose($out);
+		if ($written === null) {
+			@unlink($temp);
+			return self::quotaExceeded();
+		}
 		if (self::lostChunkedBody($request, $written)) {
 			@unlink($temp);
 			return self::error(411, 'Length Required');
@@ -256,6 +301,43 @@ final class DavController {
 		return $written === 0
 			&& ($request->header('content-length') ?? '') === ''
 			&& str_contains(strtolower((string) $request->header('transfer-encoding')), 'chunked');
+	}
+
+	/**
+	 * Freier Platz im Kontingent, $freed Bytes (eine ersetzte Datei bzw. ein
+	 * ersetztes Stück) gutgeschrieben; null ohne Kontingent.
+	 */
+	private function remaining(string $userId, int $freed): ?int {
+		if ($this->quota <= 0) {
+			return null;
+		}
+		return max(0, $this->quota - $this->storage->usedBytes($userId) + $freed);
+	}
+
+	/** Sagt schon Content-Length, dass der Body nicht mehr passt? */
+	private function exceedsLimit(?int $remaining, Request $request): bool {
+		$length = $request->header('content-length');
+		return $remaining !== null && $length !== null && ctype_digit($length) && (int) $length > $remaining;
+	}
+
+	/**
+	 * Kopiert den Body, höchstens $remaining Bytes; null, wenn er länger ist
+	 * (ohne Content-Length erst beim Lesen erkennbar).
+	 *
+	 * @param resource $in
+	 * @param resource $out
+	 */
+	private function copyLimited($in, $out, ?int $remaining): int|false|null {
+		if ($remaining === null) {
+			return stream_copy_to_stream($in, $out);
+		}
+		$written = stream_copy_to_stream($in, $out, $remaining + 1);
+		return $written !== false && $written > $remaining ? null : $written;
+	}
+
+	/** 507 wie Nextcloud bei vollem Kontingent. */
+	private static function quotaExceeded(): Response {
+		return self::error(507, 'Insufficient Storage');
 	}
 
 	private static function tempFile(string $dir): string {

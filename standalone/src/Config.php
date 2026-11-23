@@ -41,6 +41,20 @@ final class Config {
 		return is_numeric($value) ? (int) $value : $default;
 	}
 
+	/**
+	 * Liste aus einem Array oder einer leerzeichen-/kommagetrennten
+	 * Zeichenkette (Umgebungsvariablen im Docker-Image).
+	 *
+	 * @return list<string>
+	 */
+	public function stringList(string $key): array {
+		$value = $this->values[$key] ?? [];
+		if (is_array($value)) {
+			return array_values(array_filter(array_map(static fn ($v): string => trim((string) $v), $value), static fn (string $v): bool => $v !== ''));
+		}
+		return is_scalar($value) ? (preg_split('/[\s,]+/', (string) $value, -1, PREG_SPLIT_NO_EMPTY) ?: []) : [];
+	}
+
 	/** @return array<string, mixed> */
 	public function section(string $key): array {
 		$value = $this->values[$key] ?? [];

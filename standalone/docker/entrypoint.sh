@@ -14,7 +14,15 @@ if [ -f /data/config.php ]; then
 	export MERLIN_CONFIG=/data/config.php
 else
 	export MERLIN_CONFIG=/var/www/merlin/config/docker.php
-	if [ -z "${MERLIN_SECRET:-}" ] && [ ! -s /data/secret ]; then
+	if [ -n "${MERLIN_SECRET:-}" ]; then
+		# Geheimnis aus der Umgebung in die Datei, damit es nicht in der
+		# Umgebung von PHP-FPM, nginx und Cron steht (phpinfo(), /proc/*/environ).
+		umask 077
+		printf '%s\n' "$MERLIN_SECRET" > /data/secret
+		umask 022
+		chown www-data:www-data /data/secret
+		chmod 600 /data/secret
+	elif [ ! -s /data/secret ]; then
 		php -r 'echo base64_encode(random_bytes(32)), PHP_EOL;' > /data/secret
 		chown www-data:www-data /data/secret
 		chmod 600 /data/secret
@@ -29,12 +37,24 @@ if [ -n "${MERLIN_ADMIN_USER:-}" ] && [ ! -f /data/.admin-created ]; then
 		echo "merlin: MERLIN_ADMIN_USER braucht MERLIN_ADMIN_EMAIL und MERLIN_ADMIN_PASSWORD" >&2
 		exit 1
 	fi
+	# Das Beispielpasswort aus docker-compose.yml nie für ein echtes Konto.
+	if [ "$MERLIN_ADMIN_PASSWORD" = "bitte-aendern" ] || [ "${#MERLIN_ADMIN_PASSWORD}" -lt 8 ]; then
+		echo "merlin: MERLIN_ADMIN_PASSWORD ist das Beispielpasswort oder kürzer als 8 Zeichen, bitte ändern" >&2
+		exit 1
+	fi
 	# Gibt es das Konto schon (Volume aus einer älteren Installation), meldet
 	# create-admin das und der Start geht weiter.
 	if as_www php bin/merlin create-admin --username="$MERLIN_ADMIN_USER" \
 		--email="$MERLIN_ADMIN_EMAIL" --password="$MERLIN_ADMIN_PASSWORD"; then
 		as_www touch /data/.admin-created
 	fi
+fi
+
+# Zugangsdaten nur für diesen Start: nicht an Cron, PHP-FPM (clear_env = no)
+# und nginx weiterreichen.
+unset MERLIN_ADMIN_USER MERLIN_ADMIN_EMAIL MERLIN_ADMIN_PASSWORD
+if [ "$MERLIN_CONFIG" = /var/www/merlin/config/docker.php ]; then
+	unset MERLIN_SECRET
 fi
 
 if [ "${1:-}" = "nginx" ]; then
