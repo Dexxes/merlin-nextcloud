@@ -7,6 +7,10 @@ All notable changes to Merlin are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- PHP 8.6 allowed in `appinfo/info.xml` (8.4–8.6). The Nextcloud tests pick it
+  up as soon as a supported Nextcloud release accepts it; until then CI checks
+  8.6 with PHP lint, the core and standalone harnesses and the nightly run
+  against Nextcloud master.
 - `GET /api/capabilities` now also in the Nextcloud app (no login needed):
   `backend`, the shared `version`, `apiVersion` and `features`, so clients can
   switch features on by capability instead of by `backendKind`.

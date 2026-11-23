@@ -8,7 +8,7 @@ Born out of frustration with Mozilla killing off Pocket.
 
 | Directory | Platform | Stack |
 |---|---|---|
-| [`merlin-nextcloud`](https://github.com/Dexxes/merlin-nextcloud) | Nextcloud app (backend + web UI) | PHP 8.4-8.5, Nextcloud 33-35, Vue 3, OCP framework |
+| [`merlin-nextcloud`](https://github.com/Dexxes/merlin-nextcloud) | Nextcloud app (backend + web UI) | PHP 8.4-8.6, Nextcloud 33-35, Vue 3, OCP framework |
 | [`merlin-standalone-server`](https://github.com/Dexxes/merlin-standalone-server) | Standalone server (backend, no Nextcloud) | PHP 8.4, no framework, PDO/SQLite |
 | [`merlin-ios`](https://github.com/Dexxes/merlin-ios) | iOS 18+ | Swift 6, SwiftUI, AVFoundation, SPM |
 | `merlin-ipad` (unreleased) | iPadOS 15+ | like iOS (own, lower deployment target) |
@@ -42,7 +42,7 @@ Articles can be read aloud via a local Piper TTS pipeline (currently via the iOS
 ## Requirements
 
 - Nextcloud 33–35
-- PHP 8.4–8.5
+- PHP 8.4–8.6
 - MySQL, PostgreSQL, or SQLite
 
 Details on installation, the build process, and the optional TTS pipeline are in **[INSTALLATION.md](INSTALLATION.md)**, architecture in **[STRUCTURE.md](STRUCTURE.md)**.

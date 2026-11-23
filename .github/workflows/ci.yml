@@ -24,8 +24,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Lowest and highest PHP of appinfo/info.xml.
-        php: ['8.4', '8.5']
+        # Every PHP of appinfo/info.xml (8.6 is the newest).
+        php: ['8.4', '8.5', '8.6']
     steps:
       - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
@@ -61,13 +61,21 @@ jobs:
           fi
 
   harnesses:
-    name: Test harnesses
+    # Keeps the old check name for 8.4 in case branch protection requires it.
+    name: ${{ matrix.php == '8.4' && 'Test harnesses' || format('Test harnesses ({0})', matrix.php) }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Lowest and highest PHP of appinfo/info.xml. Core and standalone are
+        # not bound to a Nextcloud release, so 8.6 is tested here even while
+        # no supported Nextcloud accepts it yet.
+        php: ['8.4', '8.6']
     steps:
       - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
+          php-version: ${{ matrix.php }}
           extensions: dom, mbstring, curl, sodium, pdo_sqlite
           coverage: none
           tools: composer:v2
