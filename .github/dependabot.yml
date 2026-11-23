@@ -17,6 +17,12 @@ updates:
     groups:
       composer:
         patterns: ["*"]
+    ignore:
+      # PHPUnit 11+ needs PHP 8.2, 12 needs 8.3, 13 needs 8.4. Merlin still
+      # supports PHP 8.1 (appinfo/info.xml), so composer cannot resolve a
+      # newer major on the 8.1/8.3 CI jobs. Lift this when the PHP floor rises.
+      - dependency-name: "phpunit/phpunit"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directories: ["/frontend", "/nextcloud/tests/e2e"]
@@ -25,3 +31,11 @@ updates:
     groups:
       npm:
         patterns: ["*"]
+    ignore:
+      # Held back by peer ranges of the Nextcloud tooling: @nextcloud/vite-config
+      # wants vite ^7, @nextcloud/stylelint-config wants stylelint ^17. Lift
+      # once those packages release versions that accept the new majors.
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "stylelint"
+        update-types: ["version-update:semver-major"]
