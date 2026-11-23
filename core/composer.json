@@ -10,7 +10,7 @@
     ],
     "require": {
         "php": ">=8.4",
-        "fivefilters/readability.php": "^3.3"
+        "fivefilters/readability.php": "^3.3 || ^4.0"
     },
     "suggest": {
         "psr/log": "Provided by the host (Nextcloud ships it); the standalone server requires it itself"
