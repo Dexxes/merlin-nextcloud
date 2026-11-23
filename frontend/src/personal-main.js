@@ -4,7 +4,6 @@ import PersonalContentFilters from './components/personal/PersonalContentFilters
 
 // Kein Vuex-Store: wie die Admin-Oberfläche hält auch diese Seite ihren
 // Zustand lokal in der Wurzelkomponente (siehe vite.config.mjs).
-import '@nextcloud/dialogs/style.css'
 
 const app = createApp(PersonalContentFilters)
 
