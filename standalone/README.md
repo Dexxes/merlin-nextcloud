@@ -17,6 +17,17 @@ eigenen Content-Filter und `/settings/admin` (nur Admins) Löschfrist und
 Content-Filter der Instanz. Der Reader lässt sich als App installieren (PWA,
 Manifest und Service-Worker wie in Nextcloud, noch ohne Offline-Cache).
 
+Merlin Dateien (Uploads aus der iOS-Share-Extension) liegen unter
+`files_path` (Vorgabe `data/files/`, im Docker-Image `/data/files`), je Konto
+in den Ordnern Images, Videos, Audio, PDFs und Other files. Hochgeladen wird
+über dieselben WebDAV-Pfade wie in Nextcloud (`/remote.php/dav/files/…`,
+Chunked Upload unter `/remote.php/dav/uploads/…`), die Apps brauchen dafür
+nichts Eigenes. Vorschaubilder baut der Server mit GD für JPEG, PNG, GIF und
+WebP. Anders als in Nextcloud, wo Dateien in Files bleiben, löscht der
+tägliche Lauf Dateien, deren Eintrag gelöscht wurde, nach einem Tag.
+`tests/test-files.php` spielt Upload, Eintrag, Links, Umbenennen,
+Chunked Upload, Vorschaubild und Aufräumen durch.
+
 ## Docker
 
 Das Image enthält Weboberfläche, nginx und PHP-FPM; Datenbank, Log und das
@@ -49,7 +60,7 @@ HTTPS übernimmt ein Reverse-Proxy davor. `docker/smoke-test.sh <url> <admin>
 ## Ohne Docker
 
 Tägliche Aufgaben (Löschfrist für archivierte Artikel, abgelaufene
-Share-Links) holt der Server ohne weitere Einrichtung beim Öffnen des
+Share-Links, Merlin Dateien ohne Eintrag) holt der Server ohne weitere Einrichtung beim Öffnen des
 Readers nach, sobald der letzte Lauf 24 Stunden zurückliegt. Mit
 `'background_jobs' => 'cron'` in `config.php` übernimmt das der System-Cron:
 

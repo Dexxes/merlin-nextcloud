@@ -36,6 +36,7 @@ use Merlin\Core\Api\CapabilitiesApi;
 use Merlin\Core\Api\CommentApi;
 use Merlin\Core\Api\ContentFilterApi;
 use Merlin\Core\Api\ExtensionApi;
+use Merlin\Core\Api\FileApi;
 use Merlin\Core\Api\HighlightApi;
 use Merlin\Core\Api\MediaApi;
 use Merlin\Core\Api\PwaApi;
@@ -83,6 +84,12 @@ return [
 	['name' => 'tts#synthesize', 'verb' => 'GET', 'url' => '/api/articles/{id}/tts', 'handler' => [ArticleStreamApi::class, 'synthesize'], 'access' => 'user'],
 	['name' => 'pdf#show', 'verb' => 'GET', 'url' => '/api/articles/{id}/pdf', 'handler' => [ArticleStreamApi::class, 'show'], 'access' => 'user'],
 	['name' => 'media#resolve', 'verb' => 'GET', 'url' => '/api/articles/{id}/media', 'handler' => [MediaApi::class, 'resolve'], 'access' => 'user'],
+	// „Merlin Dateien“: Upload-Ziel (Upload selbst per WebDAV), Eintrag anlegen,
+	// umbenennen, Datei über signierten Link (ohne Anmeldung, Token t)
+	['name' => 'file#target', 'verb' => 'POST', 'url' => '/api/files/target', 'handler' => [FileApi::class, 'target'], 'access' => 'user'],
+	['name' => 'file#register', 'verb' => 'POST', 'url' => '/api/files', 'handler' => [FileApi::class, 'register'], 'access' => 'user'],
+	['name' => 'file#content', 'verb' => 'GET', 'url' => '/api/articles/{id}/file', 'handler' => [FileApi::class, 'content'], 'access' => 'public'],
+	['name' => 'file#rename', 'verb' => 'PUT', 'url' => '/api/articles/{id}/file-name', 'handler' => [FileApi::class, 'rename'], 'access' => 'user'],
 	// Veraltet, nur für bestehende Clients: altes Format, nur HLS-Video
 	['name' => 'videoStream#resolve', 'verb' => 'GET', 'url' => '/api/articles/{id}/video-stream', 'handler' => [MediaApi::class, 'videoStream'], 'access' => 'user'],
 	// YouTube-Seite mit echter https-Origin für die nativen Reader (ohne Anmeldung)

@@ -129,7 +129,7 @@ class Article extends Entity implements JsonSerializable {
 	// (supportBox.iconUrl, Service\SupportBoxService), Listen bleiben schlank.
 	protected $siteIconUrl;
 	// Nextcloud-Datei-ID bei Datei-Einträgen (vom Handy in „Merlin Dateien“
-	// gespeichert, siehe Service\MerlinFileService), sonst null. url ist dann
+	// gespeichert, siehe Merlin\Core\Service\FileEntries), sonst null. url ist dann
 	// der Link in die Nextcloud-Dateien-App, content zeigt die Datei über
 	// signierte Links auf /api/articles/{id}/file.
 	protected $fileId;

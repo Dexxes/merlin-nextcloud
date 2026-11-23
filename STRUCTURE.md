@@ -69,9 +69,10 @@ ordnet jedem Port einen Adapter zu (`standalone/src/Adapter/`: Einstellungen in
 `settings`/`user_settings`, `SodiumCrypto` mit dem Schlüssel aus `secret` in
 config.php, Basis-URL, `$_SESSION`, Nutzernamen aus `users`, Content-Filter aus
 `content-filters/`); Kern-Klassen baut er per Reflection wie Nextclouds
-Autowiring. Die Ports für Merlin Dateien (`FilePreviews`, `StoredFile`) stehen in
-`App::UNAVAILABLE_PORTS`. `standalone/tests/test-wiring.php` prüft, dass jeder
-Port in einer der beiden Listen steht und alle Kern-Dienste baubar sind.
+Autowiring. `StoredFile` ist ein Wertobjekt (`Adapter\LocalStoredFile`, geliefert
+von `LocalFileStorage`) und steht in `App::VALUE_PORTS`.
+`standalone/tests/test-wiring.php` prüft, dass jeder Port in einer der beiden
+Listen steht und alle Kern-Dienste baubar sind.
 
 | Port | Standalone-Implementierung |
 |---|---|
@@ -83,6 +84,7 @@ Port in einer der beiden Listen steht und alle Kern-Dienste baubar sind.
 | `InstanceSecret` | `Adapter\ConfigInstanceSecret` (`secret` aus config.php) |
 | `UrlGenerator` | `Adapter\StandaloneUrlGenerator` (`base_url`, Bilder unter `/img/`) |
 | `Translator` | `Adapter\StandaloneTranslator` (vorerst Englisch mit Parametern) |
+| `Translations` | `Adapter\StandaloneTranslations` (Sprache aus `core`/`lang`, Texte aus `nextcloud/l10n` über `I18n\AppTranslations`) |
 | `Session` | `Adapter\PhpSession` (`$_SESSION`) |
 | `UserDirectory` | `Adapter\StandaloneUserDirectory` (Benutzername aus `users`) |
 | `ContentFilterSource`, `ContentFilterEditor` | `Adapter\StandaloneContentFilterRepository` (dieselbe Instanz) |
@@ -90,8 +92,10 @@ Port in einer der beiden Listen steht und alle Kern-Dienste baubar sind.
 | `ArticleStore`, `TagStore` | `Merlin\Core\Persistence\SqlArticleStore`, `SqlTagStore` |
 | `Scheduler` | `Merlin\Core\Service\ShutdownScheduler` |
 | `Platform` | `Adapter\StandalonePlatform` (Version, Konten/Tokens/Login Flow) |
-| `ArticleFiles` | `Adapter\NoArticleFiles` (keine Datei-Einträge) |
-| `FilePreviews`, `StoredFile` | nicht verfügbar (Merlin Dateien folgt später) |
+| `ArticleFiles` | `Merlin\Core\Service\FileEntries` aus dem Kern |
+| `FileStorage` | `Adapter\LocalFileStorage` (Ablage unter `files_path`, Tabelle `stored_files`) |
+| `FilePreviews` | `Adapter\GdFilePreviews` (JPEG/PNG/GIF/WebP mit GD) |
+| `StoredFile` | `Adapter\LocalStoredFile` (Wertobjekt, `App::VALUE_PORTS`) |
 
 Gemeinsame API (Etappe 4): `core/src/Api/routes.php` ist die eine
 Routentabelle (Name, Verb, Pfad, Handler, Zugriff `user`/`admin`/`public`).
@@ -152,8 +156,7 @@ Pfade und Antworten wie in `merlin-standalone-server`, damit Clients mit
 `backendKind: 'standalone'` sie unverändert finden. Die merlin_*-Daten eines
 gelöschten Kontos räumt `Account\UserDataCleaner` ab (wie `UserDeletedListener`
 in Nextcloud). `/api/capabilities` meldet `backend`, die gemeinsame `version`
-(aus `nextcloud/appinfo/info.xml`), `apiVersion` und `features`; `files` fehlt
-dort bewusst. `standalone/tests/test-article-api.php` spielt die Artikel- und
+(aus `nextcloud/appinfo/info.xml`), `apiVersion` und `features` (mit `files`). `standalone/tests/test-article-api.php` spielt die Artikel- und
 Schlagwort-API über HTTP durch (`--live`: echte Artikel-Links),
 `standalone/tests/test-discussion-api.php` Markierungen, Kommentare,
 Share-Links, Gast-Beiträge, Passwortbremse und Rate-Limit,
@@ -214,13 +217,16 @@ beide Listen vollständig sind.
 | `InstanceSecret` | `Adapter\NextcloudInstanceSecret` (Systemwert `secret`) |
 | `Connection` | `Adapter\NextcloudConnection` (IDBConnection) |
 | `ArticleStore`, `TagStore` | `Merlin\Core\Persistence\SqlArticleStore`, `SqlTagStore` (über `Connection`) |
-| `ArticleFiles` | `Adapter\NextcloudArticleFiles` (Service\MerlinFileService) |
+| `ArticleFiles` | `Merlin\Core\Service\FileEntries` aus dem Kern |
+| `FileStorage` | `Adapter\NextcloudFileStorage` (Ordner „Merlin Dateien“ in Nextcloud Files) |
+| `Translations` | `Adapter\NextcloudTranslations` (IL10N in der Sprache eines Nutzers) |
 | `Scheduler` | `Merlin\Core\Service\ShutdownScheduler` |
 | `Platform` | `Adapter\NextcloudPlatform` (App-Version, Funktionen außerhalb des Kerns) |
 
 Nicht per DI: `StoredFile` (`Adapter\NextcloudStoredFile` um eine Datei in
-Nextcloud Files) und `Translator` (`Adapter\NextcloudTranslator` um das IL10N
-in der Sprache des Nutzers) baut `MerlinFileService` je Aufruf.
+Nextcloud Files, geliefert von `NextcloudFileStorage`) und `Translator`
+(`Adapter\NextcloudTranslator` um das IL10N in der Sprache des Nutzers, über
+`NextcloudTranslations`).
 
 Kern-Services, die einen gespeicherten Artikel ausgeben (Export, PDF, Vorlesen,
 Support-Box), bekommen ihn als `Merlin\Core\Domain\ArticleSnapshot`
@@ -234,12 +240,11 @@ Entities) und werden über die SQL-Stores des Kerns gelesen und geschrieben.
 Die Mapper in `Db/` bleiben für Aufräumen (Löschfrist, gelöschte Nutzer) und
 Speicherplatz-Anzeige.
 
-„Merlin Dateien“ ist geteilt: Ordner, Upload-Ziel, Registrieren, Umbenennen
-und das Speichern des Eintrags bleiben in `Service\MerlinFileService` der App
-(Nextcloud Files und WebDAV). Signierte Links, der Inhalt des Eintrags
-(Datei-Marker, erkannter Text, Metadaten) und das Ausliefern mit Range stehen
-im Kern (`Merlin\Core\Service\FileEntryService`, Eintrag als
-`Domain\FileEntry`).
+„Merlin Dateien“ steht im Kern: `Api\FileApi` (Routen), `Service\FileEntries`
+(Upload-Ziel, Registrieren, Umbenennen, Auffrischen) und
+`Service\FileEntryService` (signierte Links, Inhalt des Eintrags, Ausliefern
+mit Range). Die App liefert nur die Ablage (`Adapter\NextcloudFileStorage`:
+Ordner in Nextcloud Files, hochgeladen wird über Nextclouds WebDAV).
 
 Release-Tarball: `cd nextcloud && make dist` (Frontend-Build, `git archive`
 von `nextcloud/` und `core/`, `content-filters/` nach `merlin/content-filters/`,
@@ -270,7 +275,7 @@ nextcloud/
 │   │   ├── PublicCommentController.php        # → Merlin\Core\Api\PublicCommentApi (mit #[AnonRateLimit])
 │   │   ├── TtsController.php              # → Merlin\Core\Api\ArticleStreamApi
 │   │   ├── PdfController.php                  # → Merlin\Core\Api\ArticleStreamApi (Datei-Einträge über den Port ArticleFiles)
-│   │   ├── FileController.php                 # Dateien vom Handy: Upload-Ziel, Eintrag anlegen, GET /api/articles/{id}/file (signierter Link)
+│   │   ├── FileController.php                 # → Merlin\Core\Api\FileApi (Dateien vom Handy: Upload-Ziel, Eintrag, Umbenennen, signierter Link)
 │   │   ├── ExtensionController.php            # → Merlin\Core\Api\ExtensionApi
 │   │   ├── ManifestController.php             # → Merlin\Core\Api\PwaApi (PWA-Manifest)
 │   │   ├── ServiceWorkerController.php         # → Merlin\Core\Api\PwaApi (Service-Worker)
@@ -299,10 +304,11 @@ nextcloud/
 │   │   ├── NextcloudContentFilterStore.php # Port ContentFilterStore (merlin_cfilter)
 │   │   ├── NextcloudDatabase.php         # Port Database über IDBConnection/QueryBuilder
 │   │   ├── NextcloudStoredFile.php / NextcloudFilePreviews.php  # Ports StoredFile (OCP-Datei) und FilePreviews (IPreview)
+│   │   ├── NextcloudFileStorage.php      # Port FileStorage: Ordner „Merlin Dateien“ (lokalisiert, per ID gemerkt), Dateien per Pfad/ID, Umbenennen
+│   │   ├── NextcloudTranslations.php     # Port Translations: IL10N in der Sprache eines Nutzers
 │   │   └── NextcloudTranslator.php / NextcloudInstanceSecret.php # Ports Translator (IL10N) und InstanceSecret (config.php)
 │   ├── Service/              # Geschäftslogik
-│   │   ├── ContentFilterRepository.php   # Kern-Repository mit Ablage und Bundle-Orten der App (Logik im Kern, siehe unten)
-│   │   └── MerlinFileService.php         # „Merlin Dateien“: Ordner (lokalisiert, per ID gemerkt), Upload-Ziel, Einträge anlegen/umbenennen (Inhalt und Streamen im Kern)
+│   │   └── ContentFilterRepository.php   # Kern-Repository mit Ablage und Bundle-Orten der App (Logik im Kern, siehe unten)
 │   ├── Settings/             # Verwaltungs- und persönliche Einstellungen
 │   │   ├── AdminSection.php
 │   │   ├── AdminSettings.php
@@ -409,6 +415,7 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │   │   ├── SiteCredentialService.php     # Paywall-Zugangsdaten je Nutzer/Domain (Port SiteSessions): Ablage, Login, Cookie-Cache
 │   │   ├── RetentionPolicy.php           # Reine Rechenregeln der Löschfrist (Minimum, Stichtag, Hinweis fällig?)
 │   │   ├── TagTree.php                   # Reine Baumregeln verschachtelter Tags (Nachfahren, Kreisprüfung beim Verschieben)
+│   │   ├── FileEntries.php               # „Merlin Dateien“: Upload-Ziel, Eintrag anlegen/umbenennen/auffrischen (Port ArticleFiles, Ablage über Port FileStorage)
 │   │   ├── FileEntryService.php          # Datei-Einträge: signierte Links, Inhalt (Marker, Text, Metadaten), Ausliefern mit Range/Vorschaubild
 │   │   ├── FileRules.php                 # „Merlin Dateien“: Dateiart/Kategorie, Dateinamen, signierte Links, Range, Dateigröße
 │   │   └── FileMetadata.php              # Eingebettete Metadaten einer Datei (EXIF, GPS, IPTC, XMP, ID3, MP4/MOV, PDF) für die Anzeige im Reader
@@ -416,7 +423,7 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │                                     # UserSettings, AppSettings, Crypto, RetentionStore, ArticleDeletion,
 │                                     # CommentStore, HighlightStore, CommentGuestStore (DuplicateEntryException),
 │                                     # ShareStore, Session, UserDirectory, ContentFilterStore, Database,
-│                                     # StoredFile, FilePreviews, Translator, InstanceSecret
+│                                     # StoredFile, FilePreviews, FileStorage, Translator, Translations, InstanceSecret
 └── tests/                            # Testharnesses (pures PHP, ohne Composer; autoload.php lädt Merlin\Core\)
     ├── test-content-filter-merge.php
     ├── test-support-box.php           # SupportBoxService (URL-Auswahl, Login-Ausblendung, Share, Seiten-Icon)
@@ -587,16 +594,16 @@ Share-Ansicht liegt die PDF außerhalb von `bodyEl`; dort zeigt eine zweite Engi
 ### Dateien vom Handy („Merlin Dateien“)
 
 Dateien (Bilder, Videos, Audios, PDFs, Sonstiges), die über die iOS-Share-Extension
-gespeichert werden, landen im Nextcloud-Ordner „Merlin Dateien“ und erscheinen
-zugleich als Eintrag in der Leseliste:
+gespeichert werden, landen im Nextcloud-Ordner „Merlin Dateien“ (Standalone: im
+Datenverzeichnis, siehe unten) und erscheinen zugleich als Eintrag in der Leseliste:
 
 ```
-POST /api/files/target {name, mimeType}  → MerlinFileService::uploadTarget()
-     Ordner „Merlin Dateien“/<Art> in der Nextcloud-Sprache des Nutzers, IDs in
-     den Nutzereinstellungen (merlin/files_folder_ids), freier Dateiname
+POST /api/files/target {name, mimeType}  → FileEntries::uploadTarget() → Port FileStorage
+     Nextcloud: Ordner „Merlin Dateien“/<Art> in der Nextcloud-Sprache des Nutzers,
+     IDs in den Nutzereinstellungen (merlin/files_folder_ids), freier Dateiname
      Antwort {path, davPath, uploadsPath, kind}
 Client: PUT davPath bzw. Chunked Upload v2 unter uploadsPath (große Videos)
-POST /api/files {path, tagIds[]}          → MerlinFileService::register()
+POST /api/files {path, tagIds[]}          → FileEntries::register()
      Artikel mit file_id/file_mime (Migration …000032), url = /f/{fileId},
      category Image/Video/Audio/PDF/File, content mit denselben Markern wie
      Web-Artikel (Figure, div.merlin-media delivery=file, div.merlin-pdf)
@@ -611,12 +618,12 @@ Text/Video/Audio. Fotos komprimiert die iOS-Share-Extension auf Wunsch vor dem U
 
 Unter der Datei steht ein Abschnitt „Metadaten“ (`section.merlin-file-metadata`,
 je Gruppe `<details open>` mit Tabelle), gebaut beim Anlegen bzw. bei „Neu laden“
-(MerlinFileService::refresh(), gebaut von FileEntryService::render()). `Service\FileMetadata` liest ohne Abhängigkeiten aus
+(FileEntries::refresh(), gebaut von FileEntryService::render()). `Service\FileMetadata` liest ohne Abhängigkeiten aus
 dem Datei-Stream (Kopf, Ende, gezielte Sprünge): EXIF/GPS (ext-exif), IPTC, XMP,
 ID3v2/ID3v1, QuickTime/MP4 (mvhd, tkhd, ilst, keys/mdta, udta ©xyz) und das
 PDF-Info-Wörterbuch. Test: `php core/tests/test-file-metadata.php`.
 
-PUT /api/articles/{id}/file-name {name} → MerlinFileService::rename(): benennt die
+PUT /api/articles/{id}/file-name {name} → FileEntries::rename(): benennt die
 Datei im selben Ordner um (Endung bleibt, FileRules::renamedName), 409 bei
 vorhandenem Namen; Web: src/file-rename.js. Der Titel folgt immer dem Dateinamen;
 show() frischt Datei-Einträge auf, wenn der Name in Nextcloud geändert wurde
@@ -628,6 +635,21 @@ Die Datei geht bewusst nicht durch die Merlin-API (PHP-Uploadgrenzen). Löschen 
 Eintrags (auch per Löschfrist) lässt die Datei in Nextcloud liegen und macht nur die
 signierten Links ungültig. `/api/articles/{id}/pdf` und `/s/{token}/pdf` liefern
 PDF-Dateieinträge direkt aus Nextcloud.
+
+Im Standalone-Server liegt die Ablage im Datenverzeichnis
+(`Adapter\LocalFileStorage`, `files_path`, Vorgabe `files/` neben der Datenbank):
+`<files_path>/<Nutzer-ID>/<Art>/<Datei>` mit den Ordnern Images, Videos, Audio,
+PDFs und Other files; die Tabelle `stored_files` (Migration 003) gibt jeder Datei
+die ID, die als `file_id` im Eintrag steht. Hochgeladen wird über dieselben Pfade
+wie in Nextcloud (`Controller\DavController`): `PUT /remote.php/dav/files/{user}/{path}`
+sowie Chunked Upload v2 (`MKCOL`/`PUT`/`MOVE …/.file` mit `Destination` und
+`OC-Total-Length`, `DELETE` bricht ab) unter `/remote.php/dav/uploads/{user}/…`;
+der Body wird gestreamt, nicht in den Speicher gelesen (`Request::bodyStream()`).
+Vorschaubilder für JPEG, PNG, GIF und WebP baut `Adapter\GdFilePreviews` mit GD
+(Cache in `<files_path>/.previews/`); HEIC, Videos und PDFs zeigen ein Symbol.
+Anders als in Nextcloud räumt der tägliche Lauf (`Cron\DailyJobs`) Dateien ohne
+Eintrag nach einem Tag weg, ebenso liegen gebliebene Uploads. Test:
+`php standalone/tests/test-files.php`.
 
 ### Titel-Duplikat-Heuristik (`stripDuplicateMetadata()`)
 

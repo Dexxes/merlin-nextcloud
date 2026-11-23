@@ -17,16 +17,20 @@ use Merlin\Core\Persistence\SqlSiteCredentialStore;
 use Merlin\Core\Persistence\SqlTagStore;
 use Merlin\Core\Port;
 use Merlin\Core\Service\ArticleDeletionService;
+use Merlin\Core\Service\FileEntries;
 use Merlin\Core\Service\ShutdownScheduler;
 use Merlin\Core\Service\SiteCredentialService;
 use Merlin\Standalone\Adapter\ConfigInstanceSecret;
-use Merlin\Standalone\Adapter\NoArticleFiles;
+use Merlin\Standalone\Adapter\GdFilePreviews;
+use Merlin\Standalone\Adapter\LocalFileStorage;
+use Merlin\Standalone\Adapter\LocalStoredFile;
 use Merlin\Standalone\Adapter\PhpSession;
 use Merlin\Standalone\Adapter\SodiumCrypto;
 use Merlin\Standalone\Adapter\StandaloneAppSettings;
 use Merlin\Standalone\Adapter\StandaloneContentFilterRepository;
 use Merlin\Standalone\Adapter\SqlThrottler;
 use Merlin\Standalone\Adapter\StandalonePlatform;
+use Merlin\Standalone\Adapter\StandaloneTranslations;
 use Merlin\Standalone\Adapter\StandaloneTranslator;
 use Merlin\Standalone\Adapter\StandaloneUrlGenerator;
 use Merlin\Standalone\Adapter\StandaloneUserDirectory;
@@ -48,8 +52,7 @@ use Psr\Log\LoggerInterface;
  */
 final class App {
 	/**
-	 * Port => Implementierung. Fehlt ein Port hier, ist er im Standalone-Server
-	 * (noch) nicht verfügbar (siehe UNAVAILABLE_PORTS). tests/test-wiring.php
+	 * Port => Implementierung (Wertobjekte stehen in VALUE_PORTS). tests/test-wiring.php
 	 * prüft, dass jeder Port in core/src/Port/ in einer der beiden Listen steht.
 	 *
 	 * @var array<class-string, class-string>
@@ -57,7 +60,7 @@ final class App {
 	public const PORTS = [
 		Port\AppSettings::class         => StandaloneAppSettings::class,
 		Port\ArticleDeletion::class     => ArticleDeletionService::class,
-		Port\ArticleFiles::class        => NoArticleFiles::class,
+		Port\ArticleFiles::class        => FileEntries::class,
 		Port\ArticleStore::class        => SqlArticleStore::class,
 		Port\CommentGuestStore::class   => SqlCommentGuestStore::class,
 		Port\CommentStore::class        => SqlCommentStore::class,
@@ -67,6 +70,8 @@ final class App {
 		Port\ContentFilterStore::class  => SqlContentFilterStore::class,
 		Port\Crypto::class              => SodiumCrypto::class,
 		Port\Database::class            => SqlDatabase::class,
+		Port\FilePreviews::class        => GdFilePreviews::class,
+		Port\FileStorage::class         => LocalFileStorage::class,
 		Port\HighlightStore::class      => SqlHighlightStore::class,
 		Port\InstanceSecret::class      => ConfigInstanceSecret::class,
 		Port\Platform::class            => StandalonePlatform::class,
@@ -78,6 +83,7 @@ final class App {
 		Port\SiteSessions::class        => SiteCredentialService::class,
 		Port\TagStore::class            => SqlTagStore::class,
 		Port\Throttler::class           => SqlThrottler::class,
+		Port\Translations::class        => StandaloneTranslations::class,
 		Port\Translator::class          => StandaloneTranslator::class,
 		Port\UrlGenerator::class        => StandaloneUrlGenerator::class,
 		Port\UserDirectory::class       => StandaloneUserDirectory::class,
@@ -87,12 +93,11 @@ final class App {
 	];
 
 	/**
-	 * Ports für „Merlin Dateien“: gibt es im Standalone-Server vorerst nicht
-	 * (Entscheidung 22.11.2026), /api/capabilities meldet "files" als aus.
+	 * Ports, die nicht über den Container entstehen: StoredFile ist ein
+	 * Wertobjekt, das LocalFileStorage als LocalStoredFile liefert.
 	 */
-	public const UNAVAILABLE_PORTS = [
-		Port\FilePreviews::class,
-		Port\StoredFile::class,
+	public const VALUE_PORTS = [
+		Port\StoredFile::class => LocalStoredFile::class,
 	];
 
 	/** @var array<class-string, object> */
@@ -127,8 +132,8 @@ final class App {
 		if (isset($this->instances[$class])) {
 			return $this->instances[$class];
 		}
-		if (in_array($class, self::UNAVAILABLE_PORTS, true)) {
-			throw new \LogicException("{$class} ist im Standalone-Server nicht verfügbar (Merlin Dateien folgt später).");
+		if (isset(self::VALUE_PORTS[$class])) {
+			throw new \LogicException("{$class} entsteht nicht im Container (" . self::VALUE_PORTS[$class] . ').');
 		}
 		$implementation = self::PORTS[$class] ?? $class;
 		$object = $this->instances[$implementation] ?? $this->build($implementation);
@@ -142,6 +147,8 @@ final class App {
 			FileLogger::class => new FileLogger($this->config->string('log_path', $root . '/data/merlin.log'),
 				$this->config->string('log_level', 'info')),
 			ConfigInstanceSecret::class => new ConfigInstanceSecret($this->config->string('secret')),
+			LocalFileStorage::class => new LocalFileStorage($this->connection(),
+				$this->config->string('files_path', dirname($this->config->string('db_path', $root . '/data/merlin.sqlite')) . '/files')),
 			StandaloneUrlGenerator::class => new StandaloneUrlGenerator($this->config->string('base_url', 'http://localhost')),
 			\PDO::class => $this->connection()->pdo(),
 			PhpMailMailer::class => new PhpMailMailer(

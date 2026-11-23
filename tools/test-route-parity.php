@@ -31,8 +31,8 @@ use Merlin\Standalone\App;
 use Merlin\Standalone\Config;
 use Merlin\Standalone\Http\Routes;
 
-/** Nur in Nextcloud, auch auf Dauer (Merlin Dateien braucht Nextcloud Files). */
-const NEXTCLOUD_ONLY = ['file#target', 'file#register', 'file#content', 'file#rename'];
+/** Nur in Nextcloud (seit Merlin Dateien im Kern steht, keine mehr). */
+const NEXTCLOUD_ONLY = [];
 
 /**
  * Noch nicht in den Kern umgezogen. Wird mit jedem Teil von Etappe 4
@@ -58,6 +58,11 @@ const STANDALONE_ONLY = [
 	'GET /admin/settings', 'PUT /admin/settings',
 	// Einstellungsseiten der Vue-App; in Nextcloud ISettings statt Routen
 	'GET /settings', 'GET /settings/admin',
+	// WebDAV-Upload für Merlin Dateien; in Nextcloud macht das Nextclouds
+	// eigenes WebDAV unter denselben Pfaden (Controller\DavController).
+	'PUT /remote.php/dav/files/{user}/{path}', 'MKCOL /remote.php/dav/uploads/{user}/{transfer}',
+	'DELETE /remote.php/dav/uploads/{user}/{transfer}', 'MOVE /remote.php/dav/uploads/{user}/{transfer}/.file',
+	'PUT /remote.php/dav/uploads/{user}/{transfer}/{chunk}',
 ];
 
 $errors = [];

@@ -30,6 +30,28 @@ code=$(curl -s -o /dev/null -w '%{http_code}' -u "$user:$token" -H 'Content-Type
 case "$code" in 200|201) ;; *) fail "POST /api/tags: HTTP $code" ;; esac
 ok "basic auth api"
 
+# Merlin Dateien: Ziel holen, per WebDAV hochladen (auch in Stücken), eintragen
+field() { sed -n "s/.*\"$1\":\"\([^\"]*\)\".*/\1/p" | sed 's#\\/#/#g'; }
+target=$(curl -fsS -u "$user:$token" -H 'Content-Type: application/json' \
+	-d '{"name":"smoke.txt","mime":"text/plain"}' "$base/api/files/target")
+dav=$(echo "$target" | field davPath)
+path=$(echo "$target" | field path)
+uploads=$(echo "$target" | field uploadsPath)
+[ -n "$dav" ] && [ -n "$path" ] && [ -n "$uploads" ] || fail "POST /api/files/target: $target"
+code=$(printf 'Hallo von smoke-test' | curl -s -o /dev/null -w '%{http_code}' -u "$user:$token" -T - -H 'Content-Type: text/plain' "$base$dav")
+[ "$code" = 201 ] || fail "PUT $dav: HTTP $code"
+code=$(curl -s -o /dev/null -w '%{http_code}' -u "$user:$token" -H 'Content-Type: application/json' \
+	-d "{\"path\":\"$path\"}" "$base/api/files")
+[ "$code" = 201 ] || fail "POST /api/files: HTTP $code"
+transfer="smoke-$$"
+curl -fsS -o /dev/null -u "$user:$token" -X MKCOL "$base$uploads/$transfer" || fail "MKCOL"
+printf 'Teil 1 ' | curl -fsS -o /dev/null -u "$user:$token" -T - "$base$uploads/$transfer/1" || fail "PUT Stück 1"
+printf 'Teil 2' | curl -fsS -o /dev/null -u "$user:$token" -T - "$base$uploads/$transfer/2" || fail "PUT Stück 2"
+code=$(curl -s -o /dev/null -w '%{http_code}' -u "$user:$token" -X MOVE -H "Destination: $base$dav" \
+	-H 'OC-Total-Length: 13' "$base$uploads/$transfer/.file")
+[ "$code" = 204 ] || fail "MOVE .file: HTTP $code"
+ok "merlin dateien"
+
 page=$(curl -fsS -b "$jar" "$base/")
 echo "$page" | grep -q 'id="merlin-state"' || fail "Reader-Seite ohne Startwerte"
 echo "$page" | grep -q 'rel="manifest"' || fail "Reader-Seite ohne Manifest"

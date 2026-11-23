@@ -27,7 +27,7 @@ final class StandaloneUrlGenerator implements UrlGenerator {
 	public function fileContentUrl(array $params): string {
 		$id = $params['id'] ?? '';
 		unset($params['id']);
-		return $this->baseUrl . '/api/files/' . rawurlencode((string) $id) . '/content'
+		return $this->baseUrl . '/api/articles/' . rawurlencode((string) $id) . '/file'
 			. ($params === [] ? '' : '?' . http_build_query($params));
 	}
 

@@ -73,7 +73,8 @@ Exit code 0 means all checks passed.
 ## Standalone server
 
 The same reader without Nextcloud: own accounts, login flow for the apps, API
-tokens, admin settings, SQLite. Every release (tag `vX.Y.Z`) publishes a
+tokens, admin settings, SQLite, and Merlin files (uploads from the iOS share
+extension, stored in the data directory). Every release (tag `vX.Y.Z`) publishes a
 Docker image and a tarball with the same version as the Nextcloud app.
 
 ### Docker (recommended)
@@ -87,11 +88,13 @@ docker run -d --name merlin -p 8080:8080 -v merlin-data:/data \
 ```
 
 or with [`standalone/docker-compose.yml`](standalone/docker-compose.yml). The
-image (amd64 and arm64) contains nginx and PHP-FPM; database, log and the
-instance secret live in the `/data` volume. Migrations run on every start, the
+image (amd64 and arm64) contains nginx and PHP-FPM; database, log, uploaded
+files (`/data/files`) and the instance secret live in the `/data` volume. Migrations run on every start, the
 admin account is created on the first start, and the daily cleanup runs inside
 the container. Put a reverse proxy with HTTPS in front and set
-`MERLIN_BASE_URL` to the public address. All variables are listed in
+`MERLIN_BASE_URL` to the public address. Uploads of large videos go to
+`/remote.php/dav/…`: allow large request bodies there in the proxy (nginx:
+`client_max_body_size 0;` or a large limit). All variables are listed in
 [standalone/README.md](standalone/README.md#docker).
 
 Updating: `docker pull` the new tag and recreate the container; the volume
@@ -114,7 +117,12 @@ Point the web server's document root to `public/` (Apache uses
 `public/.htaccess`; nginx needs `try_files $uri /index.php$is_args$args;` and
 `.mjs` as `text/javascript`, see `standalone/docker/nginx.conf`). Use PHP-FPM,
 so saving an article answers before the extraction. `data/` must be writable
-by the web server. For the daily cleanup either keep
+by the web server; uploaded files go to `data/files/` (`files_path` in
+`config.php`, keep it outside the document root). The apps upload over
+`/remote.php/dav/…` like to Nextcloud: route those paths to `index.php` too,
+without a body size limit (see the `^~ /remote.php/dav/` location in
+`standalone/docker/nginx.conf`; Apache: `LimitRequestBody 0`). Thumbnails need
+the PHP extension `gd` (`exif` for photo orientation). For the daily cleanup either keep
 `'background_jobs' => 'web'` or set `'cron'` and add
 `0 * * * * php /path/to/merlin-standalone/bin/merlin cron`.
 

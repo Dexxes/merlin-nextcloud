@@ -9,7 +9,7 @@ use OCP\IL10N;
 
 /**
  * Translator-Port des Kerns über ein IL10N (eine Sprache). Wird je Nutzer
- * gebaut (MerlinFileService), nicht per DI.
+ * gebaut (NextcloudTranslations), nicht per DI.
  */
 class NextcloudTranslator implements Translator {
 	public function __construct(

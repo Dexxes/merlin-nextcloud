@@ -14,6 +14,15 @@ interface ArticleStore {
 	public function find(int $id, string $userId): ?Article;
 
 	/**
+	 * Ohne Besitzer, nur für signierte Datei-Links (GET /api/articles/{id}/file):
+	 * das Token prüft danach Eintrag, Datei und Besitzer.
+	 */
+	public function findById(int $id): ?Article;
+
+	/** Datei-Eintrag eines Nutzers zu einer gespeicherten Datei („Merlin Dateien“). */
+	public function findByFileId(string $userId, int $fileId): ?Article;
+
+	/**
 	 * Liste für GET /api/articles, neueste zuerst (Favoriten nach
 	 * Favorisierung, Archiv nach Archivierung), bei Gleichstand nach id.
 	 *

@@ -7,7 +7,7 @@ namespace OCA\Merlin\Tests\Api;
 /**
  * "Merlin files": upload into Nextcloud Files over WebDAV, register the
  * entry, fetch it over the signed link, rename it (FileController,
- * MerlinFileService, core FileEntryService; StoredFile and FilePreviews ports).
+ * core FileApi, FileEntries and FileEntryService, NextcloudFileStorage; StoredFile and FilePreviews ports).
  */
 class FileApiTest extends ApiTestCase {
 	public function testUploadRegisterDownloadRename(): void {

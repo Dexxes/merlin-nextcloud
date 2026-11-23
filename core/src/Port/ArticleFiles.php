@@ -11,8 +11,7 @@ use Merlin\Core\Domain\Article;
  * Dateiname, Inhalt mit Metadaten und Download-Link. Die Artikel-API ruft das
  * nur für Artikel mit fileId auf.
  *
- * Nextcloud: Adapter\NextcloudArticleFiles über Service\MerlinFileService.
- * Standalone: Merlin Dateien gibt es dort noch nicht (Adapter\NoArticleFiles).
+ * In beiden Varianten Service\FileEntries (über den Port FileStorage).
  */
 interface ArticleFiles {
 	/**

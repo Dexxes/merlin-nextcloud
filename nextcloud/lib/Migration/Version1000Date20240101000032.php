@@ -13,7 +13,7 @@ use OCP\Migration\SimpleMigrationStep;
 /**
  * Datei-Einträge: merlin_articles bekommt file_id (Nextcloud-Datei-ID, NULL =
  * normaler Web-Artikel) und file_mime. Gesetzt für Dateien, die vom Handy in
- * „Merlin Dateien“ gespeichert wurden (Service\MerlinFileService).
+ * „Merlin Dateien“ gespeichert wurden (Merlin\Core\Service\FileEntries).
  */
 class Version1000Date20240101000032 extends SimpleMigrationStep {
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {

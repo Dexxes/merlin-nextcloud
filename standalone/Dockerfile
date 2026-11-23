@@ -41,9 +41,10 @@ RUN rm -rf standalone/vendor standalone/data standalone/config/config.php \
 # ---------------------------------------------------------------------------
 FROM php:8.4-fpm-alpine
 
-RUN apk add --no-cache nginx su-exec icu-libs \
- && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS icu-dev \
- && docker-php-ext-install -j"$(nproc)" intl opcache \
+RUN apk add --no-cache nginx su-exec icu-libs libpng libjpeg-turbo libwebp \
+ && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS icu-dev libpng-dev libjpeg-turbo-dev libwebp-dev \
+ && docker-php-ext-configure gd --with-jpeg --with-webp \
+ && docker-php-ext-install -j"$(nproc)" intl opcache gd exif \
  && apk del .build-deps \
  && rm -rf /tmp/pear
 

@@ -76,7 +76,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: dom, mbstring, curl, sodium, pdo_sqlite
+          extensions: dom, mbstring, curl, sodium, pdo_sqlite, gd, exif
           coverage: none
           tools: composer:v2
       - name: composer install (nextcloud)

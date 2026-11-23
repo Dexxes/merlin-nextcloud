@@ -110,7 +110,7 @@ try {
 	[$status, $caps] = $http('GET', '/api/capabilities');
 	check($status === 200 && ($caps['backend'] ?? null) === 'standalone' && ($caps['apiVersion'] ?? null) === 1, 'capabilities ohne Anmeldung', json_encode($caps));
 	check(preg_match('/^\d+\.\d+\.\d+/', (string) ($caps['version'] ?? '')) === 1, 'capabilities: gemeinsame Versionsnummer', (string) ($caps['version'] ?? ''));
-	check(!in_array('files', $caps['features'] ?? ['files'], true), 'capabilities: Merlin Dateien aus');
+	check(in_array('files', $caps['features'] ?? [], true), 'capabilities: Merlin Dateien an');
 
 	[$status] = $http('GET', '/account/tokens');
 	check($status === 401, 'ohne Anmeldung: 401');

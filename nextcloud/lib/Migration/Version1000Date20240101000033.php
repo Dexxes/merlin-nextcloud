@@ -13,7 +13,7 @@ use OCP\Migration\SimpleMigrationStep;
 /**
  * Datei-Einträge: file_text für Text, den die iOS-Share-Extension in Bildern
  * erkannt hat (OCR). Wird von der Suche durchsucht und im Content angezeigt
- * (Service\MerlinFileService).
+ * (Merlin\Core\Service\FileEntries).
  */
 class Version1000Date20240101000033 extends SimpleMigrationStep {
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {

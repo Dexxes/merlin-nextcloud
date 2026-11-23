@@ -13,6 +13,7 @@ use Merlin\Standalone\Cron\DailyJobs;
 use Merlin\Standalone\Db\UserRepository;
 use Merlin\Standalone\Http\Request;
 use Merlin\Standalone\Http\Response;
+use Merlin\Standalone\I18n\AppTranslations;
 use Merlin\Standalone\I18n\Translator;
 use Merlin\Standalone\Version;
 
@@ -125,27 +126,6 @@ final class AppController {
 	}
 
 	/**
-	 * Übersetzungen der App aus nextcloud/l10n/{locale}.json (dieselben wie in
-	 * Nextcloud); Englisch ist der Quelltext. Ein Release-Paket ohne
-	 * nextcloud/ legt sie nach standalone/l10n/.
-	 *
-	 * @return array<string, string|list<string>>|null
-	 */
-	private static function translations(string $locale): ?array {
-		if ($locale === 'en' || !preg_match('/^[a-z]{2}(_[A-Z]{2})?$/', $locale)) {
-			return null;
-		}
-		$root = dirname(__DIR__, 2);
-		foreach ([$root . '/l10n/' . $locale . '.json', dirname($root) . '/nextcloud/l10n/' . $locale . '.json'] as $file) {
-			if (is_file($file)) {
-				$bundle = json_decode((string) file_get_contents($file), true);
-				return is_array($bundle['translations'] ?? null) ? $bundle['translations'] : null;
-			}
-		}
-		return null;
-	}
-
-	/**
 	 * @param string $entry Name des Vite-Einstiegs (merlin-{entry}.mjs/.css)
 	 * @param list<string> $mountIds Container, in die der Einstieg seine App(s) setzt
 	 * @param array<string, mixed> $values Startwerte für loadState()
@@ -159,7 +139,7 @@ final class AppController {
 			'base' => $basePath,
 			'loginUrl' => $user === null ? null : $basePath . '/login',
 			'links' => $user === null ? [] : self::links($basePath, $user),
-			'l10n' => self::translations($t->locale()),
+			'l10n' => AppTranslations::load($t->locale()),
 			'values' => $values,
 		];
 		$built = is_file(self::BUILD_DIR . '/js/merlin-' . $entry . '.mjs');
