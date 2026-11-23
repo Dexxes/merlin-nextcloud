@@ -1,0 +1,193 @@
+# Release: ein Tag vX.Y.Z baut beide Varianten mit derselben Version
+# (Plan „gemeinsames Repo“, Entscheidung 3).
+#
+#   1. Prüfen: Tag = <version> in nextcloud/appinfo/info.xml, und CHANGELOG.md
+#      hat einen Abschnitt „## [X.Y.Z]“.
+#   2. Pakete: Appstore-Tarball (nextcloud/Makefile, build-source) und
+#      Standalone-Tarball (standalone/tools/assemble.sh), mit SHA-256-Summen.
+#   3. Image: ghcr.io/<owner>/merlin-standalone für linux/amd64 und
+#      linux/arm64, Tags X.Y.Z, X.Y und latest (latest und X.Y nicht bei
+#      Vorabversionen mit „-“, z. B. v1.1.0-rc.1). Vorher Starttest mit
+#      standalone/docker/smoke-test.sh.
+#   4. GitHub-Release als Entwurf mit den Notizen aus CHANGELOG.md und
+#      beiden Tarballs. Signieren für den Appstore bleibt Handarbeit:
+#        openssl dgst -sha512 -sign ~/.nextcloud/certificates/merlin.key \
+#          merlin-nextcloud-X.Y.Z.tar.gz | openssl base64
+#      Danach den Entwurf veröffentlichen und im Appstore hochladen.
+#
+# Von Hand (workflow_dispatch) läuft alles bis auf das Hochladen: kein
+# Image-Push, kein Release, nur die Pakete als Artefakte.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/merlin-standalone
+
+jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+      publish: ${{ steps.v.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: v
+        run: |
+          app=$(sed -n 's#.*<version>\([^<]*\)</version>.*#\1#p' nextcloud/appinfo/info.xml | head -n 1)
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            version=${GITHUB_REF_NAME#v}
+            publish=true
+            # Vorabversionen (1.1.0-rc.1) tragen in info.xml die Version ohne Zusatz.
+            if [ "${version%%-*}" != "$app" ]; then
+              echo "::error::Tag $GITHUB_REF_NAME passt nicht zu <version>$app</version> in nextcloud/appinfo/info.xml"
+              exit 1
+            fi
+          else
+            version=$app
+            publish=false
+          fi
+          case "$version" in *-*) prerelease=true ;; *) prerelease=false ;; esac
+          if ! tools/release-notes.sh "${version%%-*}" > /dev/null; then
+            if [ "$publish" = true ]; then
+              echo "::error::CHANGELOG.md hat keinen Abschnitt „## [${version%%-*}]“"
+              exit 1
+            fi
+            echo "::warning::CHANGELOG.md hat noch keinen Abschnitt „## [${version%%-*}]“"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          echo "Version $version (Vorabversion: $prerelease, veröffentlichen: $publish)"
+
+  packages:
+    name: Tarballs
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+      - name: npm install
+        working-directory: frontend
+        run: npm install --no-audit --no-fund
+      - name: Appstore-Tarball
+        run: |
+          (cd frontend && npm run build)
+          (cd nextcloud && make build-source)
+          mkdir -p dist
+          tar -czf "dist/merlin-nextcloud-$VERSION.tar.gz" -C nextcloud/build/artifacts merlin
+      - name: Standalone-Tarball
+        run: |
+          (cd frontend && npm run build:standalone)
+          standalone/tools/assemble.sh build/merlin-standalone
+          echo "$VERSION" > build/merlin-standalone/VERSION
+          tar -czf "dist/merlin-standalone-$VERSION.tar.gz" -C build merlin-standalone
+      - name: Prüfsummen
+        working-directory: dist
+        run: sha256sum *.tar.gz | tee SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-packages
+          path: dist/
+          retention-days: 30
+
+  image:
+    name: Standalone-Image
+    needs: version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      PRERELEASE: ${{ needs.version.outputs.prerelease }}
+      PUBLISH: ${{ needs.version.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build (amd64) und Starttest
+        run: |
+          docker build -f standalone/Dockerfile -t merlin-standalone:test \
+            --label "org.opencontainers.image.version=$VERSION" .
+          docker run -d --name merlin -p 8080:8080 \
+            -e MERLIN_BASE_URL=http://127.0.0.1:8080 \
+            -e MERLIN_ADMIN_USER=admin -e MERLIN_ADMIN_EMAIL=admin@example.org \
+            -e MERLIN_ADMIN_PASSWORD=release-check-123 merlin-standalone:test
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/api/capabilities > /dev/null && break
+            sleep 1
+          done
+          standalone/docker/smoke-test.sh http://127.0.0.1:8080 admin release-check-123
+          docker rm -f merlin
+      - name: Anmelden bei ghcr.io
+        if: env.PUBLISH == 'true'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Build und Push (amd64, arm64)
+        if: env.PUBLISH == 'true'
+        run: |
+          image=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
+          tags="-t $image:$VERSION"
+          if [ "$PRERELEASE" = false ]; then
+            tags="$tags -t $image:${VERSION%.*} -t $image:latest"
+          fi
+          docker run --privileged --rm tonistiigi/binfmt --install arm64
+          docker buildx create --use --name merlin-release
+          docker buildx build --platform linux/amd64,linux/arm64 -f standalone/Dockerfile \
+            --label "org.opencontainers.image.version=$VERSION" \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.licenses=AGPL-3.0-or-later" \
+            --label "org.opencontainers.image.revision=${{ github.sha }}" \
+            $tags --push .
+
+  release:
+    name: GitHub-Release (Entwurf)
+    needs: [version, packages, image]
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      PRERELEASE: ${{ needs.version.outputs.prerelease }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Pakete aus diesem Lauf holen
+        run: gh run download "${{ github.run_id }}" -n release-packages -D dist
+      - name: Release-Entwurf anlegen
+        run: |
+          image=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
+          {
+            tools/release-notes.sh "${VERSION%%-*}"
+            echo
+            echo "---"
+            echo
+            echo "**Nextcloud:** \`merlin-nextcloud-$VERSION.tar.gz\` ist der Appstore-Tarball (vor dem Hochladen signieren)."
+            echo
+            echo "**Standalone:** \`docker pull $image:$VERSION\` oder \`merlin-standalone-$VERSION.tar.gz\` (siehe standalone/README.md)."
+          } > notes.md
+          flags="--draft"
+          if [ "$PRERELEASE" = true ]; then flags="$flags --prerelease"; fi
+          gh release create "$GITHUB_REF_NAME" $flags --title "Merlin $VERSION" --notes-file notes.md \
+            dist/merlin-nextcloud-$VERSION.tar.gz dist/merlin-standalone-$VERSION.tar.gz dist/SHA256SUMS

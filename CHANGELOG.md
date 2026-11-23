@@ -52,6 +52,11 @@ All notable changes to Merlin are documented here. Format based on
   the daily cleanup inside the container. `standalone/tools/assemble.sh`
   builds the same package as a tarball; CI builds both and smoke-tests the
   image.
+- Release workflow: a tag `vX.Y.Z` (same version as `info.xml`, with a
+  CHANGELOG section) builds the app store tarball, the standalone tarball and
+  the standalone image `ghcr.io/dexxes/merlin-standalone` (amd64 and arm64),
+  and opens a draft GitHub release with the notes from this file. Signing for
+  the app store stays manual.
 - [standalone] CSRF protection: requests that change data and are signed in
   with the browser session now need the `X-Requested-With: XMLHttpRequest`
   header. API tokens (native apps, browser extension) are not affected.
