@@ -10,10 +10,12 @@ declare(strict_types=1);
  *   bin/merlin create-admin --username=… --email=… [--password=…]
  *                                                        Admin-Konto anlegen (ohne --password: Abfrage)
  *   bin/merlin extract <url> [--user=<id>] [--content]   Artikel extrahieren wie beim Speichern, Ergebnis als JSON
+ *   bin/merlin cron [--force]                            tägliche Aufgaben (Löschfrist), höchstens einmal am Tag
  */
 
 use Merlin\Core\Extraction\ContentExtractorService;
 use Merlin\Standalone\App;
+use Merlin\Standalone\Cron\DailyJobs;
 use Merlin\Standalone\Auth\PasswordHasher;
 use Merlin\Standalone\Db\MigrationRunner;
 use Merlin\Standalone\Db\UserRepository;
@@ -123,10 +125,23 @@ try {
 			fwrite(STDOUT, json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n");
 			exit(0);
 
+		case 'cron':
+			// Für den System-Cron, z. B. stündlich:
+			//   0 * * * * php /pfad/zu/standalone/bin/merlin cron
+			// Gearbeitet wird höchstens einmal in 24 Stunden (--force: sofort).
+			$app = App::fromConfigFile();
+			$result = $app->get(DailyJobs::class)->runIfDue(in_array('--force', $argv, true));
+			if ($result === null) {
+				fwrite(STDOUT, "Nichts fällig (letzter Lauf vor weniger als 24 Stunden).\n");
+			} else {
+				fwrite(STDOUT, "Löschfrist: {$result['articles']} Artikel, {$result['shares']} abgelaufene Share-Links gelöscht.\n");
+			}
+			exit(0);
+
 		case 'help':
 		case '--help':
 		case '-h':
-			fwrite(STDOUT, "Aufruf: bin/merlin <befehl>\n\n  migrate        fehlende Migrationen anwenden\n  create-admin   Admin-Konto anlegen (--username, --email, --password)\n  extract        Artikel extrahieren und als JSON ausgeben (<url> [--user=<id>] [--content])\n");
+			fwrite(STDOUT, "Aufruf: bin/merlin <befehl>\n\n  migrate        fehlende Migrationen anwenden\n  create-admin   Admin-Konto anlegen (--username, --email, --password)\n  extract        Artikel extrahieren und als JSON ausgeben (<url> [--user=<id>] [--content])\n  cron           tägliche Aufgaben (Löschfrist), höchstens einmal am Tag ([--force])\n");
 			exit(0);
 
 		default:

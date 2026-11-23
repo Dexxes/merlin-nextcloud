@@ -38,6 +38,7 @@ use Merlin\Core\Api\ContentFilterApi;
 use Merlin\Core\Api\ExtensionApi;
 use Merlin\Core\Api\HighlightApi;
 use Merlin\Core\Api\MediaApi;
+use Merlin\Core\Api\PwaApi;
 use Merlin\Core\Api\PublicCommentApi;
 use Merlin\Core\Api\PublicShareApi;
 use Merlin\Core\Api\ReportApi;
@@ -57,6 +58,8 @@ $filterDomain = ['domain' => '[a-z0-9._\-]+'];
 $loginDomain = ['domain' => '[a-z0-9.\-]+'];
 
 return [
+	['name' => 'manifest#index', 'verb' => 'GET', 'url' => '/manifest.webmanifest', 'handler' => [PwaApi::class, 'manifest'], 'access' => 'public'],
+	['name' => 'service_worker#index', 'verb' => 'GET', 'url' => '/sw.js', 'handler' => [PwaApi::class, 'serviceWorker'], 'access' => 'public'],
 	['name' => 'capabilities#show', 'verb' => 'GET', 'url' => '/api/capabilities', 'handler' => [CapabilitiesApi::class, 'show'], 'access' => 'public'],
 
 	// Artikel

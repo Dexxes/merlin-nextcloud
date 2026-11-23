@@ -10,6 +10,7 @@
  * @var list<string> $mountIds
  * @var string|null $pageTitle Einstellungsseite: Titel-Key, mit Navigationsleiste
  * @var bool $isAdmin
+ * @var bool $pwa Reader: Manifest und Apple-Angaben für „Zum Startbildschirm“
  * @var bool $built
  * @var string $stateJson
  */
@@ -23,6 +24,14 @@ $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 <meta name="referrer" content="no-referrer">
 <title><?= $pageTitle === null ? 'Merlin' : $e($t->t($pageTitle)) . ' · Merlin' ?></title>
 <link rel="icon" href="<?= $e($basePath . '/img/app.svg') ?>">
+<?php if ($pwa): ?>
+<link rel="manifest" href="<?= $e($basePath . '/manifest.webmanifest') ?>">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Merlin">
+<meta name="theme-color" content="#0082c9">
+<link rel="apple-touch-icon" href="<?= $e($basePath . '/img/apple-touch-icon.png') ?>">
+<?php endif; ?>
 <?php if ($built): ?>
 <link rel="stylesheet" href="<?= $e($basePath . '/app/css/merlin-' . $entry . '.css') ?>">
 <script type="application/json" id="merlin-state"><?= $stateJson ?></script>

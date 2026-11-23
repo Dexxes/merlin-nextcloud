@@ -9,6 +9,7 @@ use Merlin\Core\Api\ContentFilterApi;
 use Merlin\Core\Api\RetentionApi;
 use Merlin\Core\Port\UserSettings;
 use Merlin\Standalone\Auth\SessionService;
+use Merlin\Standalone\Cron\DailyJobs;
 use Merlin\Standalone\Db\UserRepository;
 use Merlin\Standalone\Http\Request;
 use Merlin\Standalone\Http\Response;
@@ -38,6 +39,7 @@ final class AppController {
 		private readonly UserRepository $users,
 		private readonly ContentFilterApi $contentFilters,
 		private readonly RetentionApi $retention,
+		private readonly DailyJobs $dailyJobs,
 	) {
 	}
 
@@ -46,10 +48,12 @@ final class AppController {
 		if ($user === null) {
 			return Response::redirect('/login');
 		}
+		// Ohne System-Cron: Löschfrist hier nachholen (siehe DailyJobs).
+		$this->dailyJobs->scheduleFromWebRequest();
 		return $this->render($request, 'main', ['merlin-app'], [
 			'appInfo' => Version::appInfo(),
-			// PWA (Service Worker, Manifest) folgt mit Etappe 6.
-			'swUrl' => null,
+			// PWA wie in Nextclouds PageController (Manifest-Link im Template)
+			'swUrl' => rtrim(Response::getBasePath(), '/') . '/sw.js',
 		], $user);
 	}
 
@@ -165,6 +169,7 @@ final class AppController {
 			'entry' => $entry,
 			'mountIds' => $mountIds,
 			'pageTitle' => $pageTitle,
+			'pwa' => $entry === 'main',
 			'isAdmin' => $user !== null && $user['role'] === 'admin',
 			'built' => $built,
 			// JSON im <script>: "</script>" und "<!--" dürfen nicht entstehen.

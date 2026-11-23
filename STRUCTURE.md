@@ -100,7 +100,8 @@ Handler wie `Api\ArticleApi`, `Api\TagApi`, `Api\CapabilitiesApi`,
 `Api\RetentionApi`, `Api\StorageApi`, `Api\ContentFilterApi` (über den Port
 `ContentFilterEditor`, dieselbe Instanz wie `ContentFilterSource`, damit ein
 Testlauf seinen Entwurf an die Extraktion gibt), `Api\SiteCredentialApi`,
-`Api\ReportApi` und `Api\ExtensionApi` (Browser-Erweiterung) bekommen ein
+`Api\ReportApi`, `Api\ExtensionApi` (Browser-Erweiterung) und `Api\PwaApi`
+(Manifest, Service-Worker) bekommen ein
 `ApiRequest` (Nutzer, Parameter aus Query, Body und Pfad, umgewandelt wie von
 Nextclouds Dispatcher) und liefern ein `ApiResult` (JSON, Text mit eigenem
 Content-Type, SSE-Stream oder `passthrough`: der Dienst schreibt die ganze
@@ -128,9 +129,15 @@ gilt auch für Konto und Admin-Nutzer); API-Tokens sind davon ausgenommen.
 `tools/test-route-parity.php`
 prüft Tabelle, Nextcloud-Routen und -Controller (Methode, Handler-Aufruf,
 Attribute) und Standalone-Router; Routen nur einer Variante stehen dort in
-`NEXTCLOUD_ONLY`, `NOT_YET_IN_CORE` (wird mit jedem Teil kürzer) oder
+`NEXTCLOUD_ONLY`, `NOT_YET_IN_CORE` (inzwischen leer) oder
 `STANDALONE_ONLY`; die HTML-Seiten der Vue-App (`/`, `/s/{token}`) gibt es in
 beiden unter demselben Pfad (`PLATFORM_PAGES`).
+
+Standalone-Hintergrundarbeit: `Cron\DailyJobs` (Löschfrist über den
+Kern-`RetentionService`, wie `BackgroundJob\RetentionCleanupJob` in Nextcloud)
+läuft über `bin/merlin cron` oder, mit `'background_jobs' => 'web'`
+(Standard), nach dem Ausliefern des Readers; höchstens einmal in 24 Stunden
+(Zeitpunkt in `settings.daily_jobs_last_run`).
 
 Standalone-HTTP: `standalone/public/index.php` baut die Routen aus
 `src/Http/Routes.php`: die gemeinsame API aus dem Kern, dazu die
@@ -253,8 +260,8 @@ nextcloud/
 │   │   ├── PdfController.php                  # → Merlin\Core\Api\ArticleStreamApi (Datei-Einträge über den Port ArticleFiles)
 │   │   ├── FileController.php                 # Dateien vom Handy: Upload-Ziel, Eintrag anlegen, GET /api/articles/{id}/file (signierter Link)
 │   │   ├── ExtensionController.php            # → Merlin\Core\Api\ExtensionApi
-│   │   ├── ManifestController.php             # PWA-Manifest
-│   │   ├── ServiceWorkerController.php         # Liefert den Service-Worker (PWA)
+│   │   ├── ManifestController.php             # → Merlin\Core\Api\PwaApi (PWA-Manifest)
+│   │   ├── ServiceWorkerController.php         # → Merlin\Core\Api\PwaApi (Service-Worker)
 │   │   ├── YoutubeEmbedController.php          # → Merlin\Core\Api\MediaApi (YouTube-Seite mit eigener CSP)
 │   │   ├── MediaController.php                 # → Merlin\Core\Api\MediaApi
 │   │   ├── VideoStreamController.php           # → Merlin\Core\Api\MediaApi (veraltet, nur HLS-Video)
@@ -360,6 +367,7 @@ core/                          # Composer-Paket merlin/core, Namespace Merlin\Co
 │   │   ├── SettingsApi.php               # /api/settings (Leseeinstellungen, Typen, Löschfrist des Nutzers)
 │   │   ├── RetentionApi.php              # Löschfrist: Hinweis bestätigen, Admin-Maximum, Vorschau
 │   │   ├── StorageApi.php                # /api/storage (Bytes der Textspalten je Nutzer)
+│   │   ├── PwaApi.php                    # PWA: Manifest und Service-Worker (öffentlich)
 │   │   ├── ContentFilterApi.php          # Content-Filter: Admin (/api/admin/content-filters…) und eigene Ebene (/api/user/…), Testlauf
 │   │   ├── SiteCredentialApi.php         # Paywall-Abo-Zugangsdaten (/api/user/site-credentials…)
 │   │   ├── ReportApi.php                 # Meldungsbackend: Ping, Artikel melden

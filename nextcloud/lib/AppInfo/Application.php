@@ -7,6 +7,7 @@ namespace OCA\Merlin\AppInfo;
 use Merlin\Core\Api\ArticleApi;
 use Merlin\Core\Api\ArticleStreamApi;
 use Merlin\Core\Api\CapabilitiesApi;
+use Merlin\Core\Api\PwaApi;
 use Merlin\Core\Api\CommentApi;
 use Merlin\Core\Api\ContentFilterApi;
 use Merlin\Core\Api\ExtensionApi;
@@ -200,6 +201,7 @@ class Application extends App implements IBootstrap {
 		ArticleApi::class,
 		TagApi::class,
 		CapabilitiesApi::class,
+		PwaApi::class,
 		HighlightApi::class,
 		CommentApi::class,
 		ShareApi::class,

@@ -167,7 +167,7 @@ try {
 	$built = is_file(dirname(__DIR__) . '/public/app/js/merlin-main.mjs');
 	[$status, , $body] = $http('GET', '/', null, [], null, $jar);
 	check($built
-		? $status === 200 && str_contains($body, 'id="merlin-app"') && str_contains($body, '"loginUrl":"/login"') && str_contains($body, '"appInfo":{"version"')
+		? $status === 200 && str_contains($body, 'id="merlin-app"') && str_contains($body, '"loginUrl":"/login"') && str_contains($body, '"appInfo":{"version"') && str_contains($body, '"swUrl":"/sw.js"') && str_contains($body, 'rel="manifest" href="/manifest.webmanifest"')
 		: $status === 503 && str_contains($body, 'build:standalone'), 'Reader-Seite mit Session', substr($body, 0, 300));
 	[$status, , , $headers] = $http('GET', '/');
 	check($status === 303 && str_ends_with($headers['location'] ?? '', '/login'), 'Reader ohne Anmeldung: zum Login');

@@ -32,9 +32,5 @@ return [
         // HTML-Seite der öffentlichen Ansicht eines geteilten Artikels (ohne
         // Anmeldung). Entsperren, Daten, Vorlesen, PDF und Gast-Kommentare kommen aus dem Kern.
         ['name' => 'public_share#show',       'url' => '/s/{token}',              'verb' => 'GET'],
-
-        // PWA: Web App Manifest + Service Worker
-        ['name' => 'manifest#index',       'url' => '/manifest.webmanifest', 'verb' => 'GET'],
-        ['name' => 'service_worker#index', 'url' => '/sw.js',                'verb' => 'GET'],
     ]
 ];
