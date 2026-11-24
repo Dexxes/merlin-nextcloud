@@ -10,8 +10,14 @@
   Artikel komplett auf einer Seite ausgeliefert werden (keine Pagination-Logik nötig).
 
   WARTUNG: Cookie-Name und -Wert stammen von Golem und können sich ändern
-  (der Name trägt eine Jahreszahl, der Wert ein Datum). Bricht der Import wieder
-  mit einer Weiterleitung auf die Zustimmungsseite ab, ist hier der erste Blick.
+  (der Name trägt eine Jahreszahl, der Wert ein Datum). Golem prüft den Wert
+  exakt: gültig ist nur "cmp" + die aktuelle Consent-Version, ein veralteter
+  Wert führt wieder zur Weiterleitung. So findet man den aktuellen Wert:
+    curl -s 'https://www.golem.de/sonstiges/zustimmung/auswahl.html' \
+      | grep -o '"cookieName":"[^"]*"\|"cookieVersion":"[^"]*"'
+  Aus cookieName=golem_consent20 und cookieVersion=|261101 wird
+  golem_consent20=cmp|261101 (Stand 11/2026; davor |250101).
+  Prüfen: MERLIN_LIVE_TESTS=1 php core/tests/test-golem-consent.php
   Referenz: https://github.com/fivefilters/ftr-site-config → golem.de.txt
 
   Die verfügbaren Sektionen und Regeltypen sind in $sample.com.xml dokumentiert.
@@ -20,7 +26,7 @@
 
   <!-- ── Fetch-Header ───────────────────────────────────────────────────── -->
   <fetch>
-    <header name="Cookie" value="golem_consent20=cmp|250101; golem_multipage=single" />
+    <header name="Cookie" value="golem_consent20=cmp|261101; golem_multipage=single" />
   </fetch>
 
   <!-- ── Pre-Filter ─────────────────────────────────────────────────────── -->
