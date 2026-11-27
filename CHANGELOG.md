@@ -30,6 +30,13 @@ All notable changes to Merlin are documented here. Format based on
   `/api/articles/{id}/file-name`) now runs on the shared core in the Nextcloud
   app too; paths and responses are unchanged.
 
+### Fixed
+- golem.de: articles are imported again instead of the cookie banner. Golem
+  raised its consent version, so the consent cookie in the content filter
+  (`golem_consent20=cmp|261101`) is updated. New test
+  `core/tests/test-golem-consent.php` checks the cookie; with
+  `MERLIN_LIVE_TESTS=1` it compares it against the live consent page.
+
 ### Security
 - The SSRF guard for article fetching, PDF proxy, media, social and login
   requests now also rejects IPv6 addresses that embed an internal IPv4
