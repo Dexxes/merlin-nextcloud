@@ -23,7 +23,7 @@
 ARG NEXTCLOUD_VERSION=35-apache
 
 # ---------------------------------------------------------------------------
-FROM alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f AS source
+FROM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf AS source
 ARG MERLIN_REPO=https://github.com/Dexxes/merlin-nextcloud.git
 ARG MERLIN_REF=main
 # BuildKit re-checks the remote ref on every build, so a new commit on
@@ -39,7 +39,7 @@ RUN if [ -f /ctx/nextcloud/appinfo/info.xml ]; then \
            /app/nextcloud/js /app/docker /app/Dockerfile /app/docker-compose.yml
 
 # ---------------------------------------------------------------------------
-FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS frontend
+FROM node:26-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS frontend
 WORKDIR /build
 # Installs exactly what frontend/package-lock.json pins (npm ci).
 # Same layout as the repository: frontend/ builds into ../nextcloud/js and

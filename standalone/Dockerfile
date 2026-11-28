@@ -16,7 +16,7 @@
 # oder, falls vorhanden, aus /data/config.php. Siehe standalone/README.md.
 
 # ---------------------------------------------------------------------------
-FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS frontend
+FROM node:26-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS frontend
 WORKDIR /build
 # Genau die Versionen aus frontend/package-lock.json (npm ci).
 COPY frontend/package.json frontend/package-lock.json ./frontend/
@@ -39,7 +39,7 @@ RUN rm -rf standalone/vendor standalone/data standalone/config/config.php \
  && sh standalone/tools/assemble.sh /merlin
 
 # ---------------------------------------------------------------------------
-FROM php:8.4-fpm-alpine@sha256:c0e41e0c856bf97b2e749f40a804031ce938d0d496c4c7d91ad416d993172826
+FROM php:8.5-fpm-alpine@sha256:51414d5291758fe27f58a64c7e8a078465d32cc7dcef7bda803f5b36019802e0
 
 RUN apk add --no-cache nginx su-exec icu-libs libpng libjpeg-turbo libwebp \
  && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS icu-dev libpng-dev libjpeg-turbo-dev libwebp-dev \
